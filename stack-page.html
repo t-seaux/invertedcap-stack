@@ -72,7 +72,7 @@
   }
   .artifact-inner {
     width: 100%;
-    overflow-x: auto;
+    overflow: hidden;
   }
 
   /* ── STACK MAP (Artifact 1) ── */
@@ -239,7 +239,7 @@
   .qr-wrap {
     font-family: 'Courier New', Courier, monospace;
     color: #fffffb;
-    width: 980px;
+    width: 1080px;
     padding: 40px 44px 48px;
     background: #262624;
   }
@@ -492,7 +492,24 @@ const connections = [
   {fn:'fn-diligence',db:'db-notes', color:'#888780'},
   {fn:'fn-research', db:'db-notes', color:'#888780'},
 ];
-window.addEventListener('load', () => {
+function scaleArtifacts() {
+  document.querySelectorAll('.artifact-inner').forEach(inner => {
+    const wrap = inner.firstElementChild;
+    // Reset transform to measure natural width
+    wrap.style.transform = '';
+    inner.style.height = '';
+    const containerWidth = inner.clientWidth;
+    const contentWidth = wrap.scrollWidth;
+    if (contentWidth > containerWidth) {
+      const scale = containerWidth / contentWidth;
+      wrap.style.transform = 'scale(' + scale + ')';
+      wrap.style.transformOrigin = 'top left';
+      inner.style.height = (wrap.offsetHeight * scale) + 'px';
+    }
+  });
+}
+
+function drawLines() {
   const svg = document.getElementById('svg-lines');
   const mid = document.getElementById('mid');
   const mR  = mid.getBoundingClientRect();
@@ -513,6 +530,15 @@ window.addEventListener('load', () => {
     p.setAttribute('opacity',      '0.6');
     svg.appendChild(p);
   });
+}
+
+window.addEventListener('load', () => {
+  scaleArtifacts();
+  drawLines();
+});
+window.addEventListener('resize', () => {
+  scaleArtifacts();
+  drawLines();
 });
 </script>
 </body>
