@@ -7,24 +7,30 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
-    background: #262624;
+    background: #0d1117;
     font-family: 'Courier New', Courier, monospace;
     color: #e6edf3;
-    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .page-wrap {
+    padding: 48px 40px 64px;
+    max-width: 1200px;
+    margin: 0 auto;
   }
   .section-label {
     font-size: 10px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #8b949e;
-    padding: 32px 48px 14px;
+    margin-bottom: 12px;
   }
   .artifact-block {
-    margin-bottom: 48px;
+    margin-bottom: 40px;
   }
   .artifact-frame {
-    border-top: 0.5px solid #30363d;
-    border-bottom: 0.5px solid #30363d;
+    border-radius: 10px;
+    border: 0.5px solid #30363d;
+    overflow: hidden;
     background: #262624;
   }
   .artifact-frame img {
@@ -35,20 +41,22 @@
 </style>
 </head>
 <body>
+<div class="page-wrap">
 
-<div class="artifact-block">
-  <div class="section-label">Stack</div>
-  <div class="artifact-frame">
-    <img src="stack-map.png" alt="Stack Map" width="2160" height="1320">
+  <div class="artifact-block">
+    <div class="section-label">Stack</div>
+    <div class="artifact-frame">
+      <img src="stack-map.png" alt="Stack Map" width="2160" height="1320">
+    </div>
   </div>
-</div>
 
-<div class="artifact-block">
-  <div class="section-label">Quick Ref</div>
-  <div class="artifact-frame">
-    <img src="quick-ref.png" alt="Quick Reference" width="2160" height="3200">
+  <div class="artifact-block">
+    <div class="section-label">Quick Ref</div>
+    <div class="artifact-frame">
+      <img src="quick-ref.png" alt="Quick Reference" width="2160" height="3200">
+    </div>
   </div>
-</div>
 
+</div>
 </body>
 </html>
