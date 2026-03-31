@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,8 +13,6 @@
     padding: 64px 48px 80px;
     min-height: 100vh;
   }
-
-  /* ── PAGE HEADER ── */
   .page-header {
     margin-bottom: 56px;
   }
@@ -41,8 +40,6 @@
     background: #30363d;
     margin: 24px 0 0;
   }
-
-  /* ── SECTION LABELS ── */
   .section-label {
     font-size: 10px;
     letter-spacing: 0.14em;
@@ -59,8 +56,6 @@
     height: 0.5px;
     background: #21262d;
   }
-
-  /* ── ARTIFACT CONTAINERS ── */
   .artifact-block {
     margin-bottom: 56px;
   }
@@ -70,241 +65,15 @@
     overflow: hidden;
     background: #262624;
   }
-  .artifact-inner {
+  .artifact-frame img {
+    display: block;
     width: 100%;
-    overflow: hidden;
+    height: auto;
   }
-
-  /* ── STACK MAP (Artifact 1) ── */
-  .stack-map-wrap {
-    font-family: 'Courier New', Courier, monospace;
-    color: #fffffb;
-    width: 1080px;
-    padding: 48px 44px 56px;
-    background: #262624;
-  }
-  .sys-label {
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #6b6b68;
-    margin: 0 0 8px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .sys-tag {
-    font-size: 9px;
-    padding: 3px 8px 1px;
-    border-radius: 3px;
-    border: 0.5px solid #4a4a48;
-    background: #30302e;
-    color: #9b9b98;
-    text-transform: none;
-    line-height: 1;
-  }
-  .al {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 10px;
-  }
-  .al-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 10px;
-    color: #6b6b68;
-  }
-  .al-sw {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    flex-shrink: 0;
-  }
-  .al-s { background: #f0efea; border: 0.5px solid #c3c2bd; }
-  .al-a { background: #30302e; border: 0.5px solid #4a4a48; }
-  .fns-row {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0,1fr));
-    gap: 8px;
-    align-items: stretch;
-  }
-  .fn-card {
-    border: 0.5px solid #3e3e3c;
-    border-radius: 10px;
-    padding: 10px 12px;
-    background: #30302e;
-  }
-  .eyebrow {
-    font-size: 9px;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    color: #6b6b68;
-    margin: 0 0 2px;
-  }
-  .fn-name {
-    font-size: 12px;
-    font-weight: 500;
-    color: #fffffb;
-    margin: 0 0 6px;
-    line-height: 1.3;
-  }
-  .fn-skills {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .sk {
-    font-size: 10px;
-    padding: 4px 6px 1px;
-    border-radius: 4px;
-    border: 0.5px solid #4a4a48;
-    color: #6b6b68;
-    background: #262624;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .sk.sched {
-    color: #2c2c2a;
-    background: #f0efea;
-    border-color: #c3c2bd;
-  }
-  .mid {
-    position: relative;
-    height: 120px;
-  }
-  .mid-annotation {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    background: #2e2e2c;
-    border: 0.5px solid #4a4a48;
-    border-radius: 8px;
-    padding: 10px 22px 8px;
-    white-space: nowrap;
-  }
-  .ann-title {
-    font-size: 11px;
-    font-weight: 500;
-    color: #fffffb;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 2px;
-  }
-  .ann-sub {
-    font-size: 11px;
-    color: #9b9b98;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .sm-divider {
-    height: 0.5px;
-    background: #3e3e3c;
-    margin: 0 0 10px;
-  }
-  .dbs-row {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0,1fr));
-    gap: 8px;
-    align-items: stretch;
-  }
-  .db-card {
-    border: 0.5px solid #3e3e3c;
-    border-left-width: 3px;
-    border-radius: 10px;
-    padding: 12px 14px 10px;
-    background: #30302e;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-  .db-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: #fffffb;
-    margin: 0 0 2px;
-    line-height: 1.3;
-  }
-  .db-desc {
-    font-size: 10px;
-    color: #6b6b68;
-    margin: 0;
-    line-height: 1.3;
-  }
-
-  /* ── QUICK REFERENCE (Artifact 2) ── */
-  .qr-wrap {
-    font-family: 'Courier New', Courier, monospace;
-    color: #fffffb;
-    width: 1080px;
-    padding: 40px 44px 48px;
-    background: #262624;
-  }
-  .fn-section { margin-bottom: 14px; }
-  .fn-eyebrow {
-    font-size: 9px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #484f58;
-    margin: 0 0 4px;
-  }
-  .fn-header {
-    font-size: 14px;
-    letter-spacing: 0.1em;
-    font-weight: 500;
-    color: #fffffb;
-    margin: 0 0 4px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #4a4a48;
-  }
-  .skill-row {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    padding: 6px 0;
-    border-bottom: 0.5px solid #3e3e3c;
-    align-items: start;
-    gap: 24px;
-  }
-  .skill-row:last-child { border-bottom: none; }
-  .skill-name {
-    font-size: 12px;
-    color: #fffffb;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    gap: 16px;
-    line-height: 1.45;
-    padding-top: 1px;
-  }
-  .skill-text { word-break: break-word; }
-  .skill-line {
-    font-size: 12px;
-    color: #9b9b98;
-    line-height: 1.45;
-    padding-top: 1px;
-    min-height: 2.9em;
-  }
-  .badge {
-    font-size: 9px;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    padding: 3px 6px 1px;
-    border-radius: 3px;
-    border: 0.5px solid;
-    width: fit-content;
-    min-width: 68px;
-    text-align: center;
-  }
-  .b-sched { background: #f0efea; color: #2c2c2a; border-color: #c3c2bd; }
-  .b-adhoc { background: #30302e; color: #6b6b68; border-color: #4a4a48; }
 </style>
 </head>
 <body>
 
-<!-- PAGE HEADER -->
 <div class="page-header">
   <div class="page-eyebrow">Inverted Capital</div>
   <div class="page-title">The Stack</div>
@@ -312,234 +81,19 @@
   <div class="divider-h"></div>
 </div>
 
-<!-- ARTIFACT 1: STACK MAP -->
 <div class="artifact-block">
   <div class="section-label">Stack Map</div>
   <div class="artifact-frame">
-    <div class="artifact-inner">
-      <div class="stack-map-wrap">
-        <div class="sys-label">System of Action<span class="sys-tag">Claude</span></div>
-        <div class="al">
-          <div class="al-item"><div class="al-sw al-s"></div>Scheduled Orchestrator</div>
-          <div class="al-item"><div class="al-sw al-a"></div>Ad Hoc Skill</div>
-        </div>
-        <div class="fns-row" id="fns-row">
-          <div class="fn-card" id="fn-pipeline">
-            <div class="eyebrow">Function</div>
-            <div class="fn-name">Pipeline Management</div>
-            <div class="fn-skills">
-              <span class="sk sched">pipeline-agent</span>
-              <span class="sk">add-to-crm</span>
-              <span class="sk">neg1-scanner</span>
-              <span class="sk">add-to-contacts</span>
-              <span class="sk">docsend-to-pdf</span>
-              <span class="sk">materials-handler</span>
-            </div>
-          </div>
-          <div class="fn-card" id="fn-intro">
-            <div class="eyebrow">Function</div>
-            <div class="fn-name">Intro Management</div>
-            <div class="fn-skills">
-              <span class="sk sched">intro-agent</span>
-              <span class="sk sched">intro-outreach-agent</span>
-              <span class="sk sched">intro-resolution-agent</span>
-              <span class="sk sched">intro-draft-agent</span>
-              <span class="sk">log-intro</span>
-            </div>
-          </div>
-          <div class="fn-card" id="fn-portfolio">
-            <div class="eyebrow">Function</div>
-            <div class="fn-name">Portfolio Management</div>
-            <div class="fn-skills">
-              <span class="sk sched">investor-update</span>
-            </div>
-          </div>
-          <div class="fn-card" id="fn-diligence">
-            <div class="eyebrow">Function</div>
-            <div class="fn-name">Diligence Management</div>
-            <div class="fn-skills">
-              <span class="sk sched">diligence-agent</span>
-              <span class="sk sched">feedback-outreach-drafter</span>
-              <span class="sk sched">feedback-outreach-scanner</span>
-              <span class="sk sched">pass-note-drafter</span>
-              <span class="sk">first-pass-diligence</span>
-              <span class="sk">update-diligence-priors</span>
-              <span class="sk">feedback-outreach-drafter (ad hoc)</span>
-              <span class="sk">pre-mortem</span>
-              <span class="sk">add-conversation-to-notion</span>
-            </div>
-          </div>
-          <div class="fn-card" id="fn-research">
-            <div class="eyebrow">Function</div>
-            <div class="fn-name">Research Management</div>
-            <div class="fn-skills">
-              <span class="sk sched">research-agent</span>
-              <span class="sk">log-transcript-to-notion</span>
-              <span class="sk">deal-digest</span>
-              <span class="sk">log-investor-letter-to-notion</span>
-            </div>
-          </div>
-        </div>
-        <div class="mid" id="mid">
-          <svg id="svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;"></svg>
-          <div class="mid-annotation">
-            <div class="ann-title">Agentic Workflows</div>
-            <div class="ann-sub">Continuous read / write across core databases</div>
-          </div>
-        </div>
-        <div class="sm-divider"></div>
-        <div class="sys-label" style="margin-bottom:12px;">System of Record<span class="sys-tag">Notion</span></div>
-        <div class="dbs-row" id="dbs-row">
-          <div class="db-card" id="db-opp" style="border-left-color:#7F77DD;">
-            <div class="eyebrow">Database</div>
-            <div class="db-name">Opportunities</div>
-            <div class="db-desc">Pipeline and portfolio — core system of record</div>
-          </div>
-          <div class="db-card" id="db-neg1" style="border-left-color:#D85A30;">
-            <div class="eyebrow">Database</div>
-            <div class="db-name">-1 Scanner</div>
-            <div class="db-desc">Pre-qual layer for founders entering pipeline</div>
-          </div>
-          <div class="db-card" id="db-ppl" style="border-left-color:#1D9E75;">
-            <div class="eyebrow">Database</div>
-            <div class="db-name">People</div>
-            <div class="db-desc">Founders, investors, and other network relations</div>
-          </div>
-          <div class="db-card" id="db-upd" style="border-left-color:#BA7517;">
-            <div class="eyebrow">Database</div>
-            <div class="db-name">Company Updates</div>
-            <div class="db-desc">Updates from portfolio companies</div>
-          </div>
-          <div class="db-card" id="db-notes" style="border-left-color:#888780;">
-            <div class="eyebrow">Database</div>
-            <div class="db-name">Notes</div>
-            <div class="db-desc">Transcripts, convos, reports, and letters</div>
-          </div>
-        </div>
-      </div><!-- /stack-map-wrap -->
-    </div>
+    <img src="stack-map.png" alt="Stack Map" width="1080" height="660">
   </div>
 </div>
 
-<!-- ARTIFACT 2: QUICK REFERENCE -->
 <div class="artifact-block">
   <div class="section-label">Quick Reference</div>
   <div class="artifact-frame">
-    <div class="artifact-inner">
-      <div class="qr-wrap">
-        <div class="fn-section">
-          <div class="fn-eyebrow">Function</div>
-          <div class="fn-header">Pipeline Management</div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">pipeline-agent</span></div><div class="skill-line">Scans Gmail and iMessage daily to surface new deals and move existing ones through CRM stages.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">add-to-crm</span></div><div class="skill-line">Turns any input — email, LinkedIn URL, screenshot — into a structured Notion opportunity in seconds.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">neg1-scanner</span></div><div class="skill-line">Enriches LinkedIn profiles and logs promising founders before they've started a company.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">add-to-contacts</span></div><div class="skill-line">Saves a network contact to Notion without creating a full deal opportunity.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">docsend-to-pdf</span></div><div class="skill-line">Converts a DocSend pitch deck or data room into an archived PDF attached to the deal.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">materials-handler</span></div><div class="skill-line">Downloads pitch decks and term sheets for a pipeline company, archives to Google Drive, and links the files to the deal page in Notion.</div></div>
-        </div>
-        <div class="fn-section">
-          <div class="fn-eyebrow">Function</div>
-          <div class="fn-header">Intro Management</div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">intro-agent</span></div><div class="skill-line">Scans Gmail and iMessage for new intro requests and logs qualified targets to Notion.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">intro-outreach-agent</span></div><div class="skill-line">Detects when outreach has been sent to a qualified intro target and advances them in the pipeline.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">intro-resolution-agent</span></div><div class="skill-line">Resolves outreach replies — moving contacts to Made, Declined, or NR based on their response.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">intro-draft-agent</span></div><div class="skill-line">Detects opt-in replies and creates a ready-to-send double opt-in intro email draft in Gmail.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">log-intro</span></div><div class="skill-line">Manually queues an intro to a specific founder without waiting for the next scheduled scan.</div></div>
-        </div>
-        <div class="fn-section">
-          <div class="fn-eyebrow">Function</div>
-          <div class="fn-header">Portfolio Management</div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">investor-update</span></div><div class="skill-line">Ingests founder update emails and logs them as structured notes linked to each portfolio company.</div></div>
-        </div>
-        <div class="fn-section">
-          <div class="fn-eyebrow">Function</div>
-          <div class="fn-header">Diligence Management</div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">diligence-agent</span></div><div class="skill-line">Orchestrates expert feedback outreach and pass note drafting on a twice-daily automated schedule.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">feedback-outreach-drafter</span></div><div class="skill-line">Drafts personalized emails to expert contacts requesting diligence feedback on a specific deal.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">feedback-outreach-scanner</span></div><div class="skill-line">Detects expert replies and logs the feedback as structured notes in Notion.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">pass-note-drafter</span></div><div class="skill-line">Drafts a personalized investor pass email for every opportunity marked as a pass, ready for review.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">first-pass-diligence</span></div><div class="skill-line">Runs a structured first-pass analysis on a deal, pulling all available context from Notion and producing a scored evaluation with a PDF and Signal alert.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">update-diligence-priors</span></div><div class="skill-line">Ingests new call notes or materials since the last analysis and prepends a dated update section to the existing Notion diligence page.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">feedback-outreach-drafter (ad hoc)</span></div><div class="skill-line">Drafts a feedback outreach email to a specific expert named on the spot, outside the scheduled flow.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">pre-mortem</span></div><div class="skill-line">Stress-tests a deal by imagining it has already failed and working backward to the most likely causes.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">add-conversation-to-notion</span></div><div class="skill-line">Archives any Claude conversation — analysis, notes, decisions — directly to the Notion knowledge base.</div></div>
-        </div>
-        <div class="fn-section">
-          <div class="fn-eyebrow">Function</div>
-          <div class="fn-header">Research Management</div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-sched">Scheduled</span><span class="skill-text">research-agent</span></div><div class="skill-line">Scans the web daily for new investor letters and memos and delivers a digest via Signal.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">log-transcript-to-notion</span></div><div class="skill-line">Pulls a video transcript, extracts the key frameworks, and saves it as a structured note in Notion.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">deal-digest</span></div><div class="skill-line">Packages a deals digest from an external source into a structured Notion research note.</div></div>
-          <div class="skill-row"><div class="skill-name"><span class="badge b-adhoc">Ad Hoc</span><span class="skill-text">log-investor-letter-to-notion</span></div><div class="skill-line">Saves an investor letter from any external firm to the Notion Notes database for future reference.</div></div>
-        </div>
-      </div><!-- /qr-wrap -->
-    </div>
+    <img src="quick-ref.png" alt="Quick Reference" width="1080" height="1600">
   </div>
 </div>
 
-<script>
-// Draw SVG connection lines for the Stack Map
-const connections = [
-  {fn:'fn-pipeline', db:'db-opp',   color:'#7F77DD'},
-  {fn:'fn-pipeline', db:'db-ppl',   color:'#1D9E75'},
-  {fn:'fn-pipeline', db:'db-neg1',  color:'#D85A30'},
-  {fn:'fn-intro',    db:'db-opp',   color:'#7F77DD'},
-  {fn:'fn-intro',    db:'db-ppl',   color:'#1D9E75'},
-  {fn:'fn-portfolio',db:'db-opp',   color:'#7F77DD'},
-  {fn:'fn-portfolio',db:'db-upd',   color:'#BA7517'},
-  {fn:'fn-diligence',db:'db-opp',   color:'#7F77DD'},
-  {fn:'fn-diligence',db:'db-ppl',   color:'#1D9E75'},
-  {fn:'fn-diligence',db:'db-notes', color:'#888780'},
-  {fn:'fn-research', db:'db-notes', color:'#888780'},
-];
-function scaleArtifacts() {
-  document.querySelectorAll('.artifact-inner').forEach(inner => {
-    const wrap = inner.firstElementChild;
-    // Reset transform to measure natural width
-    wrap.style.transform = '';
-    inner.style.height = '';
-    const containerWidth = inner.clientWidth;
-    const contentWidth = wrap.scrollWidth;
-    if (contentWidth > containerWidth) {
-      const scale = containerWidth / contentWidth;
-      wrap.style.transform = 'scale(' + scale + ')';
-      wrap.style.transformOrigin = 'top left';
-      inner.style.height = (wrap.offsetHeight * scale) + 'px';
-    }
-  });
-}
-
-function drawLines() {
-  const svg = document.getElementById('svg-lines');
-  const mid = document.getElementById('mid');
-  const mR  = mid.getBoundingClientRect();
-  svg.innerHTML = '';
-  connections.forEach(({fn, db, color}) => {
-    const fe = document.getElementById(fn);
-    const de = document.getElementById(db);
-    if (!fe || !de) return;
-    const fr = fe.getBoundingClientRect();
-    const dr = de.getBoundingClientRect();
-    const x1 = fr.left + fr.width / 2 - mR.left;
-    const x2 = dr.left + dr.width / 2 - mR.left;
-    const p  = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    p.setAttribute('d', `M ${x1} 0 C ${x1} ${mR.height * 0.45} ${x2} ${mR.height * 0.55} ${x2} ${mR.height}`);
-    p.setAttribute('fill',         'none');
-    p.setAttribute('stroke',       color);
-    p.setAttribute('stroke-width', '2');
-    p.setAttribute('opacity',      '0.6');
-    svg.appendChild(p);
-  });
-}
-
-window.addEventListener('load', () => {
-  scaleArtifacts();
-  drawLines();
-});
-window.addEventListener('resize', () => {
-  scaleArtifacts();
-  drawLines();
-});
-</script>
 </body>
 </html>
