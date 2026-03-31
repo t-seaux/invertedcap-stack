@@ -6,42 +6,26 @@
 <meta name="robots" content="noindex, nofollow">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html {
+  html, body {
+    background: #262624;
     overflow-x: hidden;
-    max-width: 100vw;
-    background: #0d1117;
-  }
-  body {
-    background: #0d1117;
-    font-family: 'Courier New', Courier, monospace;
-    color: #e6edf3;
-    overflow-x: hidden;
-    max-width: 100vw;
-    padding: 40px;
   }
   .section-label {
+    font-family: 'Courier New', Courier, monospace;
     font-size: 10px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #8b949e;
-    margin-bottom: 12px;
+    padding: 20px 20px 10px;
   }
   .artifact-block {
-    margin-bottom: 40px;
-    max-width: 1120px;
-    margin-left: auto;
-    margin-right: auto;
+    border-top: 0.5px solid #3e3e3c;
   }
-  .artifact-frame {
-    border-radius: 10px;
-    border: 0.5px solid #30363d;
-    overflow: hidden;
-    background: #262624;
-    max-width: 100%;
+  .artifact-block:first-child {
+    border-top: none;
   }
   .artifact-frame img {
     display: block;
-    max-width: 100%;
     width: 100%;
     height: auto;
   }
@@ -56,7 +40,7 @@
     </div>
   </div>
 
-  <div class="artifact-block" style="margin-bottom: 0">
+  <div class="artifact-block">
     <div class="section-label">Quick Ref</div>
     <div class="artifact-frame">
       <img src="quick-ref.png" alt="Quick Ref">
