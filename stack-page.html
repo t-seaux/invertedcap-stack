@@ -6,16 +6,18 @@
 <meta name="robots" content="noindex, nofollow">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body {
+  html {
+    overflow-x: hidden;
+    max-width: 100vw;
+    background: #0d1117;
+  }
+  body {
     background: #0d1117;
     font-family: 'Courier New', Courier, monospace;
     color: #e6edf3;
     overflow-x: hidden;
-  }
-  .page-wrap {
-    padding: 48px 40px 64px;
-    max-width: 1200px;
-    margin: 0 auto;
+    max-width: 100vw;
+    padding: 40px;
   }
   .section-label {
     font-size: 10px;
@@ -26,37 +28,40 @@
   }
   .artifact-block {
     margin-bottom: 40px;
+    max-width: 1120px;
+    margin-left: auto;
+    margin-right: auto;
   }
   .artifact-frame {
     border-radius: 10px;
     border: 0.5px solid #30363d;
     overflow: hidden;
     background: #262624;
+    max-width: 100%;
   }
   .artifact-frame img {
     display: block;
+    max-width: 100%;
     width: 100%;
     height: auto;
   }
 </style>
 </head>
 <body>
-<div class="page-wrap">
 
   <div class="artifact-block">
     <div class="section-label">Stack</div>
     <div class="artifact-frame">
-      <img src="stack-map.png" alt="Stack Map" width="2160" height="1320">
+      <img src="stack-map.png" alt="Stack">
     </div>
   </div>
 
-  <div class="artifact-block">
+  <div class="artifact-block" style="margin-bottom: 0">
     <div class="section-label">Quick Ref</div>
     <div class="artifact-frame">
-      <img src="quick-ref.png" alt="Quick Reference" width="2160" height="3200">
+      <img src="quick-ref.png" alt="Quick Ref">
     </div>
   </div>
 
-</div>
 </body>
 </html>
