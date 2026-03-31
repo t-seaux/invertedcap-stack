@@ -13,21 +13,13 @@
   .page-wrap {
     padding: 40px 40px 60px;
   }
-  .section-label {
+  .page-date {
     font-family: 'Courier New', Courier, monospace;
     font-size: 10px;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: #8b949e;
-    margin-bottom: 10px;
-  }
-  .artifact-block {
-    margin-bottom: 0;
-  }
-  .divider {
-    height: 0.5px;
-    background: #30363d;
-    margin: 32px 0;
+    margin-bottom: 20px;
   }
   .artifact-frame {
     border-radius: 10px;
@@ -40,25 +32,22 @@
     width: 100%;
     height: auto;
   }
+  .artifact-frame + .artifact-frame {
+    margin-top: 32px;
+  }
 </style>
 </head>
 <body>
 <div class="page-wrap">
 
-  <div class="artifact-block">
-    <div class="section-label">Stack</div>
-    <div class="artifact-frame">
-      <img src="stack-map.png" alt="Stack">
-    </div>
+  <div class="page-date">Updated March 31, 2026</div>
+
+  <div class="artifact-frame">
+    <img src="stack-map.png" alt="Stack">
   </div>
 
-  <div class="divider"></div>
-
-  <div class="artifact-block">
-    <div class="section-label">Quick Ref</div>
-    <div class="artifact-frame">
-      <img src="quick-ref.png" alt="Quick Ref">
-    </div>
+  <div class="artifact-frame">
+    <img src="quick-ref.png" alt="Quick Ref">
   </div>
 
 </div>
