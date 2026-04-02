@@ -6,24 +6,27 @@
 <meta name="robots" content="noindex, nofollow">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body 
+  html, body {
     background: transparent;
     overflow-x: hidden;
   }
 
-  /* ── Responsive scaling wrapper ── */
+  /* ââ Responsive scaling wrapper ââ */
   .responsive-wrapper {
     width: 100%;
     overflow: hidden;
     position: relative;
+    background: transparent;
   }
   .responsive-inner {
     width: 1200px;
     transform-origin: top left;
+    background: transparent;
   }
 
   .page-wrap {
     padding: 40px 40px 60px;
+    background: transparent;
   }
   .page-date {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -42,7 +45,7 @@
     margin-top: 32px;
   }
 
-  /* ── Stack Map styles ── */
+  /* ââ Stack Map styles ââ */
   .sm-wrap { font-family: 'Courier New', Courier, monospace; color: #fffffb; width: 100%; padding: 48px 44px 56px; }
   .sm-sys-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b6b68; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; }
   .sm-sys-tag { font-size: 9px; padding: 3px 8px 1px; border-radius: 3px; border: 0.5px solid #4a4a48; background: #30302e; color: #9b9b98; text-transform: none; line-height: 1; }
@@ -68,7 +71,7 @@
   .sm-db-name { font-size: 13px; font-weight: 500; color: #fffffb; margin: 0 0 2px; line-height: 1.3; }
   .sm-db-desc { font-size: 10px; color: #6b6b68; margin: 0; line-height: 1.3; }
 
-  /* ── Quick Ref styles ── */
+  /* ââ Quick Ref styles ââ */
   .qr-wrap { font-family: 'Courier New', Courier, monospace; color: #fffffb; width: 100%; padding: 40px 44px 48px; }
   .qr-fn-section { margin-bottom: 14px; }
   .qr-fn-eyebrow { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #484f58; margin: 0 0 4px; }
@@ -91,7 +94,7 @@
 
       <div class="page-date">Updated April 1, 2026</div>
 
-      <!-- ── Stack Map ── -->
+      <!-- ââ Stack Map ââ -->
       <div class="artifact-frame">
         <div class="sm-wrap">
           <div class="sm-sys-label">System of Action<span class="sm-sys-tag">Claude</span></div>
@@ -113,7 +116,7 @@
           <div class="sm-divider"></div>
           <div class="sm-sys-label" style="margin-bottom:12px;">System of Record<span class="sm-sys-tag">Notion</span></div>
           <div class="sm-dbs-row" id="dbs-row">
-            <div class="sm-db-card" id="db-opp" style="border-left-color:#7F77DD;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Opportunities</div><div class="sm-db-desc">Pipeline and portfolio — core system of record</div></div>
+            <div class="sm-db-card" id="db-opp" style="border-left-color:#7F77DD;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Opportunities</div><div class="sm-db-desc">Pipeline and portfolio â core system of record</div></div>
             <div class="sm-db-card" id="db-neg1" style="border-left-color:#D85A30;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">-1 Scanner</div><div class="sm-db-desc">Pre-qual layer for founders entering pipeline</div></div>
             <div class="sm-db-card" id="db-ppl" style="border-left-color:#1D9E75;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People</div><div class="sm-db-desc">Founders, investors, and other network relations</div></div>
             <div class="sm-db-card" id="db-upd" style="border-left-color:#BA7517;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Company Updates</div><div class="sm-db-desc">Updates from portfolio companies</div></div>
@@ -122,14 +125,14 @@
         </div>
       </div>
 
-      <!-- ── Quick Reference ── -->
+      <!-- ââ Quick Reference ââ -->
       <div class="artifact-frame">
         <div class="qr-wrap">
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Pipeline Management</div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">pipeline-agent</span></div><div class="qr-skill-line">Scans Gmail and iMessage daily to surface new deals and move existing ones through CRM stages.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-to-crm</span></div><div class="qr-skill-line">Turns any input — email, LinkedIn URL, screenshot — into a structured Notion opportunity in seconds.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-to-crm</span></div><div class="qr-skill-line">Turns any input â email, LinkedIn URL, screenshot â into a structured Notion opportunity in seconds.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">neg1-scanner</span></div><div class="qr-skill-line">Enriches LinkedIn profiles and logs promising founders before they've started a company.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-to-contacts</span></div><div class="qr-skill-line">Saves a network contact to Notion without creating a full deal opportunity.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">docsend-to-pdf</span></div><div class="qr-skill-line">Converts a DocSend pitch deck or data room into an archived PDF attached to the deal.</div></div>
@@ -140,7 +143,7 @@
             <div class="qr-fn-header">Intro Management</div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">intro-agent</span></div><div class="qr-skill-line">Scans Gmail and iMessage for new intro requests and logs qualified targets to Notion.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">intro-outreach-agent</span></div><div class="qr-skill-line">Detects when outreach has been sent to a qualified intro target and advances them in the pipeline.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">intro-resolution-agent</span></div><div class="qr-skill-line">Resolves outreach replies — moving contacts to Made, Declined, or NR based on their response.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">intro-resolution-agent</span></div><div class="qr-skill-line">Resolves outreach replies â moving contacts to Made, Declined, or NR based on their response.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">intro-draft-agent</span></div><div class="qr-skill-line">Detects opt-in replies and creates a ready-to-send double opt-in intro email draft in Gmail.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">log-intro</span></div><div class="qr-skill-line">Manually queues an intro to a specific founder without waiting for the next scheduled scan.</div></div>
           </div>
@@ -160,7 +163,7 @@
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">update-diligence-priors</span></div><div class="qr-skill-line">Ingests new call notes or materials since the last analysis and prepends a dated update section to the existing Notion diligence page.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">feedback-outreach-drafter (ad hoc)</span></div><div class="qr-skill-line">Drafts a feedback outreach email to a specific expert named on the spot, outside the scheduled flow.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">pre-mortem</span></div><div class="qr-skill-line">Stress-tests a deal by imagining it has already failed and working backward to the most likely causes.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-conversation-to-notion</span></div><div class="qr-skill-line">Archives any Claude conversation — analysis, notes, decisions — directly to the Notion knowledge base.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-conversation-to-notion</span></div><div class="qr-skill-line">Archives any Claude conversation â analysis, notes, decisions â directly to the Notion knowledge base.</div></div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
@@ -178,11 +181,11 @@
 </div>
 
 <script>
-/* ── Responsive scaling ──
+/* ââ Responsive scaling ââ
    The inner content is laid out at a fixed 1200px design width.
    On load and resize, we measure the wrapper's actual width and
    apply transform: scale() so the entire visual shrinks/grows as
-   a single unit — like an image. */
+   a single unit â like an image. */
 const DESIGN_WIDTH = 1200;
 
 const connections = [
