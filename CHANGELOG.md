@@ -2,6 +2,17 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-06] (Week of 2026-04-06) — Scheduled Run #2
+
+**Added:** None
+**Removed:** None
+**Modified:** first-pass-diligence — reclassified from Ad Hoc to Scheduled (first-pass-diligence-scan scheduled task detected via `-scan` suffix convention)
+**Total skills:** 25 (visible), 28 (all incl. hidden)
+**Functions:** No changes to function membership
+**Flagged (awaiting Tom's assignment):** theme-factory (new skill, not in canonical mapping), schedule (new skill, not in canonical mapping)
+
+---
+
 ## [2026-04-06] - Weekly Skill Map Refresh (Manual Trigger)
 
 ### Added
