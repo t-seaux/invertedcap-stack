@@ -5,30 +5,32 @@ All notable changes to the Inverted Cap Stack platform are documented here.
 ## [2026-04-06] - Weekly Skill Map Refresh (Manual Trigger)
 
 ### Added
-- **backchannel-drafter** (Ad Hoc) - Drafts backchannel reference outreach emails to expert contacts for diligence feedback on a deal. Integrated into Diligence Management function.
 - **coinvestor-recommender** (Ad Hoc) - Recommends qualified coinvestors from Tom's network for a specific deal. Integrated into Portfolio Management function.
 
 ### Removed
-- None
+- **backchannel-drafter** - Consolidated into feedback-outreach-drafter (identical implementation)
+- **feedback-outreach-drafter-ad-hoc** - Consolidated into feedback-outreach-drafter (identical implementation)
+- **feedback-outreach-drafter-manual** - Consolidated into feedback-outreach-drafter (identical implementation)
+- **feedback-outreach-drafter (ad hoc)** - Removed from visual; single feedback-outreach-drafter now handles both scheduled and manual modes
 
 ### Modified
-- **Platform Map** - Updated visual architecture showing 5 functions with backchannel-drafter in Diligence and coinvestor-recommender in Portfolio
-- **Quick Reference** - Regenerated skill inventory with new entries
-- **Stack Page** - Updated HTML with new skills, date bumped to April 6, 2026
+- **feedback-outreach-drafter** - Added "backchannel" trigger phrases to description; now serves as the single canonical skill for both scheduled scans and manual drafting. Fixed relation field references to use actual Notion field name (`📣 Pending Feedback`).
+- **Platform Map** - Updated visual: 5 functions, coinvestor-recommender added to Portfolio, duplicate feedback skills removed from Diligence
+- **Quick Reference** - Regenerated skill inventory reflecting consolidation
 
 ### Classified (not on visual)
 - **Fund Ops** (hidden): mmf-to-lp-calc, cpa-report
 - **Other** (hidden): note-classifier
-- **Excluded duplicate**: feedback-outreach-drafter-manual (duplicate of feedback-outreach-drafter-ad-hoc)
+- **Excluded duplicates**: feedback-outreach-drafter-manual, feedback-outreach-drafter-ad-hoc, backchannel-drafter
 
 ### Statistics
-- **Total Skills (visible)**: 27 (was 25)
-- **Total Skills (all, incl. hidden)**: 30
+- **Total Skills (visible)**: 25 (was 25 at baseline; +1 coinvestor-recommender, -2 duplicate feedback skills, +1 backchannel-drafter added then consolidated)
+- **Total Skills (all, incl. hidden)**: 28 (excluding 3 duplicates)
 - **Scheduled Tasks**: 12
-- **Ad Hoc Skills (visible)**: 15
+- **Ad Hoc Skills (visible)**: 13
 - **Functions (visible)**: 5 (no change)
 - **Functions (all)**: 7 (added Fund Ops, Other as hidden categories)
-- **Excluded duplicates**: 1 (feedback-outreach-drafter-manual)
+- **Excluded duplicates**: 3 (feedback-outreach-drafter-manual, feedback-outreach-drafter-ad-hoc, backchannel-drafter)
 
 ---
 
