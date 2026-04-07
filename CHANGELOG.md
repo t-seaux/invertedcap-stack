@@ -7,9 +7,8 @@ All notable changes to the Inverted Cap Stack platform are documented here.
 **Added:** None
 **Removed:** None
 **Modified:** first-pass-diligence — reclassified from Ad Hoc to Scheduled (first-pass-diligence-scan scheduled task detected via `-scan` suffix convention)
-**Total skills:** 25 (visible), 28 (all incl. hidden)
+**Total skills:** 25
 **Functions:** No changes to function membership
-**Classified (hidden):** theme-factory — Other (utility/artifact styling, no standalone deal workflow); schedule — Other (task creation utility, no standalone deal workflow)
 
 ---
 
@@ -29,18 +28,11 @@ All notable changes to the Inverted Cap Stack platform are documented here.
 - **Platform Map** - Updated visual: 5 functions, coinvestor-recommender added to Portfolio, duplicate feedback skills removed from Diligence
 - **Quick Reference** - Regenerated skill inventory reflecting consolidation
 
-### Classified (not on visual)
-- **Fund Ops** (hidden): mmf-to-lp-calc, cpa-report
-- **Other** (hidden): note-classifier
-- **Excluded duplicates**: feedback-outreach-drafter-manual, feedback-outreach-drafter-ad-hoc, backchannel-drafter
-
 ### Statistics
-- **Total Skills (visible)**: 25 (was 25 at baseline; +1 coinvestor-recommender, -2 duplicate feedback skills, +1 backchannel-drafter added then consolidated)
-- **Total Skills (all, incl. hidden)**: 28 (excluding 3 duplicates)
+- **Total Skills**: 25
 - **Scheduled Tasks**: 12
-- **Ad Hoc Skills (visible)**: 13
-- **Functions (visible)**: 5 (no change)
-- **Functions (all)**: 7 (added Fund Ops, Other as hidden categories)
+- **Ad Hoc Skills**: 13
+- **Functions**: 5
 - **Excluded duplicates**: 3 (feedback-outreach-drafter-manual, feedback-outreach-drafter-ad-hoc, backchannel-drafter)
 
 ---
