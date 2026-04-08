@@ -87,7 +87,7 @@
     content: '';
     position: absolute;
     top: 0;
-    left: -100%;
+    left: 0;
     width: 100%;
     height: 100%;
     background: linear-gradient(
@@ -100,13 +100,14 @@
       transparent 70%,
       transparent 100%
     );
-    transition: left 0.5s ease;
+    transform: translateX(-100%);
+    transition: transform 0.8s ease;
     pointer-events: none;
     z-index: 1;
   }
   .sm-fn-card:hover::before,
   .sm-db-card:hover::before {
-    left: 100%;
+    transform: translateX(100%);
   }
   .sm-fn-card:hover,
   .sm-db-card:hover {
@@ -124,9 +125,36 @@
   .qr-skill-name { font-size: 12px; color: #fffffb; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 20px; line-height: 1.45; padding-top: 1px; }
   .qr-skill-text { word-break: break-word; }
   .qr-skill-line { font-size: 12px; color: #b1bac4; line-height: 1.45; padding-top: 1px; }
-  .qr-badge { font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; padding: 3px 6px 1px; border-radius: 3px; border: 0.5px solid; width: fit-content; min-width: 68px; text-align: center; }
+  .qr-badge { font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; padding: 3px 6px 1px; border-radius: 3px; border: 0.5px solid; width: fit-content; min-width: 68px; text-align: center; position: relative; overflow: hidden; }
   .qr-b-sched { background: #f0efea; color: #2c2c2a; border-color: #c3c2bd; }
   .qr-b-adhoc { background: #161b22; color: #8b949e; border-color: #30363d; }
+
+  /* —— Shine hover effect for QR badges —— */
+  .qr-badge::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      120deg,
+      transparent 0%,
+      transparent 25%,
+      rgba(255, 255, 255, 0.18) 45%,
+      rgba(255, 255, 255, 0.28) 50%,
+      rgba(255, 255, 255, 0.18) 55%,
+      transparent 75%,
+      transparent 100%
+    );
+    transform: translateX(-100%);
+    transition: transform 0.8s ease;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .qr-badge:hover::before {
+    transform: translateX(100%);
+  }
 </style>
 </head>
 <body>
