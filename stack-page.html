@@ -58,7 +58,17 @@
   /* —— Stack Map styles —— */
   .sm-wrap { font-family: 'Courier New', Courier, monospace; color: #fffffb; width: 100%; padding: 48px 44px 56px; }
   .sm-sys-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8b949e; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; }
-  .sm-sys-tag { font-size: 9px; padding: 3px 8px 1px; border-radius: 3px; border: 0.5px solid #30363d; background: #161b22; color: #8b949e; text-transform: none; line-height: 1; }
+  .sm-sys-tag {
+    font-size: 9px; padding: 3px 8px 1px; border-radius: 3px; border: 0.5px solid #30363d;
+    background-color: #161b22; color: #8b949e; text-transform: none; line-height: 1;
+    background-image: linear-gradient(120deg, transparent 0%, transparent 40%, rgba(255,255,255,0.06) 47%, rgba(255,255,255,0.13) 50%, rgba(255,255,255,0.06) 53%, transparent 60%, transparent 100%);
+    background-size: 300% 100%; background-position: 100% 0;
+    transition: none; overflow: hidden; isolation: isolate;
+  }
+  .sm-sys-tag:hover {
+    background-position: 0% 0; border-color: #3d444d;
+    transition: background-position 0.8s ease;
+  }
   .sm-al { display: flex; gap: 12px; margin-bottom: 10px; }
   .sm-al-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #8b949e; }
   .sm-al-sw { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
@@ -84,8 +94,26 @@
   .sm-eyebrow { font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; color: #8b949e; margin: 0 0 2px; }
   .sm-fn-name { font-size: 12px; font-weight: 500; color: #fffffb; margin: 0 0 6px; line-height: 1.3; }
   .sm-fn-skills { display: flex; flex-direction: column; gap: 4px; }
-  .sm-sk { font-size: 11px; padding: 5px 6px 3px; border-radius: 4px; border: 0.5px solid #30363d; color: #8b949e; background: #0d1117; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sm-sk.sm-sched { color: #2c2c2a; background: #f0efea; border-color: #c3c2bd; }
+  .sm-sk {
+    font-size: 11px; padding: 5px 6px 3px; border-radius: 4px; border: 0.5px solid #30363d;
+    color: #8b949e; background-color: #0d1117; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    background-image: linear-gradient(120deg, transparent 0%, transparent 40%, rgba(255,255,255,0.06) 47%, rgba(255,255,255,0.13) 50%, rgba(255,255,255,0.06) 53%, transparent 60%, transparent 100%);
+    background-size: 300% 100%; background-position: 100% 0;
+    transition: none; isolation: isolate;
+  }
+  .sm-sk:hover {
+    background-position: 0% 0; border-color: #3d444d;
+    transition: background-position 0.8s ease;
+  }
+  .sm-sk.sm-sched {
+    color: #2c2c2a; background-color: #f0efea; border-color: #c3c2bd;
+    background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.06) 44%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.06) 56%, transparent 65%, transparent 100%);
+    background-size: 300% 100%; background-position: 100% 0;
+  }
+  .sm-sk.sm-sched:hover {
+    background-position: 0% 0; border-color: #a8a7a2;
+    transition: background-position 0.8s ease;
+  }
   .sm-mid { position: relative; height: 120px; }
   .sm-mid-annotation {
     position: absolute;
@@ -104,6 +132,7 @@
     white-space: nowrap;
     overflow: hidden;
     isolation: isolate;
+    z-index: 2;
   }
   .sm-ann-title { font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
   .sm-ann-sub { font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -166,13 +195,16 @@
     background-position: 100% 0;
     transition: none;
   }
-  .qr-b-sched { background-color: #f0efea; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(255,255,255,0.25) 47%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.25) 53%, transparent 65%, transparent 100%); color: #2c2c2a; border-color: #c3c2bd; }
+  .qr-b-sched { background-color: #f0efea; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.08) 44%, rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.08) 56%, transparent 65%, transparent 100%); color: #2c2c2a; border-color: #c3c2bd; }
   .qr-b-adhoc { background-color: #161b22; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(255,255,255,0.12) 47%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0.12) 53%, transparent 65%, transparent 100%); color: #8b949e; border-color: #30363d; }
 
   /* Shine hover for QR badges: animate IN only */
   .qr-badge:hover {
     background-position: 0% 0;
     transition: background-position 0.8s ease;
+  }
+  .qr-b-sched:hover {
+    border-color: #a8a7a2;
   }
 </style>
 </head>
@@ -272,9 +304,10 @@
 
 <script>
 /* —— Responsive scaling —— */
-const DESIGN_WIDTH = 1200;
+var DESIGN_WIDTH = 1200;
+var NS = 'http://www.w3.org/2000/svg';
 
-const connections = [
+var connections = [
   {fn:'fn-pipeline',db:'db-opp',color:'#7F77DD'},{fn:'fn-pipeline',db:'db-ppl',color:'#1D9E75'},{fn:'fn-pipeline',db:'db-neg1',color:'#D85A30'},
   {fn:'fn-intro',db:'db-opp',color:'#7F77DD'},{fn:'fn-intro',db:'db-ppl',color:'#1D9E75'},
   {fn:'fn-portfolio',db:'db-opp',color:'#7F77DD'},{fn:'fn-portfolio',db:'db-upd',color:'#BA7517'},
@@ -283,36 +316,106 @@ const connections = [
 ];
 
 function drawConnections(scale) {
-  const svg = document.getElementById('svg-lines');
-  const mid = document.getElementById('mid');
+  var svg = document.getElementById('svg-lines');
+  var mid = document.getElementById('mid');
   if (!svg || !mid) return;
-  const mR = mid.getBoundingClientRect();
+  var mR = mid.getBoundingClientRect();
   svg.innerHTML = '';
-  connections.forEach(({fn, db, color}) => {
-    const fe = document.getElementById(fn);
-    const de = document.getElementById(db);
+
+  /* ---- SVG <defs>: glow filter ---- */
+  var defs = document.createElementNS(NS, 'defs');
+  var filter = document.createElementNS(NS, 'filter');
+  filter.setAttribute('id', 'glow');
+  filter.setAttribute('x', '-50%');
+  filter.setAttribute('y', '-50%');
+  filter.setAttribute('width', '200%');
+  filter.setAttribute('height', '200%');
+  var blur = document.createElementNS(NS, 'feGaussianBlur');
+  blur.setAttribute('stdDeviation', '0.6');
+  blur.setAttribute('result', 'blur');
+  filter.appendChild(blur);
+  var merge = document.createElementNS(NS, 'feMerge');
+  var mn1 = document.createElementNS(NS, 'feMergeNode');
+  mn1.setAttribute('in', 'blur');
+  merge.appendChild(mn1);
+  var mn2 = document.createElementNS(NS, 'feMergeNode');
+  mn2.setAttribute('in', 'SourceGraphic');
+  merge.appendChild(mn2);
+  filter.appendChild(merge);
+  defs.appendChild(filter);
+  svg.appendChild(defs);
+
+  /* ---- Draw each connection: base + pulsing glow + pulsing core ---- */
+  connections.forEach(function(conn, i) {
+    var fe = document.getElementById(conn.fn);
+    var de = document.getElementById(conn.db);
     if (!fe || !de) return;
-    const fr = fe.getBoundingClientRect();
-    const dr = de.getBoundingClientRect();
-    const x1 = (fr.left + fr.width / 2 - mR.left) / scale;
-    const x2 = (dr.left + dr.width / 2 - mR.left) / scale;
-    const h = mR.height / scale;
-    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    p.setAttribute('d', 'M ' + x1 + ' 0 C ' + x1 + ' ' + (h * 0.45) + ' ' + x2 + ' ' + (h * 0.55) + ' ' + x2 + ' ' + h);
-    p.setAttribute('fill', 'none');
-    p.setAttribute('stroke', color);
-    p.setAttribute('stroke-width', '2');
-    p.setAttribute('opacity', '0.6');
-    svg.appendChild(p);
+    var fr = fe.getBoundingClientRect();
+    var dr = de.getBoundingClientRect();
+    var x1 = (fr.left + fr.width / 2 - mR.left) / scale;
+    var x2 = (dr.left + dr.width / 2 - mR.left) / scale;
+    var h = mR.height / scale;
+    var d = 'M ' + x1 + ' 0 C ' + x1 + ' ' + (h * 0.45) + ' ' + x2 + ' ' + (h * 0.55) + ' ' + x2 + ' ' + h;
+    var color = conn.color;
+
+    /* Stagger: each line gets a different duration + phase offset */
+    var dur = (2.8 + (i % 4) * 0.4).toFixed(1);   /* 2.8s \u2013 4.0s */
+    var delay = ((i * 0.4) % 2.2).toFixed(2);       /* offset start */
+
+    /* 1) Base line \u2014 always visible, dim */
+    var base = document.createElementNS(NS, 'path');
+    base.setAttribute('d', d);
+    base.setAttribute('fill', 'none');
+    base.setAttribute('stroke', color);
+    base.setAttribute('stroke-width', '1.5');
+    base.setAttribute('opacity', '0.2');
+    svg.appendChild(base);
+
+    /* 2) Glow halo \u2014 blurred, breathing opacity */
+    var glow = document.createElementNS(NS, 'path');
+    glow.setAttribute('d', d);
+    glow.setAttribute('fill', 'none');
+    glow.setAttribute('stroke', color);
+    glow.setAttribute('stroke-width', '2.5');
+    glow.setAttribute('filter', 'url(#glow)');
+    glow.setAttribute('opacity', '0');
+    var glowAnim = document.createElementNS(NS, 'animate');
+    glowAnim.setAttribute('attributeName', 'opacity');
+    glowAnim.setAttribute('values', '0.05; 0.35; 0.05');
+    glowAnim.setAttribute('dur', dur + 's');
+    glowAnim.setAttribute('begin', delay + 's');
+    glowAnim.setAttribute('repeatCount', 'indefinite');
+    glowAnim.setAttribute('calcMode', 'spline');
+    glowAnim.setAttribute('keySplines', '0.45 0 0.55 1; 0.45 0 0.55 1');
+    glow.appendChild(glowAnim);
+    svg.appendChild(glow);
+
+    /* 3) Bright core \u2014 sharp, same breathing rhythm */
+    var core = document.createElementNS(NS, 'path');
+    core.setAttribute('d', d);
+    core.setAttribute('fill', 'none');
+    core.setAttribute('stroke', color);
+    core.setAttribute('stroke-width', '2');
+    core.setAttribute('opacity', '0');
+    var coreAnim = document.createElementNS(NS, 'animate');
+    coreAnim.setAttribute('attributeName', 'opacity');
+    coreAnim.setAttribute('values', '0.12; 0.55; 0.12');
+    coreAnim.setAttribute('dur', dur + 's');
+    coreAnim.setAttribute('begin', delay + 's');
+    coreAnim.setAttribute('repeatCount', 'indefinite');
+    coreAnim.setAttribute('calcMode', 'spline');
+    coreAnim.setAttribute('keySplines', '0.45 0 0.55 1; 0.45 0 0.55 1');
+    core.appendChild(coreAnim);
+    svg.appendChild(core);
   });
 }
 
 function scaleAndDraw() {
-  const wrapper = document.getElementById('responsive-wrapper');
-  const inner = document.getElementById('responsive-inner');
+  var wrapper = document.getElementById('responsive-wrapper');
+  var inner = document.getElementById('responsive-inner');
   if (!wrapper || !inner) return;
 
-  const scale = wrapper.offsetWidth / DESIGN_WIDTH;
+  var scale = wrapper.offsetWidth / DESIGN_WIDTH;
   inner.style.transform = 'scale(' + scale + ')';
   wrapper.style.height = inner.scrollHeight * scale + 'px';
 
