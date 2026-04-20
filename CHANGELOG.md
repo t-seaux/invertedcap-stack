@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-20] (Week of 2026-04-20) — Scheduled Run #3
+
+**Added:** None
+**Removed:** neg1-scanner
+**Modified:** None
+**Total skills:** 24
+**Functions:** No changes to function membership. Pipeline Management now lists 5 skills (was 6).
+
+Notes: First run with the `skill-snapshots/` diff baseline — snapshots seeded this run; behavior changes in individual skills will be detected going forward.
+
+---
+
 ## [2026-04-06] (Week of 2026-04-06) — Scheduled Run #2
 
 **Added:** None

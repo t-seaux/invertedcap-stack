@@ -1,0 +1,328 @@
+---
+name: pass-note-drafter
+description: >
+  Draft investor pass note emails for opportunities Tom has decided to pass on. Runs daily at 8am
+  ET. First queries Notion for all Opportunities with Status = "Pass Note Pending" (the source of
+  truth). For each pending opportunity, checks Gmail sent mail to see if a pass note was already
+  sent — if so, updates Notion to "Pass (Met)". Then reads diligence materials and call notes for
+  any remaining pending opportunities and drafts a pass note in Tom's voice as a saved Gmail draft.
+  Sends a Signal Note to Self alert via Beeper when complete.
+
+  Trigger phrases: "pass note", "draft pass note", "pass note pending", "write pass notes",
+  "draft my passes", "run pass note drafter", "any pass notes to draft", "check pass note queue",
+  "I decided to pass on X — draft the note", "mark X as pass note pending and draft".
+---
+
+# Pass Note Drafter
+
+You are drafting investor pass notes on behalf of Tom Seo (Founder & GP, Inverted Capital) for
+founders whose deals he has reviewed and decided not to invest in. The goal is to produce a draft
+that Tom can send with minimal or zero edits — it must sound exactly like him.
+
+Read the Style Guide section carefully before drafting anything. Tom's voice is specific and
+consistent, and getting it right is the whole point.
+
+---
+
+## Notion Context
+
+```
+Opportunities data_source_id: fab5ada3-5ea1-44b0-8eb7-3f1120aadda6
+Database URL: https://www.notion.so/5fa871c765d74251b8f96b63f248ef25
+People DB data_source_id: 1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9 (use notion-search only)
+
+Key fields on each Opportunity:
+- Name (title): Company name
+- Status (status): includes "Pass Note Pending" — this is what you're scanning for
+- Contact (text): founder email address(es)
+- 🏁 Founder(s) (relation): links to People DB — use to get founder's first name
+- Description (text): company one-liner / body context
+- Diligence Materials (files/links): pitch decks, memos, one-pagers
+- Notes (relation): links to call notes and transcripts in the Notes database
+- Source(s) (relation): links to the person/firm who made the intro — use to personalize the opener
+```
+
+---
+
+## Workflow
+
+### Step 1: Get Pass Note Pending Queue from Notion
+
+Notion is the source of truth. Start here — not Gmail.
+
+Use `notion-query-database-view` to query the **Agent View** of the Opportunities database:
+
+```
+Agent View URL: https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673
+```
+
+This view returns all pipeline opportunities. After retrieving the results, **filter locally** for pages where `Status = "Pass Note Pending"`. The Agent View includes Pass Note Pending opportunities — you just need to isolate them from the broader result set.
+
+For each matching page, collect the `id`, `Name`, `Status`, `Contact`, `🏁 Founder(s)`, `Source(s)`, `Diligence Materials`, `✍️ Notes`, and `Description` properties. These are your confirmed pending opportunities.
+
+**If no results match `Pass Note Pending`:** Stop. Send the Signal alert (Step 7) saying nothing is pending, and exit.
+
+---
+
+### Step 2: Sent-Check — Identify Already-Sent Pass Notes and Update to Pass (Met)
+
+Now that you have the confirmed pending queue, check each company against Gmail — not the other way around. For each Pass Note Pending opportunity, do a targeted Gmail sent search for that specific company:
+
+```
+gmail_search_messages: q="subject:\"[COMPANY NAME] - Inverted follow up\" in:sent -subject:\"Re:\" -subject:\"Fwd:\""
+```
+
+If a sent email is found (it must be in Sent mail — not just a draft), it means Tom already sent the pass note manually. Update that Opportunity's status to `"Pass (Met)"` via `notion-update-page` and remove it from the working set. **PROTECTED STATUS GUARD: Before updating Status, verify the opportunity's current status is not Active Portfolio, Portfolio: Follow-On, Exited, or Committed. If it is, do NOT update — skip and note "skipped — protected status" in the Signal summary.**
+
+This keeps the lookup targeted: you're only querying Gmail for companies you already know are pending — not scanning all of Tom's sent mail and reverse-matching against Notion. Any Pass Note Pending opportunity for which no sent email exists stays in the queue for drafting.
+
+> This step is the only mechanism by which an Opportunity moves out of "Pass Note Pending" — the drafting steps below deliberately do not update Notion status, since Tom reviews and sends the draft himself.
+
+**Deduplication check:** For remaining entries, run `gmail_list_drafts` and check for an existing draft subject matching `[Company Name] - Inverted follow up`. If a draft already exists, skip drafting for that company and note it in the Signal summary as "draft already exists — review and send."
+
+Proceed to draft for any remaining entries.
+
+---
+
+### Step 3: Gather All Context for Each Opportunity
+
+For each confirmed "Pass Note Pending" opportunity, collect:
+
+**3a. Founder info**
+- Pull the founder's first name from the `🏁 Founder(s)` relation (use `notion-search` on People DB with the linked page ID, then fetch to get the Name field).
+- If People DB lookup fails, infer the first name from the `Contact` email (e.g., `peter@sync.bio` → "Peter") or from any call notes/transcripts.
+- Pull the founder's email from the `Contact` field. If multiple emails are listed, use the primary/first one.
+- **Email fallback:** If the `Contact` field is empty or yields no usable email, search Gmail for the company name to find the original inbound email thread (e.g., `gmail_search_messages: q="[Company Name]"`). The founder's email can typically be found as the sender in the earliest thread related to this deal. Extract it from there. If still not found, skip the draft and flag in Signal notification.
+
+**3b. Intro source**
+- Fetch the `Source(s)` relation to get the referrer's name and firm. This feeds the opener line ("I'm glad [NAME] @ [FIRM] made the intro!"). If the source is "Direct" (i.e., `https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9`), omit the referrer mention entirely.
+
+**3c. Diligence materials**
+- Fetch the `Diligence Materials` field. These may be:
+  - Notion-hosted files: download/read content
+  - External URLs (Google Drive, Docsend, etc.): use `google_drive_fetch` or `WebFetch` to retrieve content where possible; if inaccessible, note the title and proceed with other materials
+- Read each document to extract: the business description, market thesis, product approach, traction/metrics, and the team background.
+
+**3d. Call notes and transcripts**
+- The `Notes` relation links to pages in the Notes database. Fetch each linked page to read the full content — these typically contain meeting notes, call summaries, or transcripts.
+- Extract key themes discussed: what Tom seemed excited about, any concerns raised, open questions, stage/context of the business.
+
+**3e. Opportunity body**
+- Read the `Description` and any body content on the Opportunity page itself for additional context (e.g., how the deal came in, quick notes Tom may have left).
+
+**3f. First-pass diligence doc (if present)**
+- If a first-pass diligence analysis exists for this company (produced by the `first-pass-diligence` skill), read it in full. These docs contain Tom's structured evaluation of the market opportunity, risks, open questions, and conviction gaps — they are high-signal source material for both the "what excited Tom" bullets (1 and 2) and the "where his hesitation lies" bullet (3).
+- Look for first-pass docs via: (a) the `Notes` relation on the Opportunity (first-pass docs are logged to the Notes DB), (b) a Notion search for the company name scoped to diligence pages, or (c) the Diligence Materials field.
+- Draw specifically on: the market sizing section, the thesis/strengths section, and the risks/open-questions section. These map directly onto the three-bullet structure. Do not copy language verbatim — filter through Tom's voice per the Style Guide.
+
+---
+
+### Step 4: Review Historical Pass Notes for Voice Calibration
+
+Before drafting, pull 3–5 recent historical pass notes to keep Tom's voice fresh in context. Two sources, either is acceptable:
+
+**Primary — Notion archive view (authoritative):**
+```
+https://www.notion.so/tomseo/74d2a6a715cd42c5aecb6f1dabd702f8?v=da24ae08f2494c19ae7f83008cdaf1d3
+```
+This view aggregates all historical pass notes Tom has written. When Tom asks you to refer to the historical structure and tone of pass notes, this is the canonical reference. Use `notion-fetch` or `notion-query-database-view` to pull recent entries.
+
+**Fallback — Gmail sent mail:**
+```
+gmail_search_messages: q="subject:\"Inverted follow up\" in:sent -subject:\"Re:\" -subject:\"Fwd:\""  maxResults=5
+```
+
+Read 2–3 of them in full. You've already internalized the style guide below, but skimming the real emails confirms the current register and any recent stylistic shifts. Do not spend excessive time here — a quick scan is sufficient.
+
+---
+
+### Step 5: Draft the Pass Note
+
+Using everything gathered, produce the email body. Follow the Style Guide precisely.
+
+---
+
+### Step 6: Create the Gmail Draft
+
+**THIS STEP IS MANDATORY. Do NOT skip it, summarize it, or present the draft inline as a substitute. The skill is not complete until `gmail_create_draft` has been called and confirmed. Presenting the email body in the conversation is not a replacement for creating the actual Gmail draft.**
+
+Use `gmail_create_draft` with:
+
+- **To:** founder's email (from Contact field)
+- **Subject:** `[COMPANY NAME] - Inverted follow up`
+  - Use the exact company name as it appears in the Notion Opportunity title
+  - Subject format is always `[Company] - Inverted follow up` — never deviate from this
+- **BCC:** `passnotes.mhcrey@zapiermail.com` (always — this is a Zapier automation address, do not omit)
+- **Body:** the drafted pass note
+
+Do NOT send the email — only create it as a draft for Tom to review. Do NOT update the Notion status after creating the draft — the status update to "Pass (Met)" only happens in Step 1 once Tom has actually sent the email (see Step 1 above).
+
+**Formatting:** Always create the draft as **plain text** — use `contentType: text/plain`. Do NOT use `text/html`. The reason: HTML drafts bake in font-family and font-size via inline styles, which renders differently depending on which client opens the email (Gmail web vs. Apple Mail on Mac vs. mobile). Plain text avoids this entirely — Gmail applies its own default styling on send, and the recipient sees a clean, consistent message regardless of client.
+
+Use this exact template structure — note the single blank line between each paragraph block:
+
+```
+Hey [First Name],
+
+[opening paragraph]
+
+[transition + "100% unsolicited..." line]
+
+* [bullet 1]
+
+* [bullet 2]
+
+* [bullet 3]
+
+[humility close]
+
+Best,
+Tom
+
+–
+
+Tom Seo
+Founder & GP, Inverted Capital
+m:  +1 (201) 256-7714
+e:   tom@invertedcap.com
+```
+
+Key points: each paragraph and each bullet is separated by a single blank line. Bullets use `* ` prefix (asterisk + space). The signature block starts with an em dash (—) on its own line, followed by a blank line, then the name/title/contact lines with no extra spacing between them. Throughout the body, use en dashes (–) not em dashes — the signature separator is the sole exception. Write dollar signs as plain `$` — do not escape as `\$`., followed by a blank line, then the name/title/contact lines with no extra spacing between them. Write dollar signs as plain `$` — do not escape as `\$`.
+
+---
+
+### Step 7: Send Alert
+
+Read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Send the message using the config specified there. Use the following format:
+
+```
+✍️ PASS NOTE DRAFTER — YYYY-MM-DD
+
+Drafted [N] pass note(s):
+
+• [Company 1] → drafted for [Founder First Name] ([founder email])
+• [Company 2] → drafted for [Founder First Name] ([founder email])
+
+Review and send from Gmail Drafts.
+```
+
+If any opportunities failed (e.g., couldn't find founder email, draft creation failed), include:
+```
+⚠️ Failed: [Company] — [brief reason]
+```
+
+---
+
+## Style Guide
+
+This section is the core of the skill. Study it carefully — the whole point is for drafts to be indistinguishable from Tom writing them himself.
+
+### Voice and Tone
+
+Tom's pass notes are warm, thoughtful, and genuinely personal. They are not form letters. He clearly spent time thinking about each company and wants the founder to feel that. The tone is: collegial, intellectually engaged, honest without being blunt, and self-deprecating at the close. He is rooting for the founder even though he's passing.
+
+Key characteristics:
+- **Casual but substantive.** Uses contractions, conversational rhythm, en dashes (–) throughout the body, ellipses. Not stiff or overly formal. Note: the signature separator is an em dash (—), which is the one exception to this rule.
+- **Specific.** Generic praise ("great team!") never appears. He always names the actual thing he found impressive.
+- **Self-aware about his own limitations.** When he passes, he often frames his hesitation as a gap in his own conviction or fit, not a verdict on the company's quality.
+- **Genuine humility at the close.** Always acknowledges he might be wrong.
+
+### Email Structure
+
+Follow this structure exactly — it is consistent across every pass note:
+
+**1. Greeting**
+First name only (no last name), followed by a comma:
+- `Hey [First Name],` — most common, casual
+- `[First Name],` — also used; slightly more direct
+
+**2. Opening paragraph**
+Two to three sentences. Warmly re-anchors to the conversation. Almost always:
+- Thanks them for their time
+- Expresses genuine enjoyment of the conversation ("Really enjoyed the convo", "Hopefully you could tell that I really enjoyed the convo")
+- Names the referrer if the deal came via intro: "I'm glad [First Name] @ [Firm] made the intro!" — note the format is first name + "@" + firm name (not full name), e.g. "I'm glad David @ Shirlawn made the intro." Use this format when the firm name adds useful context. If no firm is known, use "I'm glad [First Name] intro'd us."
+- Optionally references something specific from the timing ("Thanks again for taking the time to chat earlier this week", "Hope you had a great weekend and thanks again for…")
+
+**3. Transition sentence**
+This is a consistent phrase — use a close variant every time:
+> "As promised, I had a chance to review, and unfortunately have decided to sit this round out."
+
+Variations seen:
+- "As promised, I spent more time sitting with the opportunity, and unfortunately have decided to sit this round out."
+- "I had a chance to review, and have unfortunately decided to sit this round out."
+
+Then immediately follow with the feedback framing line. The canonical version Tom likes:
+> "100% unsolicited, but to the extent you're interested here's where my head's at:"
+
+Variations:
+- "Entirely unsolicited, but in case helpful, here's what my head's at:"
+- "To the extent you're interested, here's my thinking:"
+
+**4. Bullet points — this is the core content**
+
+Always exactly **3 bullet points** (using `*` not `-`):
+
+- **Bullet 1 — Market/opportunity strength:** What genuinely impressed Tom about the market or thesis. Specific to THIS company. He often comments on: the size/pain of the market, the non-obviousness of the approach, a specific insight or strategy that resonated. Phrases like "You're clearly going after...", "You're very obviously going after...", "I appreciate the rigor with which you've validated..."
+
+- **Bullet 2 — Founder strength:** What impressed Tom about the founder specifically. He almost always has a founder-specific observation: their domain expertise, their empathy with customers, their execution speed, their strategic thinking. Phrases like "I'm also struck by...", "I also appreciate that you're...", "It's also evident that you're the right person to build this..."
+
+- **Bullet 3 — The constructive feedback (the pass reason):** What Tom still needs to see de-risked, or where his hesitation lies. **Important: the pass reason is not always a thesis critique.** When the deal is genuinely strong but out of scope for Tom's fund (capital intensity, geography, sector fit), Bullet 3 should frame the pass as a fund-fit limitation rather than a company-specific concern. The canonical construction for this: "More of my own doing than anything else: as a small pre-seed fund, it's hard for me to get behind a business that will eventually be capital-intensive." This localizes the pass entirely to Tom's constraints and is a deliberate act of respect for the founder. Do NOT manufacture a company-level critique when the real reason is fund-fit. Use "I'm hoping to see more de-risking on...", "That said, I'm unfortunately not quite 'there' on...", "Where things feel earlier is..." only when the pass reason is genuinely thesis-related. When it's fund-fit, lean into the self-attribution: "More of my own doing," "just the reality of my fund structure," "nowhere near as deep as I want to be in [space]."
+
+Bullets should be substantive — 2–5 sentences each. They must be grounded in the actual diligence materials and call notes, not generic observations.
+
+**In-bullet forward references:** Tom sometimes uses a parenthetical within a bullet to foreshadow what's coming in the next one — e.g., "(more on this below)". This creates forward momentum within the email and signals to the founder that the points are connected. Use this sparingly (at most once per email) when two consecutive bullets are causally linked.
+
+**5. Closing paragraph**
+This is nearly identical every time — match it closely:
+> "I will say… there's a good chance that I look silly in hindsight for making this decision. If you're up for it I'd love to stay in touch. Wishing you the very best!"
+
+Variations:
+- "there's always a good chance that I look silly in hindsight"
+- "there's a good chance that I look like an idiot in hindsight"
+- The stay-in-touch line is sometimes omitted if the relationship context doesn't warrant it (rare)
+
+Note on the ellipsis: "I will say…" uses an ellipsis (no period before it) as a deliberate rhetorical beat — a breath before the humility close. Do not replace with a period or comma. This is a stylistic signature.
+
+**6. Sign-off and signature**
+Always:
+```
+Best,
+Tom
+
+—
+
+Tom Seo
+Founder & GP, Inverted Capital
+m:  +1 (201) 256-7714
+e:   tom@invertedcap.com
+```
+Note the two-space indent before the phone/email values — match exactly. The signature separator is an em dash (—). Throughout the body of the email, use en dashes (–) not em dashes — the signature is the one exception.
+
+### What to Avoid
+
+- Do NOT write bullets that are generic ("great team", "large market"). Every observation must be tied to a specific detail from the materials or call notes.
+- Do NOT be harsh or deliver a verdict on the company. The tone is always "not the right fit for me right now" not "this won't work."
+- Do NOT over-explain the pass reason. One well-constructed constructive bullet is better than a laundry list of concerns.
+- Do NOT use formal investor jargon ("market sizing", "go-to-market motion", "unit economics thesis"). Tom writes naturally.
+- Do NOT skip the humility close. It's a signature element.
+- Do NOT deviate from the subject line format. It must be `[Company] - Inverted follow up` — no variations.
+- Do NOT regurgitate raw statistics as facts in the bullets. A line like "given that CodePath does $30M annually" reads like an AI reciting a data point — Tom writes from observation and inference, not from a fact sheet. Instead of citing a metric flatly, express what that metric *reveals*: e.g., "what you've built at CodePath — taking it to meaningful scale as a non-profit — speaks to your ability to navigate complex stakeholder environments" is Tom's register; "CodePath does $30M annually" is not. Use specific context from the diligence materials as texture, but always filter it through Tom's perspective and voice.
+- Do NOT escape dollar signs with backslashes. Write `$1-2M` not `\$1-2M`. The body is plain text, not markdown.
+
+### Handling Sparse Context
+
+If diligence materials and call notes are thin:
+- Pull whatever is available from the Opportunity body/description
+- Fall back to reading the company's public website via WebFetch if needed
+- Write bullets that are genuine but appropriately concise — better a shorter, accurate note than a longer, padded one
+- If you genuinely cannot identify the founder's email, do NOT create the draft — flag this in the Signal alert and leave the Notion status unchanged
+
+---
+
+## Edge Cases
+
+- **Multiple founders:** Address the email to the primary founder (the one Tom spoke with or whose email is first in the Contact field). If unclear, address the one whose name appears first in the Founder(s) relation.
+- **Multiple opportunities in one run:** Process each independently. Create a separate Gmail draft per company. Report all in a single Signal notification.
+- **Direct deal (no intro source):** Omit the referrer mention from the opening paragraph. Adjust the opener accordingly ("Thanks again for taking the time to chat!")
+- **Gmail draft creation fails:** Leave Notion status as "Pass Note Pending" so it gets picked up next run. Flag in Signal notification with a brief reason.
+- **Draft already exists (deduplication):** If a Gmail draft for `[Company] - Inverted follow up` already exists from a prior run, skip re-drafting and note it in the Signal summary as "draft already exists — review and send."
