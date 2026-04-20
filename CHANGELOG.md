@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-20] (Week of 2026-04-20) — Manual Correction
+
+**Added:** neg1-enricher, founder-outreach
+**Removed:** None
+**Modified:** None
+**Total skills:** 26
+**Functions:** Pipeline Management now lists 7 skills (was 5). Two pipeline primitives surfaced on the map after correcting a stale canonical mapping.
+
+Notes: Corrects omission from Scheduled Run #3 earlier today — the canonical function mapping in the refresh skill had drifted from the live skills directory, so two Pipeline Management skills were present on disk but not rendered on the visuals. Canonical mapping updated in tandem with this push.
+
+---
+
 ## [2026-04-20] (Week of 2026-04-20) — Scheduled Run #3
 
 **Added:** None
