@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-20] (Week of 2026-04-20) — Manual Reclassification
+
+**Added:** None
+**Removed:** docsend-to-pdf
+**Modified:** None
+**Total skills:** 25
+**Functions:** Pipeline Management now lists 6 skills (was 7). docsend-to-pdf reclassified as a utility subroutine — invoked by other skills (add-to-crm, materials-handler) rather than standing on its own as a user-facing workflow.
+
+Notes: Second same-day manual pass. docsend-to-pdf is mechanical utility glue, not a pipeline primitive, so it no longer appears on the public platform map.
+
+---
+
 ## [2026-04-20] (Week of 2026-04-20) — Manual Correction
 
 **Added:** neg1-enricher, founder-outreach
