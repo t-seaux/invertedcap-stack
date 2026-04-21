@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-21] (Week of 2026-04-20) — Manual Update
+
+**Added:** add-to-companies
+**Removed:** None
+**Modified:** None
+**Total skills:** 26
+**Functions:** Research Management now lists 5 skills (was 4). add-to-companies is the standalone entry point for building the companies knowledge base — enriches a company from LinkedIn URL, domain, or name via ContactOut and related sources.
+
+Notes: Also changed the refresh cadence from weekly to daily (runs every day at 7:30 AM ET) so the map stays in sync with active platform evolution.
+
+---
+
 ## [2026-04-20] (Week of 2026-04-20) — Manual Reclassification
 
 **Added:** None
