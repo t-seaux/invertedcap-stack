@@ -2,6 +2,21 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-22] (Week of 2026-04-20) — Headless Feedback Engine + Decision Retros
+
+**Added:** draft-feedback (Pipeline Management, Scheduled), decision-retro (Diligence Management, Ad Hoc)
+**Removed:** None
+**Modified:**
+- founder-outreach — now reads two voice corpora (accumulated edits from prior sends + canonical from-scratch examples) before drafting; writes a draft snapshot to a synced Drive folder at draft creation time, replacing the prior in-database draft writeback.
+- pass-note-drafter — same dual voice-corpus read step before drafting; writes a Drive snapshot for every draft created.
+
+**Total skills:** 28
+**Functions:** Pipeline Management now lists 7 skills (was 6). Diligence Management now lists 9 skills (was 8). No new functions.
+
+Notes: First-class headless feedback loop. Outreach and pass-note drafts are now snapshotted at creation time to a synced Drive folder; a Gmail webhook detects sends, matches snapshots by persistent message ID, and a local processor extracts voice patterns into skill-local files that the drafters re-read on every run. The loop is invisible — no manual triggers, no database fields, no inbox clutter. From-scratch sends matching the canonical outreach or pass-note subject lines are also captured as canonical voice examples. Decision-retro captures free-form post-decision reasoning on every invest, pass, or cold dismissal and routes thematic nuggets into the founder signal framework corpus that drives ongoing rubric evolution.
+
+---
+
 ## [2026-04-22] (Week of 2026-04-20)
 
 **Added:** None
