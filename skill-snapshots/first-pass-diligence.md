@@ -324,14 +324,38 @@ Each risk has two components:
   of likelihood.
 
 **7. Path to Next Round**
-Backsolve what traction the company needs to unlock the next financing round. Four subsections:
+Backsolve what traction the company needs to unlock the next financing round. Six subsections:
 
-*Benchmarks — Comps from Deal Flow:* Search the Notion Notes database for Deal Digest entries
-(Category = Research, Name contains "Deal Digest"). Pull relevant comps — both sector-fit (same
-industry) and stage-fit (comparable ARR/valuation regardless of sector). Sort by stage earliest to
-latest, weight more recent data points higher. Do not mislabel companies — if the product category
-is not stated in the digest, omit it rather than guessing. Present as a table with columns:
-Company | Stage | ARR / Revenue | Valuation | Lead | Notes.
+*Seed Comps — What Seed Rounds Are Going For:* Search the Notion Notes database for Deal Digest
+entries (Category = Research, Name contains "Deal Digest") and pull Seed-stage comps (any sector)
+to establish what the prevailing Seed market looks like. Weight more recent data points higher.
+Do not mislabel companies — if the product category is not stated in the digest, omit it rather
+than guessing. Present as a table with columns: Company | ARR / Revenue | Valuation | Round
+Size | Lead | Notes. Follow the table with a 2-3 sentence synthesis of where the Seed bar sits
+today (e.g., "Seeds in this cohort are clustering around $X-Y ARR at $A-B post, typically led
+by..."). Seed and Series A are distinct rounds with distinct markets — do not combine them into
+a single table.
+
+*Series A Comps — What Series A Rounds Are Going For:* Same sourcing pattern as Seed Comps, but
+pulling Series A data points. Present as a table with columns: Company | ARR / Revenue |
+Valuation | Round Size | Lead | Notes. Follow the table with a 2-3 sentence synthesis of the
+Series A bar. This establishes what the company needs to look like to raise an A from the kinds
+of firms that lead at this stage, and is the reference point for Scenario B of the Implied
+Parameters subsection below.
+
+*Adjacent Space Comps — Who Else Is Building in This Neighborhood:* From the same Deal Digest
+entries (and targeted web research where the digest doesn't cover a known competitor), pull
+comps for companies building in the specific or adjacent space this opportunity occupies. The
+purpose is different from stage comps: this shows Tom the competitive capital landscape — who
+else is attracting capital in this neighborhood, on what terms, and from whom. For each comp,
+capture what they're building, what they've raised (total and most recent round), traction
+figures (ARR, users, or whichever metric the digest reports), valuation, and who's invested
+(lead and notable participants). Present as a table with columns: Company | Description | Total
+Raised / Latest Round | Traction | Valuation | Investors | Notes. Sort by stage earliest to
+latest. Follow the table with a short prose synthesis (1-2 paragraphs) on what the adjacent
+landscape signals — is capital consolidating around a particular approach, are incumbents
+over- or under-capitalized relative to the opportunity, which investors are building conviction
+in this neighborhood.
 
 *Implied Parameters for Next Round:* Based on comps, define two scenarios for the next round.
 Scenario A should be the round achievable from the current raise (e.g., seed from pre-seed).
@@ -431,9 +455,12 @@ If you catch yourself doing any of these, stop and correct:
    or operating cost data exists in the record. Note the gap instead.
 7. **Missing "Founder Evaluation Through the Inverted Lens"** — skipping the third Team
    subsection. This is required.
-8. **Generic Path to Next Round** — not following the four-subsection structure (Benchmarks,
-   Implied Parameters with named scenarios, Revenue Build with capital allocation and per-
-   customer math, What Breaks the Path). Each subsection has specific required content.
+8. **Generic Path to Next Round** — not following the six-subsection structure (Seed Comps,
+   Series A Comps, Adjacent Space Comps, Implied Parameters with named scenarios, Revenue
+   Build with capital allocation and per-customer math, What Breaks the Path). Each subsection
+   has specific required content. Collapsing Seed and Series A into a single Stage Comps
+   table — or folding Adjacent Space Comps back into a generic Benchmarks section — is a
+   regression. Each cut serves a distinct analytical purpose and must be kept separate.
 9. **Wrong Sources grouping** — using ad hoc categories instead of "Internal Materials" and
    "External References" with "Key Data Points Referenced."
 10. **Thin paragraphs** — writing 1-2 sentence paragraphs that state conclusions without
@@ -524,7 +551,7 @@ the wrong icon. Use `:claude-color:` exactly as shown above.
 ## Step 5: Build the PDF
 
 **Start from the canonical template** at
-`/Users/tomseo/.claude/skills/first-pass-diligence/pdf_builder_template.py` — copy it to the
+`/Users/tomseo/.claude/skills/shared-references/pdf_builder_template.py` — copy it to the
 outputs directory and fill in the four CUSTOMIZE blocks at the top. Do NOT write a PDF script
 from scratch; the template already contains all known encoding fixes and formatting logic.
 
@@ -549,7 +576,7 @@ rendered tables.
 syntax for tables, not standard markdown pipe tables. The canonical template's `parse_content()`
 function handles both formats. If you write a custom parser, it must handle both.
 
-Read the formatting spec at `references/pdf-format-spec.md` for the exact style definitions.
+Read the formatting spec at `/Users/tomseo/.claude/skills/shared-references/long-form-pdf-spec.md` for the exact style definitions.
 
 **Post-table / post-chart spacing:** After every `Table` flowable (and any chart or visual
 exhibit), insert a `Spacer(1, 10)` to enforce 10pt of whitespace before the next element.

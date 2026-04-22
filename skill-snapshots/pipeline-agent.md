@@ -336,7 +336,7 @@ Spawn with `Task` tool.
    - Update the existing -1 Scanner row via `notion-update-page` (Step 4 Update path)
 
    **b) Scoring + Drafting** — read `/Users/tomseo/.claude/skills/founder-outreach/SKILL.md` and invoke Mode 1 (Score) then Mode 2 (Draft) in sequence for this row:
-   - Mode 1 writes Non-Obviousness Score + Rationale + Contrarian Signals + Working Description + auto-rec text to Reach Out Rationale
+   - Mode 1 writes Eval Score + Rationale + Signals + Working Description + auto-rec text to Reach Out?
    - Mode 2 generates Gmail draft, populates Gmail Draft URL, sets `Status = Draft Ready`
 
 3. **Guardrails**:
@@ -373,7 +373,7 @@ Spawn with `Task` tool.
 
    **a) Update -1 Scanner row**:
    - `Status = Reached Out`
-   - Append to `Reach Out Rationale` (or similar text field): `"Sent on {date} — see Gmail {sent_message_id}"` for audit
+   - Append to `Reach Out?` (or similar text field): `"Sent on {date} — see Gmail {sent_message_id}"` for audit
 
    **b) Invoke `add-to-crm` to create a pre-company Opportunity** with these exact pre-populated fields:
 

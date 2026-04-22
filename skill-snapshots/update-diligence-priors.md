@@ -257,12 +257,11 @@ full diligence picture from the PDF alone without referencing the Notion page.
 
 ### Formatting
 
-Follow the same PDF format spec as the first-pass-diligence skill. Install reportlab if needed:
+Follow the canonical long-form PDF format spec. Install reportlab if needed:
 `pip install reportlab --break-system-packages -q`
 
-Read the formatting spec at `references/pdf-format-spec.md` (located in the `first-pass-diligence`
-skill directory) for exact style definitions. Apply the same post-table/post-chart `Spacer(1, 10)`
-spacing rule.
+Read the formatting spec at `/Users/tomseo/.claude/skills/shared-references/long-form-pdf-spec.md`
+for exact style definitions. Apply the same post-table/post-chart `Spacer(1, 10)` spacing rule.
 
 **Page numbers:** Add centered page numbers (8pt Helvetica) at the bottom of every page using a
 `canvas` callback on `SimpleDocTemplate`:

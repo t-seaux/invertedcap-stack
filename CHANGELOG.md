@@ -2,6 +2,22 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-22] (Week of 2026-04-20)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- neg1-enricher — absorbed the signal scoring + verdict rubric; now produces a fully-evaluated -1 Scanner row (enrichment + score + recommendation) and adds a `--score-only` mode for rubric drift checks.
+- founder-outreach — narrowed to a single-mode drafting primitive; scoring moved upstream to neg1-enricher. Refuses to draft on unscored rows and now captures the initial AI-authored body for future diff-based learning.
+- first-pass-diligence — expanded the Path to Next Round section from four to six subsections, splitting Seed vs Series A comps and adding an Adjacent Space Comps view of the competitive capital landscape.
+
+**Total skills:** 26
+**Functions:** No changes
+
+Notes: The -1 pipeline refactor consolidates enrichment + evaluation in one skill so Tom sees a verdict the moment a row is enriched; drafting is now purely the last mile. First-pass diligence gets sharper stage benchmarking.
+
+---
+
 ## [2026-04-21] (Week of 2026-04-20) — Manual Update
 
 **Added:** add-to-companies
