@@ -63,106 +63,25 @@ From the enriched profile's experience array, identify the **primary current rol
 - If the headline leads with a role, that's typically the primary
 - The exception: people whose full-time job IS investing (GP at a fund, VC Partner, family office principal) — their investing role is the primary
 
-### Step 3: Resolve Companies in Notion
+### Step 3: Resolve Companies in Notion (via `add-to-companies`)
 
-The **Company** field (primary employer, limit 1), **Work History** field (all employers), and **School(s)** field (all schools from education) are all **relations** to the Companies database. For every company or school that needs to be linked:
+The **Company** field (primary employer, limit 1), **Work History** field (all employers), and **School(s)** field (all schools from education) are all **relations** to the Companies database.
 
-**3a. Dedup-search** — use `notion-search` with `data_source_url: "collection://7d50b286-c431-49f5-b96a-6a6390691309"`.
-- **Primary key: URL (normalized domain).** Search by the `URL` field. Normalize both sides for comparison: strip `https://`/`http://`/`www.`, trailing slash, and any path (`abnormal.ai/` ≡ `https://www.abnormal.ai` ≡ `abnormal.ai`). Domain-equivalent match is authoritative — different names with same domain are the same company.
-- **Fallback: Name fuzzy match.** If no URL hit (or no URL available), fall back to name matching. Be forgiving ("Google DeepMind" matches "DeepMind", "Meta" matches "Facebook/Meta").
-- If found, capture the row's `Last Enriched` value — determines whether Step 3c backfill is needed.
+**This skill does NOT reimplement the Companies enrichment spec.** For every distinct company and school in the person's experience + education arrays, invoke the `add-to-companies` skill as a subroutine. That skill handles dedup, enrichment, backfill, Sales Nav scrape, Deal Digest merge, icon, and Last Enriched per the canonical spec at:
 
-**3b. Create if not found** — use `notion-create-pages` with parent `data_source_id: "7d50b286-c431-49f5-b96a-6a6390691309"`.
+**`/Users/tomseo/.claude/skills/shared-references/companies-enrichment-spec.md`**
 
-For **Company**-category entries, call `contactout_enrich_company` to pull the full Company Search response (falling back to `contactout_enrich_domain` if it misses). Populate the fields below. For **School**-category entries, only populate the Legacy core fields (use `contactout_enrich_domain` as before) — skip all Enrichment fields. For **Fund**-category entries, populate both tiers.
+Collect the page URL returned by each `add-to-companies` invocation — these are what populate the relation fields on the -1 Scanner row.
 
-| Companies Field | How to Populate |
-|----------------|----------------|
-| **Name** | Company name from ContactOut data |
-| **Category** | "School 🎓" if the entity is a university, college, or educational institution. "Fund 💸" if the company's industry involves Venture Capital, Private Equity, Investment Management, Hedge Funds, Asset Management, or if the entity is clearly an investment fund. Otherwise "Company 🛠️". |
-| **Overview** | **Always populate for every new entity.** For the primary company, use `company.overview`. For work history companies and schools, use `description` from `contactout_enrich_domain` (or `overview` from Company Search). If nothing returned, leave blank — never fabricate. |
-| **userDefined:URL** | Company website — this is **also the canonical dedup key**. For primary company: `company.website`. For work history: `https://{domain}` from `experience[].domain`. Omit if unavailable. Dedup compares normalized root domain (strip protocol/www/path). |
-| **Total Funding** | Text field. Format: `$Xm (Investor1, Investor2, ...)` with lowercase `m`/`b`/`k`. Aggregate of disclosed funding + major investors in parens. **Free-lane data hierarchy** — dollars and investors come from different sources because no single free source gives both comprehensively. **Dollar amount**: (1) PDL `/v5/company/enrich` → `total_funding_raised` (most reliable aggregate; see `shared-references/peopledatalabs.md`) → (2) ContactOut `company.funding.total_funding_usd` (fallback) → (3) sum of ContactOut `funding.rounds[].amount_usd` (last resort). **Investor list**: ContactOut's latest round's `funding.rounds[0].investor_names` — this captures ~80-90% of the "who backed this" signal because major leads typically follow on in later rounds (verified on Thatch: Index-led Series B's `investor_names` included Index, a16z, GC, ADP Ventures, PeopleTech, SemperVirens, The General Partnership — effectively the full history's major participants). Cap at 4-5 names, comma-separated, de-duped, prefer tier-1 firms. Leave blank if no investors known. Leave whole field blank for Funds / Schools / Nonprofits (categorically N/A). Examples: Thatch → `$84m (Index Ventures, Andreessen Horowitz, General Catalyst)`; PDL $12m no investor data → `$12m`; ContactOut aggregate $1.3B with known leads → `$1.3b (Sequoia, a16z, Lightspeed)`. **Paid upgrade path** if free-lane coverage feels insufficient: Sacra (subscription + MCP already wired), Harmonic.ai (enterprise), Crunchbase API (enterprise). |
-| **LinkedIn URL** | Company's LinkedIn URL from Company Search `linkedin_url`, or from the `experience[].company.linkedin_url` on person enrichment. |
-| **Employee Count** | Text field. Format: `{count} ({Full Month} {YYYY})` — count followed by as-of month in parens, full month name + 4-digit year (e.g., `April 2026`, not `Apr '26`). **Primary: Sales Nav final series point** (populated by Step 3d — the most-recent month's headcount from the scraped chart; the month in parens is that series point's month). **Fallback: ContactOut's `size` / `employees`** only if Sales Nav scrape fails (auth error, no chart, or entity is Fund 💸 / School 🎓 which skips Sales Nav). In the fallback case, use the current enrichment month in parens. Example: Thatch → `199 (April 2026)`. Reason for Sales Nav primary: ContactOut's value lags — observed 174 vs. Sales Nav's current 199 for Thatch (April 2026), ~14% understated. Sales Nav refreshes monthly. |
-| **Founded Year** | From `founded_at` (year only, integer). |
-| **Company Type** | **1:1 with ContactOut's LinkedIn-derived `type`** — store verbatim. Valid values: `Privately Held`, `Public Company`, `Nonprofit`, `Educational Institution`, `Government Agency`, `Partnership`, `Self-Employed`, `Sole Proprietorship`. Leave blank if ContactOut returns nothing (don't force a guess). Note: LinkedIn has no "Acquired" type — acquisition status lives on `Funding Status` instead. |
-| **HQ** | Single-select, rolled up to **metro area** (US) or **country** (international). From ContactOut's `headquarter` or `country`, map the city/region to the corresponding select option. US metro rollup examples: Brooklyn/Jersey City/Stamford → `New York`; Berkeley/Oakland/Palo Alto/Mountain View/San Jose/South Bay → `San Francisco`; Santa Monica/Pasadena/Orange County → `Los Angeles`; Cambridge/Somerville → `Boston`; Bellevue/Redmond → `Seattle`; Northern VA/MD suburbs → `Washington DC`; Boulder → `Denver`; Lehi/Provo → `Salt Lake City`; Durham/Chapel Hill/RTP → `Raleigh`. International rollup to country: London → `United Kingdom`; Tel Aviv → `Israel`; Berlin → `Germany`; Paris → `France`; Amsterdam → `Netherlands`; Toronto → `Canada`; Mumbai/Bangalore → `India`. If the city doesn't match any explicit option → `Other`. If ContactOut returns no location → `Unknown`. No-HQ / distributed companies → `Remote`. Valid options: see Companies DB schema for the full list. |
-| **Revenue** | Text field. Source hierarchy: **Deal Digest wins over ContactOut** when both have a value. Format depends on source: **Deal Digest:** `$Xm ARR (Mon 'YY Deal Digest)` — pick the most recent digest mention that carries an ARR number (date format: 3-letter title-case month + apostrophe + 2-digit year + space + `Digest`, e.g., `Sep '25 Deal Digest`). **ContactOut fallback:** `$Xm (ContactOut Est.)` — ContactOut's `revenue` field converted to millions with lowercase `m`/`b`/`k`, with the word `Revenue` and `Est.` source-tag to flag that it's an aggregator estimate (Zoominfo/Apollo-sourced, less reliable than digest). Use only when no Deal Digest ARR mention exists. Examples: Thatch with Sep 2025 digest → `$4m ARR (Sep '25 Deal Digest)`; company with only ContactOut data → `$1m Revenue (ContactOut Est.)`. Leave blank if neither source has a value. Lowercase units throughout. |
-| **Funding Status** | **1:1 with ContactOut's `funding.funding_status`** — store verbatim. Valid values: `Pre-Seed`, `Seed`, `Angel`, `Series A`–`Series G`, `Series H+` (consolidated), `Convertible Note`, `Debt Financing`, `Corporate Round`, `Private Equity`, `Secondary Market`, `Grant`, `IPO`, `Post-IPO Equity`, `Post-IPO Debt`, `Acquired`, `Bootstrapped`, `Public`, `Unknown`. **Leave blank for `Fund 💸`, `School 🎓`, and Nonprofit entities** — funding_status is categorically inapplicable, and Tom's "Hide when empty" view config handles the display. For Operating companies (`Company 🛠️`): if ContactOut returns a value matching an option, use verbatim; if it returns a round type not in the list, use `Unknown` (and flag for spec extension); if ContactOut returns nothing, use `Unknown`. Same blank-when-inapplicable rule applies to `Total Funding ($m)` and `Funding Rounds`. |
-| **Momentum** | Plain-text timeline of funding rounds and Deal Digest traction mentions. **Newest first** (descending by date). One entry per line, no bullet prefix, no bold, no blank lines between. Date format: `{Mon YYYY}:` where Mon is 3-letter title case (`Jan`, `Feb`, `Mar`, `Apr`, `May`, `Jun`, `Jul`, `Aug`, `Sep`, `Oct`, `Nov`, `Dec`). Two entry types: (a) **Round entries** — `{Mon YYYY}: {Round Type}[ led by {lead}]; ${amount}m[ on ${valuation}m post]`. Round type + date + amount + lead from ContactOut `funding.rounds[]`; post-money valuation pulled from any Deal Digest mention that references this round (valuation is a round attribute, not time-sensitive — merge regardless of digest date). Omit the `led by` clause if no lead known; omit the `on $Xm post` clause if no valuation. (b) **Traction (Deal Digest) entries** — `{Mon YYYY}: ~$Xm ARR (Deal Digest)` or similar — used when a digest mention carries ARR, growth rate, or other time-indexed traction data. Keep traction and rounds as SEPARATE entries unless the traction number was explicitly captured at the same time as the raise (±1 month). **Amount formatting:** always lowercase `m`, `b`, `k` (e.g., `$40m`, `$1.2b`, `$500k`). >= $1b → "$X.Xb", >= $1m → "$Xm" or "$X.Xm" if decimals matter, >= $1k → "$Xk". Null `amount_usd` → "undisclosed". **Separator on round lines:** use semicolon (`;`) between the `led by {lead}` clause and the amount clause — NOT en dash or hyphen. Semicolons also separate clauses within traction lines (e.g., `$26m ARR; targeting $100m '26E`). **Multiple investors** are comma-separated, not slash or dash (e.g., `Charles Schwab, Google Ventures` — never `Charles Schwab / Google Ventures`). **Source tag on every line (required):** every Momentum line ends with the data source in parens. `(ContactOut)` for round lines where all fields came from ContactOut; `(Deal Digest)` for traction lines sourced from a digest; `(ContactOut, Deal Digest)` for round lines where the core round fields came from ContactOut but valuation/detail was merged from a digest. Example: `**Apr 2025:** Series B led by Index Ventures; $40m on $400m post (ContactOut, Deal Digest)` — the $40m + Series B + Index + date came from ContactOut; $400m post came from a later Deal Digest mention, folded in per Step 3e merge rules. **Round Type normalization:** if ContactOut returns `"Series unknown"` or a placeholder type, render as `Unknown`. **Decomposition of digest bullets:** a single digest bullet often carries both round data and traction data (e.g., `Thatch: Series B by Index; $4M at $400M` contributes valuation `$400m post` → folded into Apr 2025 round entry, AND traction `~$4m ARR` → standalone Sep 2025 entry). Split accordingly. "Deal Digest" is capitalized in the suffix. **If `funding.rounds[]` is empty AND no Deal Digest mentions exist, leave blank** — never write literal `[]`. **Bold the date prefix** with colon inside bold (`**Sep 2025:**`, `**Apr 2025:**`). **Multi-period traction** (arrow progressions, YoY multipliers, forward targets): **always one line per digest mention**, tagged with the digest's own date (when Tom saw it). Preserve the shape of the original bullet — arrows, multipliers, target clauses all stay. Use `→` for progressions. Examples: `**Mar 2026:** $1m → $7m → $26m ARR in '25A; targeting $100m '26E (Deal Digest)` (Campus); `**Sep 2025:** $30m ARR, 10x YoY (Deal Digest)`. **When the digest provides explicit anchor dates for each point in a progression**, include them as parentheticals attached to each number — still one line: `**Mar 2026:** $1.7m (Dec '25) → $3.5m (Jan '26) → $5.6m (Mar '26) ARR (Deal Digest)`. Multiplicative growth attaches to the point-in-time number on the same line. Forward targets share the line with the most recent actual. **Preserve relative dates verbatim** ("last year", "LTM", "in Q1") — do NOT translate to absolute years; the digest date prefix provides the anchor. **Drop thin mentions** ("doing well", name-only, pure punditry) — but keep raise signals ("raising", "raising B", "raising A later this year"). **Consolidate same-month digest mentions** only when they carry identical info (e.g., Xbow's Feb 18 and Feb 25 both saying "$1.1b by DFJ" → one entry). If two same-month digests carry different content, keep both (both tagged `Mon YYYY:`). **Same round mentioned across multiple digests over time** → ONE round entry, tagged to the **first digest that reported it**, enriched with richer detail (raise amount, investor names, revised valuation) from later mentions. The later digest retains its own entry ONLY for traction data (ARR, growth rate, targets) — not for re-stating the same round. Example (Xbow): round first surfaced Feb 2026 at `$1.1b; DFJ`; Mar 2026 digest added `$120m` raise amount + ARR progression → the $120m is folded into the Feb 2026 round entry, the ARR progression becomes a separate Mar 2026 traction entry. Example (Thatch): `**Sep 2025:** ~$4m ARR (Deal Digest)\n**Apr 2025:** Series B led by Index Ventures; $40m on $400m post` |
-| **Headcount** | Two-line text field with growth numbers at a glance. Format: `**12mo (Mon 'YY-'YY):** {hc_start} → {hc_end} (+X%)\n**24mo (Mon 'YY-'YY):** {hc_start_24} → {hc_end} (+X%)`. Each window on its own line, separated by a single `\n` newline (not semicolon, not blank line). Period label (`12mo` / `24mo`) comes first, followed by the date range in parens. When start and end months match (the common case), collapse year range to `Mon 'YY-'YY` — don't repeat the month. Use plain hyphen (`-`) between years, no spaces, apostrophe on both. Use arrow `→` for the numeric progression. Include `+` sign for growth; use `-` for contraction (e.g., `-12%`). Compute X% as `(end - start) / start * 100`, round to integer. `end_date` is always the most recent Sales Nav data point (today's month); `start_date` is that month minus 12 or 24 months. Example: `**12mo (Apr '25-'26):** 98 → 199 (+103%)\n**24mo (Apr '24-'26):** 45 → 199 (+342%)`. Edge case — if start and end months differ (shouldn't happen with monthly Sales Nav data but possible with truncation), use full form with en dash: `**12mo (Apr '25 – Mar '26):** ...`. If Sales Nav doesn't cover a full 12mo or 24mo window, omit that line and flag in HC Commentary. Leave blank if scrape fails entirely. |
-| **HC Commentary** | Short prose adding intra-window color that Headcount's anchor numbers can't convey. **Do NOT restate the Headcount anchor numbers** (no "45 → 199 over 25mo" opener — that duplicates the 24mo row). Focus on: (a) round-linked inflection points (e.g., `Series B closed Apr '25 at 98 employees`) — useful for tenure-overlap reasoning in founder-outreach Mode 1; (b) intra-window acceleration or deceleration (e.g., `+56% in H2 '25`, `flat Jun–Aug '25 before reacceleration`); (c) current hiring velocity (e.g., `adding ~12/month since Jan '26`). Dates use `Mon 'YY` format for consistency with Headcount. Example: `Series B closed Apr '25 at 98 employees; hiring accelerated through H2 '25 (98 → 153, +56% in 6mo). Adding ~12 employees/month since Jan '26`. Leave blank if no non-trivial intra-window events or velocity signals to report. |
-| **📰 Deal Digest Mentions** | Relation — JSON array of Notion page URLs for every Deal Digest page that mentions this company. Populated alongside Momentum writes. See Step 3e. |
-| **Last Enriched** | Today's date (ISO-8601). This is the credit-saving marker — its presence means "don't re-enrich." |
+**For Work History**, resolve every distinct company from the person's experience array **including the primary company as the first entry** (so its logo appears at the top of the Work History relation chips). Deduplicate by domain before invoking `add-to-companies`.
 
-Set the page **icon** to the entity's logo URL from ContactOut. Primary company: `company.logo_url`. Work history: `experience[].logo_url` or Company Search `logo_url`. Schools: `contactout_enrich_domain` → `logo_url`. Pass as `icon` on `notion-create-pages`.
+**For School(s)**, pass each education entry to `add-to-companies` — the skill will assign Category = `School 🎓` and populate Legacy core fields only per the spec.
 
-**Funding-field edge-case handling.** Use this table when Total Funding ($m), Funding Rounds, and Funding Status could each go multiple ways:
+**Skip study abroad programs entirely** (see filtering rules in Step 2) — do not invoke `add-to-companies` for them.
 
-| Company state | Total Funding | Momentum | Funding Status |
-|---|---|---|---|
-| Public, pre-IPO rounds tracked | aggregate of pre-IPO round amounts | prose timeline of pre-IPO rounds + digest mentions | `Public` |
-| Public, long-public (no rounds tracked) | blank | blank | `Public` |
-| Private startup with disclosed rounds | aggregate of rounds | merged rounds + digest timeline | matching series (`Seed`, `Series A`, etc.) |
-| Private startup, top-line only | ContactOut's `funding.total_funding_usd` fallback | digest-only entries if any, else blank | ContactOut's `funding_status` or `Unknown` |
-| Bootstrapped | blank | digest-only entries if any, else blank | `Bootstrapped` |
-| Acquired | pre-acquisition total | pre-acquisition rounds + digest timeline | `Acquired` |
-| Fund 💸 (VC/PE firm) | blank | blank | blank (categorically N/A) |
-| School 🎓 | blank | blank | blank |
-| Nonprofit | blank | blank | blank |
+**Rate-limit:** cap at ~1 company per 10 seconds when batching.
 
-**3c. Backfill existing rows** — if Step 3a found a row but `Last Enriched` is empty:
-- This row was created before the enrichment architecture existed. Backfill once.
-- Call `contactout_enrich_company` (or fallback to domain) and populate only the **new** fields: LinkedIn URL, Employee Count, Founded Year, Company Type, HQ, Revenue, Total Funding, Funding Status, Momentum, Headcount, HC Commentary, 📰 Deal Digest Mentions, Last Enriched.
-- **Do NOT overwrite** existing Name, Category, Company Overview, URL, Total Funding, icon — Tom may have curated these.
-- Skip backfill for School-category rows.
-
-**3d. Compute Headcount + HC Commentary (+ set Employee Count)** — scrape LinkedIn Sales Navigator's monthly headcount chart. Full recipe in `shared-references/salesnav-headcount-scrape.md`.
-
-1. Resolve the company's Sales Nav ID: navigate Chrome to `https://www.linkedin.com/sales/search/company?keywords=<name>` and scrape `a[href*="/sales/company/"]` from the first result. Verify the match with a quick industry/description check before committing — multiple companies share names (e.g., there are 5+ "Thatch" entities; only one is the healthcare platform).
-2. Navigate to `https://www.linkedin.com/sales/company/<id>` (8s wait). Click "View headcount growth" if the chart isn't inline (3s wait).
-3. Scrape all `aria-label` attributes matching `^(\d[\d,]*)\s+employees?\s+in\s+(\w+)\s+(\d{4})`. Parse into a `{YYYY-MM: count}` dict.
-4. **Set `Employee Count`** to `{count} ({Full Month} {YYYY})` — the most-recent month's value with its month in parens, full month name + 4-digit year (e.g., `199 (April 2026)`). Replaces ContactOut's stale aggregator number.
-5. Compute 12mo growth: `(hc_now - hc_12mo_ago) / hc_12mo_ago * 100`, round to integer. Same for 24mo. If the exact lookback month isn't present, use the nearest month within ±2 and flag truncation in HC Commentary.
-6. Write `Headcount` field: `**12mo (Mon 'YY-'YY):** {hc_start} → {hc_end} (+X%)\n**24mo (Mon 'YY-'YY):** {hc_start_24} → {hc_end} (+X%)`. Two lines, each starting with period label then date range in parens. Arrow `→` between counts. Omit a line if data is too thin.
-7. Write `HC Commentary` as prose — intra-window color only (do NOT restate Headcount anchor numbers). Focus on round-linked inflection points, acceleration/deceleration windows, and current hiring velocity. Leave blank if nothing non-trivial to add.
-
-**Skip conditions:**
-- Category is `Fund 💸`, `School 🎓`, or Nonprofit → leave all three fields blank.
-- Sales Nav returns no chart (small company, private, not yet backfilled) → leave blank.
-- Chrome not authenticated or redirect to `/upsell` → surface error, do not retry, leave blank.
-- `Company Type` is `Public Company` — HC is available but less load-bearing; still populate if the chart renders.
-
-Rate-limit: cap at ~1 company per 10 seconds when batching.
-
-**Comprehensive-population rule**: when enriching a row (fresh or re-enrichment), populate EVERY field the ContactOut response supports, including identity fields (Founded Year, HQ, Company Type, Overview, URL, LinkedIn URL). Only skip a field if it's already populated in Notion — never overwrite. Leaving known gaps (e.g., Amazon's Founded Year blank when ContactOut has it) is a bug.
-
-**3e. Merge Deal Digest mentions into Momentum (+ set relation)** — query the cached inverted index of Deal Digest bullets, then interleave mentions with funding rounds in the `Momentum` field. Full cache spec in `shared-references/deal-digest-cache.md`.
-
-1. Read `/Users/tomseo/.claude/skills/shared-references/deal-digest-cache.json`.
-2. Check staleness: rebuild the cache if `built_at` is >7 days old OR if the count of Deal Digest pages currently in the Notes DB exceeds `len(digest_pages)` in the cache. Follow the rebuild procedure in the cache spec. Do NOT skip this step — a stale cache silently drops recent mentions.
-3. Normalize the company name (lowercase, strip whitespace, strip trailing periods, strip parenthetical suffixes). Look up in `company_mentions`. If miss, try substring fallback (4+ char overlap).
-4. Write `📰 Deal Digest Mentions` relation as JSON array of the distinct `digest_url` values from all matched mentions, sorted by `digest_date` ascending.
-5. **Build the merged `Momentum` timeline** (see the Momentum field-table entry for the full format spec — bullet list, newest first, `MON YYYY` dates, lowercase `m`/`b`/`k`):
-   - Collect all funding rounds from ContactOut `funding.rounds[]`.
-   - Collect all Deal Digest mentions for this company from the cache.
-   - **Decompose each digest bullet** into its attributes: identify any post-money valuation (attach to the corresponding round's entry — match by round series/date from bullet context), and any ARR / growth / traction number (emit as its own standalone entry).
-   - **Merge rule:** a traction number captured **within ±1 month** of a round's date can be folded into that round's line if it reads as "ARR at close." Otherwise keep traction as a separate `(deal digest)` entry with the digest's own date. Default to separate — folding is the exception.
-   - Sort all entries (rounds + standalone traction) by date, **newest first**.
-   - Render as a bullet list with `- ` prefix per line, no bold, no blank lines between.
-6. Dates: `Mon YYYY` format, 3-letter title-case month (`Apr 2025`, `Sep 2025`).
-7. If `funding.rounds[]` is empty AND no digest mentions → leave `Momentum` blank (don't write `[]` or `"[]"`).
-8. **Finalize `Revenue`** — hierarchy: if any Deal Digest mention for this company carries an ARR number, pick the MOST RECENT one and overwrite Step 3b's ContactOut value. Format: `$Xm ARR (Mon 'YY Deal Digest)`. If no digest ARR mention, keep Step 3b's `$Xm (ContactOut Est.)` format. If neither has an ARR, leave blank. Digest ARR beats ContactOut ARR even if ContactOut's number is bigger — Tom trusts the digest more.
-
-**Skip conditions:**
-- Category is `Fund 💸` or `School 🎓` → leave both relation and Momentum blank (Deal Digest tracks operating companies only).
-
-**3f. Skip re-enrichment** — if Step 3a found a row with `Last Enriched` already populated, SKIP Steps 3b/3c entirely. Just use the existing page URL. This is the credit-saving rule. Note: re-running HC Growth (3d) and Deal Digest (3e) on refresh is fine — they don't consume ContactOut credits.
-
-**3g. Collect the page URL** returned by search or create. This URL is what gets passed into the relation fields on the -1 Scanner entry. All relation URLs must be full `https://www.notion.so/` URLs, not bare UUIDs.
-
-For **Work History**, resolve every distinct company from the person's experience array **including the primary company as the first entry** (so its logo appears at the top of the Work History relation chips). Deduplicate by domain before searching/creating.
+**All relation URLs must be full `https://www.notion.so/` URLs, not bare UUIDs.**
 
 ### Step 4: Create or Update the -1 Scanner Entry
 
@@ -253,7 +172,7 @@ Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/add
 ### Step 5: Apply the Rubric and Write the Evaluation
 
 Read the framework + rubric from co-located references:
-- `CALIBRATION.md` — 6-founder calibration corpus (per-signal scoring evidence)
+- `FOUNDER_CALIBRATION.md` — 6-founder calibration corpus (per-signal scoring evidence)
 - `ONLINE_SOURCES.md` — Phase 2 online research taxonomy
 - `../founder-outreach/FRAMEWORK_PRD.md` §6 — current rubric, anchors, thresholds (canonical)
 
@@ -321,7 +240,7 @@ Per FRAMEWORK_PRD.md §6.7 (re-scoring without re-enriching). Used when the rubr
 
 **Targeting**:
 - Single row: pass a -1 Scanner page URL or person name.
-- The 6-founder calibration corpus (per FRAMEWORK_PRD.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `CALIBRATION.md`).
+- The 6-founder calibration corpus (per FRAMEWORK_PRD.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `FOUNDER_CALIBRATION.md`).
 - Bulk: pass `--score-only --where "Eval Score is null"` or any Notion filter. Use sparingly — re-scoring 100+ rows takes time even without ContactOut calls.
 
 **Snapshot before overwrite**: write before-state to `/tmp/score_only_snapshot_{timestamp}.jsonl` (one JSON per row: page_id, name, before_eval_score, before_eval_breakdown, before_eval_summary, before_claude_rec). Lets Tom diff old vs new verdicts and revert if a rubric change misfires.
@@ -347,3 +266,38 @@ Per FRAMEWORK_PRD.md §6.7 (re-scoring without re-enriching). Used when the rubr
 3. Dedup-searches Companies DB by domain → Stripe found (Last Enriched → skip re-enrich), Google found (skip), Meta found but Last Enriched empty → backfills Meta with the 12 enrichment fields.
 4. Creates -1 Scanner entry with the full field set (no scoring fields — those are populated by founder-outreach).
 5. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. [link]"
+
+## Behavior Rules
+
+### Look harder by default — run the full online-presence search pass
+
+When researching a candidate's online presence (Step 4.5 here, or any similar people-search task), **always run the full deeper search pass by default** — don't stop after the first round of obvious queries.
+
+**Why:** On 2026-04-19 during Greg Reiner's enrichment, first pass returned `@gregreiner` on X and IG — both the wrong person. Tom had to explicitly ask "can you look harder?" before a second pass ran. The harder pass should be automatic, not on request.
+
+**Default flow — all four rounds run automatically:**
+
+**Round 1: baseline**
+- `"{Name}" site:github.com / x.com / substack.com / producthunt.com / ...`
+- Accepts obvious handle matches.
+
+**Round 2: disambiguate via bio facts**
+- Combine name with unique biographical disambiguators: current employer + school + city + specific product. E.g., `"Greg Reiner" Meta Penn` or `"Greg Reiner" "Facebook Live" OR "Reels"`.
+- Look up referenced bio articles (alumni profiles, press quotes, podcast appearances) and mine for handle hints OR for colleagues whose socials might tag the target.
+- For each Round 1 candidate, cross-check against known bio facts (location, employer, hometown, classmates). A `@gregreiner` from DC when target is NYC → not him. Discard and keep looking.
+
+**Round 3: handle variants**
+- Try non-obvious patterns: middle initial (`gregjreiner`), underscore (`greg_reiner`), number suffix (`gregreiner89` — birth year / class year), locale (`gregreinernyc`), professional suffix (`gregreinerpm`).
+- Search first initial + last name, full first name + last name.
+
+**Round 4: verification**
+- For any candidate account, WebFetch the bio/description and verify at least 2 facts match (location + employer, or employer + year).
+- If no second fact confirms, treat as unvalidated and exclude.
+
+**When to stop:**
+- All 4 rounds complete AND no validated account → legitimately "no public presence." Report as such — absence IS signal for Intellectual Rigor scoring.
+- A validated account is found → capture with `[Platform] (@handle)` format.
+
+**Time budget:** 5–8 minutes for the full pass. Longer than Round 1 alone, but prevents back-and-forth and ensures Online Presence is accurate on first run.
+
+Applies across skills: this skill's Step 4.5, feedback-outreach-drafter (backchannel contact discovery), and any future people-research task.

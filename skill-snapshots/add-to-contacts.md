@@ -189,3 +189,36 @@ new Notion page. Keep it concise — one or two lines is fine.
    - State: NY
    - Icon: (ContactOut profile photo URL)
 8. Returns: "Added Matt Heiman (Mercury) to People. [link]"
+
+## Behavior Rules
+
+### Dedupe before create — always use `workspace_search`
+
+Before creating a new entry in the People DB (data source `1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`), first search for the person's name. If an entry already exists, decide whether to update in place or (per Tom's preference) create fresh and archive the old one.
+
+**CRITICAL — use workspace search, not AI search:**
+- Pass `content_search_mode: "workspace_search"` to `notion-search`.
+- The default (`ai_search`) ranks semantically and has silently returned no Matt Brown for the query "Matt Brown" when one existed as a top-level page title. It returns semantic cousins (Matt Heiman, Matt Hartman, Grace Brown) instead of exact matches.
+- `workspace_search` correctly returns exact title matches as #1.
+
+**Why:** Duplicate Isabelle Phelps created 2026-04-17 because no dedupe ran; missed existing Matt Brown entry on 2026-04-20 because AI search didn't surface him despite an exact title match. Both preventable with the right search mode.
+
+**How to apply:**
+1. Step 0 of this skill (and any skill that writes to People DB — neg1-scanner, pipeline-agent founder enrichment, etc.).
+2. Call `notion-search` with `data_source_url: "collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9"`, `content_search_mode: "workspace_search"`, and the person's full name as `query`.
+3. Check top 3–5 results for exact title match. If found: update in place (or archive + create fresh, if Tom confirms).
+4. If no match in `workspace_search`, proceed with creation.
+5. Same rule applies to dedupe against Opportunities DB, -1 Scanner DB, and other tables where exact-name matching matters. Default to `workspace_search` for dedupe.
+
+### Don't auto-create People DB entries from side-effect workflows
+
+Do not create new entries in the People DB unless Tom explicitly asks. Related workflows (Opportunities enrichment, intro logging, feedback outreach, etc.) should link to existing People rows when dedupe finds them, and otherwise leave the relation blank rather than auto-creating.
+
+**Why:** Tom curates People intentionally — every row is someone he wants to track. Silent auto-creation from side-effect workflows (e.g. creating Ronit Jain while enriching the Pluto Opportunity on 2026-04-22) pollutes the DB with people he hasn't chosen to onboard.
+
+**How to apply:**
+1. In Opportunities enrichment (pipeline-agent, add-to-crm, manual cleanup), if the founder isn't already in People DB: enrich the Opportunity row but **leave `🏁 Founder(s)` blank**. Note the gap in the response so Tom can decide.
+2. Same rule for intro-agent, intro-qualified, feedback-outreach — prefer dedupe-and-link; never create-and-link as a silent step.
+3. The one exception is skills *explicitly* about adding people (`add-to-contacts`, `neg1-scanner`, `neg1-enricher`) — those are user-initiated and allowed to create.
+4. **When creation is authorized, populate `State`** in addition to City. State is part of the canonical People DB schema and Tom checks it. ContactOut's `location` is usually "{City}, {State}, United States" or "{Region} Bay Area" — derive State from that.
+5. If Tom says "also add X to People" or "create a People entry for X", that IS explicit permission — run the full create flow.

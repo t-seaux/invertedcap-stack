@@ -236,6 +236,20 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    - company (case-insensitive, if non-null) matches a Name (title) in the work list
    If no match is found in Connected or Tracking, skip — this email is not from a tracked founder.
 
+   **Scheduler-bot fallback (IMPORTANT)**: Meeting confirmations frequently arrive from scheduler bots rather than the founder directly. Recognize these sender patterns:
+   - `bot@blockit.com`, `*@blockit.com` (Blockit)
+   - `*@calendly.com` (Calendly)
+   - `notifications@google.com` (Google Calendar invites forwarded)
+   - `*@x.ai`, `amy@x.ai`, `andrew@x.ai` (x.ai scheduler, if still in use)
+   - `*@sidekickai.com`, `*@clara-labs.com`, `*@meetings.hubspot.com`, `*@savvycal.com`, `*@reclaim.ai`
+   - Generic patterns: local-part of `bot@`, `scheduler@`, `assistant@`, `hello@`, `no-reply@` with a scheduling-tool domain
+
+   When the sender matches a scheduler-bot pattern, do NOT require sender_email/sender_name to match a founder. Instead:
+   - Re-run matching against the email's **subject line** and the **quoted original thread** embedded in the body. The founder's email and name typically appear as "On [date] [Founder] <[email]> wrote:" blocks.
+   - Also check any non-Tom addresses in `To:` / `Cc:` / `Reply-To:` headers that resolve to the founder's domain.
+   - If any of those surface a Contact email, Founder name, or company Name in the work list, treat it as a match and proceed to steps 5–7.
+   - A matched scheduler-bot email with a concrete proposed meeting time (e.g., "Apr 27 at 10am EDT") is a strong confirmation signal — still run the GCal check in step 6 to verify the event landed on Tom's calendar before promoting.
+
 5. **Apply the Placeholder Rename Rule** for each matched opportunity per `/Users/tomseo/.claude/skills/pipeline-agent/references/placeholder-rename.md`.
 
 6. **Confirm against Google Calendar** for each matched opportunity. Call `gcal_list_events` with `q: "<founder name>"` and a 14-day window centered on today (7 days back, 7 days forward). Also try `q: "<company name>"` if the first returns nothing.
@@ -507,3 +521,13 @@ Rules:
 - **Ambiguous signals**: Leave status unchanged, note for manual review.
 - **Multiple sources**: Include all identifiable source URLs in Source(s) array.
 - **Stage extraction**: Match explicit stage mentions to emoji options. Default: `Pre-Seed 💡`.
+
+## Behavior Rules
+
+### Close Date only fires on invest or pass
+
+`Close Date` in the Opportunities DB is set **only** when Tom invests in or passes on a company. It is the decision-close date, not a scheduling or next-step date.
+
+**Why:** Close Date is a pipeline-outcome field, not a generic calendar field. Overloading it with meeting dates corrupts turnaround and close-funnel analytics.
+
+**How to apply:** When moving an Opportunity to Scheduled, Connected, Outreach, or any pre-decision stage, update Status (and Latest Outreach if relevant) but **leave Close Date alone**. Only populate Close Date when Status transitions to Invested / Pass (Met) / Pass / Declined-type terminal states.

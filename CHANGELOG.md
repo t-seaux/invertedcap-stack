@@ -2,6 +2,29 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-23] (Week of 2026-04-20) — Event-Driven Reclassification + Microstep Consolidation
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-companies — canonical enrichment spec extracted to a shared reference; behavior now reads from `shared-references/companies-enrichment-spec.md` so every caller uses the same field list and source priority.
+- add-to-contacts — added a workspace-search dedup rule (AI search was silently missing exact title matches) and a no-auto-create rule blocking side-effect workflows from polluting the People DB.
+- add-to-crm — now enriches HQ, contact, website, logo, and description from founder LinkedIn before page creation, with a cost-aware source priority (source → public LinkedIn → company website → paid API fallback).
+- founder-outreach — reads two voice corpora (accumulated edit patterns and canonical from-scratch examples) before drafting and writes a draft snapshot to Drive at creation time for the headless feedback loop.
+- investor-update — mandatory attachment probe before case-routing; Gmail plaintext hides attachments behind a placeholder glyph, so the attachment saver must run unconditionally.
+- materials-handler — mirrors the mandatory attachment probe rule and promotes the Chrome-automation path for writing external URLs to Files properties to primary (the public API rejects external URL writes).
+- neg1-enricher — delegates company + school resolution to add-to-companies as a subroutine, removing duplicated enrichment logic and inheriting dedup, backfill, and momentum from the canonical spec.
+- pass-note-drafter — same dual voice-corpus read step before drafting and writes a Drive snapshot for every draft created.
+- pipeline-agent — added scheduler-bot fallback (Blockit, Calendly, Google Calendar, Sidekick, SavvyCal, etc.) so meeting confirmations from bots resolve back to the founder via subject line and quoted thread; explicit rule that Close Date only fires on invest/pass terminal states.
+- pre-mortem — added a rendering rule pointing long-form artifacts at the canonical PDF spec (reportlab + Helvetica + black-and-white) rather than the PNG-first design-language guide.
+
+**Total skills:** 23
+**Functions:** Intro Management consolidates to 1 skill (was 5) — `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, and `log-intro` now absorb into `intro-agent` as microsteps of one end-to-end value chain. Diligence Management consolidates to 8 skills (was 9) — `feedback-outreach-drafter` and `feedback-outreach-scanner` absorb into `feedback-outreach` as microsteps of one "get feedback on an Opp" value chain.
+
+Notes: Introduces an **Event-Driven** third badge alongside Scheduled and Ad Hoc. Top-of-funnel detection and end-to-end lifecycle chains that are now primarily driven by Gmail webhook handlers (rather than cron sweeps) are reclassified: `pipeline-agent`, `intro-agent`, `investor-update`, `feedback-outreach`, and `draft-feedback` move to Event. `pass-note-drafter` moves from Scheduled to Ad Hoc — Tom initiates, the webhook is passive completion detection. The Stack Map legend gains a third swatch. Residual scheduled sweeps remain as fallbacks while webhook coverage is validated.
+
+---
+
 ## [2026-04-22] (Week of 2026-04-20) — Headless Feedback Engine + Decision Retros
 
 **Added:** draft-feedback (Pipeline Management, Scheduled), decision-retro (Diligence Management, Ad Hoc)

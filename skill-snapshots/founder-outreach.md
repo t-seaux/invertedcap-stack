@@ -65,7 +65,12 @@ Gmail's `create_draft` does NOT dedupe — each call creates a new draft. To pre
 - Requires Chrome running + authenticated to Gmail + "Allow JavaScript from Apple Events" enabled.
 - See memory `feedback_gmail_draft_persistent_id.md` for full pattern.
 
-**4. Read TEMPLATE.md** for scaffolding, hyperlinks, formatting rules, and anti-patterns.
+**4. Read TEMPLATE.md AND the voice corpora.**
+- `TEMPLATE.md` — scaffolding, hyperlinks, formatting rules, anti-patterns.
+- `EDIT_PATTERNS.md` (same directory) — record of how Tom edits Claude-drafted outreach before sending. Scan the last 20–50 entries; identify 3–5 most frequent patterns (e.g., "cuts filler closers," "tightens opener," "removes hedging adverbs"). Apply as priors when drafting, then check the final draft against them.
+- `VOICE_EXAMPLES.md` (same directory) — full sent emails Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice. Use as ground truth — if your draft sounds nothing like these, recalibrate.
+
+Both files are auto-maintained by the `draft-feedback` pipeline (FRAMEWORK_PRD.md §13). Patterns are observations, not commands.
 
 **5. Build the personalization paragraph** (per TEMPLATE.md "Personalization paragraph — structure"). The anchor is the **spike signal** already identified in `Eval Breakdown` — do not re-derive it. Pull the specific evidence cited in the breakdown for that peak signal, rewrite in Tom's voice.
 
@@ -89,14 +94,39 @@ Follow the career-signal-sentence + no-agenda-frame structure in TEMPLATE.md exa
 **8. Retrieve the persistent draft ID.**
 `create_draft` returns an `r-XXXX` transaction ID, NOT the persistent hex ID. Call `mcp__claude_ai_Gmail__list_drafts` with `query: "to:{email}"` immediately after creating; the most recent returned entry's `id` (hex format, e.g., `19da8bae7d10166e`) is the persistent ID. Use this for the Notion URL — the `r-XXXX` value doesn't resolve in browser URLs.
 
-**9. Update Notion**:
+**9. Write the draft snapshot to Drive (for the headless `draft-feedback` pipeline).**
+
+Build a snapshot JSON capturing the initial draft state and write it to:
+
+```
+~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/draft-snapshots/<hex_id>.json
+```
+
+Where `<hex_id>` is the persistent Gmail message ID from Step 8 (e.g., `19da8bae7d10166e`). File contents:
+
+```json
+{
+  "skill": "founder-outreach",
+  "messageId": "<hex_id>",
+  "threadId": "<gmail thread id from list_drafts response>",
+  "recipient": "<email>",
+  "subject": "Introducing Inverted Capital",
+  "draftText": "<plain-text body of the draft — strip HTML tags, preserve line breaks, EXCLUDE the signature block from `–` onward since Gmail auto-appends>",
+  "createdAt": "<ISO 8601 timestamp>"
+}
+```
+
+Use the `Write` tool — Drive Desktop syncs the file to the cloud automatically (within seconds). The webhook handler picks it up on send. If Tom never sends, the snapshot auto-purges after 30 days via `purgeOldSnapshots` in the Apps Script.
+
+**On re-drafts** (Tom asked for a tweak — Step 3 deleted the prior Gmail draft, Step 7 created a new one with a new `<hex_id>`): write a NEW snapshot file at the new hex_id path. Stale snapshots auto-purge.
+
+**10. Update Notion**:
 - `Gmail Draft URL` → `https://mail.google.com/mail/u/0/#drafts/<hex_id>`
-- `Email Draft` → plain-text body of the generated email (strip HTML tags, preserve line breaks). **Exclude Tom's signature block** (everything from the `–` separator line onward — name/title/phone/email) since Gmail auto-appends his signature. Save only the body content Claude authored: greeting through `Best, Tom`. This captures the **INITIAL** draft before any of Tom's edits — it exists so we can later diff it against the sent version and learn his editing patterns over time. Always write this field, even on re-drafts; the `Email Draft` field is the original AI output, not the current Gmail state.
 - `Status` → `"Draft Ready"`
 
-**Leave unchanged**: everything else (Eval Score, Eval Breakdown, Signals, Claude Rec, Eval Summary, Working Description — all of which were written by `neg1-enricher` and are out of scope here).
+**Leave unchanged**: everything else (Eval Score, Eval Breakdown, Signals, Claude Rec, Eval Summary, Working Description — all of which were written by `neg1-enricher` and are out of scope here). The legacy `Email Draft` Notion property is no longer used — the snapshot lives in Drive instead.
 
-**10. Report back.** Per person: name, spike signal, 1-line personalization preview, Gmail draft URL. Summary table for batches.
+**11. Report back.** Per person: name, spike signal, 1-line personalization preview, Gmail draft URL. Summary table for batches.
 
 ---
 

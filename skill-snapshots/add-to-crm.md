@@ -17,9 +17,9 @@ Before creating a new opportunity or modifying an existing one, check for duplic
 
 1. Determine input type and extract data
 2. **Enrich from attachments if email body is thin (Step 1B)**
-3. Resolve missing HQ via LinkedIn if needed
+3. Enrich from founder LinkedIn via ContactOut (HQ, Contact, Website, logo, Description)
 4. Present extracted fields to user for confirmation
-5. Create the Notion opportunity page
+5. Create the Notion opportunity page (with company logo as icon)
 6. Handle any deck/material uploads
 
 ## Step 1: Extract Data from Source
@@ -78,9 +78,22 @@ After extracting data from the source, assess whether the extracted fields are s
 - The source is not an email (screenshot, LinkedIn URL, pasted text) — attachments are not relevant.
 - The email has no attachments.
 
-## Step 2: Resolve Missing HQ
+## Step 2: Enrich from Founder LinkedIn + Web (ContactOut as fallback)
 
-If HQ/location was not found in source material but a founder LinkedIn URL is available, browse to the founder's LinkedIn profile and extract their location. Map to the closest HQ option in the database (see schema.md for valid options). If still unknown, use `??? 🌀`.
+Whenever a founder LinkedIn URL is present in the source — even if the source only gives a name + LI URL (e.g. an iMessage tip like "check out Ronit Jain's company Pluto, [LI URL]") — enrich `HQ`, `Contact`, `Website`, `Description`, and the page icon **before creating the page**.
+
+**Priority order — ContactOut is a paid API, only hit it if the cheaper sources can't answer:**
+
+1. **Source material** — email signatures, forwarded threads, pasted context often contain the founder's email, company website, and HQ verbatim. Check first.
+2. **Public LinkedIn page** — WebFetch (or Chrome if logged-in detail is needed) the founder's LI URL for headline, location, current-company name, and bio. Pulls HQ and a description without burning credits.
+3. **Company website** — WebFetch for HQ (footer/contact page), og:image / favicon (logo), description (hero/meta).
+4. **ContactOut fallback** — only if 1–3 can't resolve a needed field, call `contactout_enrich_linkedin_profile` with `profile_only=false`. It returns `email`/`personal_email`, `company.headquarter`, `company.website`, `company.logo_url`, and full experience. Use `profile_only=true` if you only need profile data (no email credits).
+
+**Case-by-case source: YC company page.** If (and only if) the founder's LI headline, the source material, or the company website mentions YC (e.g. "CEO @ Pluto (YC W25)", "YC S24"), slot in a fetch of `https://www.ycombinator.com/companies/{slug}` — it gives authoritative HQ, website, logo, and one-liner for YC-backed companies. Skip for everything else (the vast majority of deals are not YC).
+
+If `company.headquarter` from any source isn't conclusive (e.g. LI lists "Stealth YC Startup"), the company website (or YC page if YC-backed) wins over a stealth-placeholder LinkedIn company.
+
+If after all lookups HQ is still unresolvable, use `??? 🌀` — but treat that as a failure to investigate, not an acceptable end-state. Same for `Contact=N/A`, `Website=N/A`, `Description=TBD`.
 
 ## Step 3: Resolve Founder Contact Email
 
@@ -122,7 +135,14 @@ Use `notion-create-pages` with parent `{"data_source_id": "fab5ada3-5ea1-44b0-8e
 
 ### Page Icon
 
-Set a random emoji icon on the page. Use the `notion-update-page` tool after creation to set the icon, or include an icon emoji in the page creation if supported. Pick a varied emoji each time (avoid repeating the same one across entries).
+**Always set a company logo as the page icon — never ship a new Opportunity with a blank/default icon, and never default to a random emoji.** Resolve the logo URL in this priority order (free sources first, paid APIs last):
+
+1. **Company website favicon / og:image** — WebFetch the site and pull the favicon or OpenGraph image. Default first stop for any company with a website.
+2. **YC company page** (case-by-case, only if the company is YC-backed per LI headline / source / site): fetch `https://www.ycombinator.com/companies/{slug}` for the logo (typically on `bookface-images.s3.us-west-2.amazonaws.com`). Skip entirely for non-YC companies.
+3. **ContactOut fallback** — `company.logo_url` from `contactout_enrich_linkedin_profile` (founder LI) or `contactout_enrich_company` (domain). Only use if the free sources above don't return a logo.
+4. **Emoji fallback** — only if all logo sources fail. Pick a varied emoji (avoid repeating across entries) and note in the page body that the logo needs manual upload.
+
+Pass the logo URL as the `icon` parameter to `notion-create-pages` at creation time (or `notion-update-page` immediately after). Icons accept external image URLs.
 
 ### Title Conventions
 
@@ -183,7 +203,7 @@ See `references/schema.md` for the canonical page body structure. Key sections: 
 Before creating the page, resolve these relation fields. **All relation lookups for Source(s) and Founder(s) must search the People DB exclusively** — not the workspace at large. Other databases (e.g. LP Directory) may have entries with the same name, but the Opportunities relation fields point to the People DB (`collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`), so linking a page from any other database will silently fail to display.
 
 - **Source(s)**: Identify who referred/sourced the deal from context (email sender, person who texted, person who made the intro, etc.). Search the **People DB only** using `notion-search` with `data_source_url` set to `collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`. If a matching entry is found, include their page URL in the `Source(s)` property at creation time. If not found, leave blank. **If no source/referrer is identified (e.g. user found the profile directly), default to "Direct": `https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9`.**
-- **🏁 Founder(s)**: Search the **People DB only** (same `data_source_url` as above) for the founder's name. If a matching entry is found, include their page URL at creation time. Do not create new people entries — only link existing ones.
+- **🏁 Founder(s)**: Search the **People DB only** (same `data_source_url` as above) for the founder's name. If a matching entry is found, include their page URL at creation time. **If no match is found, leave the relation blank — never auto-create a People row from this flow.** Call out the gap in the confirmation summary to Step 4 (e.g. "🏁 Founder(s): not in People DB — link blank, add manually if desired") so Tom can decide whether to add them via `add-to-contacts`. When Tom DOES authorize a People creation, the `add-to-contacts` flow is responsible for populating both `City` AND `State` — never just City.
 - **Support**: Always set to `https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1` (the "N/A" entry).
 
 ## Step 6: Handle Decks and Materials
@@ -270,3 +290,38 @@ User provides `https://linkedin.com/in/janedoe`. No company name → title: `-1 
 Screenshot says: "Check out Acme — AI supply chain tools. Founder John Smith, Chicago. Raising $2m seed on $10m cap."
 
 Extracted: Name=Acme, Stage=Seed 🌾, HQ=Chicago, Round Details=$2m on $10m cap, Founder=John. Source=[text sender if identifiable].
+
+## Behavior Rules
+
+### Pull founder info from deck/website by default — never hallucinate
+
+When running add-to-crm, if the email body doesn't name the founders, round, or other key fields, default to pulling them from the deck, investor memo, or company website before creating the Notion page. This supersedes any "skip attachments if email body has company name" shortcut.
+
+**Why:** The email body is a cover note; the deck/memo/website is the source of truth. When a DocSend deck is attached, reading it is the default — creating a page with unnamed founders is wrong.
+
+**How to apply:**
+- Email with DocSend link → convert to PDF (docsend-to-pdf skill) → read → extract founder names, round, HQ, website.
+- Email with no deck but company website → open site via Chrome osascript → check /team, /about, footer → extract founders.
+- If both sources yield nothing: set fields to `TBD` / `N/A`. **Never invent founder names, roles, or backgrounds.** Hallucinated founder data is worse than blank.
+- Skip this enrichment only when the email body itself already names founders with role/background detail.
+
+### Ship every Opportunities row enriched — not as a stub
+
+Every new entry in the Opportunities DB must ship enriched, not as a stub:
+
+- **Icon** — always set. Use company logo (YC page, company website, ContactOut `company.logo_url`). Never create with a blank/default icon.
+- **HQ** — source material first (email sig, forwarded thread), then LinkedIn via WebFetch, then company website footer. ContactOut `company.headquarter` is the *fallback* — only hit it if free sources don't answer, since it burns a credit. YC company page is case-by-case (only when clearly YC-backed per LI headline). Map to existing `HQ` select option; default `??? 🌀` only if genuinely unknown.
+- **Contact** — founder email. Source material first (signatures, forwarded threads, deck last slide), then public LinkedIn, then company website contact page. ContactOut (`profile_only=false` for `email`/`personal_email`) is the fallback.
+- **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none.
+- **Description** — one-line what-they-do: YC one-liner, company site hero/meta, LI headline, or deck. Not `TBD`.
+- **🏁 Founder(s)** — if the founder already exists in People DB (dedupe via `workspace_search` on "{first} {last}"), link the relation. If they DON'T exist, **leave the relation blank** — do not auto-create a People row. Note the gap in the response so Tom can decide whether to add them.
+- **Founder First Name(s)** — keep setting it.
+
+**Why:** When a tip arrives with a founder LinkedIn URL, Tom expects the full enrichment cascade (LinkedIn URL → ContactOut → People DB dedupe → Opportunities fields) — not "name + source reference" stubs that create downstream work.
+
+**How to apply:**
+1. Whenever a founder LinkedIn URL exists in the source, run the enrichment cascade *before* writing the page (or immediately after, same turn): **source material → WebFetch on LI → YC page (if YC) → company website → ContactOut as fallback**. Don't burn ContactOut credits when the answer is free to find on LI or an email signature.
+2. Always set `icon` in the `notion-create-pages` call or in an immediate follow-up `update-page`. Prefer company-website favicon/og:image > ContactOut `company.logo_url` > emoji fallback.
+3. If the LinkedIn URL isn't in the source, try a quick WebSearch for `{founder name} {company} founder` and grab the LI URL from the first LinkedIn result before giving up.
+4. Treat `??? 🌀`, `TBD`, `N/A`, and blank Contact as failures to investigate — not acceptable end-states — unless the source genuinely offers no way to resolve them.
+5. Applies equally to scheduled pipeline-agent runs — the unattended-execution guard is NOT an excuse to skip enrichment when the LinkedIn URL is in the tip.

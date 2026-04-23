@@ -260,3 +260,51 @@ The add-to-crm skill's materials handling step references this skill for the ful
 ### References docsend-to-pdf
 
 For DocSend conversion specifically, this skill follows the proven Python approach documented in the `docsend-to-pdf` skill. Read `/Users/tomseo/.claude/skills/docsend-to-pdf/SKILL.md` at runtime for the conversion script and data room handling instructions.
+
+## Behavior Rules
+
+### Always run the Gmail Attachment Saver on every target message
+
+Never rely on `plaintextBody` alone to determine whether attachments exist. Gmail MCP's `get_thread` / `search_threads` do not surface attachment filenames in the message body — a PDF deck can sit on the message and be completely invisible in plaintext.
+
+**Mandatory probe on any target message:**
+1. Re-run the search with `has:attachment` to confirm attachment presence (or check the thread's presence in the attachment index).
+2. Run the Gmail Attachment Saver Apps Script **unconditionally** — the response tells you exactly what's attached. Cost is one API call; missing a deck costs Tom trust.
+
+**Why:** On 2026-04-20, Kinza's Chief Rebel email was processed and the attached pitch deck (`Chief Rebel pitch deck vf_compressed.pdf`, 7.8MB) was missed — the plaintext mentioned the demo Drive link but not the deck. Tom caught it. This is the exact failure the skill is supposed to prevent.
+
+**How to apply:**
+- In this skill, investor-update, add-to-crm, and pipeline-agent materials scanner — always call the Gmail Attachment Saver on any target message, even if the plaintext body looks complete.
+- Default action for "grab the materials from this email": run the attachment saver **first**, then parse body for additional links (DocSend, Drive, Dropbox). Never the other way around.
+- If `has:attachment` filter returns the thread, there IS an attachment somewhere — find it.
+
+### osascript + Chrome is PRIMARY for Notion Files property writes
+
+Writing external URLs to Notion Files/Media properties (Diligence Materials, Online Presence, any future Files property) must use `osascript` driving the active Chrome tab against Notion's internal `/api/v3/saveTransactions` endpoint. This is the **primary** path, not a fallback.
+
+**Why:** The public Notion API and the MCP tool both reject external URL writes to Files properties — they only accept file uploads. Tom explicitly said "prioritize osascript automation" on 2026-04-19. Do not report "Chrome unavailable, skipped — update next session."
+
+**How to apply:**
+
+1. **Canonical reference**: `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` has the generalized `addLinkToFilesProperty(pageId, propertyName, url, displayName)` function plus the osascript bridge pattern (navigate → wait 4s → fire async IIFE → poll result from `window._notionResult`).
+
+2. **One function for all Files properties** — the generalized function discovers the property key by searching the collection schema for `name == propertyName && type == 'file'`. Works for Diligence Materials, Online Presence, and any new Files property without per-property code.
+
+3. **Property-key fallback** — schema discovery occasionally fails with "Cross-cell memcached access" on repeated `getRecordValues` calls in the same tab session. Mitigate by navigating fresh to the target page before firing the script. Known keys captured in the shared ref.
+
+4. **Do NOT skip the property-field write** because "Chrome MCP isn't available." osascript IS the bridge on Tom's Mac. Only skip if Chrome itself cannot run — and even then try `open -a "Google Chrome"` first.
+
+5. **Chrome prerequisites** (already set up on Tom's Mac):
+   - Chrome: View → Developer → "Allow JavaScript from Apple Events" enabled
+   - System Settings → Accessibility: `node` allowed
+   - Tom signed in to Notion in Chrome (session cookies authenticate internal API)
+
+6. **Required fetch headers for internal API calls** (without user + space headers, requests hit 502 `MemcachedCrossCellError`):
+   - `Content-Type: application/json`
+   - `x-notion-active-user-header: c6058e42-a6df-4155-9e7e-9a2a5b6af322` (Tom's user ID)
+   - `x-notion-space-id: ebe97bdb-2635-4ecc-abee-968e61632450` (Inverted space ID)
+   - `notion-audit-log-platform: web`
+
+7. **Call per URL** — function is self-contained read-modify-write. Multiple URLs = sequential calls. Deduplication built in — checks for existing URL before appending. Safe to re-run.
+
+Consumers: this skill, first-pass-diligence, neg1-enricher (Step 4.5 Online Presence), future skills needing Files property writes.

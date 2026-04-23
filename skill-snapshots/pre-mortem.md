@@ -129,3 +129,13 @@ A bad pre-mortem reads like a generic VC risk section. If you find yourself writ
 After the Notion page has been created and the Opportunity relation (if any) has been set, run the `note-classifier` skill to assign the correct `Category` field.
 
 Read the skill at `/Users/tomseo/.claude/skills/note-classifier/SKILL.md` and follow its classification logic against the note just created. Do not skip this step — every note created by this skill must have a Category set.
+
+## Behavior Rule — PDF rendering uses the long-form spec
+
+A pre-mortem is a long-form document. When rendering it (or any authored long-form artifact — memo, PRD, LP letter, investor report) to PDF, default to the canonical long-form PDF spec at `~/.claude/skills/shared-references/long-form-pdf-spec.md` using `~/.claude/skills/shared-references/pdf_builder_template.py` as the template.
+
+That means: reportlab (not Chrome headless), Helvetica (not JetBrains Mono), black + white only (no orange/accent colors), underlined H1, italic 9pt #333 subtitle, page numbers bottom-center, no horizontal dividers.
+
+**Why:** `design-language.md` (dark theme, JetBrains Mono) is for PNG exports and on-brand visual artifacts (skill maps, charts, LP letter exhibits). It is NOT the default for long-form authored documents. Tom had to redirect the first Founder Framework PRD render after it used Chrome + design-language styling; the canonical long-form spec is the right default.
+
+**How to apply:** If the thing being rendered is prose-heavy with sections/tables/bullets (memo, PRD, pre-mortem, LP letter, investor report), use the long-form spec. If it's a single visual artifact (chart, diagram, skill map card, single-page exhibit embedded in Docs), use design-language.md. When in doubt on anything PRD-shaped, long-form wins.

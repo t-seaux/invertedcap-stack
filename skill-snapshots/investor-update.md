@@ -127,7 +127,9 @@ Save a PDF copy of every investor update to the company's subfolder within the *
 - The `createFolder` action returns the subfolder's `folderId` and `url`. Use this URL (not the parent folder URL) when constructing the Notion page body link.
 - If the subfolder already exists, the Apps Script returns the existing folder without creating a duplicate.
 
-Evaluate the email content to determine which case applies, checked in this order:
+Evaluate the email content to determine which case applies, checked in this order.
+
+> **⚠️ ALWAYS probe for attachments first.** Run the Gmail Attachment Saver on the target message unconditionally *before* considering Case B or Case C — even when the email body shows a Google Doc link or appears to be pure prose. Tom frequently forwards investor updates with the PDF attached, and the `plaintextBody` returned by the Gmail MCP hides attachments behind the `￼` (object-replacement) placeholder glyph. The only reliable signal is probing the message with the Attachment Saver. Jumping straight to Case B when you see a Google Doc link duplicates work Tom already did and is a regression. If the saver returns a PDF, use Case A and stop. Only fall through to Case B / Case C if the saver returns zero files.
 
 ### Case A: PDF attachment exists
 

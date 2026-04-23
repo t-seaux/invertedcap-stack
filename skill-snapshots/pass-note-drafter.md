@@ -138,11 +138,18 @@ Read 2–3 of them in full. You've already internalized the style guide below, b
 
 ### Step 5: Draft the Pass Note
 
-Using everything gathered, produce the email body. Follow the Style Guide precisely.
+Before drafting, read `~/.claude/skills/pass-note-drafter/EDIT_PATTERNS.md` and `~/.claude/skills/pass-note-drafter/VOICE_EXAMPLES.md`:
+
+- `EDIT_PATTERNS.md` — patterns of how Tom edits Claude-drafted pass notes before sending. Scan last 20–50 entries for the 3–5 most frequent moves (cut/simplify/tone-shift/etc.). Apply as priors when drafting.
+- `VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth.
+
+Both files are auto-maintained by the `draft-feedback` pipeline (FRAMEWORK_PRD.md §13). Patterns are observations, not commands.
+
+Then produce the email body, following the Style Guide precisely.
 
 ---
 
-### Step 6: Create the Gmail Draft
+### Step 6: Create the Gmail Draft + Drive Snapshot
 
 **THIS STEP IS MANDATORY. Do NOT skip it, summarize it, or present the draft inline as a substitute. The skill is not complete until `gmail_create_draft` has been called and confirmed. Presenting the email body in the conversation is not a replacement for creating the actual Gmail draft.**
 
@@ -156,6 +163,30 @@ Use `gmail_create_draft` with:
 - **Body:** the drafted pass note
 
 Do NOT send the email — only create it as a draft for Tom to review. Do NOT update the Notion status after creating the draft — the status update to "Pass (Met)" only happens in Step 1 once Tom has actually sent the email (see Step 1 above).
+
+**After draft creation, write the Drive snapshot for `draft-feedback`.**
+
+`gmail_create_draft` returns an `r-XXXX` transaction ID — call `gmail_list_drafts` with `query: "to:{email}"` and grab the most recent entry's persistent hex `id` (e.g., `19da8bae7d10166e`) plus its `threadId`. Then write a JSON snapshot to:
+
+```
+~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/draft-snapshots/<hex_id>.json
+```
+
+File contents:
+
+```json
+{
+  "skill": "pass-note-drafter",
+  "messageId": "<hex_id>",
+  "threadId": "<gmail thread id>",
+  "recipient": "<founder email>",
+  "subject": "<Company> - Inverted follow up",
+  "draftText": "<full plain-text body of the pass note — exclude the signature block from `–` onward since Gmail auto-appends>",
+  "createdAt": "<ISO 8601 timestamp>"
+}
+```
+
+Use the `Write` tool. Drive Desktop syncs the file within seconds. The webhook handler picks it up on send and queues a diff job for the local processor (FRAMEWORK_PRD.md §13). Unsent snapshots auto-purge after 30 days.
 
 **Formatting:** Always create the draft as **plain text** — use `contentType: text/plain`. Do NOT use `text/html`. The reason: HTML drafts bake in font-family and font-size via inline styles, which renders differently depending on which client opens the email (Gmail web vs. Apple Mail on Mac vs. mobile). Plain text avoids this entirely — Gmail applies its own default styling on send, and the recipient sees a clean, consistent message regardless of client.
 
