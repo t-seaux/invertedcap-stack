@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-23] (Visual refresh)
+
+**Added:** None
+**Removed:** None
+**Modified:** None
+**Total skills:** 23
+**Functions:** No changes
+
+Notes: Event pill color lightened from teal to light mint (`#86EFAC`); badge label renamed from "Event" / "Event-Driven" to "Event-Based" across the Stack Map legend and Quick Reference badges. Connection-line and People database border colors unchanged.
+
+---
+
 ## [2026-04-23] (Week of 2026-04-20) — Event-Driven Reclassification + Microstep Consolidation
 
 **Added:** None

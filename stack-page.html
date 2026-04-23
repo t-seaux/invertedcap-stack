@@ -74,7 +74,7 @@
   .sm-al-sw { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
   .sm-al-s { background: #f0efea; border: 0.5px solid #c3c2bd; }
   .sm-al-a { background: #161b22; border: 0.5px solid #30363d; }
-  .sm-al-e { background: #1D9E75; border: 0.5px solid #1D9E75; }
+  .sm-al-e { background: #86EFAC; border: 0.5px solid #86EFAC; }
   .sm-fns-row { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; align-items: stretch; }
 
   /* Cards: no background-position transition by default (instant snap-back on leave) */
@@ -116,7 +116,7 @@
     transition: background-position 0.8s ease;
   }
   .sm-sk.sm-event {
-    color: #0d1117; background-color: #1D9E75; border-color: #1D9E75;
+    color: #0d1117; background-color: #86EFAC; border-color: #86EFAC;
     background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.06) 44%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.06) 56%, transparent 65%, transparent 100%);
     background-size: 300% 100%; background-position: 100% 0;
   }
@@ -207,7 +207,7 @@
   }
   .qr-b-sched { background-color: #f0efea; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.08) 44%, rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.08) 56%, transparent 65%, transparent 100%); color: #2c2c2a; border-color: #c3c2bd; }
   .qr-b-adhoc { background-color: #161b22; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(255,255,255,0.12) 47%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0.12) 53%, transparent 65%, transparent 100%); color: #8b949e; border-color: #30363d; }
-  .qr-b-event { background-color: #1D9E75; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.08) 44%, rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.08) 56%, transparent 65%, transparent 100%); color: #0d1117; border-color: #1D9E75; }
+  .qr-b-event { background-color: #86EFAC; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.08) 44%, rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.08) 56%, transparent 65%, transparent 100%); color: #0d1117; border-color: #86EFAC; }
 
   /* Shine hover for QR badges: animate IN only */
   .qr-badge:hover {
@@ -237,7 +237,7 @@
           <div class="sm-al">
             <div class="sm-al-item"><div class="sm-al-sw sm-al-s"></div>Scheduled Orchestrator</div>
             <div class="sm-al-item"><div class="sm-al-sw sm-al-a"></div>Ad Hoc Skill</div>
-            <div class="sm-al-item"><div class="sm-al-sw sm-al-e"></div>Event-Driven Skill</div>
+            <div class="sm-al-item"><div class="sm-al-sw sm-al-e"></div>Event-Based Skill</div>
           </div>
           <div class="sm-fns-row" id="fns-row">
             <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">add-to-crm</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk">founder-outreach</span><span class="sm-sk">add-to-contacts</span><span class="sm-sk">materials-handler</span></div></div>
@@ -268,8 +268,8 @@
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Pipeline Management</div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">pipeline-agent</span></div><div class="qr-skill-line">Webhook-driven top-of-funnel detection with scheduler-bot fallback, plus residual scheduled sweeps for triage and stagnation alerts.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">draft-feedback</span></div><div class="qr-skill-line">Gmail webhook enqueues send events; a local processor drains the queue, extracting voice patterns for outreach and pass note drafters.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event-Based</span><span class="qr-skill-text">pipeline-agent</span></div><div class="qr-skill-line">Webhook-driven top-of-funnel detection with scheduler-bot fallback, plus residual scheduled sweeps for triage and stagnation alerts.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event-Based</span><span class="qr-skill-text">draft-feedback</span></div><div class="qr-skill-line">Gmail webhook enqueues send events; a local processor drains the queue, extracting voice patterns for outreach and pass note drafters.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-to-crm</span></div><div class="qr-skill-line">Turns any input into a structured Notion opportunity, enriching HQ, contact, website, logo, and description from founder LinkedIn before page creation.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">neg1-enricher</span></div><div class="qr-skill-line">Enriches a LinkedIn profile, delegates company resolution to add-to-companies, scores against the signal rubric, and writes the verdict.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">founder-outreach</span></div><div class="qr-skill-line">Drafts a personalized cold email to a pre-founder candidate, tuned by accumulated voice-corpus patterns and snapshotted to Drive for the feedback loop.</div></div>
@@ -279,19 +279,19 @@
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Intro Management</div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">intro-agent</span></div><div class="qr-skill-line">End-to-end webhook-driven intro chain — detects requests, outreach sends, opt-in replies, and resolution — and logs every step to Notion.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event-Based</span><span class="qr-skill-text">intro-agent</span></div><div class="qr-skill-line">End-to-end webhook-driven intro chain — detects requests, outreach sends, opt-in replies, and resolution — and logs every step to Notion.</div></div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Portfolio Management</div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">investor-update</span></div><div class="qr-skill-line">Webhook-driven ingestion of portfolio update emails; always probes for attachments first and logs as structured notes linked to each company.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event-Based</span><span class="qr-skill-text">investor-update</span></div><div class="qr-skill-line">Webhook-driven ingestion of portfolio update emails; always probes for attachments first and logs as structured notes linked to each company.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">coinvestor-recommender</span></div><div class="qr-skill-line">Recommends qualified coinvestors from Tom's network for a specific deal based on check size, stage, and relationship history.</div></div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Diligence Management</div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">diligence-agent</span></div><div class="qr-skill-line">Orchestrates expert feedback outreach and pass note drafting on a twice-daily automated schedule.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">feedback-outreach</span></div><div class="qr-skill-line">End-to-end get-feedback-on-an-Opp chain — drafts personalized diligence outreach and webhook-tracks replies back into structured Notion notes.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event-Based</span><span class="qr-skill-text">feedback-outreach</span></div><div class="qr-skill-line">End-to-end get-feedback-on-an-Opp chain — drafts personalized diligence outreach and webhook-tracks replies back into structured Notion notes.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">first-pass-diligence</span></div><div class="qr-skill-line">Runs a structured first-pass analysis on a deal — Inverted Lens scoring, Notion memo, PDF, and Signal alert.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">pass-note-drafter</span></div><div class="qr-skill-line">Drafts a personalized investor pass email, tuned by accumulated voice corpora, and snapshots each draft to Drive for the feedback loop.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">update-diligence-priors</span></div><div class="qr-skill-line">Ingests new call notes or materials since the last analysis and prepends a dated update section to the existing Notion diligence page.</div></div>
