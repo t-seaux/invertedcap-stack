@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-23] (Visual refresh)
+
+**Added:** None
+**Removed:** None
+**Modified:** None
+**Total skills:** 23
+**Functions:** No changes
+
+Notes: Event pill recolored from cool gray to warm cream (`#e0d6c3`) across the Stack Map legend, skill pills, and Quick Reference badges. Introduced composite treatment: skills that absorb multiple sub-skills into a single pill (currently `intro-agent`, `feedback-outreach`) render with a stacked-card shadow on the Stack Map and an expand-on-click interaction in the Quick Reference that reveals nested sub-skill rows with per-sub one-liners. Legend reordered to Ad Hoc / Scheduled / Event-Based / Composite, with a new Composite swatch entry. Quick Reference row layout normalized so badges and skill-text align at the same x-position regardless of whether a row has a chevron.
+
+---
+
 ## [2026-04-22] (Visual refresh)
 
 Event pill recolored to neutral gray; label reverted to Event.

@@ -157,9 +157,9 @@ There is ONE color scheme for both the web HTML and PNG renders. The page backgr
 | Card borders | `#30363d` |
 | Ad hoc pill bg | `#0d1117` |
 | Ad hoc pill border | `#30363d` |
-| Event pill bg | `#9ca3af` (light gray) |
-| Event pill border | `#9ca3af` |
-| Event pill text | `#0d1117` (dark, for contrast on teal) |
+| Event pill bg | `#e0d6c3` (warm cream) |
+| Event pill border | `#e0d6c3` |
+| Event pill text | `#0d1117` (dark, for contrast on cream) |
 | Eyebrow/label text | `#8b949e` |
 | Ad hoc pill text | `#8b949e` |
 | Description text | `#b1bac4` |
@@ -169,7 +169,7 @@ There is ONE color scheme for both the web HTML and PNG renders. The page backgr
 | Divider/row borders | `#30363d` / `#21262d` |
 | QR badge (ad hoc) bg | `#161b22` |
 | QR badge (ad hoc) text | `#8b949e` |
-| QR badge (event) bg | `#9ca3af` |
+| QR badge (event) bg | `#e0d6c3` |
 | QR badge (event) text | `#0d1117` |
 | QR skill-line text | `#b1bac4` |
 | QR eyebrow text | `#8b949e` |
@@ -184,7 +184,20 @@ A 5-column grid (`grid-template-columns: repeat(5, minmax(0,1fr))`) of function 
 - Skill pills stacked vertically:
   - **Scheduled** skills: white background (`#f0efea`), dark text (`#2c2c2a`), border `#c3c2bd`
   - **Ad Hoc** skills: background and text per the color table above
-  - **Event** skills: light gray background (`#9ca3af`), dark text (`#0d1117`), border `#9ca3af`
+  - **Event** skills: cream background (`#e0d6c3`), dark text (`#0d1117`), border `#e0d6c3`
+
+#### Composite pill treatment
+
+Skills that are orchestrator-style composites — one pill on the map that absorbs multiple named sub-skills — get an additional `sm-composite` class producing a stacked-card shadow behind the pill. Visual cue that there's more underneath; the Quick Reference carries the expand-to-reveal UI.
+
+**CSS** (additive):
+```css
+.sm-sk.sm-composite { box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.45), 2px 2px 0 0.5px #30363d; }
+.sm-sk.sm-event.sm-composite { box-shadow: 2px 2px 0 0 rgba(71, 64, 51, 0.55), 2px 2px 0 0.5px #978f7c; }
+.sm-sk.sm-sched.sm-composite { box-shadow: 2px 2px 0 0 rgba(130, 128, 121, 0.5), 2px 2px 0 0.5px #a8a7a2; }
+```
+
+**Composites** (as of 2026-04-23): `intro-agent` (absorbs `intro-agent-inbound`, `intro-outreach-agent`, `intro-draft-agent`, `intro-resolution-agent`, `log-intro`) and `feedback-outreach` (absorbs `feedback-outreach-drafter`, `feedback-outreach-scanner`). A skill is a composite only when it *replaces* what would otherwise be multiple pills on the map — orchestrators whose sub-skills are still separately rendered (e.g., `diligence-agent`) do NOT get the composite treatment.
 
 ### Middle Layer — SVG Connections
 
@@ -230,7 +243,7 @@ A 5-column grid of database cards with colored left borders:
 
 Above the function cards, include:
 - System label: "System of Action" with a "Claude" tag
-- Legend swatches: "Scheduled Orchestrator" (white swatch), "Ad Hoc Skill" (dark swatch), and "Event Skill" (light gray `#9ca3af` swatch)
+- Legend swatches in this order: "Ad Hoc Skill" (dark swatch), "Scheduled Orchestrator" (white swatch), "Event-Based Skill" (cream `#e0d6c3` swatch), "Composite – expand in Quick Reference" (cream swatch with stacked-card shadow). The Composite entry uses an en dash (`–`), not an em dash.
 
 Below the divider:
 - System label: "System of Record" with a "Notion" tag
@@ -247,7 +260,25 @@ A table-style listing of every skill, grouped by function. Each row contains:
 
 > **Modified skills**: For any skill flagged as Modified in Step 0, regenerate its one-liner from scratch off the current SKILL.md — do NOT carry over the previous one-liner. The Quick Reference must reflect the *current* behavior of every skill, not the snapshotted behavior. Apply the same redaction rules listed in Step 5 (no personal names, no portfolio company names, no internal identifiers).
 
-Layout: two-column grid per row — `280px` for name+badge, `1fr` for description. Rows separated by `0.5px solid #3e3e3c` borders.
+Layout: two-column grid per row — `280px` for name+badge, `1fr` for description. Rows separated by `0.5px solid #3e3e3c` borders. All rows use `padding-left: 22px` on `.qr-skill-name` so badges and skill-text align at the same x-position regardless of whether a row has a chevron.
+
+#### Composite expand behavior
+
+Composite skills (see Step 1 composite list) render as a top-level row with a ▶ chevron prefix. The chevron is absolute-positioned at the row's left edge (occupying the 22px indent) so it doesn't shift the badge or text. Clicking the row toggles an `.open` class on the wrapping `.qr-composite-wrap`, which expands a `.qr-sub-container` (CSS grid-template-rows transition from `0fr` to `1fr`) to reveal nested `.qr-sub-row` entries. Sub-rows use the same grid layout as parent rows (12px name, 12px line, `#fffffb` / `#b1bac4`) with `padding-left: 22px` on the sub-name so it aligns with the parent's badge column. No arrow glyph preceding the sub-name.
+
+#### Composite breakdown
+
+For each composite skill, the Quick Reference expand reveals these sub-skills with hand-written one-liners. Update this list when a composite's internals shift.
+
+| Composite | Sub-skill | One-liner |
+|---|---|---|
+| `intro-agent` | `intro-agent-inbound` | Detects intro requests in Gmail and iMessage and creates Qualified entries on the matching Opportunity. |
+| `intro-agent` | `intro-outreach-agent` | Scans sent mail for outreach to Qualified contacts and promotes them to the Outreach stage. |
+| `intro-agent` | `intro-draft-agent` | Drafts double-opt-in intro emails when a contact replies positively to outreach. |
+| `intro-agent` | `intro-resolution-agent` | Resolves outreach into Made, Declined, or NR based on reply detection. |
+| `intro-agent` | `log-intro` | Manually logs a qualified intro target when a person and a company are named together. |
+| `feedback-outreach` | `feedback-outreach-drafter` | Drafts backchannel diligence emails for new entries on an Opportunity's Pending Feedback relation. |
+| `feedback-outreach` | `feedback-outreach-scanner` | Scans sent mail and inbox for replies, logs Notion notes, and clears contacts off Pending Feedback. |
 
 Functions appear in this order: Pipeline Management, Intro Management, Portfolio Management, Diligence Management, Research Management.
 

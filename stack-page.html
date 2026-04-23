@@ -74,7 +74,13 @@
   .sm-al-sw { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
   .sm-al-s { background: #f0efea; border: 0.5px solid #c3c2bd; }
   .sm-al-a { background: #161b22; border: 0.5px solid #30363d; }
-  .sm-al-e { background: #9ca3af; border: 0.5px solid #9ca3af; }
+  .sm-al-e { background: #e0d6c3; border: 0.5px solid #e0d6c3; }
+  .sm-al-c {
+    background: #e0d6c3;
+    border: 0.5px solid #e0d6c3;
+    box-shadow: 2px 2px 0 0 rgba(71, 64, 51, 0.55), 2px 2px 0 0.5px #978f7c;
+    margin-right: 4px;
+  }
   .sm-fns-row { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; align-items: stretch; }
 
   /* Cards: no background-position transition by default (instant snap-back on leave) */
@@ -116,13 +122,22 @@
     transition: background-position 0.8s ease;
   }
   .sm-sk.sm-event {
-    color: #0d1117; background-color: #9ca3af; border-color: #9ca3af;
+    color: #0d1117; background-color: #e0d6c3; border-color: #e0d6c3;
     background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.06) 44%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.06) 56%, transparent 65%, transparent 100%);
     background-size: 300% 100%; background-position: 100% 0;
   }
   .sm-sk.sm-event:hover {
     background-position: 0% 0; border-color: #0d1117;
     transition: background-position 0.8s ease;
+  }
+  .sm-sk.sm-composite {
+    box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.45), 2px 2px 0 0.5px #30363d;
+  }
+  .sm-sk.sm-event.sm-composite {
+    box-shadow: 2px 2px 0 0 rgba(71, 64, 51, 0.55), 2px 2px 0 0.5px #978f7c;
+  }
+  .sm-sk.sm-sched.sm-composite {
+    box-shadow: 2px 2px 0 0 rgba(130, 128, 121, 0.5), 2px 2px 0 0.5px #a8a7a2;
   }
   .sm-mid { position: relative; height: 120px; }
   .sm-mid-annotation {
@@ -184,9 +199,9 @@
   .qr-fn-section { margin-bottom: 14px; }
   .qr-fn-eyebrow { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #8b949e; margin: 0 0 4px; }
   .qr-fn-header { font-size: 14px; letter-spacing: 0.1em; font-weight: 500; color: #fffffb; margin: 0 0 4px; padding-bottom: 5px; border-bottom: 1px solid #30363d; }
-  .qr-skill-row { display: grid; grid-template-columns: 280px 1fr; padding: 5px 0; border-bottom: 0.5px solid #21262d; align-items: start; gap: 24px; }
+  .qr-skill-row { display: grid; grid-template-columns: 280px 1fr; padding: 5px 0; border-bottom: 0.5px solid #21262d; align-items: start; gap: 24px; position: relative; }
   .qr-skill-row:last-child { border-bottom: none; }
-  .qr-skill-name { font-size: 12px; color: #fffffb; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 20px; line-height: 1.45; padding-top: 1px; }
+  .qr-skill-name { font-size: 12px; color: #fffffb; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 20px; line-height: 1.45; padding-top: 1px; padding-left: 22px; }
   .qr-skill-text { word-break: break-word; }
   .qr-skill-line { font-size: 12px; color: #b1bac4; line-height: 1.45; padding-top: 1px; }
 
@@ -207,7 +222,41 @@
   }
   .qr-b-sched { background-color: #f0efea; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.08) 44%, rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.08) 56%, transparent 65%, transparent 100%); color: #2c2c2a; border-color: #c3c2bd; }
   .qr-b-adhoc { background-color: #161b22; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(255,255,255,0.12) 47%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0.12) 53%, transparent 65%, transparent 100%); color: #8b949e; border-color: #30363d; }
-  .qr-b-event { background-color: #9ca3af; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.08) 44%, rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.08) 56%, transparent 65%, transparent 100%); color: #0d1117; border-color: #9ca3af; }
+  .qr-b-event { background-color: #e0d6c3; background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.08) 44%, rgba(0,0,0,0.16) 50%, rgba(0,0,0,0.08) 56%, transparent 65%, transparent 100%); color: #0d1117; border-color: #e0d6c3; }
+
+  /* Composite expand: composite skills get a wrapping div that toggles 'open' */
+  .qr-composite-wrap { display: block; }
+  .qr-composite-toggle { cursor: pointer; user-select: none; }
+  /* Chev is absolute-positioned at row's left edge so badge/text alignment matches non-composite rows */
+  .qr-chev {
+    position: absolute;
+    left: 0;
+    top: 8px;
+    color: #8b949e;
+    font-size: 10px;
+    width: 14px;
+    text-align: left;
+    transition: transform 0.2s ease;
+    transform-origin: 3px 6px;
+  }
+  .qr-composite-wrap.open .qr-chev { transform: rotate(90deg); }
+  .qr-sub-container {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.28s ease;
+  }
+  .qr-composite-wrap.open .qr-sub-container { grid-template-rows: 1fr; }
+  .qr-sub-inner { overflow: hidden; }
+  .qr-sub-row {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 24px;
+    padding: 5px 0;
+    border-top: 0.5px solid #21262d;
+    align-items: start;
+  }
+  .qr-sub-name { font-size: 12px; color: #fffffb; padding-top: 1px; padding-left: 22px; line-height: 1.45; word-break: break-word; }
+  .qr-sub-line { font-size: 12px; color: #b1bac4; padding-top: 1px; line-height: 1.45; }
 
   /* Shine hover for QR badges: animate IN only */
   .qr-badge:hover {
@@ -235,15 +284,16 @@
         <div class="sm-wrap">
           <div class="sm-sys-label">System of Action<span class="sm-sys-tag">Claude</span></div>
           <div class="sm-al">
-            <div class="sm-al-item"><div class="sm-al-sw sm-al-s"></div>Scheduled Orchestrator</div>
             <div class="sm-al-item"><div class="sm-al-sw sm-al-a"></div>Ad Hoc Skill</div>
-            <div class="sm-al-item"><div class="sm-al-sw sm-al-e"></div>Event Skill</div>
+            <div class="sm-al-item"><div class="sm-al-sw sm-al-s"></div>Scheduled Orchestrator</div>
+            <div class="sm-al-item"><div class="sm-al-sw sm-al-e"></div>Event-Based Skill</div>
+            <div class="sm-al-item"><div class="sm-al-sw sm-al-c"></div>Composite – expand in Quick Reference</div>
           </div>
           <div class="sm-fns-row" id="fns-row">
             <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">add-to-crm</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk">founder-outreach</span><span class="sm-sk">add-to-contacts</span><span class="sm-sk">materials-handler</span></div></div>
-            <div class="sm-fn-card" id="fn-intro"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Intro Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">intro-agent</span></div></div>
+            <div class="sm-fn-card" id="fn-intro"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Intro Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">intro-agent</span></div></div>
             <div class="sm-fn-card" id="fn-portfolio"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Portfolio Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">investor-update</span><span class="sm-sk">coinvestor-recommender</span></div></div>
-            <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">diligence-agent</span><span class="sm-sk sm-event">feedback-outreach</span><span class="sm-sk sm-sched">first-pass-diligence</span><span class="sm-sk">pass-note-drafter</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span></div></div>
+            <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">diligence-agent</span><span class="sm-sk sm-event sm-composite">feedback-outreach</span><span class="sm-sk sm-sched">first-pass-diligence</span><span class="sm-sk">pass-note-drafter</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span></div></div>
             <div class="sm-fn-card" id="fn-research"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Research Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">research-agent</span><span class="sm-sk">log-transcript-to-notion</span><span class="sm-sk">deal-digest</span><span class="sm-sk">log-investor-letter-to-notion</span><span class="sm-sk">add-to-companies</span></div></div>
           </div>
           <div class="sm-mid" id="mid">
@@ -279,7 +329,19 @@
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Intro Management</div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">intro-agent</span></div><div class="qr-skill-line">End-to-end webhook-driven intro chain — detects requests, outreach sends, opt-in replies, and resolution — and logs every step to Notion.</div></div>
+            <div class="qr-composite-wrap">
+              <div class="qr-skill-row qr-composite-toggle" onclick="this.parentElement.classList.toggle('open')">
+                <div class="qr-skill-name"><span class="qr-chev">▶</span><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">intro-agent</span></div>
+                <div class="qr-skill-line">End-to-end webhook-driven intro chain – detects requests, outreach sends, opt-in replies, and resolution – and logs every step to Notion.</div>
+              </div>
+              <div class="qr-sub-container"><div class="qr-sub-inner">
+                <div class="qr-sub-row"><div class="qr-sub-name">intro-agent-inbound</div><div class="qr-sub-line">Detects intro requests in Gmail and iMessage and creates Qualified entries on the matching Opportunity.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name">intro-outreach-agent</div><div class="qr-sub-line">Scans sent mail for outreach to Qualified contacts and promotes them to the Outreach stage.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name">intro-draft-agent</div><div class="qr-sub-line">Drafts double-opt-in intro emails when a contact replies positively to outreach.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name">intro-resolution-agent</div><div class="qr-sub-line">Resolves outreach into Made, Declined, or NR based on reply detection.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name">log-intro</div><div class="qr-sub-line">Manually logs a qualified intro target when a person and a company are named together.</div></div>
+              </div></div>
+            </div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
@@ -291,7 +353,16 @@
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Diligence Management</div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">diligence-agent</span></div><div class="qr-skill-line">Orchestrates expert feedback outreach and pass note drafting on a twice-daily automated schedule.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">feedback-outreach</span></div><div class="qr-skill-line">End-to-end get-feedback-on-an-Opp chain — drafts personalized diligence outreach and webhook-tracks replies back into structured Notion notes.</div></div>
+            <div class="qr-composite-wrap">
+              <div class="qr-skill-row qr-composite-toggle" onclick="this.parentElement.classList.toggle('open')">
+                <div class="qr-skill-name"><span class="qr-chev">▶</span><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">feedback-outreach</span></div>
+                <div class="qr-skill-line">End-to-end get-feedback-on-an-Opp chain – drafts personalized diligence outreach and webhook-tracks replies back into structured Notion notes.</div>
+              </div>
+              <div class="qr-sub-container"><div class="qr-sub-inner">
+                <div class="qr-sub-row"><div class="qr-sub-name">feedback-outreach-drafter</div><div class="qr-sub-line">Drafts backchannel diligence emails for new entries on an Opportunity's Pending Feedback relation.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name">feedback-outreach-scanner</div><div class="qr-sub-line">Scans sent mail and inbox for replies, logs Notion notes, and clears contacts off Pending Feedback.</div></div>
+              </div></div>
+            </div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">first-pass-diligence</span></div><div class="qr-skill-line">Runs a structured first-pass analysis on a deal — Inverted Lens scoring, Notion memo, PDF, and Signal alert.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">pass-note-drafter</span></div><div class="qr-skill-line">Drafts a personalized investor pass email, tuned by accumulated voice corpora, and snapshots each draft to Drive for the feedback loop.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">update-diligence-priors</span></div><div class="qr-skill-line">Ingests new call notes or materials since the last analysis and prepends a dated update section to the existing Notion diligence page.</div></div>
