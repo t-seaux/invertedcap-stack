@@ -157,8 +157,8 @@ There is ONE color scheme for both the web HTML and PNG renders. The page backgr
 | Card borders | `#30363d` |
 | Ad hoc pill bg | `#0d1117` |
 | Ad hoc pill border | `#30363d` |
-| Event pill bg | `#86EFAC` (teal) |
-| Event pill border | `#86EFAC` |
+| Event pill bg | `#9ca3af` (light gray) |
+| Event pill border | `#9ca3af` |
 | Event pill text | `#0d1117` (dark, for contrast on teal) |
 | Eyebrow/label text | `#8b949e` |
 | Ad hoc pill text | `#8b949e` |
@@ -169,7 +169,7 @@ There is ONE color scheme for both the web HTML and PNG renders. The page backgr
 | Divider/row borders | `#30363d` / `#21262d` |
 | QR badge (ad hoc) bg | `#161b22` |
 | QR badge (ad hoc) text | `#8b949e` |
-| QR badge (event) bg | `#86EFAC` |
+| QR badge (event) bg | `#9ca3af` |
 | QR badge (event) text | `#0d1117` |
 | QR skill-line text | `#b1bac4` |
 | QR eyebrow text | `#8b949e` |
@@ -184,7 +184,7 @@ A 5-column grid (`grid-template-columns: repeat(5, minmax(0,1fr))`) of function 
 - Skill pills stacked vertically:
   - **Scheduled** skills: white background (`#f0efea`), dark text (`#2c2c2a`), border `#c3c2bd`
   - **Ad Hoc** skills: background and text per the color table above
-  - **Event** skills: teal background (`#86EFAC`), dark text (`#0d1117`), border `#86EFAC`
+  - **Event** skills: light gray background (`#9ca3af`), dark text (`#0d1117`), border `#9ca3af`
 
 ### Middle Layer — SVG Connections
 
@@ -230,7 +230,7 @@ A 5-column grid of database cards with colored left borders:
 
 Above the function cards, include:
 - System label: "System of Action" with a "Claude" tag
-- Legend swatches: "Scheduled Orchestrator" (white swatch), "Ad Hoc Skill" (dark swatch), and "Event-Based Skill" (light mint `#86EFAC` swatch)
+- Legend swatches: "Scheduled Orchestrator" (white swatch), "Ad Hoc Skill" (dark swatch), and "Event Skill" (light gray `#9ca3af` swatch)
 
 Below the divider:
 - System label: "System of Record" with a "Notion" tag
@@ -241,7 +241,7 @@ Below the divider:
 
 A table-style listing of every skill, grouped by function. Each row contains:
 
-- **Badge**: "SCHEDULED" (white bg), "AD HOC" (dark bg), or "EVENT-BASED" (light mint `#86EFAC` bg, dark text `#0d1117`) — 9px uppercase, fixed-width badge
+- **Badge**: "SCHEDULED" (white bg), "AD HOC" (dark bg), or "EVENT-BASED" (light mint `#9ca3af` bg, dark text `#0d1117`) — 9px uppercase, fixed-width badge
 - **Skill name**: 12px, `#fffffb`
 - **One-liner**: A concise (~15-word) description of what the skill does, written in present tense. Use the first sentence of the skill's `description` frontmatter as a starting point, but edit for clarity and brevity. The one-liner should be punchy and self-contained.
 

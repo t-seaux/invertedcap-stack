@@ -2,6 +2,12 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-22] (Visual refresh)
+
+Event pill recolored to neutral gray; label reverted to Event.
+
+---
+
 ## [2026-04-23] (Visual refresh)
 
 **Added:** None
