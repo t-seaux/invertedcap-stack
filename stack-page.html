@@ -575,6 +575,11 @@ function scaleAndDraw() {
 
 window.addEventListener('load', scaleAndDraw);
 window.addEventListener('resize', scaleAndDraw);
+document.addEventListener('transitionend', function(e) {
+  if (e.target.classList && e.target.classList.contains('qr-sub-container')) {
+    scaleAndDraw();
+  }
+});
 </script>
 
 </body>
