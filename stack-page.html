@@ -205,6 +205,34 @@
   .qr-skill-text { word-break: break-word; }
   .qr-skill-line { font-size: 12px; color: #b1bac4; line-height: 1.45; padding-top: 1px; }
 
+  /* Fused tri-cell mode pill: S / W / M — each cell lit if supported */
+  .qr-mode-pill {
+    display: inline-flex;
+    align-items: stretch;
+    height: 18px;
+    border-radius: 3px;
+    overflow: hidden;
+    border: 0.5px solid #30363d;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    font-family: 'Courier New', Courier, monospace;
+    background-size: 300% 100%;
+    background-position: 100% 0;
+    transition: none;
+  }
+  .qr-mode-pill .qr-cell {
+    width: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 0.5px solid #30363d;
+  }
+  .qr-mode-pill .qr-cell:last-child { border-right: none; }
+  .qr-mode-pill .qr-cell.qr-on { background: #f0efea; color: #2c2c2a; }
+  .qr-mode-pill .qr-cell.qr-off { background: #0d1117; color: #484f58; }
+  .qr-mode-pill:hover { border-color: #a8a7a2; }
+
   /* QR badges: no background-position transition by default */
   .qr-badge {
     font-size: 9px;
@@ -292,10 +320,10 @@
             <div class="sm-al-item"><div class="sm-al-sw sm-al-c"></div>Composite – expand in Quick Reference</div>
           </div>
           <div class="sm-fns-row" id="fns-row">
-            <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">add-to-crm</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk">founder-outreach</span><span class="sm-sk">add-to-contacts</span><span class="sm-sk">materials-handler</span></div></div>
+            <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">add-to-crm</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk">founder-outreach</span><span class="sm-sk">add-to-contacts</span><span class="sm-sk">materials-handler</span></div></div>
             <div class="sm-fn-card" id="fn-intro"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Intro Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">intro-agent</span></div></div>
             <div class="sm-fn-card" id="fn-portfolio"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Portfolio Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">investor-update</span><span class="sm-sk">coinvestor-recommender</span></div></div>
-            <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">diligence-agent</span><span class="sm-sk sm-event sm-composite">feedback-outreach</span><span class="sm-sk sm-sched">first-pass-diligence</span><span class="sm-sk">pass-note-drafter</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span></div></div>
+            <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched sm-composite">diligence-agent</span><span class="sm-sk sm-event sm-composite">feedback-outreach</span><span class="sm-sk sm-sched">first-pass-diligence</span><span class="sm-sk">pass-note-drafter</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span></div></div>
             <div class="sm-fn-card" id="fn-research"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Research Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">research-agent</span><span class="sm-sk">log-transcript-to-notion</span><span class="sm-sk">deal-digest</span><span class="sm-sk">log-investor-letter-to-notion</span><span class="sm-sk">add-to-companies</span></div></div>
           </div>
           <div class="sm-mid" id="mid">
@@ -320,66 +348,81 @@
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Pipeline Management</div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">pipeline-agent</span></div><div class="qr-skill-line">Webhook-driven top-of-funnel detection with scheduler-bot fallback, plus residual scheduled sweeps for triage and stagnation alerts.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">draft-feedback</span></div><div class="qr-skill-line">Gmail webhook enqueues send events; a local processor drains the queue, extracting voice patterns for outreach and pass note drafters.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-to-crm</span></div><div class="qr-skill-line">Turns any input into a structured Notion opportunity, enriching HQ, contact, website, logo, and description from founder LinkedIn before page creation.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">neg1-enricher</span></div><div class="qr-skill-line">Enriches a LinkedIn profile, delegates company resolution to add-to-companies, scores against the signal rubric, and writes the verdict.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">founder-outreach</span></div><div class="qr-skill-line">Drafts a personalized cold email to a pre-founder candidate, tuned by accumulated voice-corpus patterns and snapshotted to Drive for the feedback loop.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-to-contacts</span></div><div class="qr-skill-line">Saves a network contact to Notion People with strict workspace-search dedup; side-effect workflows leave relations blank rather than auto-creating.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">materials-handler</span></div><div class="qr-skill-line">Downloads decks, memos, and term sheets; unconditionally probes Gmail attachments and writes external URLs to Files properties via Chrome automation.</div></div>
+            <div class="qr-composite-wrap">
+              <div class="qr-skill-row qr-composite-toggle" onclick="this.parentElement.classList.toggle('open')">
+                <div class="qr-skill-name"><span class="qr-chev">▶</span><span class="qr-mode-pill" title="Sweep · Webhook · Manual"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">pipeline-agent</span></div>
+                <div class="qr-skill-line">End-to-end deal pipeline — scan, qualified triage, outreach, connected. Evening sweep @ 17:50 ET + realtime webhook handlers + manual triggers; consolidator posts one grouped alert.</div>
+              </div>
+              <div class="qr-sub-container"><div class="qr-sub-inner">
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;deal-scanner-inbound</div><div class="qr-sub-line">Inbound cold email → LLM classify → add-to-crm delegation.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;add-to-crm</div><div class="qr-sub-line">Manual entry for forwarded / pasted deals with full ContactOut enrichment.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;pipeline-sent-detect</div><div class="qr-sub-line">Tom-sent email matching a Qualified opp → promotes to Outreach.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;founder-outreach</div><div class="qr-sub-line">Drafts personalized cold emails for pre-founder (-1) candidates. Voice-tuned.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;intro-connected-detect</div><div class="qr-sub-line">Three-way intro inbound → flips matching opp Outreach → Connected.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;calendar-scheduled-detect</div><div class="qr-sub-line">Calendar event with a pipeline company → flips opp to Scheduled.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;materials-handler</div><div class="qr-sub-line">Downloads + Drive + Notion-links a deck, memo, or term sheet.</div></div>
+              </div></div>
+            </div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">neg1-enricher</span></div><div class="qr-skill-line">Enriches a pre-founder LinkedIn profile via ContactOut + scores against the signal rubric.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">add-to-contacts</span></div><div class="qr-skill-line">Saves a network contact to Notion People with strict workspace-search dedup.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span><span class="qr-skill-text">draft-feedback</span></div><div class="qr-skill-line">Gmail send webhook enqueues jobs; local processor extracts voice patterns for outreach + pass-note drafters.</div></div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Intro Management</div>
             <div class="qr-composite-wrap">
               <div class="qr-skill-row qr-composite-toggle" onclick="this.parentElement.classList.toggle('open')">
-                <div class="qr-skill-name"><span class="qr-chev">▶</span><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">intro-agent</span></div>
-                <div class="qr-skill-line">End-to-end webhook-driven intro chain – detects requests, outreach sends, opt-in replies, and resolution – and logs every step to Notion.</div>
+                <div class="qr-skill-name"><span class="qr-chev">▶</span><span class="qr-mode-pill" title="Sweep · Webhook · Manual"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">intro-agent</span></div>
+                <div class="qr-skill-line">End-to-end intro lifecycle — qualified, outreach, draft, resolution. Evening sweep @ 17:58 ET + realtime webhook handlers + manual triggers; consolidator posts one grouped alert.</div>
               </div>
               <div class="qr-sub-container"><div class="qr-sub-inner">
-                <div class="qr-sub-row"><div class="qr-sub-name">intro-agent-inbound</div><div class="qr-sub-line">Detects intro requests in Gmail and iMessage and creates Qualified entries on the matching Opportunity.</div></div>
-                <div class="qr-sub-row"><div class="qr-sub-name">intro-outreach-agent</div><div class="qr-sub-line">Scans sent mail for outreach to Qualified contacts and promotes them to the Outreach stage.</div></div>
-                <div class="qr-sub-row"><div class="qr-sub-name">intro-draft-agent</div><div class="qr-sub-line">Drafts double-opt-in intro emails when a contact replies positively to outreach.</div></div>
-                <div class="qr-sub-row"><div class="qr-sub-name">intro-resolution-agent</div><div class="qr-sub-line">Resolves outreach into Made, Declined, or NR based on reply detection.</div></div>
-                <div class="qr-sub-row"><div class="qr-sub-name">log-intro</div><div class="qr-sub-line">Manually logs a qualified intro target when a person and a company are named together.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;intro-agent-inbound</div><div class="qr-sub-line">Inbound intro-request email → creates Qualified entry on matching Opportunity.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;log-intro</div><div class="qr-sub-line">"Intro X to Y" — manually creates a qualified intro target.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;intro-outreach (webhook)</div><div class="qr-sub-line">Tom-sent email to a Qualified contact → promotes to Outreach stage.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;intro-outreach-agent</div><div class="qr-sub-line">Sweep reconciles missed outreach across last 24h; manual mode logs batch outreach.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;intro-draft-agent</div><div class="qr-sub-line">Drafts double-opt-in intro emails when contacts reply positively.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;intro-resolution-reply</div><div class="qr-sub-line">Inbound reply to outreach thread → enqueues intro-resolution-agent (webhook mode).</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;intro-made</div><div class="qr-sub-line">Tom-sent email with founder + contact both addressed → contact → Made.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;intro-resolution-agent</div><div class="qr-sub-line">LLM-classifies reply as opt-in / decline / soft-deferral; kept-in-Outreach is the default for ambiguity.</div></div>
               </div></div>
             </div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Portfolio Management</div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">investor-update</span></div><div class="qr-skill-line">Webhook-driven ingestion of portfolio update emails; always probes for attachments first and logs as structured notes linked to each company.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">coinvestor-recommender</span></div><div class="qr-skill-line">Recommends qualified coinvestors from Tom's network for a specific deal based on check size, stage, and relationship history.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">investor-update</span></div><div class="qr-skill-line">Portfolio update email ingestion — webhook for realtime per-message processing, sweep @ 17:54 ET reconciles missed inbox, manual mode for forwarded/pasted updates.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">coinvestor-recommender</span></div><div class="qr-skill-line">Recommends qualified coinvestors from Tom's network for a specific deal.</div></div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Diligence Management</div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">diligence-agent</span></div><div class="qr-skill-line">Orchestrates expert feedback outreach and pass note drafting on a twice-daily automated schedule.</div></div>
             <div class="qr-composite-wrap">
               <div class="qr-skill-row qr-composite-toggle" onclick="this.parentElement.classList.toggle('open')">
-                <div class="qr-skill-name"><span class="qr-chev">▶</span><span class="qr-badge qr-b-event">Event</span><span class="qr-skill-text">feedback-outreach</span></div>
-                <div class="qr-skill-line">End-to-end get-feedback-on-an-Opp chain – drafts personalized diligence outreach and webhook-tracks replies back into structured Notion notes.</div>
+                <div class="qr-skill-name"><span class="qr-chev">▶</span><span class="qr-mode-pill" title="Sweep · Webhook · Manual"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">diligence-agent</span></div>
+                <div class="qr-skill-line">Diligence orchestrator — feedback outreach, pass notes, first-pass workers. Evening sweep @ 17:52 ET + realtime webhook handlers + manual triggers; consolidator posts one grouped alert.</div>
               </div>
               <div class="qr-sub-container"><div class="qr-sub-inner">
-                <div class="qr-sub-row"><div class="qr-sub-name">feedback-outreach-drafter</div><div class="qr-sub-line">Drafts backchannel diligence emails for new entries on an Opportunity's Pending Feedback relation.</div></div>
-                <div class="qr-sub-row"><div class="qr-sub-name">feedback-outreach-scanner</div><div class="qr-sub-line">Scans sent mail and inbox for replies, logs Notion notes, and clears contacts off Pending Feedback.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;feedback-outreach-drafter</div><div class="qr-sub-line">Drafts backchannel diligence emails for entries in Pending Feedback relation.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;feedback-reply-detect</div><div class="qr-sub-line">Inbound reply from Pending Feedback contact → enqueues feedback-outreach-scanner.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;feedback-outreach-scanner</div><div class="qr-sub-line">LLM-classifies replies as substantive vs acknowledgment; updates Notion notes + relation.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span>&nbsp;&nbsp;pass-note-sent</div><div class="qr-sub-line">Tom-sent pass note email → flips opp to Pass (Met) + archives email body to Notes DB.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;pass-note-drafter</div><div class="qr-sub-line">Drafts personalized pass notes for "Pass Note Pending" opps. Voice-tuned.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span>&nbsp;&nbsp;first-pass-diligence</div><div class="qr-sub-line">Inverted Lens scoring → Notion memo + PDF + Signal alert. 0–5 parallel workers per sweep for newly-Active opps.</div></div>
               </div></div>
             </div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">first-pass-diligence</span></div><div class="qr-skill-line">Runs a structured first-pass analysis on a deal — Inverted Lens scoring, Notion memo, PDF, and Signal alert.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">pass-note-drafter</span></div><div class="qr-skill-line">Drafts a personalized investor pass email, tuned by accumulated voice corpora, and snapshots each draft to Drive for the feedback loop.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">update-diligence-priors</span></div><div class="qr-skill-line">Ingests new call notes or materials since the last analysis and prepends a dated update section to the existing Notion diligence page.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">pre-mortem</span></div><div class="qr-skill-line">Stress-tests a deal by imagining it has already failed and working backward to the most likely causes; renders via the canonical long-form PDF spec.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-conversation-to-notion</span></div><div class="qr-skill-line">Archives any Claude conversation — analysis, notes, decisions — directly to the Notion knowledge base.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">decision-retro</span></div><div class="qr-skill-line">Captures a free-form retro on every invest or pass — including cold dismissals — and routes nuggets into the founder signal framework corpus.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">update-diligence-priors</span></div><div class="qr-skill-line">Appends new call notes / materials to an existing first-pass diligence page.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">pre-mortem</span></div><div class="qr-skill-line">Stress-tests a deal by imagining it has already failed and working backward.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">add-conversation-to-notion</span></div><div class="qr-skill-line">Archives the current Claude conversation as a Notes DB page.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">decision-retro</span></div><div class="qr-skill-line">Captures retro on invest / pass decisions. Scheduled iMessage-triggered @ 18:00 + manual.</div></div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Research Management</div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-sched">Scheduled</span><span class="qr-skill-text">research-agent</span></div><div class="qr-skill-line">Scans the web daily for new investor letters and memos and delivers a digest via Signal.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">log-transcript-to-notion</span></div><div class="qr-skill-line">Pulls a video transcript, extracts the key frameworks, and saves it as a structured note in Notion.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">deal-digest</span></div><div class="qr-skill-line">Packages a deals digest from an external source into a structured Notion research note.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">log-investor-letter-to-notion</span></div><div class="qr-skill-line">Saves an investor letter from any external firm to the Notion Notes database for future reference.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-badge qr-b-adhoc">Ad Hoc</span><span class="qr-skill-text">add-to-companies</span></div><div class="qr-skill-line">Adds a company to the Notion Companies database and runs the canonical enrichment pipeline — identity, revenue, funding, momentum, headcount — in one shot.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">research-agent</span></div><div class="qr-skill-line">Scans the web for new investor letters and memos @ 06:50 ET; delivers digest via Signal.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">log-transcript-to-notion</span></div><div class="qr-skill-line">Pulls a video transcript, extracts key frameworks, saves as Notion note.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">deal-digest</span></div><div class="qr-skill-line">Packages a deals digest from an external source into a structured Notion research note.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">log-investor-letter-to-notion</span></div><div class="qr-skill-line">Saves an investor letter from any external firm to the Notion Notes database.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">add-to-companies</span></div><div class="qr-skill-line">Adds a company to the Notion Companies DB + runs the full enrichment pipeline. Scheduled nightly sweep reconciles.</div></div>
           </div>
         </div>
       </div>
