@@ -2,10 +2,15 @@
 name: intro-resolution-agent
 description: >
   Resolve entries in Intros (Outreach) by detecting whether the person opted in, declined, or deferred the intro.
-  Operates in two modes: (1) Scheduled scan — scans Tom's Gmail inbox and sent mail from the past 24 hours
-  for replies in outreach threads. Moves opted-in intros to ✉️ Made, and clear declines to 🚫 Declined / NR.
-  Soft deferrals that express future interest are kept in ☎️ Outreach — NOT cleared from the pipeline.
-  (2) Manual trigger — auto-detects phrases like "intro made", "X opted in", "X declined", "X deferred",
+  Operates in three modes:
+  (A) Scheduled sweep — reconciliation pass that catches what the per-event webhook handlers
+  (intro-resolution-reply, intro-connected-detect) missed. Scans Tom's Gmail inbox and sent mail
+  from the past 24 hours for replies in outreach threads. Moves opted-in intros to ✉️ Made, and
+  clear declines to 🚫 Declined / NR. Soft deferrals that express future interest are kept in
+  ☎️ Outreach — NOT cleared from the pipeline.
+  (B) Webhook — invoked per inbound reply via the claude-job-queue primitive; processes
+  one specific message instead of the full roster.
+  (C) Manual trigger — auto-detects phrases like "intro made", "X opted in", "X declined", "X deferred",
   "no response from X", "move to made", "move to declined", "NR", "intro completed", "intro sent",
   "double opt in", "connected them", "X said not now", "X wants to revisit later",
   or any message indicating an outreach has reached a terminal state.
@@ -132,6 +137,31 @@ Tom explicitly tells you the resolution in conversation:
 When detected: Move from whichever source field the person is in (`☎️ Outreach` or `👓 Qualified`) to the appropriate target.
 
 ## Execution Workflow
+
+### Mode B: Single-Message (Webhook)
+
+When invoked by `gmail-webhook/Code.js` (`intro-resolution-reply` handler) via the `claude-job-queue` primitive, the skill processes ONE specific reply message rather than running the full roster scan.
+
+**Args:**
+- `messageId` (required) — Gmail message ID of the inbound reply
+- `threadId` (required) — Gmail thread ID for context
+- `senderEmail` (required) — pre-parsed `From` address
+- `personId` (optional) — Notion People DB page ID, pre-resolved by webhook gate
+- `oppCandidateIds` (optional) — array of Opportunity page IDs the webhook found this person in (Outreach or Qualified). If `length === 1`, treat as the unambiguous target. If empty, skip.
+
+**Behavior in Mode B:**
+- **Skip Step 1 entirely** — the webhook already verified person + opp candidates. Use the pre-resolved IDs as the starting point.
+- If `oppCandidateIds.length > 1`, run the **thread-disambiguation** logic from Phase B (read the thread's earliest sent message, haystack-match its subject + body-head against the candidate opp names) to pick the target opp. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
+- **Skip Step 2 Phase A entirely** (no batch sent/inbox scans — we have the one message).
+- Run Phase B's classification logic on this single thread:
+  1. Read the full thread via `gmail_read_thread`
+  2. **Inline-intro check** (Pattern 1b) — if any of Tom's replies in the thread CC or address the founder, classify as **Made** regardless of the contact's reply tone
+  3. Otherwise run the full opt-in / decline / soft-deferral / hard-deferral / ambiguous LLM classification rubric from Step 2 Phase B
+- Apply the same Notion update logic the scheduled scan would (move person between source field and target — Made / Declined / kept in Outreach).
+- Skip Step 3+'s scheduled-scan reporting. Instead emit a single-line summary to the run log: `single-message resolution: <person> on <opp> — <classification> → <action>`. The webhook's downstream Slack alert (if any) is composed by the orchestrator OR by an explicit `send-alert` invocation here only if classification = **Made** or **Declined** (terminal states worth notifying); soft-deferral and ambiguous are silent.
+- Idempotency is handled at the queue layer (key = `intro-resolution-reply-{messageId}`); the skill itself does not need to re-check.
+
+All classification rules (opt-in / decline / soft-deferral / hard-deferral / ambiguous handling, including the "ambiguous → keep in Outreach" default) live in Step 2 Phase B and apply identically here — do not restate them.
 
 ### Step 1: Build Dual Roster (Outreach + Qualified)
 

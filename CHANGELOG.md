@@ -2,6 +2,28 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-24] (Week of 2026-04-20)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `add-to-companies` -- tightened credit-saving rule: full Steps A–E enrichment pipeline always runs on direct invocation; only skip is when `Last Enriched` is already populated.
+- `add-to-crm` -- dedup check is now mandatory for every caller (manual + unattended) with a 3-way lookup (title + website domain + contact email); added a formal decision table for protected / prior-pass / in-progress / safe-to-create paths.
+- `decision-retro` -- rewired from synchronous Notion-based capture to a headless queue-based architecture: scan at 09:00 ET posts a prompt to a dedicated Slack channel, listener at 18:00 ET reads thread replies and logs the retro; state now lives in a local `queue.json` rather than on the Opportunity page.
+- `feedback-outreach-scanner` -- added webhook mode for per-inbound-reply processing via the `claude-job-queue` primitive; sweep mode retained as reconciliation fallback.
+- `founder-outreach` -- auto-invoked as the terminal step of `neg1-enricher` on manual -1 scan requests, regardless of the Claude Rec verdict, so Tom sees the draft alongside the score; batch enrichment via `pipeline-agent` Task 6 remains no-chain.
+- `intro-agent` -- clarified the scheduled mode as a reconciliation sweep backing the per-event webhook handlers.
+- `intro-resolution-agent` -- added webhook mode for per-reply classification via `claude-job-queue`; now three modes total (sweep, webhook, manual).
+- `investor-update` -- added webhook mode for per-message processing via `claude-job-queue`; now three modes total (sweep, webhook, manual).
+- `neg1-enricher` -- on manual invocation, auto-chains into `founder-outreach` regardless of Claude Rec verdict; batch mode via `pipeline-agent` stays no-chain; added a `--score-only` re-evaluation mode for rubric drift checks.
+- `pass-note-drafter` -- now archives sent pass notes to the Notes DB as a Diligence-category note linked to the Opportunity; added a Step 2.5 backfill pass that catches cases where the webhook archive step failed while the status flip succeeded.
+- `pipeline-agent` -- clarified the scheduled mode as a reconciliation sweep backing the per-event webhook handlers.
+- `skill-map-refresh` -- collapsed the Scheduled/Event visual binary into a unified Autonomous category; Quick Reference rows now render a fused tri-cell mode pill (Sweep / Webhook / Manual); added `pipeline-agent` and `diligence-agent` to the composite list so their expansion drawers show the full webhook + canonical + manual universe.
+**Total skills:** 23
+**Functions:** No changes
+
+---
+
 ## [2026-04-23] (Visual refresh)
 
 **Added:** None

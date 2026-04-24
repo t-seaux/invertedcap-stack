@@ -18,7 +18,10 @@ description: >-
   Distinct from `neg1-enricher` (person-level; invokes THIS skill as a
   subroutine per employer/school) and `add-to-crm` (Opportunities pipeline).
   Skill does NOT create People entries, Opportunities entries, or any
-  non-Companies artifact.
+  non-Companies artifact. ALWAYS runs the full Steps A–E enrichment pipeline
+  on every direct invocation — no minimal/partial variant. Only skip is the
+  credit-saving rule: if `Last Enriched` is already populated, return the
+  existing row without re-enriching.
 ---
 
 # Add to Companies

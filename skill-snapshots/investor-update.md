@@ -1,6 +1,6 @@
 ---
 name: investor-update
-description: "Process investor update emails from PORTFOLIO COMPANIES (startups Tom has invested in) and attach them to the corresponding Notion Opportunities database entry. This is NOT the same as 'investor letters' — see disambiguation below. This skill operates in two modes. (1) Scheduled scan — proactively scans Tom's Gmail inbox for new investor update emails from the past 24 hours. (2) Manual trigger — auto-detects when the user forwards or pastes an investor update email in conversation (look for phrases like 'investor update', 'quarterly update', 'monthly update', 'portfolio update', company update newsletters, or any email that reads like a periodic business/financial update from a startup founder to their investors). In both modes, extract the company name, locate the matching Active Portfolio opportunity in Notion, create a new page in the Company Updates database with the email content, save a local PDF archive, and link the update to the Opportunity via a dual relation."
+description: "Process investor update emails from PORTFOLIO COMPANIES (startups Tom has invested in) and attach them to the corresponding Notion Opportunities database entry. This is NOT the same as 'investor letters' — see disambiguation below. This skill operates in three modes. (A) Scheduled sweep — reconciliation pass that catches what the investor-update-inbound webhook missed; scans Tom's Gmail inbox for new investor update emails from the past 24 hours. (B) Webhook — invoked per inbound message via the claude-job-queue primitive, processes one specific email instead of scanning the inbox. (C) Manual trigger — auto-detects when the user forwards or pastes an investor update email in conversation (look for phrases like 'investor update', 'quarterly update', 'monthly update', 'portfolio update', company update newsletters, or any email that reads like a periodic business/financial update from a startup founder to their investors). In all modes, extract the company name, locate the matching Active Portfolio opportunity in Notion, create a new page in the Company Updates database with the email content, save a local PDF archive, and link the update to the Opportunity via a dual relation."
 ---
 
 # Investor Update Processor (Portfolio Companies)
@@ -56,7 +56,7 @@ During scanning, treat any email **forwarded by Tom to himself** as a legitimate
 - The **original sender** of the forwarded email (the founder/CEO) is the relevant sender for company identification (Step 2) and page metadata (Step 4). The **From** field in the Notion page body should reflect the original sender, not Tom's forwarding address.
 - The **To** field in the Notion page body should read `Tom <tom@invertedcap.com>` regardless of which address originally received the update.
 
-### Mode A: Scheduled Daily Scan (primary mode)
+### Mode A: Scheduled Daily Sweep (primary mode)
 
 **Step A1: Pull the Active Portfolio company list from Notion.**
 
@@ -100,7 +100,24 @@ Deduplicate all results by message ID. For each unique message, use `read_gmail_
 
 If no emails are found across all searches, report "No new investor updates found in the past 24 hours" and stop.
 
-### Mode B: Manual / Forwarded Email
+### Mode B: Webhook (single message)
+
+Triggered by `gmail-webhook` (`investor-update.js`) on inbound mail that passes the cheap gate + portfolio founder lookup. The webhook enqueues a single job per matching message via the `claude-job-queue` primitive; the local processor invokes this skill with the args below.
+
+**Args:**
+- `messageId` (required) — Gmail message ID. Fetch the full message via Gmail MCP (`mcp__claude_ai_Gmail__search_threads` or read the message directly by ID) before proceeding to Step 2.
+- `oppId` (optional) — Notion Opportunity page ID, pre-resolved by the webhook. Use as a fast-path in Step 2 (skip the search) but verify the page is still Active Portfolio before writing.
+- `oppName` (optional) — Opportunity title, for log/Slack output before the Notion page is loaded.
+- `forwardedSenderEmail` (optional) — set when the webhook detected `Fwd:` from Tom's own address. The original founder is in the forwarded body — use this email for company resolution, not the message's `From` header.
+
+**Behavior in Mode B:**
+- Process exactly the one message identified by `messageId`. Do **not** scan the inbox for other updates in this run.
+- Run the same dedup check (Step 4 — `investorUpdatePageExists` by intended page title). If a page already exists, log and exit without re-uploading the PDF.
+- Skip Step 1's portfolio-list query and per-company searches entirely — those exist for the scheduled mode.
+- Otherwise proceed through Steps 2–6 unchanged. The Slack alert in Step 6 is the single notification for this update — the webhook does not post its own alert in this path.
+- Single-message alert format (override Step 6's batch format): one line, same shape as a row in the batch — `📬 **<Company>** — "<subject or period>" — <PDF source>. <Notion page link>`. Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
+
+### Mode C: Manual / Forwarded Email
 
 If the user forwards or pastes an investor update email directly in conversation, parse it from the conversation context. Also check the uploads directory for any PDF attachments the user may have uploaded alongside the email.
 

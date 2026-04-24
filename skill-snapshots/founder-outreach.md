@@ -7,8 +7,11 @@ description: >-
   the spike signal. Sets Status to "Draft Ready" when complete. Idempotent, never sends.
   Scoring + evaluation lives in neg1-enricher — this skill refuses to run if the row is
   unscored. Trigger phrases: "draft outreach for [name]", "draft cold email for [name]",
-  "draft for [name]", "create outreach draft", "run founder-outreach". Commonly chained
-  after neg1-enricher once Tom reviews the scored row. Part of pipeline management.
+  "draft for [name]", "create outreach draft", "run founder-outreach". Auto-invoked as
+  the terminal step of neg1-enricher on MANUAL -1 scan requests (runs regardless of
+  Claude Rec — even Pass verdicts get a draft so Tom sees what the outreach would look
+  like before deciding). Not auto-invoked on pipeline-agent Task 6 batch enrichment.
+  Part of pipeline management.
 ---
 
 # Founder Outreach

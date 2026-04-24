@@ -1,11 +1,14 @@
 ---
 name: pass-note-drafter
 description: >
-  Draft investor pass note emails for opportunities Tom has decided to pass on. Runs daily at 8am
-  ET. First queries Notion for all Opportunities with Status = "Pass Note Pending" (the source of
-  truth). For each pending opportunity, checks Gmail sent mail to see if a pass note was already
-  sent — if so, updates Notion to "Pass (Met)". Then reads diligence materials and call notes for
-  any remaining pending opportunities and drafts a pass note in Tom's voice as a saved Gmail draft.
+  Draft investor pass note emails for opportunities Tom has decided to pass on. Runs as a daily
+  evening sweep (orchestrated by diligence-agent) — reconciliation pass that catches what the
+  pass-note-sent webhook handler missed. First queries Notion for all Opportunities with
+  Status = "Pass Note Pending" (the source of truth). For each pending opportunity, checks
+  Gmail sent mail to see if a pass note was already sent — if so, updates Notion to "Pass (Met)"
+  AND archives the sent email body to the Notes DB as a Diligence-category note linked to the
+  Opportunity. Then reads diligence materials and call notes for any remaining pending
+  opportunities and drafts a pass note in Tom's voice as a saved Gmail draft.
   Sends a Signal Note to Self alert via Beeper when complete.
 
   Trigger phrases: "pass note", "draft pass note", "pass note pending", "write pass notes",
@@ -30,6 +33,7 @@ consistent, and getting it right is the whole point.
 Opportunities data_source_id: fab5ada3-5ea1-44b0-8eb7-3f1120aadda6
 Database URL: https://www.notion.so/5fa871c765d74251b8f96b63f248ef25
 People DB data_source_id: 1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9 (use notion-search only)
+Notes DB data_source_id: e8afa155-b41a-4aa2-8e9d-3d4365a11dfb
 
 Key fields on each Opportunity:
 - Name (title): Company name
@@ -74,6 +78,19 @@ gmail_search_messages: q="subject:\"[COMPANY NAME] - Inverted follow up\" in:sen
 
 If a sent email is found (it must be in Sent mail — not just a draft), it means Tom already sent the pass note manually. Update that Opportunity's status to `"Pass (Met)"` via `notion-update-page` and remove it from the working set. **PROTECTED STATUS GUARD: Before updating Status, verify the opportunity's current status is not Active Portfolio, Portfolio: Follow-On, Exited, or Committed. If it is, do NOT update — skip and note "skipped — protected status" in the Signal summary.**
 
+**Archive the sent pass note to the Notes DB.** After flipping status to `Pass (Met)`, create a Notion Notes entry with the final sent version of the email so the pass note is preserved on the Opportunity:
+
+1. Fetch the full sent email body via `gmail_get_message` using the message ID from the sent search above. Extract the plain-text body (strip the signature block from `–` onward and any quoted reply history — just the outbound pass note Tom wrote).
+2. **Dedup check:** Query the Notes DB (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for an existing page with Name = `[Company Name] - Inverted follow up` and the same Opportunity relation. If one exists, skip creation.
+3. Otherwise, create a new Notes page via `notion-create-pages`:
+   - **Parent:** `data_source_id: e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`
+   - **Name (title):** `[Company Name] - Inverted follow up` (use the exact company name as it appears in the Opportunity title, matching the email subject)
+   - **Category:** `Diligence` (hardcoded — do NOT invoke note-classifier for this flow)
+   - **Opportunity:** relation to the passed Opportunity's page URL
+   - **Body:** the full plain-text pass note as paragraphs, preserving line breaks between bullets. Do NOT include `Tom,` opener addressing wrapper formatting — write the body as it appears in the sent email.
+
+This ensures every sent pass note has a durable record on the Opportunity alongside call notes and diligence materials, not just in Gmail. The archive is created only on the sent-detection path — never at draft time.
+
 This keeps the lookup targeted: you're only querying Gmail for companies you already know are pending — not scanning all of Tom's sent mail and reverse-matching against Notion. Any Pass Note Pending opportunity for which no sent email exists stays in the queue for drafting.
 
 > This step is the only mechanism by which an Opportunity moves out of "Pass Note Pending" — the drafting steps below deliberately do not update Notion status, since Tom reviews and sends the draft himself.
@@ -81,6 +98,24 @@ This keeps the lookup targeted: you're only querying Gmail for companies you alr
 **Deduplication check:** For remaining entries, run `gmail_list_drafts` and check for an existing draft subject matching `[Company Name] - Inverted follow up`. If a draft already exists, skip drafting for that company and note it in the Signal summary as "draft already exists — review and send."
 
 Proceed to draft for any remaining entries.
+
+---
+
+### Step 2.5: Backfill Missing Archives for Recently Flipped Pass (Met)
+
+The Gmail webhook (`gmail-webhook/pass-note-sent.js`) also flips Pass Note Pending → Pass (Met) and creates the Notes archive in real time on send. But if the webhook's archive step fails partway (e.g., a body-decode error or transient Notion error) while the status flip succeeds, the Opportunity ends up flipped without a corresponding Notes entry — and Step 2 above won't backfill because it's gated on the status transition.
+
+This step closes that gap. After Step 2 completes:
+
+1. Query the Opportunities DB for entries where `Status = "Pass (Met)"` AND `Last Edited` is within the last 7 days. Filter via `notion-query-database-view` against the Agent View; locally narrow to recent Pass (Met) rows.
+2. For each, check whether a corresponding Notes DB page exists with Name = `[Company Name] - Inverted follow up` and an Opportunity relation pointing to that Opp. Use `notion-search` against the Notes DB.
+3. If no Notes page exists:
+   - Find the sent pass note in Gmail with `gmail_search_messages: q="subject:\"[Company Name] - Inverted follow up\" in:sent -subject:\"Re:\" -subject:\"Fwd:\""`
+   - If found, fetch the message body and create the Notes page using the same template as Step 2 (Diligence category, Opportunity relation, body = stripped plain-text pass note, with a `📧 View sent email` link at the top).
+   - If no sent email is found, skip — the Pass (Met) flip happened via some other path and there's nothing to archive.
+4. Note any backfills in the Signal alert as `🔄 Backfilled archive: [Company]`.
+
+Skip this entire step if no Pass (Met) opportunities were edited in the last 7 days — common case is zero work.
 
 ---
 

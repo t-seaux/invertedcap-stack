@@ -5,8 +5,9 @@ description: >
   pipeline opportunities across 4 stages: Deal Scanner → Qualified Triage → Outreach Triage
   → Connected Triage. Also scans Gmail for materials (decks, memos, term sheets) related to
   active pipeline companies and links them via Gmail deep links. Operates in two modes:
-  (1) Scheduled scan — proactively scans Tom's Gmail inbox, sent mail, iMessages, and
-  Google Calendar from the past 24 hours to detect new deals and pipeline progression signals.
+  (1) Scheduled sweep — reconciliation pass that catches what the per-event webhook handlers
+  (deal-scanner-inbound, pipeline-sent-detect, calendar-scheduled-detect) missed. Scans Tom's
+  Gmail inbox, sent mail, iMessages, and Google Calendar from the past 24 hours.
   (2) Manual trigger — auto-detects when Tom says things like "scan my pipeline", "check for
   new deals", "triage my deals", "pipeline scan", "run pipeline", "any new deals?", or any
   message indicating Tom wants his deal pipeline reviewed.

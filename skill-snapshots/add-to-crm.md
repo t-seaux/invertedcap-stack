@@ -11,7 +11,24 @@ Read `references/schema.md` for the full database schema and field formatting ru
 
 ## Protected Status Guard
 
-Before creating a new opportunity or modifying an existing one, check for duplicates. If an existing Notion opportunity is found with a **protected terminal status** — Active Portfolio, Portfolio: Follow-On, Exited, or Committed — do NOT create a duplicate and do NOT modify the existing page's Status field. Alert the user that this company already exists in a protected state and ask how they'd like to proceed.
+Before creating ANY new opportunity, run the dedup check below. This is MANDATORY — do not skip it. Unattended callers (e.g. `inbound-deal-detect`) must run this guard the same way as manual invocations.
+
+### Dedup procedure (run all three — don't short-circuit on a single miss)
+
+1. **Title match.** Call `notion-search` with `data_source_url: "collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"` and the extracted company name as the query. Check results whose title matches the company name exactly OR with a `(Series X FO)` / `(Seed FO)` / similar follow-on suffix.
+2. **Website-domain match.** If a website is extracted (e.g. `tuor.dev`), also query with the bare domain — Notion semantic search indexes page properties, so this surfaces rows where only the `Website` field matches.
+3. **Contact-email match.** If a founder email is extracted (e.g. `hardik@tuor.dev`), also query with that email — this catches cases where the company was logged under a different spelling/casing.
+
+Collect the union of matches from all three queries, then fetch each candidate page and read its `Status`.
+
+### Decision table
+
+- **Any candidate has Status ∈ {Active Portfolio, Portfolio: Follow-On, Exited, Committed}** — do NOT create a duplicate. Do NOT modify the existing page's Status. In manual mode, alert the user with the existing page URL and ask how to proceed. In unattended mode, log `protected-status-skip` with the existing page ID and exit 0. The caller (e.g. `inbound-deal-detect`) is responsible for posting the `🛡️` Slack alert.
+- **Any candidate has Status ∈ {Pass (Met), Pass (DNM), Lost, NR / Missed}** — hard-block. Do NOT create a duplicate. In manual mode, alert the user. In unattended mode, log `prior-pass-skip` with the existing page ID and exit 0.
+- **Any candidate is in an in-progress status (Qualified / Outreach / Connected / Scheduled / Active / Track / Exploration / Assigned / Pass Note Pending)** — this is a re-surface of an existing live deal. Do NOT create a duplicate. In manual mode, surface the existing page and ask whether to update it in place. In unattended mode, log `duplicate-in-pipeline-skip` with the existing page ID and exit 0.
+- **No candidates found** — safe to proceed with creation.
+
+**Why this matters:** A portfolio founder emailing from a work address that isn't on their People DB row will slip past the webhook's founder-sender gate. Without this guard firing in `add-to-crm`, the result is a duplicate Opportunity row shadowing an Active Portfolio company. This guard is the last line of defense.
 
 ## Workflow
 

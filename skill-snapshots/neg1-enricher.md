@@ -18,9 +18,12 @@ description: >-
   "rescore [name]", "re-score [name]", "score-only", or any variant involving LinkedIn URLs
   paired with sourcing/enrichment/scoring intent. Also trigger when the user pastes a batch
   of LinkedIn URLs without further context — the default action for a bare list of LinkedIn
-  URLs is to run this skill. Distinct from "add to contacts" (People DB), "add to crm"
-  (Opportunities pipeline), and "founder-outreach" (drafting only — runs after this skill
-  produces a Reach Out verdict). Part of pipeline management.
+  URLs is to run this skill. Distinct from "add to contacts" (People DB) and "add to crm"
+  (Opportunities pipeline). On MANUAL invocation this skill auto-chains into
+  `founder-outreach` after scoring, regardless of Claude Rec verdict — Tom wants the draft
+  sitting ready for review alongside the score. Batch invocation by pipeline-agent Task 6
+  does NOT chain (that's scheduled bulk enrichment — drafting stays manual). Part of
+  pipeline management.
 ---
 
 # -1 Enricher
@@ -201,21 +204,23 @@ Apply the framework in two phases:
 
 Write all six fields back to the -1 Scanner row via `notion-update-page`. Do not touch Status here.
 
-### Step 6: (Manual mode only) Chain to Drafting if Tom-flippable to ✅
+### Step 6: Chain to Drafting (manual invocation only)
 
 The -1 Scanner's `Status` field workflow:
 - `Pending Enrichment` → initial state; picked up by pipeline-agent Task 6
-- `Draft Ready` → after `founder-outreach` produces a Gmail draft (set BY founder-outreach, not here)
+- `Draft Ready` → after `founder-outreach` produces a Gmail draft (set BY founder-outreach)
 - `Reached Out` → Tom sent the outreach (detected by pipeline-agent Task 7)
 - `Passed` → Tom decided not to send (manual flip)
 
-After Step 5 writes the verdict, the candidate is **fully evaluated** but Status remains `Pending Enrichment` — Tom decides whether to draft.
+**Manual mode** (called with a raw LI URL from a user prompt, or any direct trigger phrase): after Step 5 writes the verdict, **auto-invoke `founder-outreach`** to produce the Gmail draft. Run regardless of Claude Rec — even Pass verdicts get a draft so Tom can see what the outreach would have looked like and make the final send/discard call himself. Do NOT pause to ask for confirmation between the two skills. Single run, single report back.
 
-**Manual mode** (called with a raw LI URL from a user prompt): if `Claude Rec = Reach Out ✅`, surface the recommendation but do NOT auto-invoke `founder-outreach`. Tom reviews the score in Notion first; if he agrees, he triggers `founder-outreach` separately or asks "draft for [name]". This avoids drafting emails for candidates Tom would override to Pass.
+**Exception**: if the user explicitly says "enrich only" / "just score, don't draft" / "no outreach" / similar, skip the chain and stop after Step 5.
 
-**Task 6 mode** (called by pipeline-agent with an existing page ID): same — return after Step 5 with the verdict written. Tom triages from the scheduled summary.
+**Task 6 mode** (called by pipeline-agent with an existing page ID, scheduled bulk enrichment): do NOT chain. Return after Step 5 with the verdict written. Drafting from the scheduled summary stays manual — Tom triages which rows warrant an outreach draft.
 
-The split: `neg1-enricher` ends at "verdict written, row ready for review." `founder-outreach` begins at "Tom said yes, write the email."
+**`--score-only` mode**: does NOT chain (it's a re-evaluation, not a fresh outreach decision).
+
+The split: `neg1-enricher` produces the scored row. On manual invocation it also triggers `founder-outreach` as a terminal step. `founder-outreach` owns the Gmail draft itself.
 
 ### Step 7: Report Back
 
@@ -264,8 +269,10 @@ Per FRAMEWORK_PRD.md §6.7 (re-scoring without re-enriching). Used when the rubr
 1. Calls `contactout_enrich_linkedin_profile` with `profile_only: false` → Jane Doe, VP of Engineering at Stripe, previously at Google and Meta. Personal email: jane@gmail.com. Education: Stanford (B.S. Computer Science), MIT (M.S. AI).
 2. Determines primary: VP of Engineering at Stripe.
 3. Dedup-searches Companies DB by domain → Stripe found (Last Enriched → skip re-enrich), Google found (skip), Meta found but Last Enriched empty → backfills Meta with the 12 enrichment fields.
-4. Creates -1 Scanner entry with the full field set (no scoring fields — those are populated by founder-outreach).
-5. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. [link]"
+4. Creates -1 Scanner entry with the full field set.
+5. Runs Step 5 scoring → Eval Score 8 (Earned Reps peak), Claude Rec = Reach Out ✅.
+6. Auto-chains into `founder-outreach` → Gmail draft created, Status = Draft Ready.
+7. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. Eval Score 8 / Reach Out ✅. Gmail draft ready. [link]"
 
 ## Behavior Rules
 

@@ -1,7 +1,7 @@
 ---
 name: feedback-outreach-scanner
 description: >
-  Scans the Notion 📣 Pending Feedback relation as source of truth for feedback outreach contacts, then searches Gmail sent mail and inbox for outreach activity and replies. Creates per-person Notion feedback notes, appends replies, and removes people from Pending Feedback once their feedback is logged. Uses email-first matching with name-based fallback to avoid missing emails sent to alternate addresses. This is a sub-agent of the Diligence Agent — it does NOT run standalone. It is NOT the feedback-outreach-drafter skill (which drafts outreach emails). This skill runs after emails are sent, not before.
+  Scheduled sweep + per-event webhook handler for feedback outreach replies. Scans the Notion 📣 Pending Feedback relation as source of truth for feedback outreach contacts, then searches Gmail sent mail and inbox for outreach activity and replies. The sweep mode runs as a sub-agent of the Diligence Agent and reconciles what the feedback-reply-detect webhook missed; the webhook (Mode B) processes one inbound reply at a time via the claude-job-queue primitive. Creates per-person Notion feedback notes, appends replies, and removes people from Pending Feedback once their feedback is logged. Uses email-first matching with name-based fallback to avoid missing emails sent to alternate addresses. NOT the feedback-outreach-drafter skill (which drafts outreach emails) — this skill runs after emails are sent, not before.
 ---
 
 # Feedback Outreach Scanner
@@ -19,6 +19,28 @@ Scans Gmail for feedback outreach activity over the past 12 hours, using the Not
 - **Notes DB:** `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`
 
 ---
+
+## Mode B: Single-Message (Webhook)
+
+When invoked by `gmail-webhook/Code.js` (`feedback-reply-detect` handler) via the `claude-job-queue` primitive, the skill processes ONE specific reply rather than scanning inbox + sent mail across the full Pending Feedback roster.
+
+**Args:**
+- `messageId` (required) — Gmail message ID of the inbound reply
+- `threadId` (required) — Gmail thread ID for thread context + outreach lookup
+- `senderEmail` (required) — pre-parsed `From` address
+- `personId` (required) — Notion People DB page ID, pre-resolved by webhook gate
+- `oppCandidateIds` (required) — array of Opportunity page IDs where this person sits in `📣 Pending Feedback`. Webhook gate guarantees length ≥ 1.
+
+**Behavior in Mode B:**
+- **Skip Step 0** — the webhook already built the list-of-one (this person, these candidate opps).
+- **Skip Step 1** — no need to scan sent mail; this is an inbox reply event.
+- Run Step 2's per-message logic on this single message:
+  1. If `oppCandidateIds.length > 1`, disambiguate by reading the thread's earliest sent message and haystack-matching its subject + body-head against the candidate opp names. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
+  2. Apply Step 2's "Processing matches" sub-steps (read full thread, sanity-check it's a feedback outreach thread, classify the reply) exactly as written. The classification rubric (substantive vs acknowledgment/deferral) lives in Step 2 — do not restate it here.
+- Run Steps 3-5 (note creation OR append + remove from Pending Feedback if substantive) exactly as in scheduled mode.
+- **Skip Step 6's scheduled-scan summary.** Emit a single-line run-log entry: `single-message feedback-reply: <person> on <opp> — <classification> → <action>`. No standalone Slack alert in webhook mode (the scheduled scan's grouped alert format isn't appropriate for one-off events; if Tom needs realtime visibility, the Notion note itself is the artifact).
+
+Idempotency at queue layer (key = `feedback-reply-{messageId}`); skill does not re-check.
 
 ## Step 0: Build the Pending Feedback Contact List from Notion
 

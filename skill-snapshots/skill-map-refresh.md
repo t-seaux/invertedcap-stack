@@ -182,9 +182,8 @@ A 5-column grid (`grid-template-columns: repeat(5, minmax(0,1fr))`) of function 
 - Eyebrow label: "Function" (9px, uppercase — see color table above)
 - Function name (12px, 500 weight, `#fffffb`)
 - Skill pills stacked vertically:
-  - **Scheduled** skills: white background (`#f0efea`), dark text (`#2c2c2a`), border `#c3c2bd`
-  - **Ad Hoc** skills: background and text per the color table above
-  - **Event** skills: cream background (`#e0d6c3`), dark text (`#0d1117`), border `#e0d6c3`
+  - **Autonomous** skills (runs without Tom — sweep and/or webhook and/or both): white background (`#fffffb`), dark text (`#2c2c2a`), border `#c3c2bd`. The former `.sm-sched` and `.sm-event` classes both now resolve to this unified style since the binary distinction broke down with multi-mode skills. Existing class names (`sm-sched`, `sm-event`) are kept in HTML for continuity but produce identical output.
+  - **Manual** skills (user-invoked only): dark background (`#0d1117`), muted text (`#8b949e`), border `#30363d`
 
 #### Composite pill treatment
 
@@ -197,7 +196,9 @@ Skills that are orchestrator-style composites — one pill on the map that absor
 .sm-sk.sm-sched.sm-composite { box-shadow: 2px 2px 0 0 rgba(130, 128, 121, 0.5), 2px 2px 0 0.5px #a8a7a2; }
 ```
 
-**Composites** (as of 2026-04-23): `intro-agent` (absorbs `intro-agent-inbound`, `intro-outreach-agent`, `intro-draft-agent`, `intro-resolution-agent`, `log-intro`) and `feedback-outreach` (absorbs `feedback-outreach-drafter`, `feedback-outreach-scanner`). A skill is a composite only when it *replaces* what would otherwise be multiple pills on the map — orchestrators whose sub-skills are still separately rendered (e.g., `diligence-agent`) do NOT get the composite treatment.
+**Composites** (as of 2026-04-23, updated): `pipeline-agent`, `intro-agent`, and `diligence-agent`. Each expands in the Quick Reference to show the complete universe of actual workflows under its umbrella — webhook handlers, canonical skills, scheduled wrappers (merged into their canonical skill row), and manual triggers. See the "Composite breakdown" table below for the full sub-skill list per composite.
+
+On the Platform Map, composites receive the `sm-composite` class producing the stacked-card shadow. Their absorbed sub-pills remain visible on the map if they're semantically distinct skills (e.g., `materials-handler`, `draft-feedback` remain separate pills in the Pipeline Management column even though they also appear under `pipeline-agent`'s Quick Reference expansion). Composite = "has an expansion drawer in Quick Reference", NOT "these pills disappear from the map".
 
 ### Middle Layer — SVG Connections
 
@@ -243,7 +244,7 @@ A 5-column grid of database cards with colored left borders:
 
 Above the function cards, include:
 - System label: "System of Action" with a "Claude" tag
-- Legend swatches in this order: "Ad Hoc Skill" (dark swatch), "Scheduled Orchestrator" (white swatch), "Event-Based Skill" (cream `#e0d6c3` swatch), "Composite – expand in Quick Reference" (cream swatch with stacked-card shadow). The Composite entry uses an en dash (`–`), not an em dash.
+- Legend swatches in this order: "Manual Skill" (dark swatch), "Autonomous Skill" (white swatch `#fffffb`), "Composite – expand in Quick Reference" (white swatch with stacked-card shadow). The Composite entry uses an en dash (`–`), not an em dash. Only three entries — the prior "Scheduled Orchestrator" and "Event-Based Skill" entries were collapsed into "Autonomous Skill" since that binary no longer holds with multi-mode skills.
 
 Below the divider:
 - System label: "System of Record" with a "Notion" tag
@@ -254,7 +255,10 @@ Below the divider:
 
 A table-style listing of every skill, grouped by function. Each row contains:
 
-- **Badge**: "SCHEDULED" (white bg), "AD HOC" (dark bg), or "EVENT-BASED" (light mint `#9ca3af` bg, dark text `#0d1117`) — 9px uppercase, fixed-width badge
+- **Fused mode pill** (`.qr-mode-pill`): three-cell pill showing Sweep / Webhook / Manual mode coverage. Each cell is 16px wide × 18px tall, cream-on-dark (`#f0efea` / `#2c2c2a`) when lit, dark-on-muted (`#0d1117` / `#484f58`) when not supported. Replaces the old single `.qr-badge` that only showed one primary trigger. Determine mode coverage from the skill's SKILL.md frontmatter (Mode A/B/C labels) + its behavior in practice:
+  - **S (Sweep)**: lit if the skill runs as a scheduled reconciliation pass (daily cron via LaunchAgent or absorbed into a composite's scheduled sweep)
+  - **W (Webhook)**: lit if the skill is invoked per-event via `claude-job-queue` (gmail-webhook → enqueue), OR if a gmail-webhook handler routes to it
+  - **M (Manual)**: lit if Tom invokes it in conversation via trigger phrases (most skills have this)
 - **Skill name**: 12px, `#fffffb`
 - **One-liner**: A concise (~15-word) description of what the skill does, written in present tense. Use the first sentence of the skill's `description` frontmatter as a starting point, but edit for clarity and brevity. The one-liner should be punchy and self-contained.
 
@@ -270,15 +274,35 @@ Composite skills (see Step 1 composite list) render as a top-level row with a �
 
 For each composite skill, the Quick Reference expand reveals these sub-skills with hand-written one-liners. Update this list when a composite's internals shift.
 
-| Composite | Sub-skill | One-liner |
-|---|---|---|
-| `intro-agent` | `intro-agent-inbound` | Detects intro requests in Gmail and iMessage and creates Qualified entries on the matching Opportunity. |
-| `intro-agent` | `intro-outreach-agent` | Scans sent mail for outreach to Qualified contacts and promotes them to the Outreach stage. |
-| `intro-agent` | `intro-draft-agent` | Drafts double-opt-in intro emails when a contact replies positively to outreach. |
-| `intro-agent` | `intro-resolution-agent` | Resolves outreach into Made, Declined, or NR based on reply detection. |
-| `intro-agent` | `log-intro` | Manually logs a qualified intro target when a person and a company are named together. |
-| `feedback-outreach` | `feedback-outreach-drafter` | Drafts backchannel diligence emails for new entries on an Opportunity's Pending Feedback relation. |
-| `feedback-outreach` | `feedback-outreach-scanner` | Scans sent mail and inbox for replies, logs Notion notes, and clears contacts off Pending Feedback. |
+Each sub-row renders its own fused mode pill (most sub-rows light only one cell since they're single-mode workflows).
+
+| Composite | Sub-skill / workflow | Modes | One-liner |
+|---|---|---|---|
+| `pipeline-agent` | `deal-scanner-inbound` | W | Inbound cold email → LLM classify → add-to-crm delegation. |
+| `pipeline-agent` | `add-to-crm` | M | Manual entry for forwarded / pasted deals with full ContactOut enrichment. |
+| `pipeline-agent` | `pipeline-sent-detect` | W | Tom-sent email matching a Qualified opp → promotes to Outreach. |
+| `pipeline-agent` | `founder-outreach` | M | Drafts personalized cold emails for pre-founder (-1) candidates. Voice-tuned. |
+| `pipeline-agent` | `intro-connected-detect` | W | Three-way intro inbound → flips matching opp Outreach → Connected. |
+| `pipeline-agent` | `calendar-scheduled-detect` | W | Calendar event with a pipeline company → flips opp to Scheduled. |
+| `pipeline-agent` | `materials-handler` | M | Downloads + Drive + Notion-links a deck, memo, or term sheet. |
+| `intro-agent` | `intro-agent-inbound` | W | Inbound intro-request email → creates Qualified entry on matching Opportunity. |
+| `intro-agent` | `log-intro` | M | "Intro X to Y" — manually creates a qualified intro target. |
+| `intro-agent` | `intro-outreach (webhook)` | W | Tom-sent email to a Qualified contact → promotes to Outreach stage. |
+| `intro-agent` | `intro-outreach-agent` | S+M | Sweep reconciles missed outreach across last 24h; manual mode logs batch outreach. |
+| `intro-agent` | `intro-draft-agent` | S+M | Drafts double-opt-in intro emails when contacts reply positively. |
+| `intro-agent` | `intro-resolution-reply` | W | Inbound reply to outreach thread → enqueues intro-resolution-agent (webhook mode). |
+| `intro-agent` | `intro-made` | W | Tom-sent email with founder + contact both addressed → contact → Made. |
+| `intro-agent` | `intro-resolution-agent` | S+W+M | LLM-classifies reply as opt-in / decline / soft-deferral. |
+| `diligence-agent` | `feedback-outreach-drafter` | S+M | Drafts backchannel diligence emails for entries in Pending Feedback relation. |
+| `diligence-agent` | `feedback-reply-detect` | W | Inbound reply from Pending Feedback contact → enqueues feedback-outreach-scanner. |
+| `diligence-agent` | `feedback-outreach-scanner` | S+W | LLM-classifies replies as substantive vs acknowledgment; updates Notion notes + relation. |
+| `diligence-agent` | `pass-note-sent` | W | Tom-sent pass note email → flips opp to Pass (Met) + archives email body to Notes DB. |
+| `diligence-agent` | `pass-note-drafter` | S+M | Drafts personalized pass notes for "Pass Note Pending" opps. Voice-tuned. |
+| `diligence-agent` | `first-pass-diligence` | S+M | Inverted Lens scoring → Notion memo + PDF + Signal alert. 0–5 parallel workers per sweep. |
+
+**Delegation merge rule**: scheduled-task wrappers in `~/.claude/scheduled-tasks/*/` that just delegate to a canonical skill in `~/.claude/skills/*/` are NOT rendered as separate sub-rows. Instead, their mode coverage (Sweep) is folded into the canonical skill's fused pill. Example: `intro-outreach` scheduled wrapper → merged into `intro-outreach-agent` canonical row (which gets S cell lit).
+
+**Consolidator drop rule**: infrastructure-only workers that aggregate + post alerts (`pipeline-consolidator`, `intro-consolidator`, `diligence-consolidator`, `first-pass-dispatcher`, `first-pass-consolidator`) are NOT rendered as sub-rows. Mention them in the parent composite's description line ("…consolidator posts one grouped alert") and move on.
 
 Functions appear in this order: Pipeline Management, Intro Management, Portfolio Management, Diligence Management, Research Management.
 
