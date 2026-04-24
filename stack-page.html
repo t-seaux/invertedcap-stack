@@ -72,13 +72,12 @@
   .sm-al { display: flex; gap: 12px; margin-bottom: 10px; }
   .sm-al-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #8b949e; }
   .sm-al-sw { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-  .sm-al-s { background: #f0efea; border: 0.5px solid #c3c2bd; }
+  .sm-al-s { background: #fffffb; border: 0.5px solid #c3c2bd; }
   .sm-al-a { background: #161b22; border: 0.5px solid #30363d; }
-  .sm-al-e { background: #e0d6c3; border: 0.5px solid #e0d6c3; }
   .sm-al-c {
-    background: #e0d6c3;
-    border: 0.5px solid #e0d6c3;
-    box-shadow: 2px 2px 0 0 rgba(71, 64, 51, 0.55), 2px 2px 0 0.5px #978f7c;
+    background: #fffffb;
+    border: 0.5px solid #c3c2bd;
+    box-shadow: 2px 2px 0 0 rgba(130, 128, 121, 0.5), 2px 2px 0 0.5px #a8a7a2;
     margin-right: 4px;
   }
   .sm-fns-row { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; align-items: stretch; }
@@ -112,30 +111,23 @@
     background-position: 0% 0; border-color: #3d444d;
     transition: background-position 0.8s ease;
   }
-  .sm-sk.sm-sched {
-    color: #2c2c2a; background-color: #f0efea; border-color: #c3c2bd;
+  /* Autonomous skill — runs without Tom (sweep and/or webhook and/or both).
+     Single unified style replaces the former Scheduled (.sm-sched) and
+     Event-Based (.sm-event) distinctions, which are no longer meaningfully
+     binary now that most primary skills support multiple modes. */
+  .sm-sk.sm-sched,
+  .sm-sk.sm-event {
+    color: #2c2c2a; background-color: #fffffb; border-color: #c3c2bd;
     background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.06) 44%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.06) 56%, transparent 65%, transparent 100%);
     background-size: 300% 100%; background-position: 100% 0;
   }
-  .sm-sk.sm-sched:hover {
+  .sm-sk.sm-sched:hover,
+  .sm-sk.sm-event:hover {
     background-position: 0% 0; border-color: #a8a7a2;
     transition: background-position 0.8s ease;
   }
-  .sm-sk.sm-event {
-    color: #0d1117; background-color: #e0d6c3; border-color: #e0d6c3;
-    background-image: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(0,0,0,0.06) 44%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.06) 56%, transparent 65%, transparent 100%);
-    background-size: 300% 100%; background-position: 100% 0;
-  }
-  .sm-sk.sm-event:hover {
-    background-position: 0% 0; border-color: #0d1117;
-    transition: background-position 0.8s ease;
-  }
-  .sm-sk.sm-composite {
-    box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.45), 2px 2px 0 0.5px #30363d;
-  }
-  .sm-sk.sm-event.sm-composite {
-    box-shadow: 2px 2px 0 0 rgba(71, 64, 51, 0.55), 2px 2px 0 0.5px #978f7c;
-  }
+  .sm-sk.sm-composite,
+  .sm-sk.sm-event.sm-composite,
   .sm-sk.sm-sched.sm-composite {
     box-shadow: 2px 2px 0 0 rgba(130, 128, 121, 0.5), 2px 2px 0 0.5px #a8a7a2;
   }
@@ -338,9 +330,8 @@
         <div class="sm-wrap">
           <div class="sm-sys-label">System of Action<span class="sm-sys-tag">Claude</span></div>
           <div class="sm-al">
-            <div class="sm-al-item"><div class="sm-al-sw sm-al-a"></div>Ad Hoc Skill</div>
-            <div class="sm-al-item"><div class="sm-al-sw sm-al-s"></div>Scheduled Orchestrator</div>
-            <div class="sm-al-item"><div class="sm-al-sw sm-al-e"></div>Event-Based Skill</div>
+            <div class="sm-al-item"><div class="sm-al-sw sm-al-a"></div>Manual Skill</div>
+            <div class="sm-al-item"><div class="sm-al-sw sm-al-s"></div>Autonomous Skill</div>
             <div class="sm-al-item"><div class="sm-al-sw sm-al-c"></div>Composite – expand in Quick Reference</div>
           </div>
           <div class="sm-fns-row" id="fns-row">
