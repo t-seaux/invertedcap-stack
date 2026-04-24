@@ -285,8 +285,31 @@
     min-height: 45px;
   }
   .qr-sub-row:last-child { border-bottom: 0.5px solid #21262d; }
-  .qr-sub-name { font-size: 12px; color: #fffffb; padding-top: 1px; padding-left: 110px; line-height: 1.45; word-break: break-word; }
+  .qr-sub-name {
+    font-size: 12px;
+    color: #fffffb;
+    padding-top: 1px;
+    padding-left: 22px;
+    line-height: 1.45;
+    word-break: break-word;
+  }
+  .qr-sub-name .qr-mode-pill { vertical-align: middle; margin-right: 20px; }
   .qr-sub-line { font-size: 12px; color: #b1bac4; padding-top: 1px; line-height: 1.45; }
+
+  /* Mode pill legend — sits above the first function section */
+  .qr-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 28px;
+    align-items: center;
+    padding: 10px 22px 14px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #30363d;
+    font-size: 11px;
+    color: #b1bac4;
+  }
+  .qr-legend-item { display: inline-flex; align-items: center; gap: 8px; }
+  .qr-legend-label { color: #8b949e; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
 
   /* Shine hover for QR badges: animate IN only */
   .qr-badge:hover {
@@ -345,6 +368,12 @@
       <!-- —— Quick Reference —— -->
       <div class="artifact-frame">
         <div class="qr-wrap">
+          <div class="qr-legend">
+            <span class="qr-legend-label">Modes</span>
+            <span class="qr-legend-item"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-off">M</span></span><span><strong style="color:#fffffb">S</strong> Sweep — scheduled reconciliation</span></span>
+            <span class="qr-legend-item"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span><span><strong style="color:#fffffb">W</strong> Webhook — per-event (realtime)</span></span>
+            <span class="qr-legend-item"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span><strong style="color:#fffffb">M</strong> Manual — user-invoked in chat</span></span>
+          </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Pipeline Management</div>
