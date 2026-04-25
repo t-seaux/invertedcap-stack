@@ -367,9 +367,11 @@ Only unflag emails that were **successfully** processed end-to-end. If the Notio
 
 ## Step 6: Report Results
 
-**Notification channel:** Read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Send the message using the config specified there.
+**Notification channel:** All alerts (success, non-portfolio, misclassification review) MUST be delivered via the `send-alert` skill at `/Users/tomseo/.claude/skills/send-alert/SKILL.md` — pipe the GFM body through `~/.claude/skills/send-alert/send.sh`. This posts as the `claude` bot identity (the canonical channel for LLM-synthesized alerts; distinct from `tom` MCP and `alerts` Apps Script).
 
-**Alert format (Slack):** Organize by **company**. Bold company names using **standard markdown double asterisks** (e.g. `**Quiet AI**`). The `mcp__claude_ai_Slack__slack_send_message` tool renders standard markdown — single asterisks produce italic, not bold. Split into two sections: `**Portfolio**` (companies with Status in the Active Portfolio set, where the update was archived to Notion) and `**Non-Portfolio (filtered)**` (companies that didn't qualify — pipeline-only, unknown sender, or personal newsletter).
+**Do NOT use `mcp__claude_ai_Slack__slack_send_message`** — that posts as `tom` (your user identity) and conflates with messages you actually sent. Mode B misclassification alerts and Mode A summaries both go via send-alert.
+
+**Alert format (Slack):** Organize by **company**. Bold company names using GFM double asterisks (`**Quiet AI**`). Split into two sections: `**Portfolio**` (companies with Status in the Active Portfolio set, where the update was archived to Notion) and `**Non-Portfolio (filtered)**` (companies that didn't qualify — pipeline-only, unknown sender, or personal newsletter).
 
 ```
 📬 PORTFOLIO UPDATES — YYYY-MM-DD
@@ -388,7 +390,7 @@ Only unflag emails that were **successfully** processed end-to-end. If the Notio
 ```
 
 Rules:
-- **Bold the company name** with double asterisks (standard markdown). Never use Slack mrkdwn single-asterisks — they render as italic, not bold.
+- **Bold the company name** with double asterisks (GFM). The `send.sh` converter handles this correctly.
 - Portfolio section = companies with Status in the Active Portfolio set (per the skill's Step 3 eligibility rule). Everything else goes under Non-Portfolio.
 - For each Non-Portfolio entry, include a one-line reason so Tom can see why it didn't land in Notion as a portfolio update (e.g., "Status: Scheduled — saved as Diligence Material instead", "Not in Opportunities DB").
 - The header uses the 📬 emoji, an em dash (—), and ISO date format. Example: `📬 PORTFOLIO UPDATES — 2026-03-06`.

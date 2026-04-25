@@ -2,6 +2,21 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-25] (Week of 2026-04-20)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `add-to-crm` -- dropped Latest Outreach property tracking from CRM page creation; the dedicated Latest Outreach field is no longer set during triage.
+- `decision-retro` -- added a Lookup mode that answers past-tense questions about prior decisions (returns a structured summary: official pass-note feedback, internal nuggets by dimension, framework links) without echoing the raw retro; widened the trigger-status set to include `Pass (DNM)`; added a parallel `-1 Scanner` retro mirror so cold dismissals on -1 candidates get the same prompt-and-listen flow; added a weekly Slack rollup post grouped by scope; added skip / ignore reply handling.
+- `investor-update` -- formalized the Slack alert delivery as a two-step Haiku composer plus `send-alert` pipe under the `claude` bot identity; removed the direct Slack-MCP send path that was conflating with messages Tom actually sent.
+- `materials-handler` -- added a link-only path for interactive / hosted materials (Figma, Miro, Loom, Pitch.com, Canva, Notion.site) that can't be cleanly downloaded or PDF-rendered; relocated the canonical surface for material links from a page-body bullet section to the Notion Diligence Materials property-field chips, with the body section reserved for exception cases.
+- `pipeline-agent` -- added a Haiku sub-agent step (escalating to Sonnet on flagged items) for composing the Slack consolidator alert from the structured per-stage summary; clarified that the webhook handler is the primary path for the Qualified → Outreach transition while the scheduled sweep is a reconciliation fallback; dropped Latest Outreach property tracking across triage stages.
+**Total skills:** 23
+**Functions:** No changes
+
+---
+
 ## [2026-04-24] (Week of 2026-04-20)
 
 **Added:** None

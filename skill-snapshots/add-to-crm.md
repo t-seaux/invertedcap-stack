@@ -143,7 +143,7 @@ Present extracted data as a concise summary and ask the user to confirm before c
 - Website, Contact, Founder First Name(s)
 - Round Details (if any)
 - Source person (if identified)
-- Close Date (if Status is `Scheduled`) and Latest Outreach date (if Tom has acted)
+- Close Date (if Status is `Scheduled`)
 - Any materials/decks to upload
 
 ## Step 5: Create the Notion Page
@@ -172,7 +172,6 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 
 - `Status`: Infer from the full thread state. Default is `Qualified` when the deal is only surfaced (a forward, a LinkedIn URL, a pasted profile) with no outreach yet. Move to `Outreach` when Tom has replied or initiated contact but no response yet. Move to `Connected` when the founder has replied and the conversation is live but unscheduled. Move to `Scheduled` when a call is actually booked (Blockit/Calendly confirmation, calendar invite, or explicit time agreed in-thread). Read the full Gmail thread before deciding — never default to `Qualified` without first checking whether the thread already shows later-stage progression. If the user specifies a status explicitly, honor that instead.
 - `date:Close Date:start`: Set to the scheduled call date when Status is `Scheduled` (this anchors the pipeline agent's close-date logic). Leave blank otherwise — the pipeline agent will manage close dates for earlier stages.
-- `date:Latest Outreach:start`: Set to the date Tom most recently acted on the deal in the thread (replied, made intro, confirmed time). If no outreach has occurred yet (bare forward, LinkedIn URL, screenshot), leave blank.
 - `Website`: Infer from source material (email body links, founder email domain if company domain). `N/A` if unavailable.
 - `Contact`: Set to the founder's email if found (per Step 3 priority order). **Never leave this field empty/blank** — if no email is found after all lookup attempts, always set to `N/A`.
 - `Description`: One-liner only. Extra context goes in page body.
@@ -284,7 +283,6 @@ Initial email from Ben Futoriansky forwards Armin Aghaei's Spangler.ai pitch. Re
 **Do not default to Qualified.** The thread shows the deal has already progressed through Outreach → Connected → Scheduled in the span of the same day. Correct classification:
 - Status: `Scheduled`
 - Close Date: 2026-04-20 (call date)
-- Latest Outreach: 2026-04-16 (today, when Tom replied and intro was made)
 
 Include in Source Context a brief timeline of the thread progression so the state is auditable on the page itself.
 

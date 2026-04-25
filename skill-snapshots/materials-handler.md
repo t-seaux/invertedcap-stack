@@ -69,7 +69,7 @@ Run targeted Gmail searches combining the company name, founder names, and conta
 
 1. `from:(<founder_email>) has:attachment newer_than:7d`
 2. `"<company_name>" has:attachment newer_than:7d`
-3. `from:(<founder_email>) ("docsend" OR "dropbox" OR "drive.google" OR "deck" OR "memo" OR "pitch") newer_than:7d`
+3. `from:(<founder_email>) ("docsend" OR "dropbox" OR "drive.google" OR "figma.com" OR "miro.com" OR "loom.com" OR "pitch.com" OR "notion.site" OR "canva.com" OR "deck" OR "memo" OR "pitch") newer_than:7d`
 
 Use `maxResults: 10` per query. Deduplicate by message ID across queries.
 
@@ -82,6 +82,7 @@ Classify each relevant email's materials into categories:
 - **DocSend link** (URL matching `docsend.com/view/`)
 - **Direct file URL** (Google Drive share link, Dropbox link, raw PDF URL)
 - **Data room link** (DocSend `/view/s/` or similar multi-doc container)
+- **Link-only / non-convertible** (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
 
 ## Step 3: Process Materials
 
@@ -147,67 +148,31 @@ Use this path when the email *body itself* is the material — no attachment, no
 4. Name the PDF `[Company Name] - [Descriptive Label].pdf`. For investor updates, derive the label from the subject (e.g. "Week 20 Investor Update"). Don't include emojis or special punctuation in the filename.
 5. Upload to the company's Diligence subfolder via the Drive Upload Apps Script (same `createFolder` → `upload` pattern). Use the returned `fileId` / `url` for Notion linking.
 
+### 3E: Link-only / Non-convertible Materials (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, etc.)
+
+Use this path for interactive/hosted materials that can't be cleanly downloaded or PDF-rendered. Skip Drive entirely — the external URL itself is the canonical artifact and goes directly into both Notion locations (page body bullet AND Diligence Materials property field).
+
+1. **Do NOT attempt to download, headless-render, or DocSend-convert these URLs.** Figma decks and Miro boards don't print usably via Chrome headless, and Loom/Pitch.com require auth or JS interactivity that breaks conversion. Trying wastes time and produces a broken artifact.
+2. **Derive a display label** from the email subject or URL slug: `[Company] - Deck (Figma)`, `[Company] - Brainstorm (Miro)`, `[Company] - Walkthrough (Loom)`, etc. Keep the parenthetical platform tag — it tells a future reader why the link is external instead of Drive-hosted.
+3. **Page body bullet** — see format in Step 4.
+4. **Property field** — the external URL goes into the Diligence Materials Files property directly (Step 4's "always link the specific file URL" rule is relaxed for this path; see Step 4 for details).
+
 ## Step 4: Update the Notion Opportunity Page
 
-### Page Body — Diligence Materials Section
+The canonical home for material links is the **Diligence Materials property field** (Files property chips at the top of the page). The page body stays clean and contains only the Note section — do NOT add a `📎 Diligence Materials` body section by default.
 
-Append or update a `## 📎 Diligence Materials` section in the page body using `notion-update-page` with `command: "update_content"`.
+### Page Body — DO NOT add a Diligence Materials section by default
 
-**If a Diligence Materials section already exists** (check for `📎 Diligence Materials` or `📎 Materials` in existing content): append new entries below existing ones using `old_str` matching on the existing section.
+Skip the page body entirely for materials. The property-field chips are visible at the top of every opportunity page and are the canonical surface for material links. Adding a duplicate body section just restates what's already one scroll-up, and clutters the Note section below it (see `add-to-crm/references/schema.md` — body is Note-only by default).
 
-**If no section exists**: add it. If the page has no existing content, use `command: "replace_content"`.
+**Exception — only add a body section when:**
+- The Note section doesn't reference the materials at all (founder attached a binary deck and didn't link it inline), AND
+- There's per-material context that won't fit on the chip display label (conversion provenance like "converted from DocSend (22 pages)", or a ⚠️ status flag).
 
-#### Format Rules
-
-**Every material gets its own bullet. Each bullet is a single line — the filename is the hyperlink itself, followed by an em dash and metadata. No second-line links.**
-
-#### Gmail attachments saved to Drive:
+If you're writing an exception-case body section, use the bullet format below. Otherwise skip.
 
 ```
-## 📎 Diligence Materials
-
-- [**[Filename]**](https://drive.google.com/file/d/<fileId>/view) — from [sender], [date]
-```
-
-The `fileId` and direct URL come from the Apps Script response — no Drive MCP search needed.
-
-#### Gmail attachments — Apps Script failure (fallback):
-
-```
-- [**[Filename]**](https://mail.google.com/mail/u/0/#all/<messageId>) — from [sender], [date] ⚠️ pending Drive upload
-```
-
-#### DocSend conversions:
-
-The Drive Upload Apps Script returns `fileId` and `url` directly after upload — use those. If for some reason the upload fails and a file ID isn't available, fall back to linking the company subfolder (via `createFolder`'s returned `folderId`).
-
-```
-- [**[Company] - [Doc Title].pdf**](https://drive.google.com/file/d/<fileId>/view) — converted from DocSend ([N] pages)
-```
-
-Subfolder fallback (upload failed, only folder link available):
-```
-- [**[Company] - [Doc Title].pdf**](https://drive.google.com/drive/folders/<subfolderId>) — converted from DocSend ([N] pages) ⚠️ pending file-level link
-```
-
-#### Direct file URLs already in Google Drive:
-```
-- [**[Filename or description]**](https://drive.google.com/file/d/<fileId>/view) — [source context]
-```
-
-#### Dropbox / raw PDF URLs (uploaded via Drive Upload Apps Script):
-```
-- [**[Filename]**](https://drive.google.com/file/d/<fileId>/view) — downloaded from [source domain]
-```
-
-#### Email body rendered to PDF (no attachment):
-```
-- [**[Company] - [Label].pdf**](https://drive.google.com/file/d/<fileId>/view) — from [sender], [date] (email body → PDF)
-```
-
-#### Lightweight fallback (Apps Script failed, no Chrome):
-```
-- [**[Attachment filename]**](https://mail.google.com/mail/u/0/#all/<messageId>) — from [sender], [date] ⚠️ pending manual download
+- [**[Filename]**](<URL>) — [per-material context]
 ```
 
 ### Notion Diligence Materials Property Field (osascript + Chrome, default)
@@ -218,9 +183,48 @@ Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/add
 
 **Critical: Always link the specific file URL** (`https://drive.google.com/file/d/<fileId>/view`), never the folder URL. The file ID comes from the Drive Upload Apps Script `upload` response — use it directly, don't re-search.
 
-For each file saved to Drive in the preceding steps, call the function with the opportunity page ID, the Drive file URL, and a descriptive display name that matches the PDF filename (e.g., `Chief Rebel - Week 20 Investor Update.pdf`). For multiple files, call once per URL — each call is a self-contained read-modify-write cycle.
+**Link-only materials (Step 3E) are the explicit exception** — for Figma, Miro, Loom, Pitch.com, Canva, Notion.site etc., pass the external URL itself (e.g. `https://figma.com/deck/...`) to `addLinkToDiligenceMaterials`. These materials have no Drive counterpart; the external URL is the canonical artifact and MUST still be written to the property field — "no Drive URL" is not a reason to skip.
+
+For each file saved to Drive in the preceding steps, call the function with the opportunity page ID, the Drive file URL, and a descriptive display name that matches the PDF filename (e.g., `Chief Rebel - Week 20 Investor Update.pdf`). For link-only materials, use the external URL and a label like `Bloom - Deck (Figma)`. For multiple files, call once per URL — each call is a self-contained read-modify-write cycle.
 
 Skip this step only if Chrome is not running and cannot be launched. In that case, note it in the summary and continue — the page body link is the interim record.
+
+## Step 4.5: Extract Contact Signals from Materials
+
+After materials are saved/linked, mine them for better founder contact info than what's already in the Notion Contact property. Decks and investor updates almost always contain the founder's canonical work email on a contact slide — ContactOut's best guess is often a stale personal address (`@gmail`, `@live`, `@outlook`, etc.).
+
+### What to extract
+
+- **Emails** — match `[\w.+-]+@[\w-]+\.[\w.-]+` across the material text.
+- **LinkedIn URLs** — match `linkedin\.com/in/[\w-]+`.
+- **Phone numbers** — optional; only capture if formatted (`+1 555-xxx-xxxx` etc.), not loose digit strings.
+
+### How to read each material type
+
+- **PDFs saved locally** (Step 3B DocSend, Step 3C Dropbox/raw, Step 3D email-body-to-PDF): run `pdftotext -layout /Users/tomseo/Downloads/<file>.pdf -` and scan stdout.
+- **Gmail Attachment Saver PDFs** (Step 3A — written straight to Drive, no local copy): download the bytes via `curl -sL "https://drive.google.com/uc?export=download&id=<fileId>" -o /tmp/<fileId>.pdf` then `pdftotext -layout`. If Drive returns the "confirm download" interstitial for large files, skip this material — don't fight the virus-scan gate.
+- **Link-only materials** (Step 3E — Figma, Miro, Loom, Pitch, Canva, Notion.site): drive the active Chrome tab via osascript, navigate to the URL, wait ~6s for content to render, pull `document.body.innerText`, stash in `window._figmaText`, poll it. Reuse the exact osascript bridge pattern from `feedback_notion_internal_api.md`. Figma decks render their contact slide's email as plain text in the DOM; Miro/Loom behave similarly.
+
+### How to decide whether to update Notion Contact
+
+Read the current Contact property from the opportunity page, then apply this rule:
+
+1. **Contact is empty** → write any extracted email whose local-part contains the founder's first or last name (from the `🏁 Founder(s)` relation). If multiple match, pick the one on a custom domain over a free provider.
+2. **Contact is set, currently on a free provider** (`@gmail.com`, `@live.com`, `@outlook.com`, `@yahoo.com`, `@hotmail.com`, `@icloud.com`, `@me.com`, `@aol.com`) **AND** an extracted email is on a custom domain AND matches the founder name → **upgrade**: replace the Contact property with the extracted email. Preserve the existing email as a comment in the Source Context section (`Earlier contact on file: <old>`) so the prior record isn't lost.
+3. **Contact is set and already on a custom domain** → do nothing, even if a different custom-domain email appears in the materials. Don't guess across two plausible work emails.
+4. **Extracted email doesn't match any founder name** (e.g. `hello@bloom.site`, `investors@bloom.site`) → do not write it to Contact. Generic inbound addresses belong in the page body, not the Contact property.
+
+### How to write the update
+
+Use `notion-update-page` with `command: "update_property"` on the `Contact` property. Single value — comma-separated if the property accepts multiples (it does) and you're adding a second.
+
+Log every decision (extracted / kept / upgraded / ignored + reason) in the Step 5 report summary so it's traceable.
+
+### When to skip this step entirely
+
+- Zero materials saved (nothing to read).
+- All materials are Gmail Attachment Saver PDFs AND Drive download fails for all of them — note the skip in the summary.
+- `pdftotext` is not on PATH (install via `brew install poppler` if needed, but don't fail the whole skill — note and skip).
 
 ## Step 5: Report Summary
 
@@ -235,7 +239,9 @@ Found: [N] materials across [M] emails
   - [filename2] → Diligence/[Company Name]/ ✅ (Drive Upload Apps Script)
   - [filename3] → Diligence/[Company Name]/ ✅ (email body → Chrome headless PDF)
   - [filename4] → Pending ⚠️ (upload failed, retry or manual)
+  - [Figma link] → linked as-is ✅ (link-only, not downloadable)
 DocSend: [N] converted and uploaded
+Contact extraction: upgraded tom@old.com → tom@company.com ✅ / kept existing (custom domain) / nothing found
 Notion: Page body updated ✅ | Property field updated ✅ (osascript + Chrome) / failed ⚠️ / skipped (Chrome not running)
 ```
 

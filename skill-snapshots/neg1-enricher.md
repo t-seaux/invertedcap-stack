@@ -6,7 +6,7 @@ description: >-
   Search, online presence research, Companies DB relations), then applies Tom's signal
   framework rubric to score the candidate and write the verdict (Eval Score + Eval Breakdown
   + Signals + Working Description + Claude Rec + Eval Summary). Pure spike-based MAX, no
-  Intentionality gate (per FRAMEWORK_PRD.md v0.4). One-shot company enrichment (Company
+  Intentionality gate (per FOUNDER_EVAL_FRAMEWORK.md v0.4). One-shot company enrichment (Company
   Search per distinct employer, skipped if Last Enriched is already populated — credit-
   saving). Supports a `--score-only` mode that re-runs rubric application against existing
   row data without re-fetching ContactOut (used for rubric drift checks per PRD §6.7).
@@ -175,9 +175,9 @@ Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/add
 ### Step 5: Apply the Rubric and Write the Evaluation
 
 Read the framework + rubric from co-located references:
-- `FOUNDER_CALIBRATION.md` — 6-founder calibration corpus (per-signal scoring evidence)
+- `INVERTED_LENS.md` — 6-founder calibration corpus (per-signal scoring evidence)
 - `ONLINE_SOURCES.md` — Phase 2 online research taxonomy
-- `../founder-outreach/FRAMEWORK_PRD.md` §6 — current rubric, anchors, thresholds (canonical)
+- `../founder-outreach/FOUNDER_EVAL_FRAMEWORK.md` §6 — current rubric, anchors, thresholds (canonical)
 
 Apply the framework in two phases:
 
@@ -191,7 +191,7 @@ Apply the framework in two phases:
 - **Anticipation**: WebSearch on `projects[]` / `headline` topics with date filters — was the bet pre-consensus at the time? Cross-check internal employer projects too.
 - **Intentionality**: LLM read of `experience[].summary` for demotion / anti-accelerator / patient-tenure markers; "On leaving X" essays; podcast career-arc framing.
 
-**Compute the verdict (per FRAMEWORK_PRD.md §6):**
+**Compute the verdict (per FOUNDER_EVAL_FRAMEWORK.md §6):**
 - `Eval Score (Spike) = MAX(signal scores)`. Pure spike-based MAX. **No Intentionality gate** (v0.4 removed it — Intentionality is informational, not a veto).
 - `Claude Rec` per §6.5 thresholds:
   - peak ≥ 7 → `Reach Out ✅`
@@ -232,7 +232,7 @@ For batches, present results as a summary table sorted by Eval Score descending.
 
 ## `--score-only` Mode (re-scoring without re-enriching)
 
-Per FRAMEWORK_PRD.md §6.7 (re-scoring without re-enriching). Used when the rubric changes and Tom wants to re-score existing rows against the new rubric without burning ContactOut credits re-pulling data that hasn't changed.
+Per FOUNDER_EVAL_FRAMEWORK.md §6.7 (re-scoring without re-enriching). Used when the rubric changes and Tom wants to re-score existing rows against the new rubric without burning ContactOut credits re-pulling data that hasn't changed.
 
 **Trigger**: user passes `--score-only` flag, OR uses phrases like "rescore [name]", "re-score [name]", "score-only this row", "rescore the calibration corpus".
 
@@ -245,7 +245,7 @@ Per FRAMEWORK_PRD.md §6.7 (re-scoring without re-enriching). Used when the rubr
 
 **Targeting**:
 - Single row: pass a -1 Scanner page URL or person name.
-- The 6-founder calibration corpus (per FRAMEWORK_PRD.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `FOUNDER_CALIBRATION.md`).
+- The 6-founder calibration corpus (per FOUNDER_EVAL_FRAMEWORK.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `INVERTED_LENS.md`).
 - Bulk: pass `--score-only --where "Eval Score is null"` or any Notion filter. Use sparingly — re-scoring 100+ rows takes time even without ContactOut calls.
 
 **Snapshot before overwrite**: write before-state to `/tmp/score_only_snapshot_{timestamp}.jsonl` (one JSON per row: page_id, name, before_eval_score, before_eval_breakdown, before_eval_summary, before_claude_rec). Lets Tom diff old vs new verdicts and revert if a rubric change misfires.

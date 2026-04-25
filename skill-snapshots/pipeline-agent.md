@@ -60,7 +60,18 @@ Before any `notion-update-page` call that writes to the `Status` field, the agen
 
 ## Notification Behavior
 
-When running standalone (not via run-all), read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Send the message using the config specified there. If running via run-all, an override instruction will suppress the notification (the orchestrator handles notifications centrally).
+When running standalone (not via run-all), the alert is composed by a Haiku sub-agent and sent via send-alert. Two-step flow:
+
+**Step 1 — Compose (Haiku sub-agent)**: After all 4 pipeline stages complete and you have your structured summary, spawn a sub-agent using the Task tool with `subagent_type: "general-purpose"`, `model: "haiku"`, `max_turns: 3`. Pass it:
+- Your full structured summary from the run (the per-stage data described in the Internal Sub-Agent Summary Format section).
+- The full format spec from the "Notification Summary Format" section of this SKILL.md (inline the section text into the sub-agent prompt — do NOT ask the sub-agent to re-read the file).
+- Instruction: "Render the Slack message body per the format spec. Return ONLY the rendered markdown — no preamble, no commentary, no tool calls."
+
+**Escalate to `model: "sonnet"`** if your structured summary contains a non-empty "Flagged for manual review" section or any "Errors" entries — those signals warrant stronger reasoning over format edge cases.
+
+**Step 2 — Send**: Read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Pass the Haiku-rendered body to the send mechanism specified there.
+
+If running via run-all, an override instruction will suppress the notification (the orchestrator handles notifications centrally).
 
 ## Shared Notion Context Block
 
@@ -93,7 +104,6 @@ Key Opportunity Fields:
 - Contact (text): founder emails
 - Website (url): company website. Infer from source email (e.g. email body links, founder email domain if it's a company domain — not gmail/outlook/etc.). Use "N/A" if not available.
 - Round Details (text): If deal terms are not finalized, phrase as "Raising $Xm" (or "Raising $Xk–$Ym" if a range is explicitly specified). If terms are finalized (priced round or SAFE with known cap), use "$Xm on $Ym post" or "$Xm on $Ym cap" as appropriate. Always use lowercase "m" and "k". Leave blank if not available.
-- Latest Outreach (date): most recent outreach
 
 PROTECTED STATUS GUARD: Before ANY notion-update-page call that writes to Status, check the opportunity's current status. If it is Active Portfolio, Portfolio: Follow-On, Exited, or Committed — DO NOT update the Status field. Skip the update and note "skipped — protected status" in your summary.
 
@@ -183,7 +193,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
 1. Find Qualified opportunities via `notion-query-database-view` with `view_url: "https://www.notion.so/tomseo/5fa871c765d74251b8f96b63f248ef25?v=32900beff4aa81f2bfa1000c15e327e1"`. This view is pre-filtered to Status = Qualified — no verification fetches needed. All results are guaranteed Qualified.
 2. For each, note company/founder/Source names and Contact emails.
 3. Search Gmail (past 3 days) for intro status signals. Acceptance: "happy to intro", "connecting you", "looping in". Decline: "not a fit", "pass", "decline".
-4. **Direct outreach detection**: Also check Tom's Gmail sent mail for direct emails to Qualified deal founders. Run a batch query: `in:sent to:(<email1> OR <email2> OR <email3>) newer_than:3d`. If Tom has sent a message directly to a founder, this is a direct outreach signal — move to **Outreach** (not Connected), set `date:Latest Outreach:start` to the email's send date (ISO-8601), and `date:Latest Outreach:is_datetime` to `0`. This catches cases where Tom cold-emails a founder directly without going through a source intro.
+4. **Direct outreach detection (reconciler fallback)**: Also check Tom's Gmail sent mail for direct emails to Qualified deal founders. Run a batch query: `in:sent to:(<email1> OR <email2> OR <email3>) newer_than:3d`. If Tom has sent a message directly to a founder, this is a direct outreach signal — move to **Outreach** (not Connected). This catches webhook-missed cases; the `outreach-detector` gmail-webhook handler is the primary path for Qualified→Outreach.
 5. Update via `notion-update-page`. **Before updating Status, verify current status is not Active Portfolio, Portfolio: Follow-On, Exited, or Committed — if it is, skip and note "skipped — protected status."** Ambiguous → leave as-is.
 6. Return concise summary (under 500 chars): include any Qualified→Outreach moves from direct outreach detection alongside intro acceptance/decline results.
 
@@ -203,7 +213,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    - `"meet" OR "intro" OR "looping in" OR "want you to meet" OR "pick your brain" OR "chat with" OR "you two should" newer_than:3d`
    - `subject:("<>" OR "/") OR "three-way" OR "double opt" newer_than:3d`
    Read the returned messages (limit 20 per query via `maxResults: 20`). For each message, check if any Outreach deal's founder name, company name, or email appears in the thread. Build a match list: {deal → matching email evidence}.
-4. For each matched deal, **first verify current status is not Active Portfolio, Portfolio: Follow-On, Exited, or Committed — if it is, skip and note "skipped — protected status."** Otherwise, update via `notion-update-page`: Status → Connected, set `date:Latest Outreach:start` to today (ISO-8601), `date:Latest Outreach:is_datetime` to `0`.
+4. For each matched deal, **first verify current status is not Active Portfolio, Portfolio: Follow-On, Exited, or Committed — if it is, skip and note "skipped — protected status."** Otherwise, update via `notion-update-page`: Status → Connected.
 5. Return concise summary (under 500 chars): how many Outreach deals checked, how many moved to Connected (with names), how many unchanged, how many skipped due to cap.
 
 ## Task 4: Connected + Tracked Triage
@@ -531,4 +541,4 @@ Rules:
 
 **Why:** Close Date is a pipeline-outcome field, not a generic calendar field. Overloading it with meeting dates corrupts turnaround and close-funnel analytics.
 
-**How to apply:** When moving an Opportunity to Scheduled, Connected, Outreach, or any pre-decision stage, update Status (and Latest Outreach if relevant) but **leave Close Date alone**. Only populate Close Date when Status transitions to Invested / Pass (Met) / Pass / Declined-type terminal states.
+**How to apply:** When moving an Opportunity to Scheduled, Connected, Outreach, or any pre-decision stage, update Status but **leave Close Date alone**. Only populate Close Date when Status transitions to Invested / Pass (Met) / Pass / Declined-type terminal states.

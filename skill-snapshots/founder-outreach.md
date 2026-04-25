@@ -73,7 +73,7 @@ Gmail's `create_draft` does NOT dedupe — each call creates a new draft. To pre
 - `EDIT_PATTERNS.md` (same directory) — record of how Tom edits Claude-drafted outreach before sending. Scan the last 20–50 entries; identify 3–5 most frequent patterns (e.g., "cuts filler closers," "tightens opener," "removes hedging adverbs"). Apply as priors when drafting, then check the final draft against them.
 - `VOICE_EXAMPLES.md` (same directory) — full sent emails Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice. Use as ground truth — if your draft sounds nothing like these, recalibrate.
 
-Both files are auto-maintained by the `draft-feedback` pipeline (FRAMEWORK_PRD.md §13). Patterns are observations, not commands.
+Both files are auto-maintained by the `draft-feedback` pipeline (FOUNDER_EVAL_FRAMEWORK.md §13). Patterns are observations, not commands.
 
 **5. Build the personalization paragraph** (per TEMPLATE.md "Personalization paragraph — structure"). The anchor is the **spike signal** already identified in `Eval Breakdown` — do not re-derive it. Pull the specific evidence cited in the breakdown for that peak signal, rewrite in Tom's voice.
 

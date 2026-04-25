@@ -6,7 +6,7 @@ description: >-
   email himself), extracts voice patterns, and writes them to skill-local
   EDIT_PATTERNS.md / VOICE_EXAMPLES.md so future drafts converge on Tom's voice.
 
-  Runs invisibly via the Gmail Watch webhook (FRAMEWORK_PRD.md §13). Apps Script
+  Runs invisibly via the Gmail Watch webhook (FOUNDER_EVAL_FRAMEWORK.md §13). Apps Script
   detects sends, queues jobs to Drive; a local launchd processor drains the queue
   every 5 minutes, calls `claude --print` to extract patterns, and appends results.
   No Notion fields, no labels, no manual triggers. Drafters write a draft snapshot
@@ -26,7 +26,7 @@ description: >-
 
 Headless feedback engine. Captures voice signal from every outbound outreach and pass note — both edited drafts and from-scratch sends — and feeds patterns back into the drafters so they converge on Tom's voice over time.
 
-Part of the Feedback Engines described in FRAMEWORK_PRD.md §12.2 + §13.
+Part of the Feedback Engines described in FOUNDER_EVAL_FRAMEWORK.md §12.2 + §13.
 
 ## Architecture (headless, event-driven)
 
