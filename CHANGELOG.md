@@ -2,6 +2,24 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-27] (Week of 2026-04-27)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `deal-digest` -- restructured from a per-batch standalone page with synthesized benchmark summary into a single monthly rolling Notes page; every ingest (periodic batches, ad-hoc competitor intel, single traction snippets) now prepends as a dated, source-tagged block, with no cross-ingest merging or benchmark synthesis at log time.
+- `decision-retro` -- locked in a compact entity-rendering format for Slack retro prompts (entity bullet + status bullet + fingerprint, with bold + underlined linked title); dropped the inline Description / Founders / Website / Work History / Education fetch in favor of a single click-through to the Notion page.
+- `draft-feedback` -- relocated voice-pattern corpora (`EDIT_PATTERNS.md`, `VOICE_EXAMPLES.md`) from per-skill directories into a centralized `writing-style/<type>/` tree, so outreach and pass-note drafters share one canonical stylebook surface mapped via `processor.py`.
+- `founder-outreach` -- migrated the cold-email template + voice corpora to the centralized `writing-style/outreach/` stylebook; reading order now pulls Canonical Principles (durable rules) and Recent Edits (append-only log) as separate sections of `EDIT_PATTERNS.md`.
+- `intro-agent` -- tightened the auto-create-from-intro path to run the full `add-to-contacts` enrichment (LinkedIn URL lookup, ContactOut person enrichment, Expertise Summary, Working Description, page icon) so auto-created People rows match the depth of manual entries; closes a regression where stub-fielded rows were being created.
+- `pass-note-drafter` -- added a webhook mode (Mode B) invoked per single Opp via the notion-webhook claude-job-queue when an Opp's Status flips to Pass Note Pending, with idempotency dedup against existing Gmail drafts and a status-guard re-check before drafting; sweep mode unchanged.
+**Total skills:** 23
+**Functions:** No changes
+
+Notes: Two new directory entries -- `outreach-decliner` and `outreach-detector` -- showed up in the skills directory but are not yet mapped to a function in the canonical refresh spec. Both look like Gmail-webhook-driven Opportunity status flippers (Qualified -> Pass (DNM) and Qualified -> Outreach respectively); flagged for manual classification before they get rendered on the visuals.
+
+---
+
 ## [2026-04-25] (Week of 2026-04-20)
 
 **Added:** None

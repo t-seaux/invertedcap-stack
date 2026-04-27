@@ -3,7 +3,7 @@ name: founder-outreach
 description: >-
   Drafting primitive for pre-founder (-1) candidates. Reads an already-evaluated -1 Scanner
   row (Eval Score + Eval Breakdown + Claude Rec populated by neg1-enricher) and generates a
-  Gmail draft using the canonical TEMPLATE.md cold email format, personalization anchored on
+  Gmail draft using the canonical writing-style/outreach/STYLE.md cold email format, personalization anchored on
   the spike signal. Sets Status to "Draft Ready" when complete. Idempotent, never sends.
   Scoring + evaluation lives in neg1-enricher — this skill refuses to run if the row is
   unscored. Trigger phrases: "draft outreach for [name]", "draft cold email for [name]",
@@ -25,7 +25,7 @@ Single-mode drafting primitive for pre-founder candidates. Reads a fully-evaluat
 
 ## Reference file (must read at invocation)
 
-- `~/.claude/skills/founder-outreach/TEMPLATE.md` — cold email template (subject, body scaffolding, hyperlinks, formatting rules, personalization-paragraph structure, anti-patterns)
+- `~/.claude/skills/writing-style/outreach/STYLE.md` — cold email template (subject, body scaffolding, hyperlinks, formatting rules, personalization-paragraph structure, anti-patterns)
 
 ## Precondition check — refuse if unscored
 
@@ -68,14 +68,14 @@ Gmail's `create_draft` does NOT dedupe — each call creates a new draft. To pre
 - Requires Chrome running + authenticated to Gmail + "Allow JavaScript from Apple Events" enabled.
 - See memory `feedback_gmail_draft_persistent_id.md` for full pattern.
 
-**4. Read TEMPLATE.md AND the voice corpora.**
-- `TEMPLATE.md` — scaffolding, hyperlinks, formatting rules, anti-patterns.
-- `EDIT_PATTERNS.md` (same directory) — record of how Tom edits Claude-drafted outreach before sending. Scan the last 20–50 entries; identify 3–5 most frequent patterns (e.g., "cuts filler closers," "tightens opener," "removes hedging adverbs"). Apply as priors when drafting, then check the final draft against them.
-- `VOICE_EXAMPLES.md` (same directory) — full sent emails Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice. Use as ground truth — if your draft sounds nothing like these, recalibrate.
+**4. Read the outreach stylebook.**
+- `~/.claude/skills/writing-style/outreach/STYLE.md` — canonical scaffold + hyperlinks + formatting rules + personalization principle + anti-patterns. Read in full.
+- `~/.claude/skills/writing-style/outreach/EDIT_PATTERNS.md` — two sections: **Canonical Principles** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted outreach — apply as priors, then check the final draft against them). Read both sections in full.
+- `~/.claude/skills/writing-style/outreach/VOICE_EXAMPLES.md` — full sent emails Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice. Use as ground truth — if your draft sounds nothing like these, recalibrate.
 
 Both files are auto-maintained by the `draft-feedback` pipeline (FOUNDER_EVAL_FRAMEWORK.md §13). Patterns are observations, not commands.
 
-**5. Build the personalization paragraph** (per TEMPLATE.md "Personalization paragraph — structure"). The anchor is the **spike signal** already identified in `Eval Breakdown` — do not re-derive it. Pull the specific evidence cited in the breakdown for that peak signal, rewrite in Tom's voice.
+**5. Build the personalization paragraph** (per writing-style/outreach/STYLE.md "Personalization paragraph — structure"). The anchor is the **spike signal** already identified in `Eval Breakdown` — do not re-derive it. Pull the specific evidence cited in the breakdown for that peak signal, rewrite in Tom's voice.
 
 Sketches by peak signal:
 - Peak Non-Linearity: `"Your path caught my eye – [specific function-to-function crossing and why it's unusual]."`
@@ -85,9 +85,9 @@ Sketches by peak signal:
 - Peak Intentionality: `"The way you [specific counter-consensus move — demotion to switch, walked past a kingmaker, turned down accelerator] stood out."`
 - Peak Range: `"The [technical-to-commercial / commercial-to-technical] arc at [company] caught my eye – [specific cross-fertilization detail]."`
 
-Follow the career-signal-sentence + no-agenda-frame structure in TEMPLATE.md exactly.
+Follow the career-signal-sentence + no-agenda-frame structure in writing-style/outreach/STYLE.md exactly.
 
-**6. Build full email per TEMPLATE.md** (exact scaffolding, hyperlinks, formatting rules). See TEMPLATE.md for the template block, hyperlink map, signature whitespace, and quote rules.
+**6. Build full email per writing-style/outreach/STYLE.md** (exact scaffolding, hyperlinks, formatting rules). See writing-style/outreach/STYLE.md for the template block, hyperlink map, signature whitespace, and quote rules.
 
 **7. Create Gmail draft** via `mcp__claude_ai_Gmail__create_draft` with:
 - `to`: person's Email from Notion
@@ -140,7 +140,7 @@ Use the `Write` tool — Drive Desktop syncs the file to the cloud automatically
 - **Never redraft if `Status` is `Reached Out` or `Passed`.** Idempotence prevents clobbering Tom's actions.
 - **Never draft without `Claude Rec = "Reach Out ✅"`.** If auto-rec is ❌ and Tom wants to override, he must flip it first.
 - **Pull personalization from `Eval Breakdown`, not from scratch.** The breakdown already captures the spike signal and evidence — the draft's job is to render that in Tom's voice.
-- **No pattern-match declarations.** Per TEMPLATE.md anti-patterns.
+- **No pattern-match declarations.** Per writing-style/outreach/STYLE.md anti-patterns.
 - **En dashes in all prose.** Per Tom's voice preference (memory: feedback_use_en_dash).
 - **Report concisely.** Summary table for batches. 3-4 lines max for singletons.
 
@@ -148,7 +148,7 @@ Use the `Write` tool — Drive Desktop syncs the file to the cloud automatically
 
 ## Interaction with neg1-enricher scheduled auto-draft
 
-The `pipeline-agent` Task 6 runs the full pipeline on rows with `Status = Pending Enrichment` — it invokes `neg1-enricher` (which handles enrichment + scoring) and then this skill (for drafting) when Claude Rec comes out as ✅. Both paths — manual via this skill, scheduled via pipeline-agent — use the same TEMPLATE.md scaffolding and the same Notion update logic.
+The `pipeline-agent` Task 6 runs the full pipeline on rows with `Status = Pending Enrichment` — it invokes `neg1-enricher` (which handles enrichment + scoring) and then this skill (for drafting) when Claude Rec comes out as ✅. Both paths — manual via this skill, scheduled via pipeline-agent — use the same writing-style/outreach/STYLE.md scaffolding and the same Notion update logic.
 
 Manual invocation via this skill is for:
 - On-demand drafting when Tom doesn't want to wait for the next scheduled run

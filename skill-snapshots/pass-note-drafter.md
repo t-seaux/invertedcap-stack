@@ -1,15 +1,15 @@
 ---
 name: pass-note-drafter
 description: >
-  Draft investor pass note emails for opportunities Tom has decided to pass on. Runs as a daily
-  evening sweep (orchestrated by diligence-agent) — reconciliation pass that catches what the
-  pass-note-sent webhook handler missed. First queries Notion for all Opportunities with
-  Status = "Pass Note Pending" (the source of truth). For each pending opportunity, checks
-  Gmail sent mail to see if a pass note was already sent — if so, updates Notion to "Pass (Met)"
-  AND archives the sent email body to the Notes DB as a Diligence-category note linked to the
-  Opportunity. Then reads diligence materials and call notes for any remaining pending
-  opportunities and drafts a pass note in Tom's voice as a saved Gmail draft.
-  Sends a Signal Note to Self alert via Beeper when complete.
+  Draft investor pass note emails for opportunities Tom has decided to pass on. Two modes:
+  (A) Sweep — daily evening reconciliation pass orchestrated by diligence-agent that scans
+  the Opportunities DB for Status = "Pass Note Pending", catches what the pass-note-sent
+  webhook handler missed, and drafts for each. (B) Webhook — invoked per single Opp via the
+  notion-webhook claude-job-queue when an Opp's Status flips to Pass Note Pending; processes
+  just that one page. Both modes share Steps 2–7; Mode B simply skips Step 1's queue query.
+  Reads diligence materials and call notes, drafts in Tom's voice as a saved Gmail draft
+  (never sends), updates Notion to "Pass (Met)" only for Opps where a pass note was already
+  sent (sent-check path), and archives sent pass notes to the Notes DB.
 
   Trigger phrases: "pass note", "draft pass note", "pass note pending", "write pass notes",
   "draft my passes", "run pass note drafter", "any pass notes to draft", "check pass note queue",
@@ -48,9 +48,26 @@ Key fields on each Opportunity:
 
 ---
 
+## Modes
+
+**Mode A — Sweep (default).** No `page_id` arg. Runs Step 1 (queue query against the Agent View), then Steps 2–7 over every page returned. Used by the scheduled diligence-agent path as reconciliation.
+
+**Mode B — Webhook.** Invoked with `args: { mode: "webhook", page_id: "<uuid>" }` from the notion-webhook claude-job-queue when an Opp's Status flips to Pass Note Pending. Skips Step 1 entirely; the queue is `[{ id: page_id }]` of size 1. Then runs Steps 2–7 for that single page. All step logic, dedup, archive behavior, and the Step 7 alert format are identical — just scoped to one row.
+
+For Mode B specifically:
+- Idempotency: if Step 2's draft-dedup check finds an existing Gmail draft for `[Company] - Inverted follow up`, exit silently with no Slack alert (avoid noise on duplicate webhook fires).
+- Status guard: re-check the Opp's current Status before drafting. If it's no longer "Pass Note Pending" by the time the job runs (e.g., Tom flipped it to "Pass (Met)" manually), exit without drafting.
+- Step 7 alert format unchanged but reports N=1.
+
+---
+
 ## Workflow
 
 ### Step 1: Get Pass Note Pending Queue from Notion
+
+> **Mode B note:** skip this step — your queue is the single page passed in via `args.page_id`. Fetch that page via `notion-fetch`, verify its current Status is still "Pass Note Pending" (exit if not), and proceed to Step 2 with a queue of one. Resume here only for Mode A.
+
+
 
 Notion is the source of truth. Start here — not Gmail.
 
@@ -173,10 +190,11 @@ Read 2–3 of them in full. You've already internalized the style guide below, b
 
 ### Step 5: Draft the Pass Note
 
-Before drafting, read `~/.claude/skills/pass-note-drafter/EDIT_PATTERNS.md` and `~/.claude/skills/pass-note-drafter/VOICE_EXAMPLES.md`:
+Before drafting, read the pass-note stylebook:
 
-- `EDIT_PATTERNS.md` — patterns of how Tom edits Claude-drafted pass notes before sending. Scan last 20–50 entries for the 3–5 most frequent moves (cut/simplify/tone-shift/etc.). Apply as priors when drafting.
-- `VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth.
+- `~/.claude/skills/writing-style/pass-note/STYLE.md` — canonical voice + scaffold + anti-patterns. Read in full.
+- `~/.claude/skills/writing-style/pass-note/EDIT_PATTERNS.md` — two sections: **Canonical Principles** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted pass notes — apply as priors). Read both sections in full. (Re-introduce a recency/frequency cap on Recent Edits if the file ever grows large enough that drafts start coming out derivative or over-fit.)
+- `~/.claude/skills/writing-style/pass-note/VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth.
 
 Both files are auto-maintained by the `draft-feedback` pipeline (FRAMEWORK_PRD.md §13). Patterns are observations, not commands.
 

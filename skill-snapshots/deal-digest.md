@@ -1,174 +1,104 @@
 ---
 name: deal-digest
-description: Log a deal digest from Chris Oh (or any other source) into the Notion Notes database as a formatted research note. Trigger whenever Tom says "deal digest", "log this digest", "add digest to Notion", "save Chris Oh's notes", "log deals", "package up deals", or pastes/forwards a block of company notes with ARR, valuation, or fundraising data that looks like a periodic deal digest. Also trigger when Tom provides raw deal digest text and asks to format or structure it. Always trigger inline — no confirmation needed before acting.
+description: Log deal digest content to a monthly rolling page in the Notion Notes database. Every ingest — Chris Oh's periodic batches, one-off competitor intel, single traction snippets, anything else — prepends as a dated source-tagged block to the current month's page. Newer entries on top, no merging across ingests, no benchmark synthesis at log time. Trigger whenever Tom says "deal digest", "log this digest", "add digest to Notion", "save Chris Oh's notes", "log deals", "package up deals", "add to digest corpus", "log this traction datapoint", or pastes/forwards any block of company notes with ARR, valuation, fundraising, or competitive traction data. Also trigger when Tom shares a single competitor or company traction snippet (e.g. competitive intel forwarded by a portfolio CEO). Always trigger inline — no confirmation needed before acting.
 ---
 
 # Deal Digest Logger
 
-Log a deal digest into the Notion Notes database (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) as a well-structured research note with a benchmark summary at the top and formatted company entries below.
+Log deal digest content into a single monthly rolling page in the Notes DB (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`). Every ingest — Chris Oh batch, ad-hoc competitor intel, single traction snippet — prepends as a dated, source-tagged block to that month's page. Newer entries on top. No merging across ingests, no benchmark synthesis.
 
 ## Workflow
 
-1. **Check for duplicates** — search Notion Notes DB for any existing page with a title matching "Deal Digest – [DATE]". If found, surface it to Tom and ask whether to update or create a new one. Do not create a duplicate silently.
-2. **Parse the raw digest** — extract all companies, sections, and metadata from the source text (WhatsApp, pasted text, or forwarded message).
-3. **Build the benchmark summary** — synthesize a structured benchmarks block at the top of the page (see Benchmark Summary section below).
-4. **Format the body** — apply all formatting rules (see Formatting Rules below).
-5. **Create the Notion page** — use `notion-create-pages` with the correct parent, title, category, and icon.
+1. **Determine the page** — derive the title from the current month: `Deal Digest – [Month YYYY]` (e.g. `Deal Digest – April 2026`).
+2. **Locate or create** — search Notes DB for that page.
+   - **If exists** — fetch its current content.
+   - **If missing** — create it via `notion-create-pages`. Title above, Category=`Research`, Icon=🤝, body empty (the first ingest fills it).
+3. **Build the new ingest block** (see Ingest Block Format below).
+4. **Prepend** at the top of the page. Use `notion-update-page` with `update_content`; `old_str` = first line of existing content, `new_str` = `[new block] + [old first line]`. If the page is empty (just created), use `update_content` with empty old_str OR write content directly during create.
+5. **Classify** — run `note-classifier` to confirm Category=Research.
+
+## Ingest Block Format
+
+Every ingest is a self-contained block with this shape:
+
+```
+YYYY-MM-DD – [Source description]
+
+[verbatim content of the ingest — bullets, subsections, whatever the source provided]
 
 ---
+```
+
+- **Date stamp line** is **bold paragraph** — but with a trailing non-breaking space (`\u00a0`) to prevent Notion from auto-promoting standalone-bold lines to heading blocks. NEVER use `#`/`##`/`###` headings.
+  - Format: `**YYYY-MM-DD – [Source]**` + trailing nbsp, with optional ` (context)` for retrieval framing.
+  - Examples: `**2026-04-25 – Chris Oh WhatsApp digest**\u00a0`, `**2026-04-26 – Emily Man iMessage (competitive intel for Rengo)**\u00a0`, `**2026-04-20 – Pat Grady email**\u00a0`.
+  - **Why the trailing nbsp:** A pure `**...**` standalone paragraph trips a Notion heuristic that promotes it to a heading block (rendered huge, like h2). Adding ANY non-bold character at the end keeps it a normal paragraph. A regular trailing space gets trimmed; a non-breaking space (U+00A0) survives serialization.
+- **Body** preserves the source content as is. Don't merge with prior ingests, don't re-format across blocks. Apply per-bullet formatting rules below.
+- **Trailing `---`** separates this block from the previous one. Visual only.
+
+### Body formatting rules (within a block)
+
+- Each company gets its own bullet — never comma-separate.
+- Company name bolded up to colon: `- **Company Name:** commentary`. No colon → bold just the name: `- **Name** (backer or context)`. Inline bold inside a bullet is fine — Notion only auto-promotes standalone bold-only paragraphs.
+- Don't alter underlying text — preserve original wording, figures, commentary verbatim. Formatting only.
+- If the source had subgroup labels (Main / Seed / Other / Additional from Chris Oh), preserve them as bold paragraphs with trailing nbsp (`**Main**\u00a0`) — same heading-promotion workaround as the date stamp line. Never `##`/`###`.
 
 ## Page Metadata
 
 | Field | Value |
 |---|---|
 | **Parent DB** | Notes DB — `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb` |
-| **Title format** | `Deal Digest – [Month D, YYYY]` — e.g. `Deal Digest – March 25, 2026` |
-| **Category** | `Research` — always set this, no exceptions |
+| **Title** | `Deal Digest – [Month YYYY]` (e.g. `Deal Digest – April 2026`) |
+| **Category** | `Research` |
 | **Icon** | 🤝 |
-
----
-
-## Benchmark Summary
-
-Always generate a benchmark summary block at the top of the page before the main company list. It should contain the following sections, each as a **bold header** followed by a one-liner in italics on the next line, then the specific examples as inline prose on the line after that.
-
-### Sections
-
-**Revenue Velocity** — four sub-bullets, each with its own inline one-liner baked into the label before the examples:
-
-- `*Scale — [one-liner on what best-in-class looks like and what multiple it commands]:*` → examples
-- `*Growth / Series B+ — [one-liner]:*` → examples  
-- `*Early Stage — [one-liner]:*` → examples
-- `*Multi-Year Compounding — [one-liner]:*` → examples
-
-**Megarounds**
-*[one-liner on what drives premium valuations vs. compressed multiples at scale]*
-[specific examples inline]
-
-**Unit Economics**
-*[one-liner anchoring what best-in-class looks like — GM%, NDR, profitability thresholds]*
-[specific examples inline]
-
-**Seed-Stage Standouts**
-*[one-liner on what tier-1 seed signal looks like this cycle — round size, backer caliber, pedigree]*
-[specific examples inline]
-
-### Benchmark Construction Rules
-
-- **Collapse ARR and revenue into one metric** — treat them as functionally equivalent throughout. Never distinguish between "ARR" and "revenue" in the benchmark summary.
-- **Pair revenue with valuation wherever both are disclosed** — e.g. `Eleven Labs ($330M rev, ~3x YoY at $11B — ~33x multiple)`. This is the most useful context.
-- **Revenue multiples** — compute implied rev multiples (valuation ÷ revenue) wherever both numbers are available. Surface the range across stage tiers.
-- **Best-in-class framing** — each section should tell Tom what the ceiling looks like, not the median. What does the best company in this bucket look like, and what does that command at raise?
-- **Seed standouts** — prioritize by round size and backer signal (Tier-1 firm + large round = standout). Pedigree (ex-OpenAI, ex-Deepmind, ex-Palantir) is also a strong signal.
-
----
-
-## Formatting Rules
-
-### All sections (Main, Seed, Other, Additional, etc.)
-
-- **Each company gets its own bullet point** — never comma-separate multiple companies on a single line, even in the Seed and Other sections where the source text may be a blob.
-- **Company name bolded up to the colon** — format as `- **Company Name:** commentary`. If there is no colon (e.g. Seed entries that are just a name + backer), bold just the name: `- **Name** (backer)`.
-- **Do not alter the underlying text** — preserve all original wording, figures, and commentary verbatim. Formatting changes only.
-
-### Section headers
-
-Use `## Section Name` for each top-level section: `## Main`, `## Seed`, `## Other`, `## Additional`. Separate sections with a horizontal rule (`---`).
-
-### Seed section
-
-The source Seed section is typically a single comma-separated blob. Break it into individual bullets — one per name or company. Format:
-- Named individuals: `- **First Last** (backer or context)`
-- Named companies: `- **Company Name** (backer or context)`
-- Entries with colons: `- **Company Name:** commentary`
-
-### Other section
-
-Similar to Seed — often a comma-separated list. Break into individual bullets. For entries with just a name + stage/backer in parens, use: `- **Name** (stage or backer)`.
-
----
+| **Opportunity relation** | NEVER set. Even if an ingest references a portfolio company (competitive intel framing), do NOT add an Opportunity relation. The corpus is queryable on its own; per-Opportunity linking would clutter the rolling page.|
 
 ## Source Handling
 
-### WhatsApp via Beeper
+- **WhatsApp via Beeper** — search Beeper for the Chris Oh chat. Beeper truncates long messages; if the full text isn't returned, ask Tom to paste it directly.
+- **Pasted text / forwarded email / iMessage screenshot** — use the text as is.
 
-Search Beeper for the Chris Oh chat and scan for the deal digest message using `search_messages` with keywords like `company`, `ARR`, `valuation`, or `raising`. The digest is typically a single long WhatsApp message. Note: Beeper's API truncates long messages — if the full text is not returned, ask Tom to paste it directly.
+## Final Step
 
-### Pasted text
+After updating the page, run `note-classifier` (`/Users/tomseo/.claude/skills/note-classifier/SKILL.md`) to confirm Category=Research.
 
-If Tom pastes the digest text directly in conversation, use that as the source. No Beeper search needed.
+## Example Page (after a few ingests)
 
-### Forwarded email
-
-Parse from the email body. Category and title rules still apply.
-
----
-
-## Deduplication
-
-Before creating a page, run `notion-search` for `"Deal Digest"` in the Notes DB. If a page with the same date already exists, surface the URL to Tom and ask: update the existing page, or create a new one?
-
----
-
-## Example Page Structure
+Note: every `**bold paragraph**` below has an invisible trailing U+00A0 (non-breaking space) to prevent Notion from auto-promoting it to a heading.
 
 ```
-## Benchmark Summary
+**2026-04-26 – Emily Man iMessage (competitive intel for Rengo)**
 
-**Revenue Velocity**
-- *Scale — Best-in-class is 2-3x+ YoY at $150M+ rev; commands 30-80x rev multiples at raise:* ...
-- *Growth / Series B+ — Best-in-class is 50-500% YoY at $20-100M rev; typically prices at 40-70x:* ...
-- *Early Stage — Best-in-class is 6-10x+ YoY at $5-20M rev; valuations range $100M-$1B:* ...
-- *Multi-Year Compounding — Best-in-class shows 3+ consecutive years of step-change growth with a clear path to $100M+:* ...
-
-**Megarounds**
-*Largest disclosed financing events; valuations driven by market position and growth rate — best-in-class commands 50-120x rev at growth stage, compressing to 20-40x at scale.*
-Anduril ($8B raise at $60B); Clickhouse ($200M rev at $15B — 75x); ...
-
-**Unit Economics**
-*Best-in-class SaaS shows 80%+ GM, 120%+ NDR, and profitability at sub-$50M rev.*
-Wealth (90% GM, 120% NDR, $500M val); Pepper (135% NDR); ...
-
-**Seed-Stage Standouts**
-*Tier-1 seed signal means $10-55M raises at $100M-$1B post with top-decile backers; pedigree commands premium pre-product valuations.*
-Elorian AI ($55M seed, Menlo); Simulated Labs ($25M Greylock, $150M post); ...
+- **Meridian:** Private equity CRM (meridian-ai.com); raising Series A; on a path from $1M to $5M ARR by year-end with blue-chip logos like Apax Partners, Point72, HIG Capital, and Zurich live on the platform with 100% retention
 
 ---
 
-## Main
+**2026-04-25 – Chris Oh WhatsApp digest**
+
+**Main**
 
 - **Eleven Labs:** Audio AI; $330M ARR (~3x YoY); profitable; raised at $11B
 - **Fal:** Generative media inference; ...
 
----
-
-## Seed
+**Seed**
 
 - **Bob McGrew** (ex-OpenAI Chief Research Officer; 8VC)
 - **Reactor** (Fal for world models; LSVP + Amplify)
-...
 
----
-
-## Other
+**Other**
 
 - **Surf** (Accel)
 - **Applied Compute** (KP)
-...
 
 ---
 
-## Additional
+**2026-04-20 – Pat Grady email**
 
-- **Scowtt:** Sales automation; $3M ARR; Series A done
-...
+- **Foo:** ...
+
+---
 ```
 
+## Historical Note
 
----
-
-## Final Step: Classify the Note
-
-After the Notion page has been created and the Opportunity relation (if any) has been set, run the `note-classifier` skill to assign the correct `Category` field.
-
-Read the skill at `/Users/tomseo/.claude/skills/note-classifier/SKILL.md` and follow its classification logic against the note just created. Do not skip this step — every note created by this skill must have a Category set.
+Pre-2026-04-26 the skill produced two page shapes: dated batch pages (`Deal Digest – March 25, 2026`) with a benchmark summary, and ad-hoc rolling pages (`Deal Digest – Ad Hoc – April 2026`). Those existing pages stay as historical artifacts. The unified monthly format applies going forward only.

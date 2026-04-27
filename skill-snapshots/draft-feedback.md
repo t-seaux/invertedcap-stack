@@ -141,8 +141,8 @@ Both tracks write to `draft-feedback-queue/<sent_msg_id>.json` in Drive.
 
 For each queue entry:
 
-- **diff mode:** read sent + draft, call `claude --print` with diff prompt, append delta patterns to `~/.claude/skills/<skill>/EDIT_PATTERNS.md`.
-- **from-scratch mode:** read sent text only, call `claude --print` with voice analysis prompt, append full sent + analysis to `~/.claude/skills/<skill>/VOICE_EXAMPLES.md`.
+- **diff mode:** read sent + draft, call `claude --print` with diff prompt, append delta patterns to the appropriate `writing-style/<type>/EDIT_PATTERNS.md` (skill→type mapping in `processor.py` `PATTERN_FILES`: `founder-outreach`→`outreach`, `pass-note-drafter`→`pass-note`).
+- **from-scratch mode:** read sent text only, call `claude --print` with voice analysis prompt, append full sent + analysis to the appropriate `writing-style/<type>/VOICE_EXAMPLES.md`.
 
 After successful processing:
 - Archive raw entry to Drive `draft-feedback-archive/<msg_id>.json` for auditing

@@ -86,21 +86,15 @@ Queue grows over time (acceptable — small file). No pruning required.
 3. For each Opp whose `id` is NOT in the queue:
    - Compose GFM markdown prompt (`[text](url)` for links, `**text**` for bold). `md_to_blocks.py` converts to Slack Block Kit — do NOT hand-write Slack mrkdwn (`<url|text>` / `*text*`), it ships as literal text / renders italic. Per memory `feedback_scheduled_alert_structure.md`:
      ```
-     🏢 **{Opp Name}** ([{domain}]({Website})) | [Notion]({Notion url})
-
-     - **Description:** {Description}
-     - **Founder(s):** [{Founder Name}]({LI URL}), ...
+     - 🏢 <u>**{Opp Name} | [Notion]({Notion url})**</u>
      - **Status:** {Status}
-
-     [opp:<short-opp-id>]
+     `[opp:<short-opp-id>]`
      ```
      Rules:
-     - Opp Name is bold (`**{Name}**`); domain is wrapped in parens with the Website URL embedded as a GFM link
-     - If Website is missing: drop the `([...]{...})` parens entirely
-     - If Founder LI URL is missing: render founder as plain `{Founder Name}` (no link)
-     - Multiple founders: comma-separated
-     - Missing Founders → `N/A`; missing Description → `TBD`
-     - Bullet labels (`**Description:**`, `**Founder(s):**`, `**Status:**`) are always bolded
+     - Compact format (locked in 2026-04-25): entity bullet + status bullet + fingerprint, no Description / Founders / Website fetch. Tom clicks through to the Notion page when he needs context.
+     - Both lines are bullet items so they share visual treatment. The first bullet's first character is the emoji (OUTSIDE the wrappers — Tom does not want the emoji underlined); the rest of the entity is wrapped in `<u>**...**</u>` so it renders bold AND underlined with the Notion link live.
+     - `md_to_blocks.py` treats `<u>` and `**` as recursive wrappers, so bold + underline + inner link compose correctly.
+     - The fingerprint sits immediately under the Status bullet (no blank line), wrapped in backticks for inline-code-styled rendering. **No blank lines anywhere in the body** — blank lines emit a `\n\n` spacer.
      - **Never include a "Reply in this thread…" line** — the channel description already says this
    - POST via `send-alert/md_to_blocks.py` with `WEBHOOK_URL=$(cat ~/.claude/skills/decision-retro/.webhook_url)`.
    - Immediately call `mcp__claude_ai_Slack__slack_read_channel` on `#decision-retros` (limit 10) and find the message by grepping for the `[opp:<short-opp-id>]` fingerprint. Capture `ts`.
@@ -175,24 +169,18 @@ Triggered by the `claude-job-queue` processor with args `{ mode: "webhook-prompt
 3. Compose the Slack prompt per scope. For `scope="neg1"` use this template exactly (GFM markdown — `[text](url)` for links, `**text**` for bold). `md_to_blocks.py` converts to Slack Block Kit; Slack mrkdwn (`<url|text>`, `*text*`) ships as literal text / renders italic:
 
    ```
-   🧍 [{Name}]({LI URL}) | [Notion]({Notion page url})
-
-   - **Current:** {Role} @ {Company Name}
-   - **Work History:** {Company 1}, {Company 2}, {Company 3}
-   - **Education:** {School 1}, {School 2}
+   - 🧍 <u>**{Name} | [Notion]({Notion page url})**</u>
    - **Status:** {Status}
-
-   [neg1:<short-id>]
+   `[neg1:<short-id>]`
    ```
 
    Rules:
    - `<short-id>` = first 8 chars of the Notion page UUID
-   - If LI URL is empty: render name as plain `**{Name}**` (no link)
-   - Drop Work History / Education lines entirely if empty (do NOT emit the label with blank value)
-   - Work History: up to 3 companies, comma-separated, pulled from Work History relation
-   - Education: comma-separated, pulled from School(s) relation
-   - Status bullet is just the Status value — no trailing "flipped {date}" clause
-   - Header is just name + Notion link — do NOT repeat the status (e.g. `— -1: Passed`) since it's in the bullet
+   - Compact format identical in shape to the Opp version (locked in 2026-04-25). Both lines are bullet items.
+   - Emoji OUTSIDE the `<u>**...**</u>` wrapping; name + Notion link are bold AND underlined with the link live.
+   - **No Current / Work History / Education / LI link** — Tom clicks through to the Notion page when he needs the resume context.
+   - Status bullet is just the Status value — no trailing "flipped {date}" clause.
+   - **No blank lines anywhere in the body** — fingerprint sits immediately under Status, in backticks.
 
    For `scope="opp"` use the Opp format from Step 1 of the 9am scan (lines 82–96 above).
 4. POST via `send-alert/md_to_blocks.py` using the `#decision-retros` webhook URL at `~/.claude/skills/decision-retro/.webhook_url`.
@@ -311,12 +299,8 @@ Omit "Official pass note feedback" — -1 rows don't have outbound pass notes. E
 
 Tom flips `Acme Corp` → `Pass` on 2026-04-22. The 9am scan on 2026-04-23 posts to `#decision-retros`:
 
-> 🏢 **Acme Corp (acme.com)** | [Notion](https://notion.so/tom/acme-...)
->
-> - Description: Consumer-subsidized B2B productivity suite.
-> - Founder(s): [Jane Doe](https://linkedin.com/in/janedoe)
-> - Status: Pass
->
+> - 🏢 <u>**Acme Corp | [Notion](https://notion.so/tom/acme-...)**</u>
+> - **Status:** Pass
 > `[opp:abc12345]`
 
 Tom replies in thread (voice-to-text via Wispr Flow): "passed on Acme. founder was smart but the market is fundamentally consumer-subsidized B2B — anyone who's not paying for their employer's version will churn the day they change jobs. saw this exact pattern with X and Y."
