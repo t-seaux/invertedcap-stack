@@ -133,6 +133,30 @@ Use `notion-search` to search for the company name among Active Portfolio opport
 - **Ambiguous / multiple matches**: present candidates to the user and ask for confirmation
 - **No match**: flag the email to the user — the sender may not be in the portfolio database, or the company name may differ from what's in Notion
 
+## Step 2.5: Normalize forwarded email body
+
+Whenever the email is a forward (from any of Tom's alternate inboxes — `tom@invertedcap.com`, `tom@dashfund.co`, `thomas.seo@outlook.com` — with a `Fwd:` / `Forwarded` subject prefix, or detected via `forwardedSenderEmail` from the webhook), strip the forward chrome **before** the body is fed into either the Step 3 PDF render or the Step 4 Notion page body. The PDF and Notion page must read like the original founder update, not a forwarded email — Tom's forwarding hop is plumbing, not content.
+
+Strip from the top of the body, in order, until the first non-chrome line:
+
+1. The leading wrapper line — any of:
+   - `Begin forwarded message:`
+   - `---------- Forwarded message ---------`
+   - `> Begin forwarded message:` (Apple Mail with quote prefix)
+2. The metadata block that immediately follows the wrapper. These are consecutive lines starting with any of: `From:`, `Sent:`, `Date:`, `To:`, `Cc:`, `Bcc:`, `Reply-To:`, `Subject:` (plus Apple Mail's `<mailto:…>` annotations and any `>` quote-prefix variants of these). Strip the entire contiguous run.
+3. Any blank lines and `\u200B` zero-width spaces that immediately follow the metadata block.
+4. The object-replacement glyph `\uFFFC` (`￼`) wherever it appears (Apple Mail attachment placeholder).
+5. Apple Mail quote-prefix `>` characters at the start of lines, when the entire forward is quote-prefixed (heuristic: 80%+ of non-blank lines start with `>`). Strip one leading `>` (and one optional space) per line.
+
+Multi-hop forwards (founder→colleague→Tom→Tom) carry several forward wrappers stacked. Apply the strip recursively — after the first wrapper+metadata block is removed, if the next non-blank content is *another* wrapper line (matches step 1), strip that too. Stop when the next content is real prose.
+
+Do **not** strip:
+- The original sender's name/sign-off in the body (e.g., "— Charley")
+- Any quoted text the founder included intentionally inside the update
+- Inline images, links, or formatting in the actual update content
+
+This normalization applies uniformly to Mode A (sweep), Mode B (webhook), and Mode C (manual). Where the rest of this skill says "the email body" / `body_markdown` / "the full email body", it refers to the **normalized** body produced here. The raw forwarded body is never written to the PDF or Notion page.
+
 ## Step 3: Save PDF to Google Drive
 
 Save a PDF copy of every investor update to the company's subfolder within the **Investor Updates** folder on Google Drive. This serves as a durable backup independent of Notion.
@@ -187,7 +211,7 @@ Upload to the Investor Updates folder on Drive via the **Drive Upload Apps Scrip
 
 ### Case C: No attachment, no Google Doc — convert email body to PDF
 
-**⚠️ CRITICAL: The PDF must contain the FULL VERBATIM email body. Never summarize, truncate, paraphrase, or omit any content. The PDF is an archive of the original email — every paragraph, bullet point, metric, ask, and sign-off must be preserved exactly as written. If the email body is long, the PDF should be long. A 2-3KB PDF from a multi-paragraph email is a red flag that content was dropped.**
+**⚠️ CRITICAL: The PDF must contain the FULL VERBATIM email body. Never summarize, truncate, paraphrase, or omit any content. The PDF is an archive of the original email — every paragraph, bullet point, metric, ask, and sign-off must be preserved exactly as written. If the email body is long, the PDF should be long. A 2-3KB PDF from a multi-paragraph email is a red flag that content was dropped. For forwarded emails, use the normalized body from Step 2.5 — the forward chrome is gone but every word of the founder's original update is preserved.**
 
 Use `weasyprint` + `markdown` to convert the email body to a styled PDF. First convert the email body from Markdown to HTML, then render to PDF. This preserves headers, bold, italics, lists, links, and tables — producing a PDF that closely matches what the email looks like.
 
@@ -234,7 +258,7 @@ Upload to the company's subfolder on Drive via the **Drive Upload Apps Script** 
 
 Create a new page in the **Company Updates** database (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`). This is the primary reading interface — Tom will click into each update page to read the content directly in Notion.
 
-**⚠️ CRITICAL — FULL EMAIL BODY REQUIRED:** The page body must contain the **complete, verbatim email body** — every paragraph, bullet point, metric, quote, ask, and sign-off. Never summarize, truncate, paraphrase, or rewrite any part of the email. The Notion page is the primary archive of the update. If the original email is long, the Notion page should be long. Read the full email via `gmail_read_message` and use the `body` field directly.
+**⚠️ CRITICAL — FULL EMAIL BODY REQUIRED:** The page body must contain the **complete, verbatim email body** — every paragraph, bullet point, metric, quote, ask, and sign-off. Never summarize, truncate, paraphrase, or rewrite any part of the email. The Notion page is the primary archive of the update. If the original email is long, the Notion page should be long. Read the full email via `gmail_read_message` and use the `body` field directly. **For forwarded emails, use the normalized body produced by Step 2.5 — the forward chrome (wrapper line, metadata block, `>` quote prefixes, `\uFFFC` glyphs) is stripped, but the original founder content is preserved verbatim.**
 
 ### Page properties
 

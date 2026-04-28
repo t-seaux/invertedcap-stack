@@ -6,9 +6,85 @@ description: >
 
 # Materials Handler
 
-Download diligence materials for a pipeline company, save them, and link them in the corresponding Notion opportunity (page body + Diligence Materials property field).
+Download diligence materials for a pipeline company, save them, and link them in the corresponding Notion opportunity (page body + Diligence Materials / Deal Docs property fields).
 
-This skill exists as a standalone, manually-triggerable flow and is also called as a subroutine by the pipeline agent (Task 5) and add-to-crm (Step 6). The logic lives here — those skills reference it rather than duplicating it.
+This skill exists in three invocation modes (per the A/B/C convention), all sharing the Steps 1–5 pipeline below:
+
+- **Mode A (sweep)** — N/A; not currently scheduled.
+- **Mode B (webhook)** — auto-fired by `gmail-webhook/materials-detect.js` when a founder on a pipeline Opp's Contact field sends an email containing materials. See "Mode B: Webhook entry" below for inputs, idempotency, and alert format.
+- **Mode C (manual)** — Tom invokes directly ("save materials for [company]", forwarded email, etc.). Also called as a subroutine by pipeline-agent (Task 5) and add-to-crm (Step 6).
+
+The processing logic (Steps 1–5) is shared across modes. Mode-specific deltas are scoped to the section below; everything else flows through the canonical pipeline.
+
+## Mode B: Webhook Entry
+
+**Triggered by:** `gmail-webhook/materials-detect.js` enqueues a `materials-handler` job when an inbound email passes its gate (sender on an Opp's Contact field + at least one material signal).
+
+**Inputs:**
+
+```json
+{
+  "messageId": "<gmail message id>",
+  "oppId": "<notion page id>",
+  "oppName": "<company name>",
+  "threadId": "<gmail thread id>"
+}
+```
+
+The skill is bound to a specific message + Opp; do not search Gmail freshly (Step 2 is replaced by the inputs).
+
+**Idempotency — Gmail label `claude/materials-processed`:**
+
+1. On entry, fetch all messages in `threadId` and read their labels.
+2. For each message in the thread, check whether it carries the `claude/materials-processed` label. Only process attachments / links / blurbs from messages that DO NOT carry the label yet (the "delta set"). The trigger message is in the delta set by definition (the gate fired *because* of new content).
+3. After successfully processing a message's artifacts (chips written to Notion + page-body update), apply the `claude/materials-processed` label to that specific message via `Gmail.Users.Messages.modify`. Create the label once if it doesn't exist.
+4. If the delta set is empty (every message in the thread is already labeled), exit cleanly — no Notion writes, no Slack alert.
+
+**Mode B steps:**
+
+- Skip Step 1 (Notion lookup) — `oppId` and `oppName` are passed in.
+- Skip Step 2 (Gmail search) — the message set is the unlabeled subset of the thread.
+- Run Steps 3 + 4 normally on the delta set, scoped to the thread.
+- Replace Step 5 with the Slack alert format below.
+
+**Slack alert (Mode B only) — fires only on success with ≥1 new artifact:**
+
+Posted via the `send-alert` skill. Format (Slack mrkdwn):
+
+```
+*📎 Materials: <https://www.notion.so/{oppId}|{Opp Name}> (<https://mail.google.com/mail/u/0/#all/{messageId}|Email>)*
+
+• *Page Body:* {comma-separated body section names — plain text, no links}
+• *Diligence Materials:* {comma-separated chip labels, each WRAPPED in <url|label>}
+• *Deal Docs:* {comma-separated chip labels, each WRAPPED in <url|label>}
+```
+
+**Alert rules:**
+
+- Header line is fully bolded. Two clickable segments: the Opp name (links to Notion `https://www.notion.so/{oppId}`) and the literal word `Email` wrapped in parens (links to the Gmail deep link `https://mail.google.com/mail/u/0/#all/{messageId}`). Use parens, not brackets.
+- Bullet lines use `•` (literal glyph). Each bullet's field name is bolded with `*`, followed by `:`, then a comma-separated list — no inner bullets, no per-artifact lines.
+- **Page Body items are plain text** (no links — the Opp link in the header already covers it).
+- **Diligence Materials and Deal Docs items are each individually linked** via `<url|label>`:
+  - Drive-uploaded files → `<{driveFileUrl}|{filename}>` (use the `url` returned by Drive Upload Apps Script — `https://drive.google.com/file/d/{fileId}/view`).
+  - Link-only / interactive demos → `<{externalUrl}|{label}>` (Figma, Loom, demo URLs, etc.).
+  - For demo chips with credentials, the label is the full chip name including credentials (`Inlets Demo (login: demo@inlets.ai; pw: Password124!)`) — Slack will render the parens fine inside the link text.
+- **Omit a bullet entirely** if no artifacts landed in that field on this run. (E.g. a delta with only a term sheet shows ONLY the `Deal Docs` bullet.)
+- **Follow-up runs** (subsequent messages in an already-processed thread) use the exact same format — bullets only show what's new in this run, not the cumulative state.
+- Skip the alert entirely on no-op runs (delta set was empty, or processing failed for every artifact).
+- If processing partially fails (some chips landed, some didn't), still alert on what landed; note failures in the local skill log, not the Slack alert.
+
+**Worked example (matches Emily/Inlets):**
+
+```
+*📎 Materials: <https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002|Inlets> (<https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41|Email>)*
+
+• *Page Body:* Company Blurb
+• *Diligence Materials:* <https://drive.google.com/file/d/.../view|Inlets - One-Pager (2026)>, <https://drive.google.com/file/d/.../view|Inlets - Oncology Case Study>, <https://app.inlets.ai/|Inlets Demo (login: demo@inlets.ai; pw: Password124!)>
+```
+
+**Demo chip label format reminder:** `[Company] Demo (login: <email>; pw: <password>)` — see Step 3F.
+
+**Idempotency dedup at the queue layer** is keyed on `materials-handler-{messageId}`, so a Pub/Sub re-delivery of the same message never re-processes. The Gmail-label check is the per-thread layer that prevents re-processing already-handled artifacts even when a different (later) message in the same thread fires the gate.
 
 ## Critical Operating Principles
 
@@ -77,12 +153,36 @@ For each hit, call `gmail_read_message` to confirm relevance:
 - **Include**: Pitch decks, financial models, memos, one-pagers, term sheets, side letters, data room links, blurbs.
 - **Exclude**: SaaS marketing, newsletters, calendar invites, receipts.
 
-Classify each relevant email's materials into categories:
+Classify each relevant email's materials into **delivery categories** (how to fetch the file) and **destination categories** (which Notion Files property to write to).
+
+**Delivery category** (drives Step 3 sub-path):
 - **Gmail attachment** (binary file attached to the email)
 - **DocSend link** (URL matching `docsend.com/view/`)
 - **Direct file URL** (Google Drive share link, Dropbox link, raw PDF URL)
 - **Data room link** (DocSend `/view/s/` or similar multi-doc container)
 - **Link-only / non-convertible** (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
+
+**Destination category** (drives Step 4 chip routing — see "Property Routing" below):
+- **Diligence Materials** (default) — evaluation artifacts: pitch decks, memos, one-pagers, case studies, investor updates, financial/operating models, customer references, product demos.
+- **Deal Docs** — transaction artifacts: term sheets, SAFEs, convertible notes, side letters, subscription/stock-purchase agreements, pro forma cap tables, closing docs, wire instructions.
+
+### Property Routing — Diligence Materials vs Deal Docs
+
+Every saved artifact lands in EITHER `Diligence Materials` OR `Deal Docs`, never both. Default is Diligence Materials; route to Deal Docs only when the filename or content matches a transaction-artifact signal.
+
+**Route to `Deal Docs` when filename or first-page text matches any of:**
+- "term sheet", " TS ", "TS_", "TS-", "TS v", "TS draft" (term sheets)
+- "SAFE", "convertible note", "conv note", "side letter"
+- "subscription agreement", "stock purchase", " SPA ", "SPA_", "stockholder", "shareholder"
+- "pro forma", "cap table", "cap_table", "captable", "ownership table"
+- "closing", "closing binder", "wire instructions", "funds flow"
+- Legal-doc signatures: "WHEREAS", "Per Share Price", "Liquidation Preference", "Pre-Money Valuation" appearing on the first page
+
+**Route to `Diligence Materials` (default) for everything else** — decks, memos, one-pagers, case studies, investor updates, financial models (operating projections, NOT cap tables), customer references, product demos, etc.
+
+**Ambiguous case** — if a doc is borderline (e.g. "Acme Round Overview.pdf" that includes both deal terms and a deck-style narrative), route to whichever signal dominates the first 2 pages. If still unclear, default to Diligence Materials and note the assumption in the Step 5 summary so Tom can re-route.
+
+The chip-add function (`addLinkToFilesProperty`) is generalized — pass `propertyName: "Deal Docs"` or `propertyName: "Diligence Materials"` as appropriate. Same osascript + Chrome bridge, no per-property code needed (see `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`).
 
 ## Step 3: Process Materials
 
@@ -157,9 +257,46 @@ Use this path for interactive/hosted materials that can't be cleanly downloaded 
 3. **Page body bullet** — see format in Step 4.
 4. **Property field** — the external URL goes into the Diligence Materials Files property directly (Step 4's "always link the specific file URL" rule is relaxed for this path; see Step 4 for details).
 
+### 3F: Product Demos (login URL + credentials)
+
+Use this path when the source email includes a live product demo — typically an `app.<company>.<tld>` URL plus a login email and password (e.g. `https://app.inlets.ai/` + `Login: demo@inlets.ai` + `Password: Password124!`). The demo URL is the canonical artifact; credentials go inline in the chip label.
+
+**Single chip, credentials in the label:**
+
+1. **Do NOT download, render, or screenshot the app.** The live URL is the artifact.
+2. **Display label format** — `[Company] Demo (login: <email>; pw: <password>)`. Examples:
+   - `Inlets Demo (login: demo@inlets.ai; pw: Password124!)`
+   - `Acme Demo (login: investor@acme.app; pw: Demo2026)`
+3. **Property field** — pass the demo URL and the label above to `addLinkToFilesProperty` exactly like a Step 3E link-only material. One chip per demo.
+4. **Page body** — do not duplicate the demo into the page body. The chip carries everything.
+5. **Multiple credential pairs** — if the founder provides separate logins for different roles (admin/viewer/etc.), create one chip per pair with role appended: `Inlets Demo - Admin (login: ...; pw: ...)`.
+6. **Demo URL with no credentials** (public sandbox / unauth'd app) — fall back to Step 3E. Label: `[Company] - Product Demo`.
+7. **Detection signal** — look for an `app.*` / `demo.*` / `staging.*` URL in proximity to lines starting `Login:`, `Username:`, `User:`, `Email:`, `Password:`, `PW:`, `Pass:` (case-insensitive). Skip the path entirely if no credentials are present — that's a Step 3E case.
+
 ## Step 4: Update the Notion Opportunity Page
 
-The canonical home for material links is the **Diligence Materials property field** (Files property chips at the top of the page). The page body stays clean and contains only the Note section — do NOT add a `📎 Diligence Materials` body section by default.
+The canonical home for material links is the **Diligence Materials property field** (Files property chips at the top of the page). The page body stays clean and contains only the Note section plus an optional Company Blurb section (when the source email includes one) — do NOT add a `📎 Diligence Materials` body section by default.
+
+### Page Body — Company Blurb (when source email includes one)
+
+When a founder/sender includes a company blurb in the email body — a paragraph-level company description, typically opening with the company name + "is..." or introduced as "Here's a brief overview" / "About us" / similar — prepend a Company Blurb section to the page body (above the Note section if both exist).
+
+**Format:**
+
+```
+*Company Blurb*
+
+[blurb text — preserve every inline hyperlink from the source verbatim]
+```
+
+**Rules:**
+
+- Header is `*Company Blurb*` — italicized, regular weight, no heading style.
+- Body sits directly below the header.
+- Preserve every inline hyperlink (e.g. `[inlets.ai](https://inlets.ai)`) exactly as written in the source — don't strip, flatten, reformat, or add tracking params.
+- Include only the description paragraph(s). Skip cover prose ("Great speaking with you"), logistics ("Attached is..."), credentials ("Login:..."), conference plugs, and signoff lines.
+- Place the Company Blurb section ABOVE the Note section if both exist — blurb is the higher-signal artifact for a future reader scanning the page.
+- If the email body has no clear blurb (just logistics or attachments), skip this step — do not fabricate one.
 
 ### Page Body — DO NOT add a Diligence Materials section by default
 
@@ -175,9 +312,11 @@ If you're writing an exception-case body section, use the bullet format below. O
 - [**[Filename]**](<URL>) — [per-material context]
 ```
 
-### Notion Diligence Materials Property Field (osascript + Chrome, default)
+### Notion Files Property Field — Diligence Materials OR Deal Docs (osascript + Chrome, default)
 
-**This step always runs.** Append each saved Drive link to the **Diligence Materials** Files property on the opportunity page. The bridge is `osascript` driving the active Chrome tab — that's the default on Tom's Mac. If the Chrome MCP `javascript_tool` is exposed in the current harness, prefer it; otherwise osascript is first-class, not a fallback.
+**This step always runs.** Append each saved Drive link to the appropriate Files property on the opportunity page — either **Diligence Materials** or **Deal Docs** per the routing rules in Step 2's "Property Routing" section. Term sheets, SAFEs, side letters, pro forma cap tables, etc. → Deal Docs. Decks, memos, models, demos, etc. → Diligence Materials.
+
+The bridge is `osascript` driving the active Chrome tab — that's the default on Tom's Mac. If the Chrome MCP `javascript_tool` is exposed in the current harness, prefer it; otherwise osascript is first-class, not a fallback.
 
 Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md` for the `addLinkToDiligenceMaterials` function, and `/Users/tomseo/.claude/projects/-Users-tomseo/memory/feedback_notion_internal_api.md` for the osascript bridge pattern (navigate to the page, wait ~4s, fire the JS as an async IIFE that stashes the result in `window._notionResult`, poll `JSON.stringify(window._notionResult)` via a second osascript call). Required headers for internal API calls: `x-notion-active-user-header: c6058e42-a6df-4155-9e7e-9a2a5b6af322`, `x-notion-space-id: ebe97bdb-2635-4ecc-abee-968e61632450`, `notion-audit-log-platform: web`. The Diligence Materials property key is hardcoded as `=sSX`.
 
@@ -235,14 +374,16 @@ Return a concise summary:
 
 Drive folder: Diligence/[Company Name]/
 Found: [N] materials across [M] emails
-  - [filename1] → Diligence/[Company Name]/ ✅ (Gmail Attachment Saver)
-  - [filename2] → Diligence/[Company Name]/ ✅ (Drive Upload Apps Script)
-  - [filename3] → Diligence/[Company Name]/ ✅ (email body → Chrome headless PDF)
-  - [filename4] → Pending ⚠️ (upload failed, retry or manual)
-  - [Figma link] → linked as-is ✅ (link-only, not downloadable)
+  - [filename1] → Diligence Materials ✅ (Gmail Attachment Saver)
+  - [filename2] → Diligence Materials ✅ (Drive Upload Apps Script)
+  - [filename3] → Deal Docs ✅ (term sheet routed)
+  - [filename4] → Diligence Materials ✅ (email body → Chrome headless PDF)
+  - [filename5] → Pending ⚠️ (upload failed, retry or manual)
+  - [Figma link] → Diligence Materials ✅ (link-only, not downloadable)
+  - [Demo URL] → Diligence Materials ✅ (interactive demo, creds in label)
 DocSend: [N] converted and uploaded
 Contact extraction: upgraded tom@old.com → tom@company.com ✅ / kept existing (custom domain) / nothing found
-Notion: Page body updated ✅ | Property field updated ✅ (osascript + Chrome) / failed ⚠️ / skipped (Chrome not running)
+Notion: Page body updated ✅ | Diligence Materials updated ✅ | Deal Docs updated ✅ (osascript + Chrome) / failed ⚠️ / skipped (Chrome not running)
 ```
 
 ## Constraints and Known Limitations

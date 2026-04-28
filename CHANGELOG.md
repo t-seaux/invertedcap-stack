@@ -2,6 +2,25 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-28] (Week of 2026-04-27)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `add-to-companies` -- added a Mode B webhook entry for existing Companies rows whose URL property has just been populated; the webhook skips dedup search and runs straight into enrichment. Standardized the Slack alert template (header line + bullets covering category, HQ, funding status, revenue, headcount trend, and digest mentions).
+- `add-to-contacts` -- added a Mode B webhook entry for existing People rows whose LinkedIn URL has just been populated; the webhook fetches the row, runs ContactOut enrichment, and updates in place without re-running dedup or creating a new row.
+- `decision-retro` -- tightened the Slack retro prompt format from bulleted entity/status lines to bare paragraphs (no `- ` prefix); fingerprint sits immediately under the status line. Compact format only — no inline Description / Founders / Website fetch.
+- `draft-feedback` -- after each pass-note send is fully processed, posts a single consolidated Slack DM confirming all three downstream outcomes (Status flipped to Pass (Met), Notes archive entry created, diff or from-scratch voice captured) by reading the webhook's results sidecar.
+- `first-pass-diligence` -- added a mandatory grounding guardrail requiring portfolio references in generated memos to come from a live Opportunities DB query (Active Portfolio / Exited / Committed only); flagged historical miscategorizations of analyzed-but-not-portfolio companies. Added a rule to always upload a NEW Drive file rather than overwrite (Notion caches PDF previews on file ID, so overwrites silently shipped stale previews). Switched Diligence Materials property linking to a Python helper as the canonical path. Tightened markdown escape handling for HTML table syntax.
+- `investor-update` -- added a forwarded-email normalization step that strips the forward chrome (wrapper line, metadata block, blank lines, zero-width spaces, object-replacement glyphs, Apple Mail quote-prefix `>` characters) before the body is fed into either the PDF render or the Notion page; supports multi-hop forwards. Applies uniformly to sweep, webhook, and manual modes.
+- `materials-handler` -- added a Mode B webhook entry that fires when a contact on a pipeline opportunity sends an email with materials. Idempotent via a `claude/materials-processed` Gmail label applied per-message after successful processing. Added a scoped Slack alert format separating Page Body / Diligence Materials / Deal Docs sections, each with click-through links.
+- `pass-note-drafter` -- recipient list switched from a single primary founder email to the full `;`-split contact list (every meeting attendee captured by the calendar handler). Greeting auto-pluralizes for multi-recipient sends. Retired the legacy Zapier BCC archive path now that the pass-note-sent gmail-webhook handler does the archive natively. Reformatted Slack alert to consolidator style (entity header + drafted-for line). Moved draft snapshot directory under `_system/`.
+- `skill-map-refresh` -- registered `outreach-detector` and `outreach-decliner` webhook handlers as rolling into `pipeline-agent` (both as event-mode sub-rows in the Quick Reference composite expansion + classification table).
+**Total skills:** 23
+**Functions:** No changes
+
+---
+
 ## [2026-04-27] (Week of 2026-04-27)
 
 **Added:** None

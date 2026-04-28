@@ -140,11 +140,12 @@ Skip this entire step if no Pass (Met) opportunities were edited in the last 7 d
 
 For each confirmed "Pass Note Pending" opportunity, collect:
 
-**3a. Founder info**
+**3a. Founder info + recipient list**
 - Pull the founder's first name from the `🏁 Founder(s)` relation (use `notion-search` on People DB with the linked page ID, then fetch to get the Name field).
-- If People DB lookup fails, infer the first name from the `Contact` email (e.g., `peter@sync.bio` → "Peter") or from any call notes/transcripts.
-- Pull the founder's email from the `Contact` field. If multiple emails are listed, use the primary/first one.
-- **Email fallback:** If the `Contact` field is empty or yields no usable email, search Gmail for the company name to find the original inbound email thread (e.g., `gmail_search_messages: q="[Company Name]"`). The founder's email can typically be found as the sender in the earliest thread related to this deal. Extract it from there. If still not found, skip the draft and flag in Signal notification.
+- If People DB lookup fails, infer the first name from the first email in `Contact` (e.g., `peter@sync.bio` → "Peter") or from any call notes/transcripts.
+- **Recipient list = full Contact field.** The Contact field is the canonical recipient store. It contains a `;`-separated list of every email Tom met with on this deal (founder + any co-founders / partners / chiefs of staff who joined the calendar invite — populated by the calendar-scheduled-detect webhook). Split on `;`, trim whitespace, lowercase, dedup. Use ALL of them in the draft's To: field — pass notes go to everyone Tom spoke with, not just the primary founder.
+- The first email in the list is the primary founder (calendar handler keeps it at index 0). Address the email body to that person's first name only.
+- **Empty Contact fallback:** If the `Contact` field is empty, search Gmail for the company name to find the original inbound email thread (e.g., `gmail_search_messages: q="[Company Name]"`). The founder's email can typically be found as the sender in the earliest thread related to this deal. Extract it from there. If still not found, skip the draft and flag in Signal notification.
 
 **3b. Intro source**
 - Fetch the `Source(s)` relation to get the referrer's name and firm. This feeds the opener line ("I'm glad [NAME] @ [FIRM] made the intro!"). If the source is "Direct" (i.e., `https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9`), omit the referrer mention entirely.
@@ -208,11 +209,11 @@ Then produce the email body, following the Style Guide precisely.
 
 Use `gmail_create_draft` with:
 
-- **To:** founder's email (from Contact field)
+- **To:** the FULL `;`-split list from Contact (Step 3a), passed as an array of email strings. Founder's email first, all other meeting attendees after. The MCP `to` parameter is `string[]`.
 - **Subject:** `[COMPANY NAME] - Inverted follow up`
   - Use the exact company name as it appears in the Notion Opportunity title
   - Subject format is always `[Company] - Inverted follow up` — never deviate from this
-- **BCC:** `passnotes.mhcrey@zapiermail.com` (always — this is a Zapier automation address, do not omit)
+- **No BCC.** The old Zapier BCC (`passnotes.mhcrey@zapiermail.com`) has been retired. The `pass-note-sent` gmail-webhook handler now does the same archive work natively (creates the Notes DB entry with Diligence category + Opportunity relation + view-sent-email link, and flips Status → Pass (Met) on send).
 - **Body:** the drafted pass note
 
 Do NOT send the email — only create it as a draft for Tom to review. Do NOT update the Notion status after creating the draft — the status update to "Pass (Met)" only happens in Step 1 once Tom has actually sent the email (see Step 1 above).
@@ -222,7 +223,7 @@ Do NOT send the email — only create it as a draft for Tom to review. Do NOT up
 `gmail_create_draft` returns an `r-XXXX` transaction ID — call `gmail_list_drafts` with `query: "to:{email}"` and grab the most recent entry's persistent hex `id` (e.g., `19da8bae7d10166e`) plus its `threadId`. Then write a JSON snapshot to:
 
 ```
-~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/draft-snapshots/<hex_id>.json
+~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/_system/draft-snapshots/<hex_id>.json
 ```
 
 File contents:
@@ -239,9 +240,13 @@ File contents:
 }
 ```
 
+For multi-recipient sends, write `"recipients": ["<email1>", "<email2>"]` instead of `recipient`. The `draft-feedback` processor accepts either shape.
+
 Use the `Write` tool. Drive Desktop syncs the file within seconds. The webhook handler picks it up on send and queues a diff job for the local processor (FRAMEWORK_PRD.md §13). Unsent snapshots auto-purge after 30 days.
 
 **Formatting:** Always create the draft as **plain text** — use `contentType: text/plain`. Do NOT use `text/html`. The reason: HTML drafts bake in font-family and font-size via inline styles, which renders differently depending on which client opens the email (Gmail web vs. Apple Mail on Mac vs. mobile). Plain text avoids this entirely — Gmail applies its own default styling on send, and the recipient sees a clean, consistent message regardless of client.
+
+**Greeting matches recipient count.** If the To list has one address: `Hey [Founder First Name],`. Two addresses: `Hey [First Name 1], [First Name 2],` (comma-separated). Three+: `Hey [F1], [F2], and [F3],` (Oxford comma). Pull first names from People DB Founder relation when possible; else infer from the email local-part. Body references that previously named one founder ("Between you and Yehuda") should switch to plural framings ("Between you two", "Between the three of you") when multiple are addressed.
 
 Use this exact template structure — note the single blank line between each paragraph block:
 
@@ -277,20 +282,18 @@ Key points: each paragraph and each bullet is separated by a single blank line. 
 
 ### Step 7: Send Alert
 
-Read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Send the message using the config specified there. Use the following format:
+Read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Use the consolidator-style format below — header with colon + date, no intro line, one bold/underlined entity header per company with a Notion link, drafted-for line directly underneath, no trailing call-to-action. Compose with `md_to_blocks.py` using GFM (per memory `feedback_md_to_blocks_format_traps.md`).
 
 ```
-✍️ PASS NOTE DRAFTER — YYYY-MM-DD
+✍️ Pass Note Drafter: YYYY-MM-DD
 
-Drafted [N] pass note(s):
-
-• [Company 1] → drafted for [Founder First Name] ([founder email])
-• [Company 2] → drafted for [Founder First Name] ([founder email])
-
-Review and send from Gmail Drafts.
+🏢 **<u>[Company] | [Notion](url)</u>**
+Drafted for: [Founder First Name] ([founder email])
 ```
 
-If any opportunities failed (e.g., couldn't find founder email, draft creation failed), include:
+Multi-entity batches stack the entity blocks with a single blank line between each. Single-entity (Mode B / webhook) drops straight into the entity block — no count line.
+
+If any opportunities failed (e.g., couldn't find founder email, draft creation failed), append:
 ```
 ⚠️ Failed: [Company] — [brief reason]
 ```

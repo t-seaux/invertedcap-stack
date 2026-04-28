@@ -86,15 +86,15 @@ Queue grows over time (acceptable — small file). No pruning required.
 3. For each Opp whose `id` is NOT in the queue:
    - Compose GFM markdown prompt (`[text](url)` for links, `**text**` for bold). `md_to_blocks.py` converts to Slack Block Kit — do NOT hand-write Slack mrkdwn (`<url|text>` / `*text*`), it ships as literal text / renders italic. Per memory `feedback_scheduled_alert_structure.md`:
      ```
-     - 🏢 <u>**{Opp Name} | [Notion]({Notion url})**</u>
-     - **Status:** {Status}
+     🏢 <u>**{Opp Name} | [Notion]({Notion url})**</u>
+     **Status:** {Status}
      `[opp:<short-opp-id>]`
      ```
      Rules:
-     - Compact format (locked in 2026-04-25): entity bullet + status bullet + fingerprint, no Description / Founders / Website fetch. Tom clicks through to the Notion page when he needs context.
-     - Both lines are bullet items so they share visual treatment. The first bullet's first character is the emoji (OUTSIDE the wrappers — Tom does not want the emoji underlined); the rest of the entity is wrapped in `<u>**...**</u>` so it renders bold AND underlined with the Notion link live.
+     - Compact format (no bullets, locked in 2026-04-27): entity line + status line + fingerprint, no Description / Founders / Website fetch. Tom clicks through to the Notion page when he needs context.
+     - Both lines are bare paragraphs (no `- ` prefix). The first character is the emoji (OUTSIDE the wrappers — Tom does not want the emoji underlined); the rest of the entity is wrapped in `<u>**...**</u>` so it renders bold AND underlined with the Notion link live.
      - `md_to_blocks.py` treats `<u>` and `**` as recursive wrappers, so bold + underline + inner link compose correctly.
-     - The fingerprint sits immediately under the Status bullet (no blank line), wrapped in backticks for inline-code-styled rendering. **No blank lines anywhere in the body** — blank lines emit a `\n\n` spacer.
+     - The fingerprint sits immediately under the Status line (no blank line), wrapped in backticks for inline-code-styled rendering. **No blank lines anywhere in the body** — blank lines emit a `\n\n` spacer.
      - **Never include a "Reply in this thread…" line** — the channel description already says this
    - POST via `send-alert/md_to_blocks.py` with `WEBHOOK_URL=$(cat ~/.claude/skills/decision-retro/.webhook_url)`.
    - Immediately call `mcp__claude_ai_Slack__slack_read_channel` on `#decision-retros` (limit 10) and find the message by grepping for the `[opp:<short-opp-id>]` fingerprint. Capture `ts`.
@@ -299,8 +299,8 @@ Omit "Official pass note feedback" — -1 rows don't have outbound pass notes. E
 
 Tom flips `Acme Corp` → `Pass` on 2026-04-22. The 9am scan on 2026-04-23 posts to `#decision-retros`:
 
-> - 🏢 <u>**Acme Corp | [Notion](https://notion.so/tom/acme-...)**</u>
-> - **Status:** Pass
+> 🏢 <u>**Acme Corp | [Notion](https://notion.so/tom/acme-...)**</u>
+> **Status:** Pass
 > `[opp:abc12345]`
 
 Tom replies in thread (voice-to-text via Wispr Flow): "passed on Acme. founder was smart but the market is fundamentally consumer-subsidized B2B — anyone who's not paying for their employer's version will churn the day they change jobs. saw this exact pattern with X and Y."

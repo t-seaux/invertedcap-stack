@@ -48,6 +48,37 @@ One of (any is sufficient; skill resolves the others):
 - **Website domain** (e.g., `thatch.com`)
 - **Company name** (e.g., "Thatch")
 
+### Mode B (webhook): existing Companies row, URL-populated
+
+When invoked with `{mode: "webhook", page_id: "<notion-page-id>"}`, the row already exists in the Companies DB — Tom (or another skill) created it and populated the `URL` property. The webhook (notion-webhook Cloudflare Worker, `companies-url-populated` trigger) routes here. Do **not** create a new row, do **not** ask Tom anything, do **not** rerun dedup-search.
+
+Behavior:
+1. Fetch the existing page by `page_id`. If `Last Enriched` is already populated, log "already enriched" and exit (the worker already gates on this, but re-check in case of races).
+2. Read the row's `URL` (website domain) and `Name`. Resolve the LinkedIn company URL via web search if it isn't already on the row, then proceed straight into Steps B–E.
+3. Skip Step A's dedup-search entirely — the page_id IS the dedup answer.
+4. Apply the unattended-execution guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md` — never ask, skip-and-log on missing data, always reach Slack with a result line.
+5. On completion, post a Slack alert via `send-alert` using the canonical template below.
+
+### Slack alert template (Mode B + manual)
+
+Use this exact shape via `~/.claude/skills/send-alert/send.sh`. The first line is the header (bold, with the company name + Notion link). The bullets follow on the **very next line** — no blank line in between (md_to_blocks treats a blank line as a `\n\n` paragraph spacer, which renders as visible empty space; that gap is a bug). Use GFM `**bold**`, not Slack mrkdwn.
+
+```
+**🪙 add-to-companies — <Company Name> enriched ([Notion](<page_url>))**
+- **Category:** <Category emoji + label> (<Company Type, $TICKER if public>)
+- **HQ:** <metro> (<actual city/region if differs from metro>)
+- **Funding Status:** <status> · **Revenue:** <revenue figure with source>
+- **Headcount:** <current count> (<Mon 'YY>); 12mo +X% / 24mo +Y%
+- **Deal Digest:** <one-line summary; "no mentions in cache" if empty>
+```
+
+Rules:
+- Header line is GFM bold (double asterisks). The 🪙 emoji is part of the header, not a separate icon-binding.
+- Bullets use the GFM dash convention (`- `), not `• `. md_to_blocks renders `- ` as Slack bullets correctly. Do NOT use `*` or `•`.
+- The bullet list starts on the line **immediately after** the header line — single `\n` separator, never `\n\n`.
+- For Funds / Schools / Nonprofits, omit the Funding Status / Revenue / Deal Digest lines that don't apply (those fields are categorically blank per the spec).
+- For Companies that hit Step C / D no-ops (no Sales Nav chart, no Deal Digest mentions), still include the corresponding bullet so the alert reads as a complete checklist — use "no mentions in cache" / "Sales Nav skipped (no chart)" rather than dropping the line.
+
 If only a name is given, resolve the LinkedIn URL via web search first, then
 proceed. If the LinkedIn URL is ambiguous (multiple companies share the
 name), disambiguate via ContactOut enrichment + industry/size check before

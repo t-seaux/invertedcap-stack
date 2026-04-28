@@ -203,6 +203,22 @@ must contain **multiple substantive paragraphs** (3-5 paragraphs minimum) that:
 - Surface tensions, caveats, and honest assessments of where the mapping is strong vs. weak
 - Note whether the founder is proactively raising the theme vs. responding to investor questioning
 
+**Grounding portfolio references — MANDATORY guardrail.** When citing companies as Inverted
+portfolio examples ("Just as Rengo…", "The parallel to the Inverted portfolio…", etc.), the
+named companies MUST come from the authoritative portfolio set. Compute that set by querying
+the Opportunities DB for `Status IN ("Active Portfolio", "Exited", "Committed")`. Note that
+`Portfolio: Follow-On` rows are a SUBSET of those companies — every FO entry's underlying
+company already appears under its `Active Portfolio` or `Exited` row, so do NOT add FO
+companies as separate names; dedup by company.
+
+Companies that surface in `DECISION_RETROS.md`, pass-note archives, the Notes DB, or anywhere
+else that captures Tom's analytical commentary are NOT portfolio. They may be referenced — but
+phrase them as "a deal Tom analyzed", "a comparable in the pipeline", or similar — never as
+"Inverted portfolio". Specific historical cases that have been miscategorized as portfolio
+include Clusia and Third Space (Tom analyzed and gave feedback on both; neither is portfolio).
+If you find yourself about to name a company you haven't verified against the live Opportunities
+DB query, stop and re-verify.
+
 **NEVER** use scorecard-style assessment labels like `**Assessment: STRONG FIT**` or
 `**Assessment: MODERATE-TO-STRONG**`. These reduce nuanced analysis to a rubric grade and strip
 out the reasoning that makes the section valuable. The assessment should emerge from the prose,
@@ -566,11 +582,15 @@ md_content = md_content.replace('\\n', '\n')   # literal \n two-char → real ne
 md_content = md_content.replace('\\"', '"')     # literal \" → real quote
 md_content = re.sub(r'\\+\$', '$', md_content) # \\$ or \\\$ → $
 md_content = re.sub(r'\\+~', '~', md_content)  # \\~ → ~ (tildes)
+md_content = md_content.replace('\\<', '<')     # \< → < (HTML tag opener)
+md_content = md_content.replace('\\>', '>')     # \> → > (HTML tag closer)
+md_content = md_content.replace('\\\\', '\\')   # \\ → \ (literal backslash) — apply LAST so prior rules don't double-strip
 ```
 
 Skipping these lines produces a broken PDF with literal `\n` characters everywhere, raw `\$50M`
-strings, and HTML table tags (`<table>`, `<tr>`, `<td>`) appearing as body text instead of
-rendered tables.
+strings, and HTML table tags rendered as escaped text (`\<table\>\<tr\>\<td\>...`) instead of
+actual tables. The `\<` / `\>` / `\\` rules were added 2026-04-27 after observing the Inlets
+first-pass output ship escaped table syntax through the entire 20-page comp section.
 
 **HTML table format:** Notion enhanced markdown uses `<table header-row="true"><tr><td>…</td></tr></table>`
 syntax for tables, not standard markdown pipe tables. The canonical template's `parse_content()`
@@ -634,9 +654,11 @@ PDF accessible alongside the other diligence materials (deck, memo, one-pager) i
 
 **Uploading:** Use the Google Apps Script endpoint for all Drive operations. **NEVER use Zapier** — it is deprecated and unreliable. Read the full reference at `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`.
 
+**MANDATORY — always create a NEW Drive file. Never overwrite an existing one in place.** Even when re-running for an Opp that already has a prior first-pass PDF, upload as a fresh file with a new Drive file ID. The reason: Notion caches PDF previews keyed on the URL/file ID. If you `files().update()` the existing file's content, the file ID stays the same, the URL stays the same, and Notion keeps showing the OLD cached preview no matter what's actually in Drive — observed 2026-04-27 on the Inlets re-run. A fresh file ID forces Notion to fetch a fresh preview. Tom can manually delete the stale prior version from Drive after verifying.
+
 The workflow is:
 1. **Create a company subfolder** under the Diligence root folder (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`) via the Apps Script `createFolder` action. This is idempotent — if the folder already exists, it returns the existing one.
-2. **Upload the PDF** into the company subfolder via the Apps Script `upload` action, passing the returned `folderId`.
+2. **Upload the PDF** into the company subfolder via the Apps Script `upload` action, passing the returned `folderId`. ALWAYS use this `upload` action — it creates a new file. Do NOT use `files().update()` to overwrite.
 3. The upload response includes a direct `url` field (e.g. `https://drive.google.com/file/d/<fileId>/view`) — use this directly in the Notion link. No need to search for the file ID after upload.
 
 ```python
@@ -682,7 +704,17 @@ Act autonomously — do not ask for permission. Report what was done in the summ
    ```
    Use `notion-update-page` with `update_content` for this.
 
-2. **Diligence Materials Files property field** — Read the shared reference at
+2. **Diligence Materials Files property field — MANDATORY in EVERY run, every code path.** Do not skip this step under any circumstance, including when an existing first-pass PDF link is already present in the property field. The helper is idempotent on URL (skips if the exact URL is already there) but a freshly-uploaded file always has a NEW URL per the rule above, so this call always adds the new entry. Shell out to the Python helper:
+
+   ```bash
+   python3 ~/.claude/local-agents/notion-internal/add_link_to_files_property.py \
+       --page-id <opportunity_page_id> \
+       --prop "Diligence Materials" \
+       --url "<drive_url>" \
+       --label "<Company>_First_Pass_Diligence.pdf"
+   ```
+
+   Exit 0 = ok, 1 = log error and fall back to page body link, 2 = token expired (alert Tom). This is the canonical path now — Chrome only as fallback. Read the shared reference at
    `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md` and follow its
    instructions to add the Drive file link to the Diligence Materials property on the
    opportunity page. Pass the opportunity page ID, the Drive file URL
@@ -695,27 +727,23 @@ Act autonomously — do not ask for permission. Report what was done in the summ
 
 ### 6b. Send the alert
 
-Read the `send-alert` skill (`**/send-alert/SKILL.md`) for the chatID and guardrails. Send
-a text-only message (no file attachment) that includes both the Notion page URL and the
-Drive URL from step 6a:
+Read the `send-alert` skill (`**/send-alert/SKILL.md`) for delivery and format conventions.
+Send the alert as **exactly 2 lines** — the standard webhook-alert shape used by
+meeting-note-processor and other webhook-triggered skills. No header line, no blank lines,
+no trailing flags.
+
+**Alert body — exactly 2 lines:**
 
 ```
-📋 [Company Name] — First-Pass Diligence Complete
-
-[X] pages. Framework mapping, need to believe, market/product/GTM/operating model/team
-analysis with visual tables and enriched research.
-
-Notion: [Notion page URL]
-PDF: [Drive file URL from step 6a]
-
-Key flags:
-- [Most important yellow flag or finding]
-- [Second key finding]
-- [Third key finding]
+🪏 <u>**First Pass Diligence: [<Company>](<opp URL>) ([PDF](<Drive PDF URL>))**</u>
+<one-liner summary>
 ```
 
-Include 3-4 of the most important flags or findings — the things Tom should know about before
-even opening the document. These should be specific and punchy, not generic summaries.
+Conventions:
+- **Line 1 — bolded title with two links.** `🪏` (pickaxe emoji) outside the wrapper, then `<u>**...**</u>` wrapping the title `First Pass Diligence: <Company> (PDF)`. The company name is hyperlinked to the Notion Opportunity URL (NOT the analysis page URL). The literal text `PDF` (in parens) is hyperlinked to the Drive PDF URL returned from step 6a.
+- **Line 2 — one-liner summary.** Plain text, no bold, no bullets, no links. 1–2 sentences max — what Tom needs to know before clicking through. Lead with the most important signal (e.g., "Strong founder fit + obvious market, but $3M seed is later than my typical entry — fund-fit pass.").
+
+If for any reason the PDF upload (step 6a) failed and only the Notion analysis exists, replace `([PDF](<Drive PDF URL>))` on line 1 with `([analysis](<Notion analysis URL>))` so the user always has one click-through. Do NOT skip the alert.
 
 ---
 

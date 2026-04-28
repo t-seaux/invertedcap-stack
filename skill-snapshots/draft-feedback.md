@@ -13,6 +13,12 @@ description: >-
   to Drive at draft-creation time; the webhook matches sent → snapshot by Gmail's
   persistent message ID (which survives subject/recipient/body edits).
 
+  After each pass-note send is fully processed, sends a single consolidated Slack
+  DM via `send-alert` confirming all three outcomes: Status flipped to Pass (Met),
+  Notes entry logged, and diff (or from-scratch voice) captured. Reads the
+  webhook's `_system/pass-note-results/<sentMsgId>.json` sidecar to verify the
+  status flip + archive actually happened.
+
   Trigger phrases for manual invocation (rare): "run draft feedback", "process
   draft queue", "drain feedback queue", "show recent edit patterns".
 

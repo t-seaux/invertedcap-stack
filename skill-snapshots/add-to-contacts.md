@@ -27,6 +27,18 @@ forwarded email containing someone's details.
 - **Database:** 🤝 People
 - **Data Source ID:** `1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`
 
+## Mode B (webhook): existing People row, LinkedIn URL populated
+
+When invoked with `{mode: "webhook", page_id: "<notion-page-id>"}`, the row already exists in the People DB — Tom (or another skill) created it and populated the `LI` (LinkedIn URL) property. The webhook (notion-webhook Cloudflare Worker, `people-li-populated` trigger) routes here. Do **not** create a new row, do **not** ask Tom anything, do **not** prompt for missing context.
+
+Behavior:
+1. Fetch the existing page by `page_id` and read its current state. If Name, Email, Company, Role, Category, City, and State are all already populated, log "already enriched" and exit.
+2. Read the row's `LI` URL. Run the standard Step 1 LinkedIn URL workflow against it — ContactOut MCP for email + profile photo, then Sales Nav fallback if needed.
+3. Skip the duplicate-name search at the top of the manual flow — the page_id IS the dedup answer; we are enriching a row Tom intentionally created.
+4. Update the existing page in place (`notion-update-page`) — never create a new one. Set the page icon from ContactOut's `profile_picture_url` if available.
+5. Apply the unattended-execution guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md` — never ask, skip-and-log on missing data, always reach Slack with a result line.
+6. On completion, post a single-line Slack alert via `send-alert` describing what was filled in.
+
 ## Fields to Populate
 
 | Field | Type | Source Priority | Notes |

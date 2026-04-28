@@ -74,6 +74,8 @@ Scan the skills directory to build a complete inventory.
      | `intro-resolution-reply` | `intro-agent` |
      | `intro-agent-inbound` | `intro-agent` |
      | `investor-update-inbound` | `investor-update` |
+     | `outreach-detector` | `pipeline-agent` |
+     | `outreach-decliner` | `pipeline-agent` |
 
    **Ad Hoc** — the skill is invoked manually by Tom (trigger phrase in chat, no cron, no webhook).
 
@@ -285,6 +287,8 @@ Each sub-row renders its own fused mode pill (most sub-rows light only one cell 
 | `pipeline-agent` | `intro-connected-detect` | W | Three-way intro inbound → flips matching opp Outreach → Connected. |
 | `pipeline-agent` | `calendar-scheduled-detect` | W | Calendar event with a pipeline company → flips opp to Scheduled. |
 | `pipeline-agent` | `materials-handler` | M | Downloads + Drive + Notion-links a deck, memo, or term sheet. |
+| `pipeline-agent` | `outreach-detector` | W | Tom-sent message to anyone in an Opp's contact graph → flips Qualified to Outreach. |
+| `pipeline-agent` | `outreach-decliner` | W | Tom-sent message declining an intro/investment offer → flips Qualified to Pass (DNM). |
 | `intro-agent` | `intro-agent-inbound` | W | Inbound intro-request email → creates Qualified entry on matching Opportunity. |
 | `intro-agent` | `log-intro` | M | "Intro X to Y" — manually creates a qualified intro target. |
 | `intro-agent` | `intro-outreach (webhook)` | W | Tom-sent email to a Qualified contact → promotes to Outreach stage. |
