@@ -61,12 +61,18 @@ One of: person's name, LinkedIn URL, or Notion page URL.
 
 **2. Run the precondition check** (above). Halt with a clear refusal message if anything is missing.
 
-**3. Delete-then-create pattern (handle existing drafts).**
-Gmail's `create_draft` does NOT dedupe — each call creates a new draft. To prevent stacking on iteration (e.g., Tom asks for wording changes), always check for and delete any existing draft for this recipient first:
-- Call `mcp__claude_ai_Gmail__list_drafts` with `query: "to:{email}"`
-- For each returned draft whose subject is `"Introducing Inverted Capital"`, run `/Users/tomseo/.claude/skills/shared-references/delete-gmail-draft.sh <hex_id>` using the draft's hex ID (from `list_drafts`, NOT the `r-XXXX` transaction ID).
-- Requires Chrome running + authenticated to Gmail + "Allow JavaScript from Apple Events" enabled.
-- See memory `feedback_gmail_draft_persistent_id.md` for full pattern.
+**3. Handle existing drafts (delete-old-after-Notion-points-to-new).**
+Gmail's `create_draft` does NOT dedupe. **Whenever a NEW draft is created (i.e., not editing an existing draft in place), the old draft MUST be deleted** so Tom's drafts folder shows one canonical draft per recipient. The webhook smartening shipped to `gmail-webhook` v73+ (2026-04-28) makes this safe: the pass-detection pipeline now compares the deleted draft's hex against the Notion row's current `Gmail Draft URL` — if they don't match, the discard event is recognized as orphan cleanup and ignored.
+
+Sequencing matters — this is the safe ordering:
+1. Call `mcp__claude_ai_Gmail__list_drafts` with `query: "to:{email}"` to detect existing drafts.
+2. Create the NEW draft first (Step 7) and capture its persistent hex (Step 8).
+3. **Update Notion's `Gmail Draft URL` to the NEW hex (Step 10).** This MUST happen before the deletion. The webhook's URL-match check reads Notion at the time the deletion event is processed; if Notion still points to the OLD hex when the delete fires, the smartening sees a "match" and treats it as a real Tom-discard.
+4. Only THEN delete the prior draft via `/Users/tomseo/.claude/skills/shared-references/delete-gmail-draft.sh <old_hex>`. The webhook fires `messageDeleted(old_hex)`, looks up Notion, sees URL contains NEW hex (not OLD) → mismatch → skip-not-active-draft → no spurious pass.
+
+**Edit-in-place exception (future):** if the skill ever uses Gmail's `users.drafts.update` API to mutate an existing draft in place, no deletion is needed (and the webhook smartening also handles the same-batch `messagesAdded(DRAFT)` companion event). Today the skill uses `create_draft` only, so this path is not yet active.
+
+See memories `feedback_workshop_iteration_not_pass.md` and `feedback_gmail_draft_persistent_id.md`.
 
 **4. Read the outreach stylebook.**
 - `~/.claude/skills/writing-style/outreach/STYLE.md` — canonical scaffold + hyperlinks + formatting rules + personalization principle + anti-patterns. Read in full.
@@ -126,6 +132,8 @@ Use the `Write` tool — Drive Desktop syncs the file to the cloud automatically
 **10. Update Notion**:
 - `Gmail Draft URL` → `https://mail.google.com/mail/u/0/#drafts/<hex_id>`
 - `Status` → `"Draft Ready"`
+
+**Both writes are MANDATORY on every invocation, including the 2nd/3rd/Nth iteration during a workshop session.** Defensive belt-and-suspenders — primary fix is Step 3's iteration-aware skip-deletion, but re-asserting Status here protects against any other event that might have flipped it. See memory `feedback_workshop_iteration_not_pass.md`.
 
 **Leave unchanged**: everything else (Eval Score, Eval Breakdown, Signals, Claude Rec, Eval Summary, Working Description — all of which were written by `neg1-enricher` and are out of scope here). The legacy `Email Draft` Notion property is no longer used — the snapshot lives in Drive instead.
 

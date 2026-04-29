@@ -183,7 +183,7 @@ Apply the framework in two phases:
 
 **Phase 1 — derive HIGH-fidelity signals from already-ingested structured data:**
 - **Non-Linearity**: count function/discipline crossings across `experience[].job_function` + title transitions.
-- **Earned Reps**: cross-reference `experience[]` tenure × Companies DB Hypergrowth Windows (round-cadence-derived) AND Headcount/HC Commentary (Sales Nav scrape) — score 9/10 if hypergrowth-during-tenure with evolution; 0 if drift.
+- **Earned Reps**: cross-reference `experience[]` tenure against the highest-fidelity hypergrowth signal available, in priority order (per FOUNDER_EVAL_FRAMEWORK.md §Signal 2): (1) **Current Company Momentum** rollup on the -1 Scanner row — pulls Deal Digest revenue traction directly from the primary employer's Companies DB row, no extra hop required; (2) Companies DB Headcount + HC Commentary (Sales Nav scrape); (3) Companies DB Hypergrowth Windows (funding-round cadence). When tenure overlaps best-in-class peer-tier ramp (e.g., 6-10x+ YoY ARR for early-stage), score 9/10. Apply sector-difficulty multiplier (health systems, public sector, defense, regulated finance) when the traction was earned in a hard buyer environment.
 - **Range**: triple intersection of `job_function` × `industry` across employers (Technical / Commercial / Domain).
 
 **Phase 2 — narrative research for LOW–MED fidelity signals (only if Phase 1 doesn't already disqualify):**

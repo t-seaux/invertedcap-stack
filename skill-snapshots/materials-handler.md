@@ -89,8 +89,8 @@ Posted via the `send-alert` skill. Format (Slack mrkdwn):
 ## Critical Operating Principles
 
 1. **Act autonomously** — never ask Tom clarifying questions. Make reasonable decisions and proceed. If something is ambiguous, pick the most likely interpretation and note the assumption in the summary.
-2. **Notion links go in TWO places, always** — the page body `📎 Diligence Materials` section AND the Diligence Materials Files property field. The property field is populated via Notion's internal `/api/v3/saveTransactions` endpoint, driven by osascript + Chrome (the default path in Claude Code) or Chrome MCP's `javascript_tool` if available. The public Notion API cannot set external URLs in Files properties. Do not skip the property field because "Chrome MCP is unavailable" — osascript is the bridge.
-3. **osascript + Chrome is the default bridge, not a fallback** — on Tom's Mac, any step that would use Chrome MCP's `javascript_tool` runs through `osascript` driving the active Chrome tab. Navigate the tab to the target Notion page, fire an async JS IIFE that stashes its result in `window._notionResult`, then poll. See `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md` and `/Users/tomseo/.claude/projects/-Users-tomseo/memory/feedback_notion_internal_api.md` for the exact pattern. Only skip the property-field step if Chrome itself is not running — and even then, try launching it.
+2. **Notion links go in TWO places, always** — the page body `📎 Diligence Materials` section AND the Diligence Materials Files property field. The property field is populated via Notion's internal `/api/v3/saveTransactions` endpoint. The public Notion API cannot set external URLs in Files properties. Never skip the property field.
+3. **Headless Python script is the default for Files-property writes** — shell out to `~/.claude/local-agents/notion-internal/add_link_to_files_property.py` (token_v2 cookie + `/api/v3/saveTransactions`). No Chrome required, runs cleanly in scheduled / unattended / job-queue contexts. See `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md` for the canonical interface and exit codes. Chrome+osascript is now a **fallback** path, used only when the Python helper hits TOKEN_EXPIRED (exit 2) and an interactive Chrome tab is already attached.
 4. **Four delivery paths for materials**:
    - **Gmail attachment** → Gmail Attachment Saver Apps Script → saves directly to the target Drive folder, returns `fileId` and `url` → link in Notion
    - **DocSend link** → Python convert (`requests` + `Pillow`) → save to `/Users/tomseo/Downloads/` → upload to Drive via Drive Upload Apps Script
@@ -160,7 +160,7 @@ Classify each relevant email's materials into **delivery categories** (how to fe
 - **DocSend link** (URL matching `docsend.com/view/`)
 - **Direct file URL** (Google Drive share link, Dropbox link, raw PDF URL)
 - **Data room link** (DocSend `/view/s/` or similar multi-doc container)
-- **Link-only / non-convertible** (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
+- **Link-only / non-convertible** (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, **Brieflink (`brieflink.com`)**, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
 
 **Destination category** (drives Step 4 chip routing — see "Property Routing" below):
 - **Diligence Materials** (default) — evaluation artifacts: pitch decks, memos, one-pagers, case studies, investor updates, financial/operating models, customer references, product demos.
@@ -248,12 +248,12 @@ Use this path when the email *body itself* is the material — no attachment, no
 4. Name the PDF `[Company Name] - [Descriptive Label].pdf`. For investor updates, derive the label from the subject (e.g. "Week 20 Investor Update"). Don't include emojis or special punctuation in the filename.
 5. Upload to the company's Diligence subfolder via the Drive Upload Apps Script (same `createFolder` → `upload` pattern). Use the returned `fileId` / `url` for Notion linking.
 
-### 3E: Link-only / Non-convertible Materials (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, etc.)
+### 3E: Link-only / Non-convertible Materials (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, Brieflink, etc.)
 
 Use this path for interactive/hosted materials that can't be cleanly downloaded or PDF-rendered. Skip Drive entirely — the external URL itself is the canonical artifact and goes directly into both Notion locations (page body bullet AND Diligence Materials property field).
 
-1. **Do NOT attempt to download, headless-render, or DocSend-convert these URLs.** Figma decks and Miro boards don't print usably via Chrome headless, and Loom/Pitch.com require auth or JS interactivity that breaks conversion. Trying wastes time and produces a broken artifact.
-2. **Derive a display label** from the email subject or URL slug: `[Company] - Deck (Figma)`, `[Company] - Brainstorm (Miro)`, `[Company] - Walkthrough (Loom)`, etc. Keep the parenthetical platform tag — it tells a future reader why the link is external instead of Drive-hosted.
+1. **Do NOT attempt to download, headless-render, or DocSend-convert these URLs.** Figma decks and Miro boards don't print usably via Chrome headless, and Loom/Pitch.com/Brieflink require auth or JS interactivity that breaks conversion. Trying wastes time and produces a broken artifact.
+2. **Derive a display label** from the email subject or URL slug: `[Company] - Deck (Figma)`, `[Company] - Brainstorm (Miro)`, `[Company] - Walkthrough (Loom)`, `[Company] - Deck (Brieflink)`, etc. Keep the parenthetical platform tag — it tells a future reader why the link is external instead of Drive-hosted.
 3. **Page body bullet** — see format in Step 4.
 4. **Property field** — the external URL goes into the Diligence Materials Files property directly (Step 4's "always link the specific file URL" rule is relaxed for this path; see Step 4 for details).
 

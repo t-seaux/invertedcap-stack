@@ -170,7 +170,14 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 
 ### Property Rules
 
-- `Status`: Infer from the full thread state. Default is `Qualified` when the deal is only surfaced (a forward, a LinkedIn URL, a pasted profile) with no outreach yet. Move to `Outreach` when Tom has replied or initiated contact but no response yet. Move to `Connected` when the founder has replied and the conversation is live but unscheduled. Move to `Scheduled` when a call is actually booked (Blockit/Calendly confirmation, calendar invite, or explicit time agreed in-thread). Read the full Gmail thread before deciding — never default to `Qualified` without first checking whether the thread already shows later-stage progression. If the user specifies a status explicitly, honor that instead.
+- `Status`: Infer from the full thread state. Defaults by source type:
+  - `Qualified` — deal is only **surfaced**: a forward of someone else's content, a LinkedIn URL, a pasted profile, a tip from a third party. No founder contact has occurred yet.
+  - **`Connected` — cold inbound founder email** (deal-scanner webhook path, `forwardedFromTom: true`, or any inbound-deal-detect-originated invocation). The founder pinged Tom directly and the email landed in his inbox; Tom is in a live thread with the founder from message #1, even before he replies. Do NOT use Qualified for these.
+  - `Outreach` — Tom has replied or initiated contact but no response yet (only relevant for non-founder-initiated paths).
+  - `Connected` — for non-cold-inbound paths, when the founder has replied to Tom's outreach and the conversation is live but unscheduled.
+  - `Scheduled` — a call is actually booked (Blockit/Calendly confirmation, calendar invite, or explicit time agreed in-thread).
+
+  Read the full Gmail thread before deciding — never default to `Qualified` without first checking whether the thread already shows later-stage progression OR whether the founder is the original sender. If the user specifies a status explicitly, honor that instead.
 - `date:Close Date:start`: Set to the scheduled call date when Status is `Scheduled` (this anchors the pipeline agent's close-date logic). Leave blank otherwise — the pipeline agent will manage close dates for earlier stages.
 - `Website`: Infer from source material (email body links, founder email domain if company domain). `N/A` if unavailable.
 - `Contact`: Set to the founder's email if found (per Step 3 priority order). **Never leave this field empty/blank** — if no email is found after all lookup attempts, always set to `N/A`.
@@ -234,7 +241,7 @@ Read the `materials-handler` skill at `/Users/tomseo/.claude/skills/materials-ha
 
 - **Company name**: the opportunity title just created
 - **Notion page ID**: the page ID returned by `notion-create-pages`
-- **Material URLs**: any DocSend links, Google Drive links, Dropbox links, or direct PDF URLs extracted from the source material in Step 1
+- **Material URLs**: any deck or material URL extracted from the source — DocSend links, Google Drive links, Dropbox links, direct PDF URLs, AND third-party deck-sharing platforms (`brieflink.com`, `pitch.com`, `decko`, similar). Pass all of them; the materials-handler decides whether to convert-to-PDF or link as-is.
 - **Gmail message ID**: if the source was a forwarded email, pass the message ID so materials-handler can find and process attachments
 - **Pre-saved file IDs** (if Step 1B ran): pass the Drive file IDs and URLs so materials-handler skips re-uploading
 
@@ -245,8 +252,9 @@ The materials-handler skill will determine whether Chrome is available and execu
 - Gmail attachments → Apps Script endpoint → saves directly to Diligence folder → link in Notion property + body
 - DocSend links → Python PDF conversion → Drive upload → link in Notion
 - Direct file URLs (Google Drive, Dropbox, raw PDF) → Drive upload or direct linking
+- **Third-party deck-sharing URLs (brieflink.com, pitch.com, etc.)** → no PDF conversion attempted; link the URL as-is in the Notion Diligence Materials property field
 - Notion page body Diligence Materials section (append or create)
-- Notion Diligence Materials property field (Chrome-only)
+- Notion Diligence Materials property field (Chrome-only) — populated for ALL deck/material URLs, not just converted PDFs. The property field is Tom's actionable surface; never skip it just because the URL didn't fit a PDF-conversion path.
 - Graceful fallback to Gmail deep links + "pending upload" notes when Chrome is unavailable
 
 ### What add-to-crm still handles

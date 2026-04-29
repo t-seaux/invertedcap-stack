@@ -2,6 +2,20 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-29] (Week of 2026-04-27)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `add-to-crm` -- restructured the Status defaulting rules to distinguish source types: `Qualified` only for surfaced (forwarded/pasted) deals, `Connected` for cold inbound founder emails (deal-scanner webhook path) where Tom is in a live thread from message #1, and `Outreach`/`Connected`/`Scheduled` per existing rules for non-cold-inbound paths. Expanded the deck-URL passthrough to include third-party deck-sharing platforms (brieflink.com, pitch.com, etc.) — all extracted URLs now flow to materials-handler, which decides convert-vs-link-as-is. Property-field linking is now mandatory for ALL deck/material URLs, not just converted PDFs.
+- `founder-outreach` -- replaced the delete-then-create draft pattern with a delete-old-after-Notion-points-to-new sequencing: the new draft is created first, Notion's `Gmail Draft URL` is repointed to the new hex, and only then is the prior draft deleted. The webhook smartening shipped in gmail-webhook v73+ uses Notion's URL match to recognize orphan-cleanup deletes and ignore them, preventing spurious pass detection during workshop iteration. Belt-and-suspenders Status re-assertion added on every invocation.
+- `materials-handler` -- promoted the headless Python helper (`add_link_to_files_property.py`) to the canonical path for Notion Files-property writes; it shells out to Notion's internal `saveTransactions` endpoint with a token cookie, runs cleanly in scheduled / unattended / job-queue contexts, and no longer requires Chrome. The osascript+Chrome path is now a fallback used only when the Python helper hits TOKEN_EXPIRED. Added Brieflink to the link-only / non-convertible platform list (alongside Figma, Miro, Loom, Pitch.com, Canva, Notion.site).
+- `neg1-enricher` -- restructured the Earned Reps signal to read the highest-fidelity hypergrowth source available, in priority order: (1) the Current Company Momentum rollup on the -1 Scanner row, which pulls Deal Digest revenue traction directly from the primary employer's Companies row; (2) Sales Nav Headcount + HC Commentary; (3) funding-round cadence (Hypergrowth Windows). When tenure overlaps best-in-class peer-tier ramp, score 9/10. Added a sector-difficulty multiplier for tenure earned in hard buyer environments (health systems, public sector, defense, regulated finance).
+**Total skills:** 23
+**Functions:** No changes
+
+---
+
 ## [2026-04-28] (Week of 2026-04-27)
 
 **Added:** None
