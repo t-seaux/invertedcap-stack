@@ -193,7 +193,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
 1. Find Qualified opportunities via `notion-query-database-view` with `view_url: "https://www.notion.so/tomseo/5fa871c765d74251b8f96b63f248ef25?v=32900beff4aa81f2bfa1000c15e327e1"`. This view is pre-filtered to Status = Qualified — no verification fetches needed. All results are guaranteed Qualified.
 2. For each, note company/founder/Source names and Contact emails.
 3. Search Gmail (past 3 days) for intro status signals. Acceptance: "happy to intro", "connecting you", "looping in". Decline: "not a fit", "pass", "decline".
-4. **Direct outreach detection (reconciler fallback)**: Also check Tom's Gmail sent mail for direct emails to Qualified deal founders. Run a batch query: `in:sent to:(<email1> OR <email2> OR <email3>) newer_than:3d`. If Tom has sent a message directly to a founder, this is a direct outreach signal — move to **Outreach** (not Connected). This catches webhook-missed cases; the `outreach-detector` gmail-webhook handler is the primary path for Qualified→Outreach.
+4. **Direct outreach detection (reconciler fallback)**: Also check Tom's Gmail sent mail for direct emails to Qualified deal founders. Run a batch query: `in:sent -is:draft to:(<email1> OR <email2> OR <email3>) newer_than:3d`. The `-is:draft` is mandatory — Gmail's `in:sent` can surface drafts in some thread configurations, and treating a draft as a send misclassifies the row. If Tom has sent a message directly to a founder, this is a direct outreach signal — move to **Outreach** (not Connected). This catches webhook-missed cases; the `outreach-detector` gmail-webhook handler is the primary path for Qualified→Outreach.
 5. Update via `notion-update-page`. **Before updating Status, verify current status is not Active Portfolio, Portfolio: Follow-On, Exited, or Committed — if it is, skip and note "skipped — protected status."** Ambiguous → leave as-is.
 6. Return concise summary (under 500 chars): include any Qualified→Outreach moves from direct outreach detection alongside intro acceptance/decline results.
 
@@ -390,7 +390,7 @@ Spawn with `Task` tool.
    Extract each row's: Notion page ID, Name, Email, Last Enriched date.
 
 2. **Scan Gmail sent mail** for outreach notes sent to these candidates. For each row, run a targeted query:
-   `in:sent to:{email} subject:"Introducing Inverted Capital" after:{Last Enriched date}`
+   `in:sent -is:draft to:{email} subject:"Introducing Inverted Capital" after:{Last Enriched date}`. The `-is:draft` is mandatory — drafts can leak into `in:sent` thread results and treating a draft as a send misclassifies the row.
    
    If any results are returned, the outreach was sent. Fuzzy match: also accept variations like "Intro to Inverted Capital", "Inverted Capital — intro", etc. If the subject starts with "Re:" or "Fwd:", treat as a reply, NOT an initial send.
 

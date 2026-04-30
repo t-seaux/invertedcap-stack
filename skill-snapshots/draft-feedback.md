@@ -41,7 +41,7 @@ Drafter (founder-outreach / pass-note-drafter)
         │
         │ on draft creation: write snapshot
         ▼
-Drive: draft-snapshots/<msg_id>.json     ← syncs via Drive Desktop
+Drive: _system/draft-snapshots/<msg_id>.json     ← syncs via Drive Desktop
         │
         │ Tom edits + sends in Gmail
         ▼
@@ -80,7 +80,7 @@ Two operational modes, one shared infra:
 Each drafter, after creating a Gmail draft, writes a JSON snapshot to Drive:
 
 ```
-~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/draft-snapshots/<hex_msg_id>.json
+~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/_system/draft-snapshots/<hex_msg_id>.json
 ```
 
 Schema:
@@ -103,7 +103,7 @@ Drive Desktop syncs to the cloud within seconds. See each drafter's SKILL.md (St
 
 `~/.claude/skills/shared-references/gmail-webhook-code.gs` — deployed in the gmail-webhook Apps Script project. On every Gmail SENT event:
 
-**Track 1 — diff mode (snapshot exists).** Look up `draft-snapshots/<msg.id>.json`. If found, queue:
+**Track 1 — diff mode (snapshot exists).** Look up `_system/draft-snapshots/<msg.id>.json`. If found, queue:
 
 ```json
 {
@@ -159,7 +159,7 @@ On failure: leave queue entry in place — next run retries.
 
 ### 4. 30-day TTL purge
 
-Apps Script `purgeOldSnapshots` runs daily (manual trigger setup required), trashes any snapshot in `draft-snapshots/` older than 30 days. Catches drafts Tom never sent (forgot, decided not to reach out, etc).
+Apps Script `purgeOldSnapshots` runs daily (manual trigger setup required), trashes any snapshot in `_system/draft-snapshots/` older than 30 days. Catches drafts Tom never sent (forgot, decided not to reach out, etc).
 
 ## Drafter consumption
 
@@ -182,7 +182,7 @@ To inspect queue state:
 
 ```bash
 ls "$HOME/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/draft-feedback-queue/"
-ls "$HOME/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/draft-snapshots/"
+ls "$HOME/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/_system/draft-snapshots/"
 ```
 
 To inspect launchd status:

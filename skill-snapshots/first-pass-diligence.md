@@ -119,7 +119,32 @@ to convert the DocSend document to a local PDF. Once converted, read the resulti
 `read_pdf_bytes` using the local file path. DocSend data rooms (multi-document links) should
 have each document converted individually.
 
-### 1d. Read Tom's Investment Framework Memos
+### 1d. Gather Founder-Specific Evidence
+
+For each founder named on the Opportunity (extract from the Opportunity page properties and the
+team section in the page body), assemble a per-founder evidence packet that feeds Section 5's
+Founder Evaluation. The same evidence is also useful elsewhere in the analysis (Founder-Market
+Fit, Team Dynamics & Composition), but Section 5 is the primary consumer.
+
+- **Raw LinkedIn profile scrape.** For each founder's LinkedIn URL, navigate Chrome to the
+  profile and extract `document.body.innerText` (LinkedIn renders client-side — do NOT
+  `fetch()`; the HTML response is a shell). Capture the full About section, every Experience
+  entry with descriptions, Education, recommendations, posts, and articles. Raw scrape is
+  preferred over a structured ContactOut pull because how the founder phrases their own work
+  is itself signal — nuance gets compressed in structured fields.
+- **Founder bio / profile artifacts from Diligence Materials.** Cross-reference 1c — flag any
+  deck slides, one-pagers, memos, or DocSend pages that contain a founder bio or photo as
+  inputs to Section 5.
+- **Linked Notes that touch on founders.** Cross-reference 1b — call transcripts and Tom's
+  notes from those calls are the highest-fidelity input. Title patterns + body content
+  disambiguate raw transcripts (Granola/Zoom auto-summaries, "Call with X") from Tom's
+  synthesized notes; both are valid inputs.
+
+If a founder's LinkedIn URL is not on the Opportunity, attempt to find it via web search
+(`"<founder name>" "<company>" site:linkedin.com/in`). If still not findable, note the gap
+explicitly in Section 5 — the evaluation runs with whatever evidence is available.
+
+### 1e. Read Tom's Investment Framework Memos
 
 List all files in the Google Drive investment memos folder (`1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`)
 using `google_drive_search` or by listing the folder contents. Then read **every memo** in the
@@ -162,6 +187,14 @@ rather than leaving them as generic unknowns. Typical research areas:
   public
 - **Customer population** — sizing the target segment with demographic and economic data
 - **Technology landscape** — infrastructure maturity, data availability, API ecosystem
+- **Founder online presence** — for each founder named on the Opportunity, research public
+  artifacts: personal website, blog, podcasts/talks, conference appearances, public posts on
+  X/LinkedIn, and any artifacts associated with companies they were at (engineering blogs,
+  product launches, internal-team interviews, talks given while there). Mirrors the Phase 2
+  online research from `neg1-enricher` Step 4.5. Capture URLs and the highest-signal
+  pull-quotes — these feed Section 5's Founder Evaluation. If a founder has no discoverable
+  online presence after a deeper search pass, note the absence — it is itself signal for
+  Intellectual Rigor scoring.
 
 When research findings contradict founder claims, flag this explicitly. The gap between what
 the founder says and what independent research shows is one of the most valuable outputs of
@@ -185,7 +218,7 @@ The analysis follows this exact structure:
 
 **Framework Mapping — Inverted Lens**
 Evaluate the opportunity against the Inverted Lens frameworks that are most relevant to this
-specific deal. The full menu is documented in Step 1d — select whichever apply with force
+specific deal. The full menu is documented in Step 1e — select whichever apply with force
 based on the evidence, not a fixed set.
 
 Open with a brief preamble paragraph (2-4 sentences) explaining which frameworks were selected
@@ -302,10 +335,85 @@ Three subsections: Founder-Market Fit, Team Dynamics & Composition, Founder Eval
 Inverted Lens. Include a team experience table.
 
 The **Founder Evaluation Through the Inverted Lens** subsection is required — do not skip it.
-This evaluates the founders specifically against the Inverted frameworks (intentionality and rigor,
-intellectual honesty, data asset as moat driver, slope over y-intercept, etc.) with evidence from
-the diligence record. It should reference specific moments from the calls, how the pitch evolved
-between conversations, and where intellectual honesty has or hasn't been tested.
+This is the structured per-founder evaluation against Tom's Founder Eval Framework, distinct
+from Founder-Market Fit (founder + market match) and Team Dynamics & Composition (team
+makeup, skills, gaps).
+
+**Read the framework fresh.** Open
+`/Users/tomseo/.claude/skills/founder-outreach/FOUNDER_EVAL_FRAMEWORK.md` at the start of this
+subsection and apply whatever signals §5.A currently defines, with thresholds and anchors from
+§6. The signal set evolves — do NOT hardcode a list from prior runs or from the
+`neg1-enricher` skill description. Whatever the current framework says, that's what you score
+against.
+
+**Inputs (in priority order, all gathered upstream):**
+1. **Linked Notes — call transcripts and Tom's notes** (Step 1b). Transcripts are primary —
+   live, unfiltered conversation; quote specific moments verbatim where they support a signal.
+   Tom's synthesized notes are second-tier signal (they reflect his real-time read).
+2. **Founder bio / profile slides from Diligence Materials** (Step 1c).
+3. **Raw LinkedIn profile scrape** (Step 1d).
+4. **Founder online presence research** (Step 2 — personal site, blog, talks, podcasts, public
+   posts, company-of-record artifacts).
+
+Transcripts and Tom's notes are primary; web evidence extends and corroborates. When they
+diverge on a given signal, the divergence is itself the diligence finding.
+
+**Hard separation from -1 Scanner.** Run this evaluation from scratch every time, even if the
+founder was previously sourced through the -1 Scanner. The -1 Scanner is a top-of-funnel
+sourcing artifact built on web-only evidence; first-pass diligence is its own analysis built
+on a richer, transcript-grounded base. Do NOT pull, link, or reference prior -1 Scanner
+scoring in this subsection.
+
+**Per-founder block structure.** Each founder named on the Opportunity gets a separate block
+in this order: primary founder first (CEO if titled, otherwise the founder doing most of the
+talking on calls), then co-founders. Within each block, write three sub-blocks in this exact
+order:
+
+***1. Headline — Working Description + Claude Rec.*** Open the block with `### [Founder Name]`,
+then immediately:
+- **Working Description** — 2-3 sentence TL;DR anchored on the founder's peak signal. Same
+  shape as `neg1-enricher`'s Working Description field.
+- **Claude Rec** — `Reach Out ✅` (peak ≥ 7), `Second Look 🤔` (peak 4–6), or `Pass ❌`
+  (peak 0–3) per FOUNDER_EVAL_FRAMEWORK.md §6.5. Note: at first-pass stage Tom is already in
+  conversation, so interpret Claude Rec as a read on founder caliber within the diligence
+  picture — not as a literal "should I reach out?" instruction.
+
+***2. Per-signal scoring + Spike Summary (the double-click).*** For each signal currently
+defined in §5.A of the framework, write a sub-block:
+
+```
+**[Signal Name] — [score]/10**
+[2-3 sentence rationale weaving transcript/notes evidence with web evidence. Lead with
+transcript when present — cite specific moments: what was asked, what was said, in which
+call. Cite the URL when web evidence extends or corroborates. If transcript and web diverge,
+flag the divergence here AND surface it again in Conflict Callouts below.]
+```
+
+After the per-signal sub-blocks, close with a **Spike Summary** paragraph: name the peak
+signal, restate the score, and explain in 2-3 sentences why this signal is the thesis anchor
+for this founder. Bold the peak-signal sentence.
+
+***3. Conflict Callouts.*** Final sub-block of each founder block. List every inconsistency
+surfaced during scoring — places where the founder's verbal framing diverges from the public
+record, where two transcripts contradict each other, where claimed achievements don't appear
+in LinkedIn or third-party coverage, or where the live narrative has shifted across calls.
+Each callout is a bulleted item:
+- A bold one-line label naming the inconsistency.
+- 1-2 sentences laying out both sides with sources (which call, which URL).
+
+If no inconsistencies surfaced, write a single line: *No notable inconsistencies between
+conversational framing and public record.* Do NOT fabricate to fill space — absence is itself
+a signal that the public and private narrative cohere.
+
+**Solo-founder handling.** If the company is solo-founder, run the per-founder block once and
+skip the Team Dynamics rollup below. Replace it with a single-paragraph note on solo-founder
+execution risk and what hires would derisk it.
+
+**Team Dynamics rollup (multi-founder only).** After the per-founder blocks, close the
+subsection with a short **Team Dynamics** paragraph (best-effort v1 — iterate from feedback).
+Considerations: complementarity of spikes (e.g., one founder is a Range/Earned Reps spike,
+the other is Intellectual Rigor — does the team cover the surface area), who appears to be
+lead in calls, gaps the team doesn't fill that the next hire needs to.
 
 **6. Risks**
 Isolate the most plausible failure modes, framed as specific mechanisms by which the thesis breaks.
@@ -635,7 +743,7 @@ Save the PDF to the outputs directory: `[Company]_First_Pass_Diligence_MM.DD.YYY
 (replace spaces in company name with underscores).
 
 The PDF header should be:
-- **Title (14pt bold):** `[Company Name] — First-Pass Diligence`
+- **Title (14pt bold):** `[Company Name]: First-Pass Diligence`
 - **Subtitle (9pt italic, dark gray):** `[Date] | Notion` (where "Notion" is a clickable
   hyperlink to the Notion page URL)
 

@@ -84,7 +84,6 @@ These are firms/investors Tom actively tracks. Search for each by name. Organize
 | Duquesne Family Office (Stanley Druckenmiller) | Published commentary, interview transcripts, conference remarks |
 | Appaloosa Management (David Tepper) | Quarterly letters (rare but notable when published) |
 | Crescat Capital (Kevin Smith / Tavi Costa) | Quarterly letters, macro research notes |
-| Hussman Funds (John Hussman) | Weekly market commentary (hussmanfunds.com) |
 | Marathon Asset Management (London) | Capital cycle research, published investment perspectives |
 | Gavekal Research (Louis-Vincent Gave) | Published research pieces, macro frameworks |
 
@@ -141,11 +140,19 @@ These are institutional research voices that publish substantive, publicly acces
 | Goldman Sachs — "Top of Mind" | Thematic deep-dives (irregular, publicly available when published). Search: `Goldman Sachs "Top of Mind"` |
 | Morgan Stanley — Global Investment Committee | Published outlooks and strategy notes. Search: `Morgan Stanley "Global Investment Committee" letter OR outlook` |
 
+### CEO / Leadership Letters
+
+These are CEO-authored annual letters from firms whose voice carries broad market weight, even when the firm itself isn't a public-equity manager Tom would otherwise track.
+
+| Firm / Author | What to look for |
+|---|---|
+| BlackRock (Larry Fink) | Annual Chairman's Letter to Investors (typically January–April) |
+| JPMorgan Chase (Jamie Dimon) | Annual Letter to Shareholders (typically March–April) |
+
 ### Influential Thinkers (Not Traditional Fund Letters)
 
 | Person / Organization | What to look for |
 |---|---|
-| Aswath Damodaran (NYU) | Blog posts, valuation analyses, published musings |
 | Michael Mauboussin (Morgan Stanley / Counterpoint Global) | Research reports, published papers |
 
 ### Venture Capital (Secondary Priority)
@@ -166,6 +173,32 @@ These are lower priority than the public equity managers above, but still worth 
 ## Tier 2: Discovery Layer
 
 After scanning the curated list, run broader searches to surface letters from firms NOT on the Tier 1 list. The goal is to catch compelling new voices — especially public equity managers with contrarian or differentiated perspectives that Tom hasn't encountered before.
+
+### Tier 2 Deny-List (Do Not Surface)
+
+Tom has reviewed and rejected these firms — they are **not interesting** for his research scan and must be filtered out of Tier 2 / discovery output. If a search result matches any name below, drop it silently (do not include in the digest, do not flag as a "promotion candidate"). Tom curates this list iteratively — when he flags additional firms as not interesting, append them here.
+
+- Ariel Investments (all funds — Ariel Fund, Ariel Focus Fund, Ariel Small Cap Value Fund, etc.)
+- ByteTree
+- Carillon Tower Advisers (incl. Carillon Eagle Mid Cap Growth Fund)
+- Conestoga Capital Advisors
+- Fiduciary Management Inc.
+- Greystone Capital
+- Henchmen Partners
+- Hotchkis & Wiley (all funds)
+- Hussman Funds
+- JB Global Capital
+- Laughing Water Capital
+- Lawrence Lepard / Equity Management Associates
+- Montaka Global Investments
+- Nightview Capital
+- Praetorian Capital
+- Rowan Street Capital
+- Value Guinea (GVI)
+- Wedgewood Partners
+- White Brook Capital
+
+
 
 ### Discovery Search Queries
 
@@ -221,11 +254,13 @@ For each firm/investor on the Tier 1 list, search the web using `WebSearch` with
 - `"quarterly letter Q[current quarter] [current year]"`
 - `"annual letter [current year]" investor`
 
-Then fill in firm-specific searches only for firms that weren't already covered by the catch-all results. Prioritize the firms that publish most frequently (Howard Marks, Hussman, Damodaran, Bronte Capital) since they're most likely to have something new on any given day.
+Then fill in firm-specific searches only for firms that weren't already covered by the catch-all results. Prioritize the firms that publish most frequently (Howard Marks, Damodaran, Bronte Capital) since they're most likely to have something new on any given day.
 
 ### Step 2: Tier 2 — Run Discovery Queries
 
 After completing Tier 1, run the discovery queries defined above. Deduplicate against Tier 1 results — if a discovery query surfaces a letter from a Tier 1 firm, skip it (already captured). Limit to ~8-10 discovery queries per scan to keep execution time reasonable — prioritize the highest-signal query patterns.
+
+**Apply the Tier 2 Deny-List**: Before including any discovery result in the digest, check the firm name against the Tier 2 Deny-List defined above. If matched, drop the result silently — no entry in the digest, no "promotion candidate" flag. The deny-list is the canonical record of firms Tom has explicitly rejected.
 
 ### Step 3: Validate Results
 
@@ -285,7 +320,7 @@ Return results in this format:
 
 - **Rate limiting**: If WebSearch or WebFetch encounters rate limits, note which firms couldn't be checked and move on. Don't let one failure block the rest.
 - **Paywalled content**: Some letters (e.g., Baupost, Elliott) are not publicly available. If a search result references a letter behind a paywall, note the letter exists and provide the source URL, but flag that the full text is paywalled.
-- **Blog posts vs. formal letters**: For firms like Bronte Capital, Hussman Funds, Aswath Damodaran, and Union Square Ventures, the output is often blog posts rather than traditional investor letters. Include these if they are substantive thought pieces (not product announcements or event promotions).
+- **Blog posts vs. formal letters**: For firms like Bronte Capital, Aswath Damodaran, and Union Square Ventures, the output is often blog posts rather than traditional investor letters. Include these if they are substantive thought pieces (not product announcements or event promotions).
 - **False positives**: Search results may surface old letters or articles *about* letters rather than the letters themselves. Always verify the publication date before including in the digest.
 - **Multiple letters from one firm**: If a firm published multiple letters in the same period, include all of them as separate entries.
 - **Discovery duplicates**: A Tier 2 discovery may surface a firm that should probably be on the Tier 1 list. Flag it as a "candidate for Tier 1 promotion" in the output so Tom can decide whether to add it to the curated list.

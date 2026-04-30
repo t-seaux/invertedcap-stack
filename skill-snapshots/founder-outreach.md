@@ -108,7 +108,7 @@ Follow the career-signal-sentence + no-agenda-frame structure in writing-style/o
 Build a snapshot JSON capturing the initial draft state and write it to:
 
 ```
-~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/draft-snapshots/<hex_id>.json
+~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/_system/draft-snapshots/<hex_id>.json
 ```
 
 Where `<hex_id>` is the persistent Gmail message ID from Step 8 (e.g., `19da8bae7d10166e`). File contents:

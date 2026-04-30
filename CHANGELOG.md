@@ -2,6 +2,22 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-04-30] (Week of 2026-04-27)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `first-pass-diligence` -- added a structured per-founder evaluation section that scores each founder against the Founder Eval Framework, with raw LinkedIn scrape + online presence research as inputs; each founder block contains a headline (Working Description + Claude Rec), per-signal scoring with transcript-grounded rationale + spike summary, and a conflict callouts list surfacing inconsistencies between conversational framing and public record. Runs from scratch independent of any prior -1 Scanner score.
+- `research-agent` -- added a Tier 2 deny-list of firms Tom has explicitly rejected; matched discovery results are dropped silently from the digest. Added a CEO / leadership letters tier covering annual letters from large public firms whose voice carries broad market weight.
+- `deal-digest` -- tightened the prepend-at-top rule: every new ingest sits above every existing block regardless of date stamp. Log order governs vertical position, not date stamp.
+- `pipeline-agent` -- tightened Gmail `in:sent` queries with mandatory `-is:draft` to prevent drafts leaking into sent-mail thread results and misclassifying outreach signals.
+- `feedback-outreach-scanner` -- switched note title delimiter from em dash to colon to match the canonical title pattern across feedback notes.
+- `draft-feedback`, `founder-outreach` -- relocated draft-snapshots Drive directory under `_system/` to keep system data segregated from user-facing Drive content.
+**Total skills:** 23
+**Functions:** No changes
+
+---
+
 ## [2026-04-29] (Week of 2026-04-27)
 
 **Added:** None

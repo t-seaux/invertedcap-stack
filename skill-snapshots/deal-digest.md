@@ -14,7 +14,9 @@ Log deal digest content into a single monthly rolling page in the Notes DB (`e8a
    - **If exists** — fetch its current content.
    - **If missing** — create it via `notion-create-pages`. Title above, Category=`Research`, Icon=🤝, body empty (the first ingest fills it).
 3. **Build the new ingest block** (see Ingest Block Format below).
-4. **Prepend** at the top of the page. Use `notion-update-page` with `update_content`; `old_str` = first line of existing content, `new_str` = `[new block] + [old first line]`. If the page is empty (just created), use `update_content` with empty old_str OR write content directly during create.
+4. **Prepend** at the top of the page — ALWAYS. Every new ingest goes ABOVE every existing block. Doesn't matter if it's a full Chris-Oh-style batch or a one-off single-company snippet, doesn't matter what date stamp it carries — most recently logged sits at the top. Log order governs vertical position, not date stamp.
+
+   Use `notion-update-page` with `update_content`; `old_str` = first line of existing content, `new_str` = `[new block] + [old first line]`. If the page is empty (just created), use `update_content` with empty old_str OR write content directly during create.
 5. **Classify** — run `note-classifier` to confirm Category=Research.
 
 ## Ingest Block Format

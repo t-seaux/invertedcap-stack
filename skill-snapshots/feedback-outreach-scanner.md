@@ -92,8 +92,8 @@ For each sent email found:
 1. Read the full message to extract: subject, recipient name and email, send date, and the **complete verbatim email body** — every line, including opener, questions, and company blurb. You will paste this directly into the note in Step 3.
 2. **Sanity check**: Skim the email body to confirm it's a feedback outreach (contains diligence questions, a company blurb, or references the opportunity). Skip unrelated emails to the same person (e.g., a scheduling email).
 3. **Deduplication check**: Fetch the opportunity page and inspect its `✍️ Notes` relation array. For each note URL in that array, fetch the note page and check its title against both prefixed and unprefixed forms:
-   - `[PENDING] [Company] — [First Name] [Last Name]`
-   - `[Company] — [First Name] [Last Name]`
+   - `[PENDING] [Company]: [First Name] [Last Name]`
+   - `[Company]: [First Name] [Last Name]`
    If a title match exists, skip — do not create a duplicate. This approach reads from the Opportunity page itself (updated atomically at note-creation time) rather than relying on Notion's search index, which may not reflect pages created in the same or immediately prior scanner run.
 4. If no matching note exists in the relation, proceed to create one (Step 3).
 
@@ -125,7 +125,7 @@ For each inbox message found:
 3. **Classify the reply** — this determines downstream actions:
    - **Substantive feedback**: The person shares actual opinions, market reactions, answers to diligence questions, or relevant observations about the opportunity. This counts as feedback received.
    - **Acknowledgment / deferral**: The person says they'll respond later ("I'll send notes soon", "give me a few days", "will get back to you after vacation"). This does NOT count as feedback received — the person remains pending, even though they replied.
-4. Search for an existing note for this person + opportunity by fetching the opportunity page and inspecting its `✍️ Notes` relation array. Check each linked note's title against both `[PENDING] [Company] — [First Name]...` and `[Company] — [First Name]...` forms. This is the same relation-based check used in Step 1 — do not use Notion search here.
+4. Search for an existing note for this person + opportunity by fetching the opportunity page and inspecting its `✍️ Notes` relation array. Check each linked note's title against both `[PENDING] [Company]: [First Name]...` and `[Company]: [First Name]...` forms. This is the same relation-based check used in Step 1 — do not use Notion search here.
 5. If a note exists — append the reply under `## Response — [Date]` (Step 4).
 6. If no note exists yet — create the full note now using the thread's sent message as the outreach note body and the reply as the response (Step 3 + Step 4 together).
 7. **After appending the reply**, act based on classification:
@@ -153,10 +153,10 @@ Use only the People DB data fetched in Step 0 — do not look up or infer inform
 All new notes start as `[PENDING]` — feedback has not been received yet:
 
 ```
-[PENDING] [Company] — [First Name] [Last Name] ([Current Company]) Feedback
+[PENDING] [Company]: [First Name] [Last Name] ([Current Company]) Feedback
 ```
 
-Example: `[PENDING] Clusia — Jeff Green (Hatch Bank) Feedback`
+Example: `[PENDING] Clusia: Jeff Green (Hatch Bank) Feedback`
 
 The `[PENDING]` prefix is removed only when substantive feedback arrives (Step 4b).
 
