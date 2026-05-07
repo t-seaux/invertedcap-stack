@@ -1,6 +1,6 @@
 ---
 name: network-scan
-description: Query Tom's cached LinkedIn network to answer open-ended questions — "who should I reconnect with given my founder framework", "find potential angels for [company]", "who in my network has payments experience". Also used via /network slash command.
+description: Query the People DB and cached LinkedIn network to surface relevant contacts by expertise, background, or relationship — to facilitate intros, find angels, identify advisors, or answer open-ended network questions.
 triggers:
   - /network
   - who in my network
