@@ -262,17 +262,29 @@ A ~40px tall zone containing three short dashed vertical lines (stroke: `#484f58
 
 No arrowheads — pure dashed lines only. No connectors from columns 1–3.
 
-#### Bottom Row — SQLite Caches (3 cards)
+#### Bottom Row — SQLite Caches (annotation + 3 cards)
 
-A 3-card row aligned under columns 4–6 of the top row. The label "LOCAL CACHE | SQLite" sits above this row, right-aligned or centered above the 3 cache cards. All three cards use the same border color (`#52525B`) to unify the cache layer visually.
+A row containing a left-side annotation block followed by 3 cache cards, all aligned under columns 4–6 of the top row. The label "LOCAL CACHE | SQLite" sits above the 3 cache cards only (not above the annotation).
+
+**Left annotation block**: same height as the cache cards, dashed border (`#30363d`, `border-style: dashed`), transparent background, `#8b949e` text. Content:
+
+```
+CACHE LAYER
+① Enrichment
+② Embeddings
+```
+
+`CACHE LAYER` in 9px uppercase eyebrow style. ① and ② on separate lines, 11px. Width approximately equal to a cache card. This reads as an annotation, not a database card — no "DATABASE" eyebrow, no colored left border.
+
+All three cache cards use the same border color (`#52525B`) to unify the cache layer visually.
 
 Descriptions must render to exactly 3 lines — calibrate to match the Notion cards above:
 
 | Database | Border Color | Description |
 |---|---|---|
-| People Cache | `#52525B` | SQLite mirror of People DB and LinkedIn network + vector embeddings |
-| Companies Cache | `#52525B` | Company profiles enriched via Exa with vector embeddings |
-| Deals Digest Cache | `#52525B` | Fundraising and traction data for startups from Deal Digests |
+| People Cache | `#52525B` | Mirror of People DB + LinkedIn network with embeddings |
+| Companies Cache | `#52525B` | Mirror of Companies DB enriched via Exa with embeddings |
+| Deals Digest Cache | `#52525B` | Fundraising and traction signals from Deal Digests |
 
 The cache cards are the same width as the Notion cards above them, positioned using CSS grid column placement to align under columns 4–6.
 
