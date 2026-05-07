@@ -61,8 +61,8 @@ Scan the skills directory to build a complete inventory.
      | `skills-autosync` | Infrastructure — syncs skill files, not a user-facing skill |
      | `network-sync-notion` | Infrastructure — monthly Python sync of People DB → LinkedIn cache; feeds `network` skill |
      | `network-quarterly-refresh` | Infrastructure — quarterly Exa re-enrich + re-embed of LinkedIn cache; feeds `network` skill |
-     | `company-sync` | Infrastructure — monthly Python sync of Companies DB → Notion cache + Exa enrich + embed; feeds `companies` skill |
-     | `company-quarterly-refresh` | Infrastructure — quarterly full re-enrich + re-embed of company cache; feeds `companies` skill |
+     | `company-sync` | Infrastructure — monthly Python sync of Companies DB → Notion cache + Exa enrich + embed; feeds `company-scan` skill |
+     | `company-quarterly-refresh` | Infrastructure — quarterly full re-enrich + re-embed of company cache; feeds `company-scan` skill |
 
    **Event** — the skill's primary trigger is now a Gmail webhook handler (Apps Script `gmail-webhook` project, invoked via Pub/Sub push) rather than a cron sweep. A skill is Event when its primary inbound/outbound detection happens in response to a Gmail lifecycle event. Handlers roll up into their parent skill per the table below; only the parent skill is rendered, not the handler.
 
@@ -101,10 +101,10 @@ Scan the skills directory to build a complete inventory.
 | Function | Skills |
 |---|---|
 | Pipeline Management | `pipeline-agent`, `add-to-crm`, `neg1-enricher`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback` |
-| Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro` as microsteps of one end-to-end value chain), `network` |
+| Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro` as microsteps of one end-to-end value chain), `network-scan` |
 | Portfolio Management | `investor-update`, `coinvestor-recommender` |
 | Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `add-conversation-to-notion`, `decision-retro` |
-| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `companies` |
+| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)
 
@@ -216,7 +216,7 @@ A 120px-tall SVG region with cubic Bezier curves connecting each function to the
 | Intro Management | Opportunities, People, People Cache | `#7F77DD`, `#1D9E75`, `#3B82F6` |
 | Portfolio Management | Opportunities, Company Updates | `#7F77DD`, `#BA7517` |
 | Diligence Management | Opportunities, People, Notes | `#7F77DD`, `#1D9E75`, `#888780` |
-| Research Management | Notes, Companies Cache | `#888780`, `#6366F1` |
+| Research Management | Notes, Companies, Companies Cache | `#888780`, `#10B981`, `#6366F1` |
 
 Annotation box centered in the middle: "Agentic Workflows / Continuous read / write across core databases". Background per the color table above. The annotation box has `z-index: 2` to sit above the SVG lines.
 
@@ -234,19 +234,41 @@ The SVG `<defs>` block contains a single `<filter id="glow">` with `feGaussianBl
 
 **Key design rule**: The animation is a stationary pulse (breathing glow in place), NOT a directional sweep or marching dashes. No gradients, no dash arrays, no `animateTransform`. Pure opacity animation on `<animate>` for maximum browser compatibility.
 
-### Bottom Row — Databases
+### Bottom Section — Databases (Two-Tier Layout)
 
-A 7-column grid of database cards with colored left borders. The first 5 are Notion-backed; the last 2 are local SQLite caches (visually grouped at the right):
+The database section is a two-tier layout: a top Notion row and a bottom SQLite cache row, with short dashed vertical connectors between paired cards.
+
+#### Top Row — Notion Databases (6 cards)
+
+A 6-column grid labeled "SYSTEM OF RECORD | Notion":
 
 | Database | Border Color | Description |
 |---|---|---|
 | Opportunities | `#7F77DD` | Pipeline and portfolio — core system of record |
 | -1 Scanner | `#D85A30` | Pre-qual layer for founders entering pipeline |
 | People | `#1D9E75` | Founders, investors, and other network relations |
+| Companies | `#10B981` | Company profiles, enriched via Exa and ContactOut |
 | Company Updates | `#BA7517` | Updates from portfolio companies |
 | Notes | `#888780` | Transcripts, convos, reports, and letters |
-| People Cache | `#3B82F6` | SQLite mirror of LinkedIn network profiles + vector embeddings; feeds `network` skill |
-| Companies Cache | `#6366F1` | SQLite mirror of Companies DB + Exa enrichment + vector embeddings; feeds `companies` skill |
+
+#### Connector Zone (between the two rows)
+
+A ~40px tall zone containing two short dashed vertical lines (stroke: `#484f58`, stroke-dasharray: `3 3`, stroke-width: 1) connecting:
+- People (column 3) → People Cache (column 1 of bottom row)
+- Companies (column 4) → Companies Cache (column 2 of bottom row)
+
+Each connector has a small downward arrow at the bottom (▼, 6px, `#8b949e`) to indicate sync direction (Notion → SQLite). No connectors from the other 4 Notion cards.
+
+#### Bottom Row — SQLite Caches (2 cards)
+
+A 2-card row left-aligned to sit under columns 3–4 of the top row, labeled "LOCAL CACHE | SQLite":
+
+| Database | Border Color | Description |
+|---|---|---|
+| People Cache | `#3B82F6` | SQLite mirror of LinkedIn network profiles + vector embeddings; feeds `network-scan` |
+| Companies Cache | `#6366F1` | SQLite mirror of Companies DB + Exa enrichment + vector embeddings; feeds `company-scan` |
+
+The two cache cards are the same width as the Notion cards above them, positioned to align under People and Companies respectively using CSS `position` or grid column placement.
 
 ### Legend
 
@@ -254,9 +276,9 @@ Above the function cards, include:
 - System label: "System of Action" with a "Claude" tag
 - Legend swatches in this order: "Manual Skill" (dark swatch), "Autonomous Skill" (white swatch `#fffffb`), "Composite – expand in Quick Reference" (white swatch with stacked-card shadow). The Composite entry uses an en dash (`–`), not an em dash. Only three entries — the prior "Scheduled Orchestrator" and "Event-Based Skill" entries were collapsed into "Autonomous Skill" since that binary no longer holds with multi-mode skills.
 
-Below the divider:
-- System label: "System of Record" with a "Notion" tag (labels the first 5 Notion-backed DB cards)
-- System label: "Local Cache" with a "SQLite" tag (labels the last 2 SQLite DB cards — People Cache and Companies Cache)
+Below the divider: two system labels side by side:
+- "System of Record" with a "Notion" tag (left, labels the top Notion row)
+- "Local Cache" with a "SQLite" tag (right, labels the bottom cache row)
 
 ---
 

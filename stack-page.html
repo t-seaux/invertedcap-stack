@@ -154,8 +154,10 @@
   .sm-ann-title { font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
   .sm-ann-sub { font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; }
   .sm-divider { height: 0.5px; background: #30363d; margin: 0 0 10px; }
-  .sm-dbs-row { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 8px; align-items: stretch; }
-  .sm-db-labels { display: grid; grid-template-columns: 5fr 2fr; gap: 8px; margin-bottom: 10px; }
+  .sm-dbs-top { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; align-items: stretch; }
+  .sm-dbs-connector { position: relative; height: 40px; overflow: visible; }
+  .sm-dbs-bottom { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; align-items: stretch; }
+  .sm-db-labels { display: flex; gap: 28px; margin-bottom: 10px; }
 
   .sm-db-card {
     border: 0.5px solid #30363d;
@@ -338,10 +340,10 @@
           </div>
           <div class="sm-fns-row" id="fns-row">
             <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk">add-to-contacts</span></div></div>
-            <div class="sm-fn-card" id="fn-intro"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Intro Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">intro-agent</span><span class="sm-sk">network</span></div></div>
+            <div class="sm-fn-card" id="fn-intro"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Intro Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">intro-agent</span><span class="sm-sk">network-scan</span></div></div>
             <div class="sm-fn-card" id="fn-portfolio"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Portfolio Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">investor-update</span><span class="sm-sk">coinvestor-recommender</span></div></div>
             <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched sm-composite">diligence-agent</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span></div></div>
-            <div class="sm-fn-card" id="fn-research"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Research Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">research-agent</span><span class="sm-sk">log-transcript-to-notion</span><span class="sm-sk">deal-digest</span><span class="sm-sk">log-investor-letter-to-notion</span><span class="sm-sk">add-to-companies</span><span class="sm-sk">companies</span></div></div>
+            <div class="sm-fn-card" id="fn-research"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Research Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">research-agent</span><span class="sm-sk">log-transcript-to-notion</span><span class="sm-sk">deal-digest</span><span class="sm-sk">log-investor-letter-to-notion</span><span class="sm-sk">add-to-companies</span><span class="sm-sk">company-scan</span></div></div>
           </div>
           <div class="sm-mid" id="mid">
             <svg id="svg-lines" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;"></svg>
@@ -352,14 +354,20 @@
             <div class="sm-sys-label">System of Record<span class="sm-sys-tag">Notion</span></div>
             <div class="sm-sys-label">Local Cache<span class="sm-sys-tag">SQLite</span></div>
           </div>
-          <div class="sm-dbs-row" id="dbs-row">
+          <div class="sm-dbs-top" id="dbs-top">
             <div class="sm-db-card" id="db-opp" style="border-left-color:#7F77DD;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Opportunities</div><div class="sm-db-desc">Pipeline and portfolio — core system of record</div></div>
             <div class="sm-db-card" id="db-neg1" style="border-left-color:#D85A30;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">-1 Scanner</div><div class="sm-db-desc">Pre-qual for founders entering pipeline</div></div>
             <div class="sm-db-card" id="db-ppl" style="border-left-color:#1D9E75;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People</div><div class="sm-db-desc">Founders, investors, and other network relations</div></div>
+            <div class="sm-db-card" id="db-co" style="border-left-color:#10B981;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies</div><div class="sm-db-desc">Company profiles, enriched via Exa and ContactOut</div></div>
             <div class="sm-db-card" id="db-upd" style="border-left-color:#BA7517;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Company Updates</div><div class="sm-db-desc">Updates from portfolio companies</div></div>
             <div class="sm-db-card" id="db-notes" style="border-left-color:#888780;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Notes</div><div class="sm-db-desc">Transcripts, convos, reports, and letters</div></div>
-            <div class="sm-db-card" id="db-ppl-cache" style="border-left-color:#3B82F6;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People Cache</div><div class="sm-db-desc">SQLite mirror of LinkedIn network + vector embeddings; feeds network skill</div></div>
-            <div class="sm-db-card" id="db-co-cache" style="border-left-color:#6366F1;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies Cache</div><div class="sm-db-desc">SQLite mirror of Companies DB + Exa enrichment + embeddings; feeds companies skill</div></div>
+          </div>
+          <div class="sm-dbs-connector" id="dbs-connector">
+            <svg id="svg-connectors" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;"></svg>
+          </div>
+          <div class="sm-dbs-bottom" id="dbs-bottom">
+            <div class="sm-db-card" id="db-ppl-cache" style="border-left-color:#3B82F6; grid-column:3;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People Cache</div><div class="sm-db-desc">SQLite mirror of LinkedIn network + vector embeddings; feeds network-scan</div></div>
+            <div class="sm-db-card" id="db-co-cache" style="border-left-color:#6366F1; grid-column:4;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies Cache</div><div class="sm-db-desc">SQLite mirror of Companies DB + Exa enrichment + embeddings; feeds company-scan</div></div>
           </div>
         </div>
       </div>
@@ -417,7 +425,7 @@
               </div></div>
             </div>
           </div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">network</span></div><div class="qr-skill-line">Queries the cached LinkedIn network to find contacts by expertise, geography, or relationship to a deal thesis.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">network-scan</span></div><div class="qr-skill-line">Queries the cached LinkedIn network to find contacts by expertise, geography, or relationship to a deal thesis.</div></div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Portfolio Management</div>
@@ -454,7 +462,7 @@
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">deal-digest</span></div><div class="qr-skill-line">Logs deal digest content to a monthly rolling Notes page; omits source header when source is unknown; write-time escape-character guardrail prevents Notion block collapse.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">log-investor-letter-to-notion</span></div><div class="qr-skill-line">Saves an investor letter from any external firm to the Notion Notes database.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">add-to-companies</span></div><div class="qr-skill-line">Adds a company to the Notion Companies DB; switched to Exa+LLM for identity enrichment; LinkedIn URL field dropped from schema.</div></div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">companies</span></div><div class="qr-skill-line">Queries the cached Companies DB for open-ended questions about portfolio companies, diligence targets, competitors, and funds.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">company-scan</span></div><div class="qr-skill-line">Queries the cached Companies DB for open-ended questions about portfolio companies, diligence targets, competitors, and funds.</div></div>
           </div>
         </div>
       </div>
@@ -473,7 +481,7 @@ var connections = [
   {fn:'fn-intro',db:'db-opp',color:'#7F77DD'},{fn:'fn-intro',db:'db-ppl',color:'#1D9E75'},{fn:'fn-intro',db:'db-ppl-cache',color:'#3B82F6'},
   {fn:'fn-portfolio',db:'db-opp',color:'#7F77DD'},{fn:'fn-portfolio',db:'db-upd',color:'#BA7517'},
   {fn:'fn-diligence',db:'db-opp',color:'#7F77DD'},{fn:'fn-diligence',db:'db-ppl',color:'#1D9E75'},{fn:'fn-diligence',db:'db-notes',color:'#888780'},
-  {fn:'fn-research',db:'db-notes',color:'#888780'},{fn:'fn-research',db:'db-co-cache',color:'#6366F1'}
+  {fn:'fn-research',db:'db-notes',color:'#888780'},{fn:'fn-research',db:'db-co',color:'#10B981'},{fn:'fn-research',db:'db-co-cache',color:'#6366F1'}
 ];
 
 function drawConnections(scale) {
@@ -571,6 +579,34 @@ function drawConnections(scale) {
   });
 }
 
+function drawCacheConnectors(scale) {
+  var svg = document.getElementById('svg-connectors');
+  var connector = document.getElementById('dbs-connector');
+  if (!svg || !connector) return;
+  var cR = connector.getBoundingClientRect();
+  svg.innerHTML = '';
+  [['db-ppl', 'db-ppl-cache'], ['db-co', 'db-co-cache']].forEach(function(pair) {
+    var top = document.getElementById(pair[0]);
+    var bot = document.getElementById(pair[1]);
+    if (!top || !bot) return;
+    var tr = top.getBoundingClientRect();
+    var br = bot.getBoundingClientRect();
+    var xTop = (tr.left + tr.width / 2 - cR.left) / scale;
+    var xBot = (br.left + br.width / 2 - cR.left) / scale;
+    var h = cR.height / scale;
+    var line = document.createElementNS(NS, 'line');
+    line.setAttribute('x1', xTop); line.setAttribute('y1', '0');
+    line.setAttribute('x2', xBot); line.setAttribute('y2', h - 8);
+    line.setAttribute('stroke', '#484f58'); line.setAttribute('stroke-dasharray', '3 3'); line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+    var arrow = document.createElementNS(NS, 'text');
+    arrow.setAttribute('x', xBot); arrow.setAttribute('y', h);
+    arrow.setAttribute('text-anchor', 'middle'); arrow.setAttribute('fill', '#8b949e'); arrow.setAttribute('font-size', '6');
+    arrow.textContent = '\u25bc';
+    svg.appendChild(arrow);
+  });
+}
+
 function scaleAndDraw() {
   var wrapper = document.getElementById('responsive-wrapper');
   var inner = document.getElementById('responsive-inner');
@@ -581,6 +617,7 @@ function scaleAndDraw() {
   wrapper.style.height = inner.scrollHeight * scale + 'px';
 
   drawConnections(scale);
+  drawCacheConnectors(scale);
 }
 
 window.addEventListener('load', scaleAndDraw);
