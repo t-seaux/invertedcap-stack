@@ -253,13 +253,12 @@ All descriptions must render to exactly 3 lines at the card's display width — 
 
 #### Retrieval Layer Strip
 
-A single horizontal annotation strip below the DB row labels the retrieval infrastructure that sits beneath the Notion DBs without making it a parallel topology element.
+A single horizontal annotation strip sits **above** the DB row (between the "System of Record | Notion" label and the DB cards) labeling the retrieval infrastructure that operates over the Notion DBs.
 
-- **Container**: `.sm-retrieval-strip` — full-width (spans all 6 DB columns), `margin-top: 14px`, `padding: 10px 16px`, `border: 1px dashed #30363d`, `border-radius: 8px`, transparent background. Flex row, baseline-aligned, `gap: 14px`.
-- **Eyebrow**: `.sm-retrieval-eyebrow` — text "Retrieval Layer" in 9px uppercase, `letter-spacing: 0.14em`, `color: #8b949e`, `white-space: nowrap`.
-- **Items**: `.sm-retrieval-items` — text "Cache · Enrichment · Embeddings" in 11px, `color: #b1bac4`, `letter-spacing: 0.04em`. Middle-dot separators, not bullets or pipes.
+- **Container**: `.sm-retrieval-strip` — full-width (spans all 6 DB columns), `margin-bottom: 10px`, `padding: 9px 16px`, `border: 1px dashed #30363d`, `border-radius: 8px`, transparent background. Flex row, `align-items: center`, `justify-content: center` (text is centered horizontally).
+- **Text**: single inline string `Retrieval Layer: Cache, Enrichment, Embeddings`. Styled at the container level: `font-size: 10px`, `text-transform: uppercase`, `letter-spacing: 0.14em`, `color: #8b949e`. No separate eyebrow/items spans — one line, one color, one weight.
 
-Reads as an annotation, not a database row — no cards, no eyebrow per item, no border colors. Full-width framing communicates "the retrieval stack covers everything above," which is the truthful scope (any DB can be cached/enriched/embedded as needs arise; caches today happen to be People-derived + Companies-derived + Notes-derived but that mapping is implementation, not architecture).
+Reads as an annotation, not a database row. The strip is positioned above the DB cards so the "this is the retrieval layer over the DBs" framing precedes the DBs themselves rather than appearing as a footer. Full-width framing communicates "the retrieval stack covers everything below," which is the truthful scope (any DB can be cached/enriched/embedded as needs arise — the specific mapping is implementation, not architecture).
 
 ### Legend
 

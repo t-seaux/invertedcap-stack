@@ -157,26 +157,18 @@
   .sm-dbs-top { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; align-items: stretch; }
   .sm-db-labels { display: flex; gap: 28px; margin-bottom: 10px; }
   .sm-retrieval-strip {
-    margin-top: 14px;
-    padding: 10px 16px;
+    margin-bottom: 10px;
+    padding: 9px 16px;
     border: 1px dashed #30363d;
     border-radius: 8px;
     display: flex;
-    align-items: baseline;
-    gap: 14px;
+    align-items: center;
+    justify-content: center;
     font-family: 'Courier New', Courier, monospace;
-  }
-  .sm-retrieval-eyebrow {
-    font-size: 9px;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.14em;
     color: #8b949e;
-    white-space: nowrap;
-  }
-  .sm-retrieval-items {
-    font-size: 11px;
-    color: #b1bac4;
-    letter-spacing: 0.04em;
   }
 
   .sm-db-card {
@@ -373,6 +365,9 @@
           <div class="sm-db-labels">
             <div class="sm-sys-label">System of Record<span class="sm-sys-tag">Notion</span></div>
           </div>
+          <div class="sm-retrieval-strip">
+            Retrieval Layer: Cache, Enrichment, Embeddings
+          </div>
           <div class="sm-dbs-top" id="dbs-top">
             <div class="sm-db-card" id="db-opp" style="border-left-color:#7F77DD;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Opportunities</div><div class="sm-db-desc">Pipeline deals, active portfolio, and exited investments</div></div>
             <div class="sm-db-card" id="db-neg1" style="border-left-color:#D85A30;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">-1 Scanner</div><div class="sm-db-desc">Pre-founder candidates sourced before formal pipeline entry</div></div>
@@ -380,10 +375,6 @@
             <div class="sm-db-card" id="db-ppl" style="border-left-color:#1D9E75;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People</div><div class="sm-db-desc">Founders, investors, and other network relations</div></div>
             <div class="sm-db-card" id="db-co" style="border-left-color:#0EA5E9;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies</div><div class="sm-db-desc">Company profiles enriched via Exa and ContactOut</div></div>
             <div class="sm-db-card" id="db-notes" style="border-left-color:#A78BFA;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Notes</div><div class="sm-db-desc">Transcripts, conversations, reports, and letters</div></div>
-          </div>
-          <div class="sm-retrieval-strip">
-            <span class="sm-retrieval-eyebrow">Retrieval Layer</span>
-            <span class="sm-retrieval-items">Cache · Enrichment · Embeddings</span>
           </div>
         </div>
       </div>
