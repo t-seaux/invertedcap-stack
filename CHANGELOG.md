@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to the Inverted Cap Stack platform are documented here.
+## [2026-05-07] (Week of 2026-05-04)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `skill-map-refresh` -- extended Platform Map database row from 5 to 7 columns, adding People Cache (SQLite / LinkedIn network mirror) and Companies Cache (SQLite / Companies DB mirror); added connection lines from Intro Management to People Cache and Research Management to Companies Cache; added Local Cache / SQLite system label in the legend
+**Total skills:** 25
+**Functions:** No changes
+
+---
+
 
 ## [2026-05-07] (Week of 2026-05-04)
 
