@@ -155,29 +155,9 @@
   .sm-ann-sub { font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; }
   .sm-divider { height: 0.5px; background: #30363d; margin: 0 0 10px; }
   .sm-dbs-top { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; align-items: stretch; }
+  .sm-dbs-connector { position: relative; height: 40px; overflow: visible; }
+  .sm-dbs-bottom { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; align-items: stretch; }
   .sm-db-labels { display: flex; gap: 28px; margin-bottom: 10px; }
-  .sm-retrieval-strip {
-    margin-top: 14px;
-    padding: 10px 16px;
-    border: 1px dashed #30363d;
-    border-radius: 8px;
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    font-family: 'Courier New', Courier, monospace;
-  }
-  .sm-retrieval-eyebrow {
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: #8b949e;
-    white-space: nowrap;
-  }
-  .sm-retrieval-items {
-    font-size: 11px;
-    color: #b1bac4;
-    letter-spacing: 0.04em;
-  }
 
   .sm-db-card {
     border: 0.5px solid #30363d;
@@ -381,9 +361,17 @@
             <div class="sm-db-card" id="db-co" style="border-left-color:#0EA5E9;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies</div><div class="sm-db-desc">Company profiles enriched via Exa and ContactOut</div></div>
             <div class="sm-db-card" id="db-notes" style="border-left-color:#A78BFA;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Notes</div><div class="sm-db-desc">Transcripts, conversations, reports, and letters</div></div>
           </div>
-          <div class="sm-retrieval-strip">
-            <span class="sm-retrieval-eyebrow">Retrieval Layer</span>
-            <span class="sm-retrieval-items">Cache · Enrichment · Embeddings</span>
+          <div class="sm-dbs-connector" id="dbs-connector">
+            <svg id="svg-connectors" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;"></svg>
+          </div>
+          <div class="sm-db-labels" style="justify-content:flex-end;">
+            <div class="sm-sys-label">Local Cache<span class="sm-sys-tag">SQLite</span></div>
+          </div>
+          <div class="sm-dbs-bottom" id="dbs-bottom">
+            <div id="db-cache-annotation" style="border: 0.5px dashed #30363d; border-radius: 10px; padding: 12px 14px 10px; background: transparent; display: flex; flex-direction: column; justify-content: center; grid-column: 3;"><div style="font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; color: #8b949e; margin-bottom: 6px;">Cache Layer</div><div style="font-size: 11px; color: #8b949e; line-height: 1.6;">① Enrichment</div><div style="font-size: 11px; color: #8b949e; line-height: 1.6;">② Embeddings</div></div>
+            <div class="sm-db-card" id="db-ppl-cache" style="border-left-color:#52525B; grid-column:4;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People Cache</div><div class="sm-db-desc">SQLite mirror of People DB and LinkedIn network + vector embeddings</div></div>
+            <div class="sm-db-card" id="db-co-cache" style="border-left-color:#52525B; grid-column:5;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies Cache</div><div class="sm-db-desc">Company profiles enriched via Exa with vector embeddings</div></div>
+            <div class="sm-db-card" id="db-digest-cache" style="border-left-color:#52525B; grid-column:6;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Deals Digest Cache</div><div class="sm-db-desc">Fundraising and traction data for startups from Deal Digests</div></div>
           </div>
         </div>
       </div>
@@ -441,7 +429,7 @@
               </div></div>
             </div>
           </div>
-            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">network-scan</span></div><div class="qr-skill-line">Queries the People DB and cached LinkedIn network to surface relevant contacts by expertise or background — to facilitate intros, find angels, or identify advisors.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">network-scan</span></div><div class="qr-skill-line">Queries People DB and LinkedIn cache to surface contacts by expertise, background, or relationship — for intros, angel identification, and advisor discovery.</div></div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
             <div class="qr-fn-header">Portfolio Management</div>
@@ -494,10 +482,10 @@ var NS = 'http://www.w3.org/2000/svg';
 
 var connections = [
   {fn:'fn-pipeline',db:'db-opp',color:'#7F77DD'},{fn:'fn-pipeline',db:'db-ppl',color:'#1D9E75'},{fn:'fn-pipeline',db:'db-neg1',color:'#D85A30'},
-  {fn:'fn-intro',db:'db-opp',color:'#7F77DD'},{fn:'fn-intro',db:'db-ppl',color:'#1D9E75'},
+  {fn:'fn-intro',db:'db-opp',color:'#7F77DD'},{fn:'fn-intro',db:'db-ppl',color:'#1D9E75'},{fn:'fn-intro',db:'db-ppl-cache',color:'#52525B'},
   {fn:'fn-portfolio',db:'db-opp',color:'#7F77DD'},{fn:'fn-portfolio',db:'db-upd',color:'#BA7517'},
   {fn:'fn-diligence',db:'db-opp',color:'#7F77DD'},{fn:'fn-diligence',db:'db-ppl',color:'#1D9E75'},{fn:'fn-diligence',db:'db-notes',color:'#A78BFA'},
-  {fn:'fn-research',db:'db-notes',color:'#A78BFA'},{fn:'fn-research',db:'db-co',color:'#0EA5E9'}
+  {fn:'fn-research',db:'db-notes',color:'#A78BFA'},{fn:'fn-research',db:'db-co',color:'#0EA5E9'},{fn:'fn-research',db:'db-co-cache',color:'#52525B'},{fn:'fn-research',db:'db-digest-cache',color:'#52525B'}
 ];
 
 function drawConnections(scale) {
@@ -595,6 +583,29 @@ function drawConnections(scale) {
   });
 }
 
+function drawCacheConnectors(scale) {
+  var svg = document.getElementById('svg-connectors');
+  var connector = document.getElementById('dbs-connector');
+  if (!svg || !connector) return;
+  var cR = connector.getBoundingClientRect();
+  svg.innerHTML = '';
+  [['db-ppl', 'db-ppl-cache'], ['db-co', 'db-co-cache'], ['db-notes', 'db-digest-cache']].forEach(function(pair) {
+    var top = document.getElementById(pair[0]);
+    var bot = document.getElementById(pair[1]);
+    if (!top || !bot) return;
+    var tr = top.getBoundingClientRect();
+    var br = bot.getBoundingClientRect();
+    var xTop = (tr.left + tr.width / 2 - cR.left) / scale;
+    var xBot = (br.left + br.width / 2 - cR.left) / scale;
+    var h = cR.height / scale;
+    var line = document.createElementNS(NS, 'line');
+    line.setAttribute('x1', xTop); line.setAttribute('y1', '0');
+    line.setAttribute('x2', xBot); line.setAttribute('y2', h);
+    line.setAttribute('stroke', '#484f58'); line.setAttribute('stroke-dasharray', '3 3'); line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+  });
+}
+
 function scaleAndDraw() {
   var wrapper = document.getElementById('responsive-wrapper');
   var inner = document.getElementById('responsive-inner');
@@ -605,6 +616,7 @@ function scaleAndDraw() {
   wrapper.style.height = inner.scrollHeight * scale + 'px';
 
   drawConnections(scale);
+  drawCacheConnectors(scale);
 }
 
 window.addEventListener('load', scaleAndDraw);
