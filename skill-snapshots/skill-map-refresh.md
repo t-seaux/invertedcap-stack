@@ -255,8 +255,10 @@ All descriptions must render to exactly 3 lines at the card's display width — 
 
 A single horizontal annotation strip sits **above** the DB row (between the "System of Record | Notion" label and the DB cards) labeling the retrieval infrastructure that operates over the Notion DBs.
 
-- **Container**: `.sm-retrieval-strip` — full-width (spans all 6 DB columns), `margin-bottom: 10px`, `padding: 9px 16px`, `border: 1px dashed #30363d`, `border-radius: 8px`, transparent background. Flex row, `align-items: center`, `justify-content: center` (text is centered horizontally).
+- **Container**: `.sm-retrieval-strip` — no border, no background, no padding. `margin: 4px 0 12px`, `text-align: center`. Renders as a centered text line, not a box.
 - **Text**: single inline string `Retrieval Layer: Cache, Enrichment, Embeddings`. Styled at the container level: `font-size: 10px`, `text-transform: uppercase`, `letter-spacing: 0.14em`, `color: #8b949e`. No separate eyebrow/items spans — one line, one color, one weight.
+
+> **Do not add chrome to this strip**: tried with a dashed border (2026-05-07) — read as too heavy. The retrieval layer is metadata about the row below it, not its own component. Keep it borderless.
 
 Reads as an annotation, not a database row. The strip is positioned above the DB cards so the "this is the retrieval layer over the DBs" framing precedes the DBs themselves rather than appearing as a footer. Full-width framing communicates "the retrieval stack covers everything below," which is the truthful scope (any DB can be cached/enriched/embedded as needs arise — the specific mapping is implementation, not architecture).
 
