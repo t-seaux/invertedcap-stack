@@ -32,8 +32,8 @@ YYYY-MM-DD – [Source description]
 ```
 
 - **Date stamp line** is **bold paragraph** — but with a trailing non-breaking space (`\u00a0`) to prevent Notion from auto-promoting standalone-bold lines to heading blocks. NEVER use `#`/`##`/`###` headings.
-  - Format: `**YYYY-MM-DD – [Source]**` + trailing nbsp, with optional ` (context)` for retrieval framing.
-  - Examples: `**2026-04-25 – Chris Oh WhatsApp digest**\u00a0`, `**2026-04-26 – Emily Man iMessage (competitive intel for Rengo)**\u00a0`, `**2026-04-20 – Pat Grady email**\u00a0`.
+  - Format: `**YYYY-MM-DD – [Source]**` + trailing nbsp, with optional ` (context)` for retrieval framing. If no source is known, drop the ` – [Source]` entirely — just `**YYYY-MM-DD**` + trailing nbsp. Don't invent a placeholder.
+  - Examples: `**2026-04-25 – Chris Oh WhatsApp digest**\u00a0`, `**2026-04-26 – Emily Man iMessage (competitive intel for Rengo)**\u00a0`, `**2026-04-20 – Pat Grady email**\u00a0`, `**2026-04-29**\u00a0`.
   - **Why the trailing nbsp:** A pure `**...**` standalone paragraph trips a Notion heuristic that promotes it to a heading block (rendered huge, like h2). Adding ANY non-bold character at the end keeps it a normal paragraph. A regular trailing space gets trimmed; a non-breaking space (U+00A0) survives serialization.
 - **Body** preserves the source content as is. Don't merge with prior ingests, don't re-format across blocks. Apply per-bullet formatting rules below.
 - **Trailing `---`** separates this block from the previous one. Visual only.
@@ -54,6 +54,14 @@ YYYY-MM-DD – [Source description]
 | **Category** | `Research` |
 | **Icon** | 🤝 |
 | **Opportunity relation** | NEVER set. Even if an ingest references a portfolio company (competitive intel framing), do NOT add an Opportunity relation. The corpus is queryable on its own; per-Opportunity linking would clutter the rolling page.|
+
+## Write-time discipline (don't reintroduce the April 2026 bug)
+
+When passing content to `notion-update-page` (`update_content` or `replace_content`), the string must use **real characters**, not escape sequences:
+
+- **Real newlines, never literal `\n`.** Pass actual line-break characters between blocks. A literal two-char `\n` in the payload renders in Notion as a stray `n` (the backslash gets stripped, the `n` survives), collapsing every block into one paragraph. Symptom: `2027nn---nn**2026-04-26...` instead of separate blocks.
+- **Bare `$`, `~`, `#` — never escaped.** Write `$284B`, not `\$284B`. Markdown-style escapes leak through Notion's serialization and render literally as `\$`. Same rule as the global "don't escape tildes/dollars" feedback.
+- **Do not JSON-double-encode the content string.** If you find yourself writing `"\\n"` or `"\\\\$"` to win a quoting battle, stop — that's how multi-level escapes end up in the page. Write the body as a plain multi-line string with bare special chars, then pass it to the tool once.
 
 ## Source Handling
 

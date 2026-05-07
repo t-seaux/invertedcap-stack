@@ -2,6 +2,31 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-07] (Week of 2026-05-04)
+
+**Added:** `network` (Intro Management), `companies` (Research Management)
+**Removed:** None
+**Modified:**
+- `add-to-companies` -- switched identity enrichment from ContactOut to Exa+LLM extraction; dropped LinkedIn URL and Revenue/Funding Status fields from schema; icon now from Notion picker instead of ContactOut logo
+- `add-to-contacts` -- added step to cache raw ContactOut payloads to local file before field extraction; added explicit no-permission-prompts section
+- `add-to-crm` -- added name-only collision filter requiring corroborating signal beyond bare name match; removed confirmation gate before page creation (auto-creates); icon changed from company logo to thematic emoji
+- `deal-digest` -- added handling for sourceless entries (omit source header when unknown); added write-time discipline section to prevent escaped characters and literal backslash-n in Notion payloads
+- `decision-retro` -- added `would_back_again` and `would_back_again_rationale` fields to schema and LLM extraction; updated calibration corpus reference to FOUNDER_EVAL_CASEBOOK
+- `first-pass-diligence` -- added skip guard for follow-on rounds; public-presence absence now flagged only when role requires visibility (CEO during fundraise, GTM, marketing); removed leading date stamp from page body
+- `founder-outreach` -- replaced multi-step draft creation flow with atomic gmail-create-draft.py helper that creates draft and snapshot in one call
+- `intro-agent` -- removed auto-People-entry creation; missing contacts now flagged for manual add instead of auto-enriched
+- `investor-update` -- extended scope to include board materials; added Board Meeting title convention; expanded detection for board-related emails and Google Slides share notifications
+- `materials-handler` -- switched gmail label application to gmail-label.py helper script; alert format changed from Slack mrkdwn to GFM; added portfolio-set status guard to webhook mode
+- `neg1-enricher` -- score tiers renamed from Reach Out/Second Look/Pass to Strong/Moderate/Weak; added ContactOut payload caching step; updated calibration corpus reference to FOUNDER_EVAL_CASEBOOK
+- `pipeline-agent` -- added rule that calendar-invite-sent (not accepted) triggers Scheduled status; portfolio-set opps excluded from materials scan (Active Portfolio, Follow-On, Exited -- not Committed)
+- `pre-mortem` -- added founder-thesis journey-length mismatch as a sub-dimension of Team/Org Fragility Risk
+- `research-agent` -- added curation feedback handling: Tom's rejections permanently edit skill tier lists and deny-list; added Diamond Hill Capital to deny-list
+- `update-diligence-priors` -- fixed Notion search prefix from `Claude:` to `[Claude]` format for first-pass diligence page lookup
+**Total skills:** 25
+**Functions:** Intro Management +1 (network), Research Management +1 (companies)
+
+---
+
 ## [2026-04-30] (Week of 2026-04-27)
 
 **Added:** None

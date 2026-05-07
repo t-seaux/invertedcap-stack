@@ -70,10 +70,17 @@ are either computed or populated by other workflows.
    or `contactout_enrich_person`, check for a `profile_picture_url` in the response. Save this URL
    for use as the Notion page icon in Step 4. If no ContactOut profile photo is available, skip —
    do not set a page icon (no emoji fallback for People entries).
-5. **Fallback — ContactOut browser sidebar:** If the MCP returns no email, check for a ContactOut
+5. **Cache raw ContactOut payloads.** After each ContactOut MCP call in steps 3 and 4, write the
+   raw response payload to `~/.claude/plugins/data/contactout-enrichment-inline/people/{vanity}.{endpoint}.json`
+   using the Write tool, BEFORE extracting any fields. The vanity slug is the LinkedIn URL's last
+   path segment, lowercased, with any trailing slash and query string stripped. The endpoint suffix
+   is the part after `contactout_enrich_` — `person` for `contactout_enrich_person`, `linkedin_profile`
+   for `contactout_enrich_linkedin_profile`. Overwrite if the file exists. This is the network-intel
+   index's data source — never skip.
+6. **Fallback — ContactOut browser sidebar:** If the MCP returns no email, check for a ContactOut
    extension sidebar on the right side of the LinkedIn page. If present, read the email addresses
    it displays and apply the same work/personal priority logic.
-6. **Fallback — LinkedIn native:** If neither ContactOut method yields an email, click "Contact info"
+7. **Fallback — LinkedIn native:** If neither ContactOut method yields an email, click "Contact info"
    on the LinkedIn profile to open the native contact info modal. Read any email addresses displayed
    there. If no email is available anywhere, leave the Email field blank.
 
@@ -203,6 +210,16 @@ new Notion page. Keep it concise — one or two lines is fine.
 8. Returns: "Added Matt Heiman (Mercury) to People. [link]"
 
 ## Behavior Rules
+
+### No permission prompts — ever
+
+Execute all steps without pausing for permission. This applies to:
+- ContactOut MCP calls (`contactout_enrich_person`, `contactout_enrich_linkedin_profile`, `contactout_search_people`)
+- Chrome browser navigation to LinkedIn profiles (`navigate`, `get_page_text`, `javascript_tool`, `find`)
+- Notion writes (`notion-create-pages`, `notion-update-page`, `notion-search`)
+- Local file writes (ContactOut payload cache)
+
+Tom's explicit "add to contacts" request is full authorization for the entire flow. Never ask mid-skill.
 
 ### Dedupe before create — always use `workspace_search`
 

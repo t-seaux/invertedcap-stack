@@ -21,6 +21,19 @@ Before creating ANY new opportunity, run the dedup check below. This is MANDATOR
 
 Collect the union of matches from all three queries, then fetch each candidate page and read its `Status`.
 
+### Filter name-only collisions
+
+Multiple unrelated companies can share a name (e.g., wallet "Remi" at `remiwallet.io` sourced by Madi Jacox vs. a different "Remi" at `remi.site` from Ameya Jadhav, intro'd by Jake Kupperman — same title, zero shared signal). For each candidate from the title query, require **at least one corroborating signal** beyond the bare name match:
+
+- Shared **website/domain stem** — candidate's `Website` shares a domain stem with the new lead's website or any extracted email domain
+- Shared **Contact email** — candidate's `Contact` (which is a `; `-separated alias list) contains any of the new lead's emails
+- Shared **founder identity** — candidate's `🏁 Founder(s)` relation includes a Person whose name matches the new lead's founder
+- Shared **Source person** — candidate's `Source(s)` relation includes the inbound sender
+
+If a candidate matches ONLY on title with no corroboration, **drop it from the dedup set** — treat as a distinct company and proceed. Candidates from the website-domain or contact-email queries (steps 2–3 above) are already corroborated by definition and skip this filter.
+
+This filter applies to the same caller scope as the rest of the guard: manual `add-to-crm`, unattended `inbound-deal-detect`, and any webhook that does name-based Opp resolution before flipping status (e.g., `intro-connected-detect`'s Pass 5 `findAnyOppByNameFuzzy` path — not yet code-synced; mirror manually when touching the webhook).
+
 ### Decision table
 
 - **Any candidate has Status ∈ {Active Portfolio, Portfolio: Follow-On, Exited, Committed}** — do NOT create a duplicate. Do NOT modify the existing page's Status. In manual mode, alert the user with the existing page URL and ask how to proceed. In unattended mode, log `protected-status-skip` with the existing page ID and exit 0. The caller (e.g. `inbound-deal-detect`) is responsible for posting the `🛡️` Slack alert.
@@ -34,9 +47,9 @@ Collect the union of matches from all three queries, then fetch each candidate p
 
 1. Determine input type and extract data
 2. **Enrich from attachments if email body is thin (Step 1B)**
-3. Enrich from founder LinkedIn via ContactOut (HQ, Contact, Website, logo, Description)
+3. Enrich from founder LinkedIn via ContactOut (HQ, Contact, Website, Description)
 4. Present extracted fields to user for confirmation
-5. Create the Notion opportunity page (with company logo as icon)
+5. Create the Notion opportunity page (with a thematic emoji as icon)
 6. Handle any deck/material uploads
 
 ## Step 1: Extract Data from Source
@@ -97,16 +110,16 @@ After extracting data from the source, assess whether the extracted fields are s
 
 ## Step 2: Enrich from Founder LinkedIn + Web (ContactOut as fallback)
 
-Whenever a founder LinkedIn URL is present in the source — even if the source only gives a name + LI URL (e.g. an iMessage tip like "check out Ronit Jain's company Pluto, [LI URL]") — enrich `HQ`, `Contact`, `Website`, `Description`, and the page icon **before creating the page**.
+Always enrich `HQ`, `Contact`, `Website`, `Description` **before creating the page** — whether or not the source includes a founder LinkedIn URL. (Icon comes from Notion's logo picker pattern in Step 5 — no enrichment needed.)
 
 **Priority order — ContactOut is a paid API, only hit it if the cheaper sources can't answer:**
 
 1. **Source material** — email signatures, forwarded threads, pasted context often contain the founder's email, company website, and HQ verbatim. Check first.
-2. **Public LinkedIn page** — WebFetch (or Chrome if logged-in detail is needed) the founder's LI URL for headline, location, current-company name, and bio. Pulls HQ and a description without burning credits.
-3. **Company website** — WebFetch for HQ (footer/contact page), og:image / favicon (logo), description (hero/meta).
-4. **ContactOut fallback** — only if 1–3 can't resolve a needed field, call `contactout_enrich_linkedin_profile` with `profile_only=false`. It returns `email`/`personal_email`, `company.headquarter`, `company.website`, `company.logo_url`, and full experience. Use `profile_only=true` if you only need profile data (no email credits).
+2. **Public LinkedIn page** — WebFetch (or Chrome if logged-in detail is needed) the founder's LI URL for headline, location, current-company name, and bio. Pulls HQ and a description without burning credits. **If no LI URL was provided in the source, web-search `"<founder name>" "<company>" linkedin` (or `"<founder name>" <distinctive context> linkedin` if the company is generic) to find it before falling back to ContactOut.** Disambiguate by description signals (role, ex-employers, school) when multiple matches exist.
+3. **Company website** — WebFetch for HQ (footer/contact page) and description (hero/meta).
+4. **ContactOut fallback** — only if 1–3 can't resolve a needed field, call `contactout_enrich_linkedin_profile` with `profile_only=false`. It returns `email`/`personal_email`, `company.headquarter`, `company.website`, and full experience. Use `profile_only=true` if you only need profile data (no email credits).
 
-**Case-by-case source: YC company page.** If (and only if) the founder's LI headline, the source material, or the company website mentions YC (e.g. "CEO @ Pluto (YC W25)", "YC S24"), slot in a fetch of `https://www.ycombinator.com/companies/{slug}` — it gives authoritative HQ, website, logo, and one-liner for YC-backed companies. Skip for everything else (the vast majority of deals are not YC).
+**Case-by-case source: YC company page.** If (and only if) the founder's LI headline, the source material, or the company website mentions YC (e.g. "CEO @ Pluto (YC W25)", "YC S24"), slot in a fetch of `https://www.ycombinator.com/companies/{slug}` — it gives authoritative HQ, website, and one-liner for YC-backed companies. Skip for everything else (the vast majority of deals are not YC).
 
 If `company.headquarter` from any source isn't conclusive (e.g. LI lists "Stealth YC Startup"), the company website (or YC page if YC-backed) wins over a stealth-placeholder LinkedIn company.
 
@@ -134,9 +147,9 @@ If ContactOut returns multiple emails, prefer the work email for named-company o
 
 Set the `Contact` property on the Notion page to the best email found. If no email is found after all attempts, set `Contact` to `N/A`.
 
-## Step 4: Confirm with User
+## Step 4: Present Summary (no confirmation gate)
 
-Present extracted data as a concise summary and ask the user to confirm before creating. Include:
+Present extracted data as a concise summary in the response, then proceed directly to Step 5. **Do not ask Tom to confirm before creating the page** — the summary is for after-the-fact course correction, not a yes/no gate. Include:
 - Proposed page title (company name or `-1 (Founder Name)` format)
 - Description (one-liner)
 - Status (inferred from thread state — `Qualified`, `Outreach`, `Connected`, or `Scheduled` — per rules in Step 5), Stage, HQ
@@ -146,20 +159,15 @@ Present extracted data as a concise summary and ask the user to confirm before c
 - Close Date (if Status is `Scheduled`)
 - Any materials/decks to upload
 
+**Exception — DO ask** if something mid-flow is genuinely ambiguous (multiple equally-plausible LinkedIn matches for a founder, two People-DB rows that could be the source, conflicting round details across email + deck). Confirmation isn't banned; the rote post-summary "Ship it?" gate is.
+
 ## Step 5: Create the Notion Page
 
 Use `notion-create-pages` with parent `{"data_source_id": "fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"}`.
 
 ### Page Icon
 
-**Always set a company logo as the page icon — never ship a new Opportunity with a blank/default icon, and never default to a random emoji.** Resolve the logo URL in this priority order (free sources first, paid APIs last):
-
-1. **Company website favicon / og:image** — WebFetch the site and pull the favicon or OpenGraph image. Default first stop for any company with a website.
-2. **YC company page** (case-by-case, only if the company is YC-backed per LI headline / source / site): fetch `https://www.ycombinator.com/companies/{slug}` for the logo (typically on `bookface-images.s3.us-west-2.amazonaws.com`). Skip entirely for non-YC companies.
-3. **ContactOut fallback** — `company.logo_url` from `contactout_enrich_linkedin_profile` (founder LI) or `contactout_enrich_company` (domain). Only use if the free sources above don't return a logo.
-4. **Emoji fallback** — only if all logo sources fail. Pick a varied emoji (avoid repeating across entries) and note in the page body that the logo needs manual upload.
-
-Pass the logo URL as the `icon` parameter to `notion-create-pages` at creation time (or `notion-update-page` immediately after). Icons accept external image URLs.
+**Always set a thematic emoji as the page icon — never ship a new Opportunity with a blank/default icon.** Pick an emoji from Notion's standard emoji set that gestures at the company's product or category (e.g. memory app → 💭, payments → 💳, biotech → 🧬). Pass it as the `icon` parameter to `notion-create-pages` at creation time (or `notion-update-page` immediately after). Don't hunt for company logos, favicons, or external URLs — Notion's emoji library is rich enough to cover any company.
 
 ### Title Conventions
 
@@ -172,12 +180,16 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 
 - `Status`: Infer from the full thread state. Defaults by source type:
   - `Qualified` — deal is only **surfaced**: a forward of someone else's content, a LinkedIn URL, a pasted profile, a tip from a third party. No founder contact has occurred yet.
-  - **`Connected` — cold inbound founder email** (deal-scanner webhook path, `forwardedFromTom: true`, or any inbound-deal-detect-originated invocation). The founder pinged Tom directly and the email landed in his inbox; Tom is in a live thread with the founder from message #1, even before he replies. Do NOT use Qualified for these.
-  - `Outreach` — Tom has replied or initiated contact but no response yet (only relevant for non-founder-initiated paths).
-  - `Connected` — for non-cold-inbound paths, when the founder has replied to Tom's outreach and the conversation is live but unscheduled.
+  - **`Connected` — cold inbound founder email** (deal-scanner webhook path, `forwardedFromTom: true`, or any inbound-deal-detect-originated invocation) **where the founder is the actual sender**. The founder pinged Tom directly and the email landed in his inbox; Tom is in a live thread with the founder from message #1, even before he replies. Do NOT use Qualified for these.
+  - **`Connected` — double-opt-in intro thread**: a referrer sends an intro email putting Tom and the founder on the same To/Cc line (e.g. "Connecting Tom <> Founder"), or Tom replies into that intro thread with the founder still on it. The intro thread itself IS the connection — Tom and the founder are now in a live email channel. Set `Connected` from the moment that thread exists, even if the founder hasn't typed a response yet. Do NOT default to `Outreach` here — Outreach is reserved for cold direct outreach where no third party has bridged Tom to the founder.
+  - **Third-party referrer forward** (deal-scanner webhook path with a `Fwd:` subject, where the outermost sender is a referrer and the founder lives inside the forwarded body — e.g. a DRF associate forwarding a founder's pitch): the founder is NOT in the thread with Tom yet. Default to `Qualified` if Tom hasn't replied, or `Outreach` if Tom has replied opting in to the intro. Do NOT use `Connected` — Tom has not been connected to the founder yet. (Once the referrer follows up by sending a separate intro thread that puts Tom + founder together, the rule above takes over and status flips to `Connected`.)
+  - `Outreach` — Tom has reached out cold directly to the founder and is waiting for a first response, no third party has bridged them. Also covers the post-`Qualified` state where Tom replies to a referrer opting in to an intro but the referrer hasn't yet looped the founder in.
+  - `Connected` — generic fallback: founder has replied to Tom's outreach and the conversation is live but unscheduled.
   - `Scheduled` — a call is actually booked (Blockit/Calendly confirmation, calendar invite, or explicit time agreed in-thread).
 
   Read the full Gmail thread before deciding — never default to `Qualified` without first checking whether the thread already shows later-stage progression OR whether the founder is the original sender. If the user specifies a status explicitly, honor that instead.
+
+  **Detecting third-party referrer forward**: subject starts with `Fwd:`/`FW:`, the outermost `From:` is not Tom AND not the founder, and the forwarded body contains an inner `From: <founder>` block. The sender's email domain typically does NOT match the company being pitched (e.g. `madi@dormroomfund.com` forwarding a `connectupskill.com` pitch).
 - `date:Close Date:start`: Set to the scheduled call date when Status is `Scheduled` (this anchors the pipeline agent's close-date logic). Leave blank otherwise — the pipeline agent will manage close dates for earlier stages.
 - `Website`: Infer from source material (email body links, founder email domain if company domain). `N/A` if unavailable.
 - `Contact`: Set to the founder's email if found (per Step 3 priority order). **Never leave this field empty/blank** — if no email is found after all lookup attempts, always set to `N/A`.
@@ -188,6 +200,7 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 - `Inv @ Round`: Only set if explicitly known
 - `Stage`: Use exact emoji variant from schema.md (e.g. `Pre-Seed 💡`, `Seed 🌾`). Default to `Pre-Seed 💡` for `-1` opportunities. For named companies, infer stage from source material (round details, explicit mentions).
 - `Support`: Always set to the "N/A" entry: `https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1`
+- `Source Thread ID`: Set to the Gmail `threadId` when the source is a Gmail message (e.g. invocation by `inbound-deal-detect`, or any flow where the input is a forwarded email or referral thread). Leave blank for non-email sources (LinkedIn URL, screenshot, pasted text, manual entry). This field powers `outreach-detector` / `outreach-decliner` Path D — when Tom replies in the original referral thread, the webhook flips Status deterministically by threadId match instead of subject/body haystack guessing.
 
 ### Page Content Structure
 
@@ -332,7 +345,7 @@ When running add-to-crm, if the email body doesn't name the founders, round, or 
 
 Every new entry in the Opportunities DB must ship enriched, not as a stub:
 
-- **Icon** — always set. Use company logo (YC page, company website, ContactOut `company.logo_url`). Never create with a blank/default icon.
+- **Icon** — always set. Pick a thematic emoji from Notion's standard emoji set. Never create with a blank/default icon.
 - **HQ** — source material first (email sig, forwarded thread), then LinkedIn via WebFetch, then company website footer. ContactOut `company.headquarter` is the *fallback* — only hit it if free sources don't answer, since it burns a credit. YC company page is case-by-case (only when clearly YC-backed per LI headline). Map to existing `HQ` select option; default `??? 🌀` only if genuinely unknown.
 - **Contact** — founder email. Source material first (signatures, forwarded threads, deck last slide), then public LinkedIn, then company website contact page. ContactOut (`profile_only=false` for `email`/`personal_email`) is the fallback.
 - **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none.
@@ -344,7 +357,7 @@ Every new entry in the Opportunities DB must ship enriched, not as a stub:
 
 **How to apply:**
 1. Whenever a founder LinkedIn URL exists in the source, run the enrichment cascade *before* writing the page (or immediately after, same turn): **source material → WebFetch on LI → YC page (if YC) → company website → ContactOut as fallback**. Don't burn ContactOut credits when the answer is free to find on LI or an email signature.
-2. Always set `icon` in the `notion-create-pages` call or in an immediate follow-up `update-page`. Prefer company-website favicon/og:image > ContactOut `company.logo_url` > emoji fallback.
+2. Always set `icon` in the `notion-create-pages` call or in an immediate follow-up `update-page`. Use a thematic emoji from Notion's standard emoji set.
 3. If the LinkedIn URL isn't in the source, try a quick WebSearch for `{founder name} {company} founder` and grab the LI URL from the first LinkedIn result before giving up.
 4. Treat `??? 🌀`, `TBD`, `N/A`, and blank Contact as failures to investigate — not acceptable end-states — unless the source genuinely offers no way to resolve them.
 5. Applies equally to scheduled pipeline-agent runs — the unattended-execution guard is NOT an excuse to skip enrichment when the LinkedIn URL is in the tip.

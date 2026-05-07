@@ -59,6 +59,10 @@ Scan the skills directory to build a complete inventory.
      | LaunchAgent name | Reason |
      |---|---|
      | `skills-autosync` | Infrastructure — syncs skill files, not a user-facing skill |
+     | `network-sync-notion` | Infrastructure — monthly Python sync of People DB → LinkedIn cache; feeds `network` skill |
+     | `network-quarterly-refresh` | Infrastructure — quarterly Exa re-enrich + re-embed of LinkedIn cache; feeds `network` skill |
+     | `company-sync` | Infrastructure — monthly Python sync of Companies DB → Notion cache + Exa enrich + embed; feeds `companies` skill |
+     | `company-quarterly-refresh` | Infrastructure — quarterly full re-enrich + re-embed of company cache; feeds `companies` skill |
 
    **Event** — the skill's primary trigger is now a Gmail webhook handler (Apps Script `gmail-webhook` project, invoked via Pub/Sub push) rather than a cron sweep. A skill is Event when its primary inbound/outbound detection happens in response to a Gmail lifecycle event. Handlers roll up into their parent skill per the table below; only the parent skill is rendered, not the handler.
 
@@ -97,10 +101,10 @@ Scan the skills directory to build a complete inventory.
 | Function | Skills |
 |---|---|
 | Pipeline Management | `pipeline-agent`, `add-to-crm`, `neg1-enricher`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback` |
-| Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro` as microsteps of one end-to-end value chain) |
+| Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro` as microsteps of one end-to-end value chain), `network` |
 | Portfolio Management | `investor-update`, `coinvestor-recommender` |
 | Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `add-conversation-to-notion`, `decision-retro` |
-| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies` |
+| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `companies` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)
 
@@ -109,7 +113,7 @@ These functions are tracked internally for completeness but do NOT appear in ANY
 | Function | Skills | Why hidden |
 |---|---|---|
 | Fund Ops | `mmf-to-lp-calc`, `cpa-report` | Operational fund accounting -- not part of the deal/research workflow |
-| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow |
+| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `nightly-backup` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `nightly-backup` is the 3am ET LaunchAgent (`com.invertedcap.nightly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to 5 backup repos + monthly SA-key rotation; lives in `~/.claude/local-agents/nightly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). |
 
 #### Excluded duplicates
 

@@ -95,49 +95,38 @@ Follow the career-signal-sentence + no-agenda-frame structure in writing-style/o
 
 **6. Build full email per writing-style/outreach/STYLE.md** (exact scaffolding, hyperlinks, formatting rules). See writing-style/outreach/STYLE.md for the template block, hyperlink map, signature whitespace, and quote rules.
 
-**7. Create Gmail draft** via `mcp__claude_ai_Gmail__create_draft` with:
-- `to`: person's Email from Notion
-- `subject`: `"Introducing Inverted Capital"`
-- `body`: rendered email (HTML with hyperlinks)
+**7. Create the Gmail draft AND write the snapshot atomically** via `~/.claude/scripts/gmail-create-draft.py`. This single helper replaces the prior three steps (mcp create_draft → list_drafts → manual snapshot Write). It posts to the gmail-webhook `createDraft` endpoint, returns the persistent hex `messageId`, and writes the snapshot to `_system/draft-snapshots/<hex>.json` in one shot. The two writes can no longer decouple — if the snapshot fails, the helper exits non-zero and you MUST treat the whole step as failed.
 
-**8. Retrieve the persistent draft ID.**
-`create_draft` returns an `r-XXXX` transaction ID, NOT the persistent hex ID. Call `mcp__claude_ai_Gmail__list_drafts` with `query: "to:{email}"` immediately after creating; the most recent returned entry's `id` (hex format, e.g., `19da8bae7d10166e`) is the persistent ID. Use this for the Notion URL — the `r-XXXX` value doesn't resolve in browser URLs.
+Write two scratch files first:
+- HTML body (rendered email with hyperlinks, includes signature block)
+- Plain-text snapshot body (strip HTML tags, preserve line breaks, EXCLUDE the signature block from `–` onward since Gmail auto-appends — this is what the headless `draft-feedback` pipeline diffs against the sent message)
 
-**9. Write the draft snapshot to Drive (for the headless `draft-feedback` pipeline).**
-
-Build a snapshot JSON capturing the initial draft state and write it to:
+Then invoke:
 
 ```
-~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/_system/draft-snapshots/<hex_id>.json
+~/.claude/scripts/gmail-create-draft.py \
+  --to <person email from Notion> \
+  --subject "Introducing Inverted Capital" \
+  --html-body-file /tmp/<scratch>.html \
+  --snapshot-text-file /tmp/<scratch>.txt \
+  --skill founder-outreach
 ```
 
-Where `<hex_id>` is the persistent Gmail message ID from Step 8 (e.g., `19da8bae7d10166e`). File contents:
+Stdout is one JSON line: `{"ok": true, "messageId": "19dd...", "threadId": "...", "draftUrl": "https://mail.google.com/mail/u/0/#drafts/19dd...", "snapshotPath": "..."}`. Use `messageId` and `draftUrl` in Step 8.
 
-```json
-{
-  "skill": "founder-outreach",
-  "messageId": "<hex_id>",
-  "threadId": "<gmail thread id from list_drafts response>",
-  "recipient": "<email>",
-  "subject": "Introducing Inverted Capital",
-  "draftText": "<plain-text body of the draft — strip HTML tags, preserve line breaks, EXCLUDE the signature block from `–` onward since Gmail auto-appends>",
-  "createdAt": "<ISO 8601 timestamp>"
-}
-```
+Exit code 0 = both writes succeeded. Exit codes 1/2/3 = failure — abort the row, do NOT advance to Step 8, surface the error to Tom.
 
-Use the `Write` tool — Drive Desktop syncs the file to the cloud automatically (within seconds). The webhook handler picks it up on send. If Tom never sends, the snapshot auto-purges after 30 days via `purgeOldSnapshots` in the Apps Script.
+**On re-drafts** (Tom asked for a tweak — Step 3 deleted the prior Gmail draft): re-run this helper. A new hex is minted, a new snapshot is written. Stale snapshots auto-purge after 30 days via `purgeOldSnapshots` in the Apps Script.
 
-**On re-drafts** (Tom asked for a tweak — Step 3 deleted the prior Gmail draft, Step 7 created a new one with a new `<hex_id>`): write a NEW snapshot file at the new hex_id path. Stale snapshots auto-purge.
-
-**10. Update Notion**:
-- `Gmail Draft URL` → `https://mail.google.com/mail/u/0/#drafts/<hex_id>`
+**8. Update Notion**:
+- `Gmail Draft URL` → `draftUrl` from Step 7 stdout
 - `Status` → `"Draft Ready"`
 
 **Both writes are MANDATORY on every invocation, including the 2nd/3rd/Nth iteration during a workshop session.** Defensive belt-and-suspenders — primary fix is Step 3's iteration-aware skip-deletion, but re-asserting Status here protects against any other event that might have flipped it. See memory `feedback_workshop_iteration_not_pass.md`.
 
 **Leave unchanged**: everything else (Eval Score, Eval Breakdown, Signals, Claude Rec, Eval Summary, Working Description — all of which were written by `neg1-enricher` and are out of scope here). The legacy `Email Draft` Notion property is no longer used — the snapshot lives in Drive instead.
 
-**11. Report back.** Per person: name, spike signal, 1-line personalization preview, Gmail draft URL. Summary table for batches.
+**9. Report back.** Per person: name, spike signal, 1-line personalization preview, Gmail draft URL. Summary table for batches.
 
 ---
 

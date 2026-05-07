@@ -27,7 +27,7 @@ analysis, and to say so clearly.
 ## Step 1: Locate the Existing Diligence Page
 
 Search the Notes database (`collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for the existing
-first-pass diligence page. Use `notion-search` with the query "Claude: [Company Name] First-Pass
+first-pass diligence page. Use `notion-search` with the query "[Claude] [Company Name] First-Pass
 Diligence".
 
 If no existing diligence page is found, tell Tom and suggest running the `first-pass-diligence`
@@ -210,7 +210,7 @@ be duplicated.
 
 After prepending the update, update the page title to reflect the most recent update date.
 Use `notion-update-page` with `update_properties` to set the title to:
-`Claude: [Company Name] First-Pass Diligence — MM.DD.YYYY Update`
+`[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY Update`
 
 This replaces whatever date suffix was previously in the title (either the original first-pass
 date or a prior update date). The title should always reflect the most recent update — do not

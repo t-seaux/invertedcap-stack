@@ -4,24 +4,23 @@ description: >-
   Add a company to Tom's Notion Companies database and run the full enrichment
   pipeline. Dedups by domain/name, creates the row if new, then populates every
   field per the canonical spec at `shared-references/companies-enrichment-spec.md` —
-  identity (Name, Category, URL, LinkedIn URL, Overview, HQ, Founded Year,
-  Company Type), Revenue, Total Funding, Funding Status, Momentum (rounds +
-  Deal Digest mentions), Employee Count, Headcount, HC Commentary — using
-  ContactOut + Sales Nav headcount scrape + Deal Digest cache as sources.
-  Also sets the page icon from ContactOut's logo. Part of Research Management —
-  this is how the company knowledge base gets built up. Trigger phrases: "add
-  [company] to companies", "add this company", "log this company", "enrich
-  [company]", "create a Companies entry for [X]", "add [domain] to companies",
-  "add [LinkedIn company URL]", or any variant indicating Tom wants a company
-  logged and enriched in the Companies DB. Also trigger on a bare
-  `linkedin.com/company/...` URL or a bare company domain with add/log intent.
-  Distinct from `neg1-enricher` (person-level; invokes THIS skill as a
-  subroutine per employer/school) and `add-to-crm` (Opportunities pipeline).
-  Skill does NOT create People entries, Opportunities entries, or any
-  non-Companies artifact. ALWAYS runs the full Steps A–E enrichment pipeline
-  on every direct invocation — no minimal/partial variant. Only skip is the
-  credit-saving rule: if `Last Enriched` is already populated, return the
-  existing row without re-enriching.
+  identity (Name, Category, URL, Overview, HQ, Founded Year),
+  Total Funding, Momentum (rounds + Deal Digest mentions), Employee Count,
+  Headcount, HC Commentary — using Exa+LLM extraction + Sales Nav headcount
+  scrape + Deal Digest cache as sources. Also sets the page icon. Part of
+  Research Management — this is how the company knowledge base gets built up.
+  Trigger phrases: "add [company] to companies", "add this company", "log this
+  company", "enrich [company]", "create a Companies entry for [X]", "add
+  [domain] to companies", "add [LinkedIn company URL]", or any variant
+  indicating Tom wants a company logged and enriched in the Companies DB. Also
+  trigger on a bare `linkedin.com/company/...` URL or a bare company domain
+  with add/log intent. Distinct from `neg1-enricher` (person-level; invokes
+  THIS skill as a subroutine per employer/school) and `add-to-crm`
+  (Opportunities pipeline). Skill does NOT create People entries, Opportunities
+  entries, or any non-Companies artifact. ALWAYS runs the full Steps A–E
+  enrichment pipeline on every direct invocation — no minimal/partial variant.
+  Only skip is the credit-saving rule: if `Last Enriched` is already populated,
+  return the existing row without re-enriching.
 ---
 
 # Add to Companies
@@ -54,7 +53,7 @@ When invoked with `{mode: "webhook", page_id: "<notion-page-id>"}`, the row alre
 
 Behavior:
 1. Fetch the existing page by `page_id`. If `Last Enriched` is already populated, log "already enriched" and exit (the worker already gates on this, but re-check in case of races).
-2. Read the row's `URL` (website domain) and `Name`. Resolve the LinkedIn company URL via web search if it isn't already on the row, then proceed straight into Steps B–E.
+2. Read the row's `URL` (website domain) and `Name`. Resolve a LinkedIn company URL via web search for use as an Exa fetch source, then proceed straight into Steps B–E. (LinkedIn URL is no longer persisted to the row — Tom deleted that property 2026-05-06.)
 3. Skip Step A's dedup-search entirely — the page_id IS the dedup answer.
 4. Apply the unattended-execution guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md` — never ask, skip-and-log on missing data, always reach Slack with a result line.
 5. On completion, post a Slack alert via `send-alert` using the canonical template below.
@@ -65,9 +64,9 @@ Use this exact shape via `~/.claude/skills/send-alert/send.sh`. The first line i
 
 ```
 **🪙 add-to-companies — <Company Name> enriched ([Notion](<page_url>))**
-- **Category:** <Category emoji + label> (<Company Type, $TICKER if public>)
+- **Category:** <Category emoji + label>
 - **HQ:** <metro> (<actual city/region if differs from metro>)
-- **Funding Status:** <status> · **Revenue:** <revenue figure with source>
+- **Total Funding:** <amount with investors> or "—"
 - **Headcount:** <current count> (<Mon 'YY>); 12mo +X% / 24mo +Y%
 - **Deal Digest:** <one-line summary; "no mentions in cache" if empty>
 ```
@@ -76,13 +75,8 @@ Rules:
 - Header line is GFM bold (double asterisks). The 🪙 emoji is part of the header, not a separate icon-binding.
 - Bullets use the GFM dash convention (`- `), not `• `. md_to_blocks renders `- ` as Slack bullets correctly. Do NOT use `*` or `•`.
 - The bullet list starts on the line **immediately after** the header line — single `\n` separator, never `\n\n`.
-- For Funds / Schools / Nonprofits, omit the Funding Status / Revenue / Deal Digest lines that don't apply (those fields are categorically blank per the spec).
-- For Companies that hit Step C / D no-ops (no Sales Nav chart, no Deal Digest mentions), still include the corresponding bullet so the alert reads as a complete checklist — use "no mentions in cache" / "Sales Nav skipped (no chart)" rather than dropping the line.
-
-If only a name is given, resolve the LinkedIn URL via web search first, then
-proceed. If the LinkedIn URL is ambiguous (multiple companies share the
-name), disambiguate via ContactOut enrichment + industry/size check before
-committing.
+- For Funds / Schools, omit the Total Funding / Deal Digest / Headcount lines (those fields are categorically blank per the spec).
+- For Companies that hit Step C / D no-ops (no Sales Nav chart, no Deal Digest mentions), still include the corresponding bullet — use "no mentions in cache" / "Sales Nav skipped (no chart)" rather than dropping the line.
 
 ## Workflow
 
@@ -92,9 +86,13 @@ This skill executes Steps A–E from `companies-enrichment-spec.md` in order:
    name fallback. If `Last Enriched` populated → return existing page URL
    (skip). If found with `Last Enriched` empty → proceed to Step B as a
    backfill.
-2. **Step B — Create or backfill** via `notion-create-pages` /
-   `notion-update-page`. Populate every field per the spec's field table +
-   edge-case table. Set icon from ContactOut's `company.logo_url`.
+2. **Step B — Exa enrichment + create/backfill.** Resolve LinkedIn URL + website
+   via WebSearch if not given (LinkedIn URL is used as an Exa fetch source only —
+   not persisted to the row). Fetch via Exa (LinkedIn page first, website
+   fallback). Pass Exa text to Claude (Haiku) with the extraction prompt from
+   the spec — returns hq, founded_year, overview, total_funding.
+   Apply HQ metro rollup. Then `notion-create-pages` or `notion-update-page`
+   per the spec's field table. Set icon per the source hierarchy in the spec.
 3. **Step C — Sales Nav headcount scrape** for every `Company 🛠️` row (not
    optional — no size-based skipping). Writes Employee Count, Headcount,
    HC Commentary. Skip only for `Fund 💸` / `School 🎓` / Nonprofit / chart
@@ -102,7 +100,7 @@ This skill executes Steps A–E from `companies-enrichment-spec.md` in order:
    `shared-references/salesnav-headcount-scrape.md`.
 4. **Step D — Deal Digest merge** against the cache at
    `shared-references/deal-digest-cache.json`. Merges into Momentum,
-   populates `📰 Deal Digest Mentions` relation, finalizes Revenue.
+   populates `📰 Deal Digest Mentions` relation.
    See `shared-references/deal-digest-cache.md`.
 5. **Step E — Finalize**: write `Last Enriched` = today, return page URL.
 
@@ -112,36 +110,34 @@ This skill executes Steps A–E from `companies-enrichment-spec.md` in order:
 common cases are obvious.)
 
 - **Publicly-traded financial-services firms** (BlackRock, State Street,
-  public asset/alt managers) → `Company 🛠️` with Company Type = `Public
-  Company`, Funding Status = `Public`. **Not** `Fund 💸`.
+  public asset/alt managers) → `Company 🛠️`. **Not** `Fund 💸`.
 - **Private partnership/fund vehicles** (VC firms, private PE funds, hedge
   fund LPs, family offices acting as pure investors) → `Fund 💸`. Operational
-  fields left blank per the edge-case table.
+  fields left blank per the spec.
 - **Universities / colleges / educational institutions** → `School 🎓`. Only
-  Legacy core fields populated; skip Sales Nav and Deal Digest.
+  identity fields populated; skip Sales Nav and Deal Digest.
 
 ## Category-specific field rules
 
 Handled in the spec's edge-case table — summary:
 
-- **`Fund 💸`**: populate identity (Name, Category, Overview, URL, LinkedIn,
-  HQ, Founded Year, Company Type) + icon + Last Enriched. Leave Employee
-  Count, Revenue, Total Funding, Momentum, Headcount, HC Commentary, Funding
-  Status blank.
+- **`Fund 💸`**: populate identity (Name, Category, Overview, URL, HQ) + icon
+  + Last Enriched. Leave Founded Year, Employee Count, Total Funding, Momentum,
+  Headcount, HC Commentary blank.
 - **`School 🎓`**: same as Fund — identity-only.
 - **`Company 🛠️` + Public, long-public**: Total Funding blank, Momentum
-  blank, Funding Status = `Public`. Headcount and HC Commentary still
-  populated via Sales Nav.
+  blank. Headcount and HC Commentary still populated via Sales Nav.
 - **`Company 🛠️` + Acquired**: Employee Count, Headcount, HC Commentary,
-  Revenue, Total Funding, Momentum blank; Funding Status = `Acquired`.
+  Total Funding, Momentum blank.
 
 ## Important rules
 
 - **Speed over confirmation** — run the pipeline, return the URL.
 - **Never re-enrich if `Last Enriched` is populated** — credit-saving rule.
 - **Dedup by domain first, name second.**
-- **No hallucination** — if ContactOut returns nothing for a field, leave
-  blank.
+- **No hallucination** — blank > fabricated. If Exa returns nothing for a
+  field, leave blank.
+- **Always set icon** — iconless row is a bug.
 - **Return the page URL** on success.
 
 ## Interaction with other skills
@@ -161,13 +157,13 @@ Handled in the spec's edge-case table — summary:
 
 **Claude:**
 1. Step A: no existing Thatch row.
-2. Step B: ContactOut → Series B, Index lead, $40M, 174 employees, overview,
-   etc. Create row with identity fields + Funding Status = `Series B`.
-3. Step C: Sales Nav → 25-month headcount series (45 → 199); writes
-   `Employee Count = 199 (April 2026)`, `Headcount` two-line, `HC Commentary`
-   intra-window color.
-4. Step D: Sep 2025 digest → `$400m post` folded into Apr 2025 round;
-   `~$4m ARR` standalone Sep 2025 traction entry. Relation set.
+2. Step B: WebSearch resolves LinkedIn URL → Exa fetches LinkedIn page → LLM
+   extracts overview, HQ="San Francisco", founded_year=2021, total_funding="$40m".
+   Create row with identity fields + Total Funding = `$40m (Index Ventures, ...)`.
+3. Step C: Sales Nav → 12mo/24mo headcount series; writes `Employee Count`,
+   `Headcount`, `HC Commentary`.
+4. Step D: Sep 2025 digest → `$400m post` folded into round entry as Momentum;
+   relation set.
 5. Step E: icon set, Last Enriched written. Returns page URL.
 
 ## Behavior Rules
@@ -178,27 +174,19 @@ Publicly-traded asset managers / financial-services firms (BlackRock, State Stre
 
 **Why:** The standard Category heuristic routes "Asset Management / Hedge Fund / Investment Management" industries to `Fund 💸`. That misfires on public companies Tom tracks as companies in their own right. Confirmed 2026-04-22 when Tom corrected BlackRock from Fund 💸 to Company 🛠️ (Public Company).
 
-**How to apply:** When industry is Asset Management / Investment Management / PE / VC AND the entity is publicly-traded (Company Type = `Public Company`), use `Company 🛠️` with Funding Status = `Public`. Reserve `Fund 💸` for private partnership/fund vehicles (VC firms, private PE funds, hedge fund LPs). If in doubt, ask.
+**How to apply:** When industry is Asset Management / Investment Management / PE / VC AND the entity is publicly-traded, use `Company 🛠️`. Reserve `Fund 💸` for private partnership/fund vehicles. If in doubt, ask.
 
-### Revenue & Total Funding enrichment hierarchy
+### Total Funding enrichment
 
-Same rule applies to both `Revenue` and `Total Funding`. Strict order:
+Source: Exa text + LLM extraction. The LLM returns `total_funding` (e.g., `"$40m"`) and `total_funding_evidence` (supporting quote). If Exa returns nothing, leave Total Funding blank — do not write `N/A`.
 
-1. **Deal Digest data first** — scan the `Momentum` field and entries in the `📰 Deal Digest Mentions` relation. For Revenue: ARR/MRR/revenue. For Total Funding: cumulative raised-to-date (rare in digests). Format: `$X ARR (MMM 'YY Deal Digest)` for Revenue; bare `$Xm`/`$Xb` for Total Funding.
-2. **ContactOut estimate second** — call `contactout_enrich_domain`.
-   - Revenue: top-level `revenue` field. Format: `$Xm (ContactOut Est.)` / `$Xb (ContactOut Est.)` — lowercase `m`/`b`.
-   - Total Funding: `funding.total_funding_usd` when populated. If null, sum `funding.rounds[].money_raised_usd`. Format: bare `$Xm` / `$Xb` (no `(ContactOut Est.)` suffix).
-3. **WebSearch third (Total Funding only)** — ContactOut often returns `total_funding_usd: null` with round-level amounts also null for companies with publicly disclosed totals (Navan ~$2.6B, Omada ~$528M). When that happens, WebSearch Crunchbase/PitchBook/press for "[Company] total funding raised". Format: bare `$Xm` / `$Xb` with trailing source marker, e.g. `$2.6b (Crunchbase)`. **Do NOT use WebSearch for Revenue** — ContactOut is the ceiling.
-4. **N/A fallback** — if none of the above returns the figure, set `N/A`. Do not leave blank. Obvious-N/A short-circuits (skip WebSearch): government agencies, pre-VC-era private firms (DRW, Lloyd's), wholly-acquired subsidiaries (Refinitiv/LSEG, Setter/Thumbtack).
+Format: `$Xm (Investor1, Investor2, ...)` — dollar amount from LLM extraction; investor names from the Exa text if mentioned (cap at 4–5, prefer tier-1 names). If no investors visible, just `$Xm`.
 
-**What does NOT count as a revenue signal:** funding round data ("Pre-Seed; $1.3m raised", "Series A", "raised $80m") — that's capital, not revenue. Ambiguous figures without a unit ("$200k" alone with no MRR/ARR label) — not usable.
+Leave blank for `Fund 💸` / `School 🎓`.
 
-**Edge cases:**
-- Public companies where ContactOut returns `N/A` (e.g. Jack Henry — NASDAQ) still get `N/A` per this rule.
-- ContactOut returns empty record entirely (404-like): treat as no-data → N/A.
-- Stamp `Last Enriched` to today's date on any row touched during an enrichment pass.
+**Public, long-public companies:** leave Total Funding blank (no tracked rounds).
 
-**Pagination gotcha:** `notion-query-database-view` returns max 100 results per call with `has_more: true` when more exist — but has NO pagination param. If the DB has >100 rows, a single call silently truncates. Mitigate with a server-side filter (`Revenue: Is empty`), walk via multiple `notion-search` calls, or confirm `has_more` is false before trusting results.
+**Acquired companies:** leave Total Funding blank.
 
 ### Always run Headcount scrape for Company 🛠️ rows
 
@@ -210,7 +198,7 @@ Always run the Sales Navigator headcount scrape and populate `Employee Count`, `
 
 ### Headcount enrichment via Sales Nav Growth Insights
 
-Data source: **LinkedIn Sales Navigator → Company page → Growth insights tab**. ContactOut does not return time-series employee counts; WebSearch/Crunchbase/PitchBook don't publish the 1y/2y breakdown structurally.
+Data source: **LinkedIn Sales Navigator → Company page → Growth insights tab**. Exa does not return time-series employee counts.
 
 **Format (preserve exactly):**
 ```
@@ -219,36 +207,24 @@ Data source: **LinkedIn Sales Navigator → Company page → Growth insights tab
 Thousands separators (commas), Unicode `→` arrow (not `->`), `<br>` between lines.
 
 **Fetch procedure:**
-1. **Get numeric Sales Nav company ID.** Vanity URLs like `/sales/company/stripe` don't redirect — must pass numeric ID. Fetch `https://www.linkedin.com/company/{vanity}/` from an authenticated tab (`credentials: 'include'`), regex `fsd_company:(\d+)` on the HTML. If 429, wait 60+ seconds; retry one-at-a-time with ~1.5s delays. If "company unavailable" redirect, the vanity is wrong — fall back to `https://www.linkedin.com/sales/search/company?query=(keywords%3A<name>)`.
-2. Navigate to `https://www.linkedin.com/sales/company/{id}`. Sales Nav renders client-side — do NOT `fetch()`; the HTML is a shell.
-3. Wait ~5 seconds for Growth insights to render (lazy-loaded).
-4. Extract via regex against `document.body.innerText`:
+1. **Get numeric Sales Nav company ID.** Fetch `https://www.linkedin.com/company/{vanity}/` from an authenticated tab, regex `fsd_company:(\d+)` on the HTML. If 429, wait 60+ seconds; retry one-at-a-time.
+2. Navigate to `https://www.linkedin.com/sales/company/{id}`. Wait ~8 seconds for Growth insights to render.
+3. Extract via regex against `document.body.innerText`:
    - `(\d[\d,]*)\s*\n?total employees` — current count
    - `(\d+)%\s*\n?1y growth`
    - `(\d+)%\s*\n?2y growth`
-5. Back-solve starting counts: `prev12 = round(current / (1 + g1y/100))`, `prev24 = round(current / (1 + g2y/100))`.
-6. **Update Employee Count, Headcount, AND HC Commentary together** — every Headcount write MUST be accompanied by an HC Commentary write. Same `update_properties` call. If SN total differs from Notion Employee Count by more than rounding, update EC to match SN (SN is fresher than ContactOut). Format: `"{count} (April 2026)"`.
+4. Back-solve: `prev12 = round(current / (1 + g1y/100))`, `prev24 = round(current / (1 + g2y/100))`.
+5. Write `Employee Count`, `Headcount`, and `HC Commentary` in one `update_properties` call.
 
-**HC Commentary format:** 2–3 sentences describing trajectory in plain prose, referencing absolute numbers and context. Sentence 1: shape of growth with start→end values and deltas. Sentence 2: the "why" (funding, public status, acquisition, restructuring). Optional sentence 3: caveat if Sales Nav scope is narrower than real corporate headcount (parent-only vs. full corporate).
+**HC Commentary format:** 2–3 sentences describing trajectory in plain prose. Don't restate anchor numbers. Capture round-linked inflections, intra-window acceleration, parent-vs-subsidiary scope caveats.
 
-**Fallback:** If Sales Nav page lacks Growth insights (micro-companies, some subsidiaries), set `Headcount` to `N/A`. Don't leave blank.
+**Fallback:** If Sales Nav lacks Growth insights, set `Headcount` to `N/A`. Don't leave blank.
 
 **Gotchas:**
-- **Silent-write failures:** `notion-update-page` sometimes returns success but the property change doesn't persist. Spot-check via `notion-fetch` on 2-3 targets after a batch; retry any that didn't land.
-- **Parent-vs-subsidiary:** Sales Nav often shows only the entity carrying the vanity, not full corporate headcount (Moody's ~3,522 vs. ~14–16K full org). Document mismatch in HC Commentary.
-- Negative growth (layoffs): preserve as-is, don't "correct" counterintuitive numbers.
-- Young companies (<2 years): g2y may be 0% or equal to current. Keep as-is.
+- **Silent-write failures:** `notion-update-page` sometimes returns success but the property change doesn't persist. Spot-check via `notion-fetch` on 2–3 targets after a batch; retry any that didn't land.
+- **Parent-vs-subsidiary:** Sales Nav often shows only the entity carrying the vanity slug, not full corporate headcount. Document mismatch in HC Commentary.
+- Negative growth (layoffs): preserve as-is.
 
-### Acquired companies → N/A operational fields
+### Acquired companies → blank operational fields
 
-When `Funding Status = "Acquired"`, the company no longer operates standalone. Populating operational fields with scraped numbers (which reflect parent/merged entity) produces misleading signal.
-
-**Set to `N/A`:** Employee Count, Revenue, Total Funding, Momentum, Headcount.
-
-**Leave alone:** Overview (historical context useful), HC Commentary (may carry legitimate post-acquisition analysis), Founded Year, HQ, URL, LinkedIn URL, Category, Company Type (identity, not operational).
-
-Also stamp `Last Enriched` to today's date.
-
-**Trigger:**
-- Automatic: any row where `Funding Status = "Acquired"`.
-- Manual from Tom: "X was acquired — mark it". Also set `Funding Status = "Acquired"` as part of the same write.
+When a company is acquired, it no longer operates standalone. Leave Employee Count, Total Funding, Momentum, Headcount blank. Preserve Overview, HQ, URL, Category, Founded Year. Stamp Last Enriched.

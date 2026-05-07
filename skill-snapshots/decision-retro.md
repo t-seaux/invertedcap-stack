@@ -6,7 +6,7 @@ description: >-
   founder signals, company stage, market structure, business model, positioning, valuation,
   anything Tom has texture on. Raw retro stays on the Opportunity page; extracted nuggets
   accumulate in a thematic master log at `neg1-enricher/DECISION_RETROS.md`. Strong
-  patterns eventually get promoted from retros → `INVERTED_LENS.md` through manual curation.
+  patterns eventually get promoted from retros → `FOUNDER_EVAL_CASEBOOK.md` through manual curation.
   Three trigger paths. (1) Scheduled scan (daily 9am ET) detects Opportunity status transitions
   to Committed / Pass Note Pending / Pass (Met) / Pass (DNM) (including follow-on rounds) and posts a prompt to the
   `#decision-retros` Slack channel; Tom replies in thread (voice-to-text or typed);
@@ -69,7 +69,9 @@ Helper: `send-alert/md_to_blocks.py` posts to the channel webhook at `~/.claude/
       "thread_ts": "1745432123.456789",
       "prompted_at": "2026-04-23T09:00:00-07:00",
       "completed_at": null,
-      "nugget_count": null
+      "nugget_count": null,
+      "would_back_again": null,             // "yes" | "open" | "no" | "profile_mismatch" | "n/a" | null (pre-completion). FYI annotation only — does NOT enter scoring. "n/a" for first-time cold dismissals where the question doesn't apply.
+      "would_back_again_rationale": null    // one-line, populated alongside would_back_again
     }
   ]
 }
@@ -112,7 +114,9 @@ For each `items[]` entry where `status == "prompted"`:
 5. **Extract**: Claude call with prompt:
    ```
    Given this raw retro on [Opp Name] ([Decision]) and the context below,
-   extract nuggets keyed by framework dimension. Return ONLY valid JSON.
+   extract nuggets keyed by framework dimension AND infer the
+   would_back_again disposition (if applicable — see rules below).
+   Return ONLY valid JSON.
 
    Context: [...Opp page snippet, prior first-pass if any...]
 
@@ -125,13 +129,37 @@ For each `items[]` entry where `status == "prompted"`:
      "biz_model": [...],
      "positioning": [...],
      "valuation": [...],
-     "other": [...]
+     "other": [...],
+     "would_back_again": "yes" | "open" | "no" | "profile_mismatch" | "n/a",
+     "would_back_again_rationale": "<one-line, verbatim where possible>"
    }
 
-   Rules: preserve Tom's exact phrasing where possible; empty arrays for dimensions
-   Tom didn't touch; don't invent dimensions not in the schema.
+   Rules:
+   - Preserve Tom's exact phrasing where possible; empty arrays for dimensions
+     Tom didn't touch; don't invent dimensions not in the schema.
+   - `would_back_again` is **specifically about re-backing**, applicable only
+     when Tom has texture on the founder from a prior decision. **For
+     first-time cold dismissals or sourcing-only opps where Tom never met
+     the founder, use "n/a" — the question doesn't apply because there's
+     no "again."** The field also lands as "n/a" if the retro is purely
+     about market/category/biz-model and never touches the founder.
+   - Bands (FYI annotation only — does NOT enter scoring):
+     - "yes": Tom would back this founder's next thing without hesitation
+       (e.g., "absolutely back whatever this guy does next").
+     - "open": depends on what the founder does / how they evolve
+       (e.g., "open question whether I'd back a founder of this profile").
+     - "no": clean no — wouldn't back even if they came back.
+     - "profile_mismatch": love the founder, but they've graduated past Tom's
+       fund product (e.g., post-exit founder raising $30M+ rounds — see
+       Casebook cross-synthesis #21 / Randy archetype).
+     - "n/a": question doesn't apply (cold first pass / no founder relationship /
+       retro didn't address founder-level future-backing).
+   - When in doubt between "open" and "n/a": if Tom has met the founder
+     and the retro implies *any* re-back disposition (even "I'd need to see X"),
+     use "open". Reserve "n/a" for cases where the founder is genuinely
+     a stranger or the retro is non-founder-focused.
    ```
-6. **Log to Opp page** — append a `## Retro (YYYY-MM-DD)` block with the raw reply text verbatim.
+6. **Log to Opp page** — append a `## Retro (YYYY-MM-DD)` block with the raw reply text verbatim. Below the raw text, append a single-line annotation when applicable: `**Would back again:** <yes|open|no|profile_mismatch> — <one-line rationale>`. **Skip the annotation entirely if `would_back_again == "n/a"`** (first-time cold pass / no founder relationship — the line would be noise).
 7. **Log to `DECISION_RETROS.md`** — append to each relevant thematic section:
    - `## Founder signals` — from `founder_signal` nuggets
    - `## Market` — from `market`
@@ -145,8 +173,8 @@ For each `items[]` entry where `status == "prompted"`:
    - **YYYY-MM-DD · [Company] · [Invested/Pass]** — [nugget verbatim or lightly paraphrased]
      - Source: [Opportunity page URL]
    ```
-8. Mark queue item `status="completed"`, `completed_at=now()`, `nugget_count=<total>`.
-9. Single-line alert via `send-alert` to DM: `🔁 Retro captured for [Company] ([N] nuggets across [sections]).`
+8. Mark queue item `status="completed"`, `completed_at=now()`, `nugget_count=<total>`, `would_back_again=<band>`, `would_back_again_rationale=<one-line>`. The `would_back_again` field on the queue item makes the disposition queryable for future Lookup-mode calls without re-parsing the Opp page.
+9. Single-line alert via `send-alert` to DM: `🔁 Retro captured for [Company] ([N] nuggets across [sections])` — append ` — would back: [band]` only when `would_back_again` is not `"n/a"`.
 
 ### Capture mode (manual)
 
@@ -186,7 +214,14 @@ Triggered by the `claude-job-queue` processor with args `{ mode: "webhook-prompt
 4. POST via `send-alert/md_to_blocks.py` using the `#decision-retros` webhook URL at `~/.claude/skills/decision-retro/.webhook_url`.
 5. Immediately `slack_read_channel` on `#decision-retros` (limit 10) to find the message by fingerprint; capture `ts`.
 6. Append a new entry to `queue.json` with `status="prompted"`, `thread_ts=ts`, `prompted_at=now()`, `scope`, page id, page name, page url, decision. Include a `trigger_source: "webhook:<trigger_event>"` field so the analytics layer can distinguish webhook-triggered from schedule-triggered prompts.
-7. The existing `decision-retro-listener` (6pm ET) will process the reply when Tom threads a retro — no change to that path.
+7. **Append the audit-log line** (per SHARED_SAFETY.md). Use a single Bash call with `mkdir -p` + `tee -a` to `~/.claude/scheduled-tasks/decision-retro/audit-log/YYYY-MM-DD.log`:
+   ```bash
+   mkdir -p ~/.claude/scheduled-tasks/decision-retro/audit-log && \
+   echo "[$(date '+%Y-%m-%d %H:%M:%S')] WRITE: slack #decision-retros posted retro prompt opp:<SHORT_ID> name:<NAME> status:<STATUS> ts:<thread_ts>" \
+     | tee -a ~/.claude/scheduled-tasks/decision-retro/audit-log/$(date +%Y-%m-%d).log
+   ```
+   This is a concrete shell action, not a Write tool call — runs cleanly under `--dangerously-skip-permissions`. Do NOT report "audit log blocked" in the job summary; if `tee` exits non-zero, that's the only condition that warrants a warning.
+8. The existing `decision-retro-listener` (6pm ET) will process the reply when Tom threads a retro — no change to that path.
 
 **Idempotency:** the upstream webhook must pass `idempotencyKey = "draft-trash-retro-{messageId}"` (or analogous) so `claude-job-queue` dedupes re-triggers. Plus the step-1 queue check inside this skill is a second layer against the scheduled scan firing first.
 
@@ -205,7 +240,7 @@ When Tom asks a past-tense question about a prior decision — "why did I pass o
 1. **Official pass note** — the outbound email archived by `pass-note-drafter`. Locate via the Opp's `✍️ Notes` relation → filter to entries with `Category = Diligence` whose body contains the pass note text. If not in Notes, fall back to Gmail search for sent mail to the founder around the Close Date. Summarize (do not paste verbatim).
 2. **Internal feedback** — the Opp page's `## Retro (YYYY-MM-DD)` block(s), plus any matching entries in `~/.claude/skills/neg1-enricher/DECISION_RETROS.md` sourced to this Opp URL. Distill into dimension-keyed summaries (no raw text quoted).
 3. **Diligence context** — the Opp page's first-pass diligence block and/or pre-mortem block, or the linked first-pass page in `✍️ Notes`. One-line summary only.
-4. **Framework** — `~/.claude/skills/neg1-enricher/INVERTED_LENS.md` + `FOUNDER_EVAL_FRAMEWORK.md`. Match nuggets to named patterns.
+4. **Framework** — `~/.claude/skills/neg1-enricher/FOUNDER_EVAL_CASEBOOK.md` + `FOUNDER_EVAL_FRAMEWORK.md`. Match nuggets to named patterns.
 
 **Output structure** (inline chat response, not Slack):
 
@@ -224,7 +259,7 @@ When Tom asks a past-tense question about a prior decision — "why did I pass o
 (Omit dimensions with no nuggets. Use bare `~$3-4B`, en dashes only.)
 
 **Framework connections**
-• Reinforces: [pattern name from INVERTED_LENS.md] — [one-line why]
+• Reinforces: [pattern name from FOUNDER_EVAL_CASEBOOK.md] — [one-line why]
 • Challenges: [pattern] — [why]
 • Expands: [new pattern hint] — [why]
 
@@ -281,18 +316,41 @@ Output structure is adjusted for a person, not a company:
 
 Omit "Official pass note feedback" — -1 rows don't have outbound pass notes. Everything else (skip handling, no-retro handling, inline one-off pass, prompted-but-no-reply) works the same way.
 
+## Founder retro DM format (compact embedded-link)
+
+For founder retro DMs (Inverted 1, Dash 1+2, future fund retros) and similar minimal-format Slack posts that pair a name with a LinkedIn URL, use the compact embedded-link format — NOT a separate `LinkedIn:` line:
+
+```
+**<Retro Type>: [<Name>](<LinkedIn URL>) – <Company><optional ` (Status)`>**
+`[founder:<short-id>]`
+```
+
+Two lines, no blank line between them. Examples:
+
+```
+**Dash 2 Retro: [Sean Monteiro](https://www.linkedin.com/in/sean-monteiro) – Bounce**
+`[founder:d12-mont]`
+```
+
+Rules:
+- En dash (`–`) between Name and Company per Tom's voice rules.
+- Append status in parens only for non-Active states (e.g., `(Exited)`, `(Wound Down)`).
+- No blank line between title and fingerprint (blank lines render as `\n\n` spacers via `md_to_blocks.py`).
+- Does NOT apply to long-form alerts where context is the point — those follow the per-entity row convention in `send-alert/SKILL.md`.
+
 ## Important rules
 
 - **Never impose a template** on the raw retro. The point is capturing what Tom wouldn't otherwise write down.
 - **Extracted nuggets quote the raw retro where possible** — don't paraphrase away the texture.
 - **Cold dismissal retros are fully valid**. A one-sentence "wrong GTM motion for this market" is a legitimate retro. Don't prompt for more.
 - **Never prompt twice for the same Opportunity** — idempotency is enforced by queue.json `opp_id` dedup.
-- **Promote to CALIBRATION manually.** This skill does NOT write to `INVERTED_LENS.md` directly. Patterns solidify into calibration through Tom's explicit curation call.
+- **Never match queue items by `short_id` alone** — Notion 8-char prefixes collide more often than feels intuitive (e.g. Comvex `35100bef-f4aa-8162-...` and Atina `35100bef-f4aa-816d-...` share `35100bef`). When deriving short_id from a Slack fingerprint in `decision-retro-listener` Mode A or B, narrow further before writing — disambiguate by `prompted_at` proximity to `thread_ts`, or by `status == "prompted"` (only one item per short_id should be open at a time). Always update queue rows by full `opp_id`. Same caution applies to any future skill that keys off short_id in this queue.
+- **Promote to CALIBRATION manually.** This skill does NOT write to `FOUNDER_EVAL_CASEBOOK.md` directly. Patterns solidify into calibration through Tom's explicit curation call.
 - **Status re-transitions are one-shot.** If Tom flips an Opp's status across terminal states (e.g., `Pass Note Pending` → `Pass (Met)`, or `Pass (Met)` → `Committed` — rare), the queue's existing `prompted` / `completed` entry stays — no re-prompt. The cascade fires once per Opp ID at the earliest terminal transition. Edge case; handle manually via Tom saying "retro on X" if he wants another pass.
 
 ## Consumption (downstream)
 
-- `neg1-enricher` reads `DECISION_RETROS.md` alongside `INVERTED_LENS.md` during Step 5 (rubric application). Retros surface as soft priors in the Eval Breakdown.
+- `neg1-enricher` reads `DECISION_RETROS.md` alongside `FOUNDER_EVAL_CASEBOOK.md` during Step 5 (rubric application). Retros surface as soft priors in the Eval Breakdown.
 - Quarterly `--score-only` drift check (per FOUNDER_EVAL_FRAMEWORK.md §6.7 + Future State item 14) uses accumulated retros as evidence for whether signal anchors need retuning.
 
 ## Example

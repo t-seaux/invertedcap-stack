@@ -41,6 +41,8 @@ Enrichment + evaluation primitive for pre-founder candidates. Takes a LinkedIn U
 
 For each LinkedIn URL, call `contactout_enrich_linkedin_profile` with `profile_only: false`. This returns the full profile payload — name, headline, location, seniority, company details, experience history, education, skills, languages, publications — along with email addresses (personal and work).
 
+**Cache the raw payload.** Immediately after the call returns, BEFORE any field extraction, write the full response to `~/.claude/plugins/data/contactout-enrichment-inline/people/{vanity}.linkedin_profile.json` using the Write tool. The vanity slug is the LinkedIn URL's last path segment, lowercased, with any trailing slash and query string stripped. Overwrite if the file exists. This is the network-intel index's data source — never skip.
+
 Process URLs sequentially when handling a batch.
 
 ### Step 2: Determine the Primary Company and Role
@@ -175,7 +177,7 @@ Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/add
 ### Step 5: Apply the Rubric and Write the Evaluation
 
 Read the framework + rubric from co-located references:
-- `INVERTED_LENS.md` — 6-founder calibration corpus (per-signal scoring evidence)
+- `FOUNDER_EVAL_CASEBOOK.md` — 6-founder calibration corpus (per-signal scoring evidence)
 - `ONLINE_SOURCES.md` — Phase 2 online research taxonomy
 - `../founder-outreach/FOUNDER_EVAL_FRAMEWORK.md` §6 — current rubric, anchors, thresholds (canonical)
 
@@ -192,11 +194,11 @@ Apply the framework in two phases:
 - **Intentionality**: LLM read of `experience[].summary` for demotion / anti-accelerator / patient-tenure markers; "On leaving X" essays; podcast career-arc framing.
 
 **Compute the verdict (per FOUNDER_EVAL_FRAMEWORK.md §6):**
-- `Eval Score (Spike) = MAX(signal scores)`. Pure spike-based MAX. **No Intentionality gate** (v0.4 removed it — Intentionality is informational, not a veto).
+- `Eval Score (Spike) = MAX(signal scores)`. Pure spike-based MAX. **No Intentionality gate** (v0.4 removed it — Intentionality is informational, not a veto). Internal 0–10 scale drives scoring; express the peak signal as **Strong** (7–10), **Moderate** (4–6), or **Weak** (0–3) in all displayed fields.
 - `Claude Rec` per §6.5 thresholds:
-  - peak ≥ 7 → `Reach Out ✅`
-  - peak 4–6 → `Second Look 🤔`
-  - peak 0–3 → `Pass ❌`
+  - peak ≥ 7 → `Strong ✅`
+  - peak 4–6 → `Moderate 🤔`
+  - peak 0–3 → `Weak ❌`
 - `Signals` (multi-select): tag every signal that scored ≥ 5.
 - `Working Description` (2-3 sentence TL;DR, anchored on the peak signal).
 - `Eval Breakdown` (per-signal rationale with evidence URLs from Phase 2 research).
@@ -224,7 +226,7 @@ The split: `neg1-enricher` produces the scored row. On manual invocation it also
 
 ### Step 7: Report Back
 
-After creating (or updating) entries, provide a brief confirmation per person: name, primary company, role, **peak signal + score + Claude Rec**, and a link to the Notion page. Surface a one-line excerpt of the Eval Summary so Tom can quickly scan whether the verdict reads right.
+After creating (or updating) entries, provide a brief confirmation per person: name, primary company, role, **peak signal + rating (Strong/Moderate/Weak) + Claude Rec**, and a link to the Notion page. Surface a one-line excerpt of the Eval Summary so Tom can quickly scan whether the verdict reads right.
 
 For batches, present results as a summary table sorted by Eval Score descending.
 
@@ -245,12 +247,12 @@ Per FOUNDER_EVAL_FRAMEWORK.md §6.7 (re-scoring without re-enriching). Used when
 
 **Targeting**:
 - Single row: pass a -1 Scanner page URL or person name.
-- The 6-founder calibration corpus (per FOUNDER_EVAL_FRAMEWORK.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `INVERTED_LENS.md`).
+- The 6-founder calibration corpus (per FOUNDER_EVAL_FRAMEWORK.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `FOUNDER_EVAL_CASEBOOK.md`).
 - Bulk: pass `--score-only --where "Eval Score is null"` or any Notion filter. Use sparingly — re-scoring 100+ rows takes time even without ContactOut calls.
 
 **Snapshot before overwrite**: write before-state to `/tmp/score_only_snapshot_{timestamp}.jsonl` (one JSON per row: page_id, name, before_eval_score, before_eval_breakdown, before_eval_summary, before_claude_rec). Lets Tom diff old vs new verdicts and revert if a rubric change misfires.
 
-**Reporting**: after a `--score-only` batch, surface a diff table — for each row, show `before → after` on Eval Score and Claude Rec. Highlight rows where the verdict changed (✅ → 🤔, etc.).
+**Reporting**: after a `--score-only` batch, surface a diff table — for each row, show `before → after` on Eval Score and Claude Rec. Highlight rows where the verdict changed (Strong → Moderate, etc.).
 
 ## Important Rules
 
@@ -270,9 +272,9 @@ Per FOUNDER_EVAL_FRAMEWORK.md §6.7 (re-scoring without re-enriching). Used when
 2. Determines primary: VP of Engineering at Stripe.
 3. Dedup-searches Companies DB by domain → Stripe found (Last Enriched → skip re-enrich), Google found (skip), Meta found but Last Enriched empty → backfills Meta with the 12 enrichment fields.
 4. Creates -1 Scanner entry with the full field set.
-5. Runs Step 5 scoring → Eval Score 8 (Earned Reps peak), Claude Rec = Reach Out ✅.
+5. Runs Step 5 scoring → Eval Score 8 (Earned Reps peak — Strong), Claude Rec = Strong ✅.
 6. Auto-chains into `founder-outreach` → Gmail draft created, Status = Draft Ready.
-7. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. Eval Score 8 / Reach Out ✅. Gmail draft ready. [link]"
+7. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. Earned Reps: Strong (8/10) / Claude Rec: Strong ✅. Gmail draft ready. [link]"
 
 ## Behavior Rules
 

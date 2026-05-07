@@ -190,7 +190,7 @@ Tom references a batch of emails he sent (e.g., "log the notes I sent to VCs abo
 1. **Identify the Opportunity** from Tom's message (e.g., "Tuor", "Oun Homes").
 2. **Search Gmail sent mail** for emails matching the outreach pattern (e.g., `in:sent [company name] subject:[intro subject]` or `in:sent newer_than:Xd [company]`). Use a broad enough time window — default to `newer_than:14d` for manual-mode batch scans unless Tom specifies otherwise.
 3. **Extract all recipients** from matching sent emails (the "To" field). Deduplicate across multiple emails.
-4. **Look up each recipient in the People DB** (`collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`) by name or email. Create a People page for anyone not found, if needed, or flag them.
+4. **Look up each recipient in the People DB** (`collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`) by name or email. If not found, flag them (e.g., "⚠️ [Name] not in People DB — skipping") and skip — do NOT create a new entry.
 5. **Write all resolved people to `☎️ Intros (Outreach)`** on the target Opportunity in a single atomic update. Do NOT require them to have been in `👓 Intros (Qualified)` first.
 6. **Check each person against `👓 Intros (Qualified)`** — if any were there, remove them from Qualified in the same update (they've now progressed).
 
@@ -264,6 +264,49 @@ Use `newer_than:3d` (not `newer_than:1d`) to buffer against scan timing gaps —
 5. Flag any recipients not found in the People DB for review rather than auto-creating entries.
 
 **Cost: 1 Gmail search call + N body reads (N = number of subject-matching emails, typically 0–3 per day). Zero cost on days with no matching sent mail.**
+
+#### Sub-routine 2C: Portfolio Fundraise Forward Scanner
+
+Tom frequently surfaces a portfolio company to potential investors by **forwarding the founder's email** rather than writing a fresh note. The subject line is unreliable as a company signal — it might be `"Fwd: Uprise round"`, `"Fwd: Re: intro?"`, or even just `"Fwd:"`. Do NOT rely on the subject line to identify the company.
+
+**Step 1 — Cast a wide net on forwarded sent mail:**
+
+```
+in:sent newer_than:3d subject:fwd:
+```
+
+This is a single Gmail call. The result set is typically small (0–10 per day).
+
+**Step 2 — Body-based company matching:**
+
+For each result, read the email body and look for the forwarded message block (usually starts with `"Begin forwarded message:"` or `"---------- Forwarded message ---------"`). Extract the `From:` email address inside the forwarded block.
+
+Match that `From:` email against the `Contact` field of Active Portfolio Opportunities (already fetched in Step 1). The `Contact` field stores the founder's email (e.g., `jessica@uprise.us`). An exact email match is a definitive company identification — **this works regardless of what the subject line says**.
+
+Fallback if no `From:` email is parseable: scan the forwarded body for portfolio company names or domains (e.g., `uprise.us`, `Uprise`).
+
+**Step 2.5 — Intro-intent gate (false-positive filter):**
+
+Before treating a forward as outreach, confirm intro intent by checking **Tom's own covering text** — the content he wrote above the forwarded block. Require at least ONE of the following signals:
+
+- Intro-framing language: "interest in connecting", "want to intro", "up for a chat", "should connect", "would love to intro", "connect you", "good fit", "would you be open", "any interest in"
+- Fundraising context in the forwarded body: "raising", "round", "deck", "investors", "ARR", "revenue grew", "looking to raise"
+
+If NEITHER signal is present, skip — this is likely a routine forward (cap table question, operational email, etc.) not an intro outreach. Do not log it.
+
+**Step 3 — Process matched forwards:**
+
+For each forwarded email where a portfolio company is confirmed AND intro intent is confirmed:
+
+1. Extract the `To:` recipients (Tom's outreach targets).
+2. Check whether each recipient already appears in ANY intro lifecycle field on that Opportunity.
+   - Already tracked → skip.
+   - Not present → untracked outreach. Look them up in the People DB by email, add to `☎️ Intros (Outreach)` in Step 3.
+3. Flag recipients not found in the People DB for review rather than auto-creating.
+
+**Cost: 1 Gmail search call + N body reads (N = total forwarded sent emails in 3d window, typically 0–10). Skip body reads for any forward where the subject clearly has no relation to business (e.g., "Fwd: family dinner").**
+
+**IMPORTANT — Opp resolution**: Always tag to the **original non-FO Opp** for that company (e.g., `Uprise (fka Ontrail)`, not `Uprise (Seed FO)`). Match by `Contact` email to find the right opp — if multiple opps share a contact email, prefer the non-FO, lowest-fund one.
 
 #### Sub-routine 2B: Qualified Roster Scan
 

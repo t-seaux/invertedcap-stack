@@ -188,13 +188,7 @@ notion-search with query = "<person name>" and data_source_url = "collection://1
 
 **If the person exists**: Note their Notion page ID. Verify it's the right person by checking the Company and Role fields match the context.
 
-**If the person does NOT exist**: Create a new entry by running the **full** `add-to-contacts` skill (peer skill in the same skills directory) end-to-end. That skill is the **single source of truth** for People database entry creation — it defines the canonical field mapping, category inference rules, city/state mapping, primary role identification logic, and Notion page creation procedure.
-
-Read `~/.claude/skills/add-to-contacts/SKILL.md` and execute every step exactly. Pass whatever structured data you extracted from the email/message (name, company, role, email, LinkedIn URL if present, location if known). The skill will handle field population, category inference, and the Notion API call.
-
-**MUST run the full enrichment, not just stub fields.** Tom flagged on 2026-04-25 that auto-created People rows from intro-agent (e.g., Sacha Perold) had only the surface fields populated (Name, Email, Company, Role, City) but were missing the deeper enrichment that a manual `add-to-contacts` invocation produces (LinkedIn URL lookup via ContactOut email→LI, ContactOut person enrichment, **Expertise Summary**, **Working Description**, page icon from LinkedIn photo, etc.). When auto-creating from intro-agent the row MUST end up indistinguishable from one Tom would have created manually — same field completeness, same icon, same enrichment depth. If `add-to-contacts` includes a "search LinkedIn for this person" or ContactOut email-to-LinkedIn lookup step, run it; do not skip it just because the input started without an LI URL.
-
-**Do not duplicate or hardcode People database creation logic here.** If the People DB schema, field rules, or category taxonomy change, the add-to-contacts skill is the only file that needs updating.
+**If the person does NOT exist**: Do NOT create a new People DB entry. Flag the person in the alert output (e.g., "⚠️ [Name] not found in People DB — skipping Qualified write") and skip the Notion write for that person. Tom will add them manually when he chooses to. Auto-creating stubs — even fully enriched ones — is not permitted without Tom's explicit instruction for that specific person.
 
 ### Step 5: Update the Opportunity's Intros (Qualified) Field
 

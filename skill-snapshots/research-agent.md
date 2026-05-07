@@ -174,6 +174,16 @@ These are lower priority than the public equity managers above, but still worth 
 
 After scanning the curated list, run broader searches to surface letters from firms NOT on the Tier 1 list. The goal is to catch compelling new voices — especially public equity managers with contrarian or differentiated perspectives that Tom hasn't encountered before.
 
+### Curation feedback handling
+
+When Tom reviews a digest and gives feedback like "the only ones worth keeping are X, Y, Z" or "trim the rest" (via Slack thread reply, iMessage, or in-session chat), translate it into permanent edits to this SKILL.md — don't just acknowledge in chat. The skill's value is precision; each rejection is a permanent signal-noise calibration. Three actions:
+
+1. **Add keepers not yet on Tier 1** — if Tom names a firm worth keeping that isn't already in the Tier 1 curated list, add it to the appropriate section (or create a new one if needed).
+2. **Remove Tier 1 firms Tom rejects** — if a Tier 1 firm appears in his trim list, delete that row from Tier 1.
+3. **Append rejected Tier 2 firms to the deny-list below** — never replace, only append.
+
+Confirm the edits back to him with a one-liner — don't just say "noted."
+
 ### Tier 2 Deny-List (Do Not Surface)
 
 Tom has reviewed and rejected these firms — they are **not interesting** for his research scan and must be filtered out of Tier 2 / discovery output. If a search result matches any name below, drop it silently (do not include in the digest, do not flag as a "promotion candidate"). Tom curates this list iteratively — when he flags additional firms as not interesting, append them here.
@@ -182,11 +192,11 @@ Tom has reviewed and rejected these firms — they are **not interesting** for h
 - ByteTree
 - Carillon Tower Advisers (incl. Carillon Eagle Mid Cap Growth Fund)
 - Conestoga Capital Advisors
+- Diamond Hill Capital (all funds/strategies)
 - Fiduciary Management Inc.
 - Greystone Capital
 - Henchmen Partners
 - Hotchkis & Wiley (all funds)
-- Hussman Funds
 - JB Global Capital
 - Laughing Water Capital
 - Lawrence Lepard / Equity Management Associates

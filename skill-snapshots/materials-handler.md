@@ -37,37 +37,42 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 
 1. On entry, fetch all messages in `threadId` and read their labels.
 2. For each message in the thread, check whether it carries the `claude/materials-processed` label. Only process attachments / links / blurbs from messages that DO NOT carry the label yet (the "delta set"). The trigger message is in the delta set by definition (the gate fired *because* of new content).
-3. After successfully processing a message's artifacts (chips written to Notion + page-body update), apply the `claude/materials-processed` label to that specific message via `Gmail.Users.Messages.modify`. Create the label once if it doesn't exist.
+3. After successfully processing a message's artifacts (chips written to Notion + page-body update), apply the `claude/materials-processed` label to that specific message by shelling out to the Gmail label helper. See `/Users/tomseo/.claude/skills/shared-references/gmail-label.md` for the canonical interface; the call is one line:
+   ```bash
+   /Users/tomseo/.claude/scripts/gmail-label.py --label claude/materials-processed <messageId> [<messageId> ...]
+   ```
+   The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `gmail.modify` scope (the Gmail MCP does not). Multiple message IDs in one call are fine; the label is created if it doesn't exist.
 4. If the delta set is empty (every message in the thread is already labeled), exit cleanly — no Notion writes, no Slack alert.
 
 **Mode B steps:**
 
-- Skip Step 1 (Notion lookup) — `oppId` and `oppName` are passed in.
+- Skip Step 1's full lookup — `oppId` and `oppName` are passed in — but **still fetch the Opp page to read Status** and apply the Step 0 Status Guard before any further work. Portfolio-set statuses (`Active Portfolio`, `Portfolio: Follow-On`, `Exited`) belong to `investor-update`, not here. On a guard hit, exit cleanly: no Notion writes, no Slack alert, and log the skip via `logEvent`-equivalent so the dedup trail is visible.
 - Skip Step 2 (Gmail search) — the message set is the unlabeled subset of the thread.
 - Run Steps 3 + 4 normally on the delta set, scoped to the thread.
 - Replace Step 5 with the Slack alert format below.
 
 **Slack alert (Mode B only) — fires only on success with ≥1 new artifact:**
 
-Posted via the `send-alert` skill. Format (Slack mrkdwn):
+Posted via the `send-alert` skill. Format (GFM — `send-alert` converts to Slack Block Kit):
 
 ```
-*📎 Materials: <https://www.notion.so/{oppId}|{Opp Name}> (<https://mail.google.com/mail/u/0/#all/{messageId}|Email>)*
+**📎 Materials: [{Opp Name}](https://www.notion.so/{oppId}) ([Email](https://mail.google.com/mail/u/0/#all/{messageId}))**
 
-• *Page Body:* {comma-separated body section names — plain text, no links}
-• *Diligence Materials:* {comma-separated chip labels, each WRAPPED in <url|label>}
-• *Deal Docs:* {comma-separated chip labels, each WRAPPED in <url|label>}
+- **Page Body:** {comma-separated body section names — plain text, no links}
+- **Diligence Materials:** {comma-separated chip labels, each WRAPPED as [label](url)}
+- **Deal Docs:** {comma-separated chip labels, each WRAPPED as [label](url)}
 ```
 
 **Alert rules:**
 
-- Header line is fully bolded. Two clickable segments: the Opp name (links to Notion `https://www.notion.so/{oppId}`) and the literal word `Email` wrapped in parens (links to the Gmail deep link `https://mail.google.com/mail/u/0/#all/{messageId}`). Use parens, not brackets.
-- Bullet lines use `•` (literal glyph). Each bullet's field name is bolded with `*`, followed by `:`, then a comma-separated list — no inner bullets, no per-artifact lines.
+- Write GFM only — `send-alert/send.sh` converts to Slack Block Kit. Do NOT hand-write Slack mrkdwn (`*bold*`, `<url|text>`); it ships as literal text and breaks link tap targets.
+- Header line is fully bolded with `**...**`. Two clickable segments: the Opp name (links to Notion `https://www.notion.so/{oppId}`) and the literal word `Email` wrapped in parens (links to the Gmail deep link `https://mail.google.com/mail/u/0/#all/{messageId}`). Use parens, not brackets.
+- Bullet lines use `- ` (GFM list). Each bullet's field name is bolded with `**...**`, followed by `:`, then a comma-separated list — no inner bullets, no per-artifact lines.
 - **Page Body items are plain text** (no links — the Opp link in the header already covers it).
-- **Diligence Materials and Deal Docs items are each individually linked** via `<url|label>`:
-  - Drive-uploaded files → `<{driveFileUrl}|{filename}>` (use the `url` returned by Drive Upload Apps Script — `https://drive.google.com/file/d/{fileId}/view`).
-  - Link-only / interactive demos → `<{externalUrl}|{label}>` (Figma, Loom, demo URLs, etc.).
-  - For demo chips with credentials, the label is the full chip name including credentials (`Inlets Demo (login: demo@inlets.ai; pw: Password124!)`) — Slack will render the parens fine inside the link text.
+- **Diligence Materials and Deal Docs items are each individually linked** via `[label](url)`:
+  - Drive-uploaded files → `[{filename}]({driveFileUrl})` (use the `url` returned by Drive Upload Apps Script — `https://drive.google.com/file/d/{fileId}/view`).
+  - Link-only / interactive demos → `[{label}]({externalUrl})` (Figma, Loom, demo URLs, etc.).
+  - For demo chips with credentials, the label is the full chip name including credentials (`Inlets Demo (login: demo@inlets.ai; pw: Password124!)`) — Slack renders the parens fine inside the link text.
 - **Omit a bullet entirely** if no artifacts landed in that field on this run. (E.g. a delta with only a term sheet shows ONLY the `Deal Docs` bullet.)
 - **Follow-up runs** (subsequent messages in an already-processed thread) use the exact same format — bullets only show what's new in this run, not the cumulative state.
 - Skip the alert entirely on no-op runs (delta set was empty, or processing failed for every artifact).
@@ -76,10 +81,10 @@ Posted via the `send-alert` skill. Format (Slack mrkdwn):
 **Worked example (matches Emily/Inlets):**
 
 ```
-*📎 Materials: <https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002|Inlets> (<https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41|Email>)*
+**📎 Materials: [Inlets](https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002) ([Email](https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41))**
 
-• *Page Body:* Company Blurb
-• *Diligence Materials:* <https://drive.google.com/file/d/.../view|Inlets - One-Pager (2026)>, <https://drive.google.com/file/d/.../view|Inlets - Oncology Case Study>, <https://app.inlets.ai/|Inlets Demo (login: demo@inlets.ai; pw: Password124!)>
+- **Page Body:** Company Blurb
+- **Diligence Materials:** [Inlets - One-Pager (2026)](https://drive.google.com/file/d/.../view), [Inlets - Oncology Case Study](https://drive.google.com/file/d/.../view), [Inlets Demo (login: demo@inlets.ai; pw: Password124!)](https://app.inlets.ai/)
 ```
 
 **Demo chip label format reminder:** `[Company] Demo (login: <email>; pw: <password>)` — see Step 3F.
@@ -126,6 +131,24 @@ Chrome is assumed available on Tom's Mac. The property-field write uses `osascri
 
 All file uploads go through the Drive Upload Apps Script and the Gmail Attachment Saver Apps Script. Body-only email rendering uses Chrome headless (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=...`).
 
+## Step 0: Status Guard (always runs)
+
+This skill is for **pipeline opportunities only**. Before doing any Gmail searching, Drive uploading, or Notion writing, verify the resolved Opp's `Status` is NOT in the portfolio set:
+
+- `Active Portfolio`
+- `Portfolio: Follow-On`
+- `Exited`
+
+These statuses are `investor-update`'s territory — formal-comms artifacts (board decks, investor updates, fund reports) route to the Company Updates DB, not Diligence Materials. If the resolved Opp matches any of them, **abort immediately**: no Notion writes, no Drive uploads, no Slack alert. Log the skip with reason `portfolio-status-guard` and the matched status name.
+
+**`Committed` is NOT in the portfolio set** — Tom often runs final diligence (materials, references, term-sheet review) while an Opp sits at Committed before flipping to Active Portfolio. Treat Committed as pipeline; let materials flow through normally.
+
+This guard applies in all modes:
+- **Mode B (webhook)** — fetch the Opp page from `oppId` (Mode B otherwise skips Step 1) just to read Status before proceeding.
+- **Mode C (manual / delegated)** — Step 1 already loads the page; extract Status there and gate on it before Step 2.
+
+If Tom invokes manually with explicit "save this as a diligence material for [portfolio company]" intent, surface a one-line note pointing him at `investor-update` instead of writing — don't override the guard silently.
+
 ## Step 1: Resolve the Company in Notion
 
 Search for the opportunity by company name using `notion-search` with `data_source_url: "collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"`.
@@ -133,11 +156,12 @@ Search for the opportunity by company name using `notion-search` with `data_sour
 Extract from the opportunity page:
 - **Page ID** (for later update)
 - **Name** (title)
+- **Status** (for the Step 0 guard — abort if portfolio-set)
 - **Contact** (founder email addresses)
 - **🏁 Founder(s)** (founder names from the relation, for Gmail search)
 - **Existing page content** (to check for an existing Diligence Materials section)
 
-If the company is not found in Notion, inform the user and stop.
+If the company is not found in Notion, inform the user and stop. If the Status fails the Step 0 guard, abort per the guard's rules.
 
 ## Step 2: Search Gmail for Materials
 
@@ -365,6 +389,49 @@ Log every decision (extracted / kept / upgraded / ignored + reason) in the Step 
 - All materials are Gmail Attachment Saver PDFs AND Drive download fails for all of them — note the skip in the summary.
 - `pdftotext` is not on PATH (install via `brew install poppler` if needed, but don't fail the whole skill — note and skip).
 
+## Step 4.6: Extract Round Details from Materials
+
+After materials are saved/linked, check whether the Opp's `Round Details` property is empty. If so, mine the saved materials for round-size signals and write the result back. The classifier in `inbound-deal-detect` only sees the email body — when the founder/referrer keeps round details out of the email and tucks them into the deck (e.g. a `SEED · $2M · 2026` cover slide), Round Details ends up blank without this step.
+
+### When to skip this step entirely
+
+- Opp's `Round Details` is already populated — classifier or an earlier pass beat us; never clobber.
+- Zero materials saved.
+
+### How to read each material
+
+- **PDFs available locally** (Step 3B DocSend, 3C Dropbox/raw, 3D email-body-to-PDF): re-use the `pdftotext -layout` output from Step 4.5 — same stdout, no need to re-run.
+- **Gmail Attachment Saver PDFs** (Step 3A — straight to Drive): reuse the Drive-byte download from Step 4.5 if it succeeded; skip otherwise.
+- **Link-only materials** (Step 3E — includes Vercel-hosted decks, static brand sites, Brieflink, Figma, Miro, Loom, Pitch, Canva, Notion.site): use **WebFetch** with the prompt `"What round size and valuation is this deck/site raising? Look for explicit fundraising terms like 'Raising $Xm' or '$Xm on $Ym cap/post' or stage-amount cover slides like 'SEED · $2M'. Quote exactly. Return 'NO_ROUND_FOUND' if nothing explicit appears."`. WebFetch is the right tool here even when Chrome is around — it works in unattended/headless contexts and is cheap. JS-only SPAs (Figma, Pitch) may return empty — that's fine, skip with a note.
+
+### What to extract
+
+Look across the combined material text for round-size patterns. Examples that should match:
+
+- `Raising $2m` / `Raising $2-3m`
+- `$2m raise` / `$3m round` / `Seed round of $2m`
+- Cover-slide stage-amount lines: `SEED · $2M · 2026`, `Pre-Seed · $1M`, `Series A — $10M`
+- Finalized rounds with valuation: `$3m on $20m post`, `$2m at $15m cap`, `$5m SAFE at $30m post-money`
+
+### How to format Round Details
+
+Match the `inbound-deal-detect` classifier format exactly:
+
+- **Unfinalized** (no cap/post stated): `Raising $Xm` (single number) or `Raising $X-Ym` (range). Lowercase `m`/`k`.
+- **Finalized** (cap/post stated): `$Xm on $Ym post` or `$Xm on $Ym cap`.
+
+If the deck states only stage + amount (e.g. `SEED · $2M`), reformat to `Raising $2m` — stage-amount cover slides almost always describe an open raise, not a closed one.
+
+### How to write the update
+
+Use `notion-update-page` with `command: "update_properties"` to set `Round Details` on the Opp page. Single string value.
+
+If the deck also states a clearer **Stage** than what's currently on the Opp (e.g. Opp shows blank or `Pre-Seed` but the deck says `Seed`), override Stage as well. Conservative rule: only override if currently empty OR if the deck and current value disagree by exactly one stage AND the deck signal is a cover-slide title (not buried mid-deck).
+
+### Logging
+
+Note in the Step 5 summary: extracted (with the value written) / no-match (deck mined, nothing explicit) / skipped (Round Details already populated, or no readable materials).
+
 ## Step 5: Report Summary
 
 Return a concise summary:
@@ -383,6 +450,7 @@ Found: [N] materials across [M] emails
   - [Demo URL] → Diligence Materials ✅ (interactive demo, creds in label)
 DocSend: [N] converted and uploaded
 Contact extraction: upgraded tom@old.com → tom@company.com ✅ / kept existing (custom domain) / nothing found
+Round Details extraction: wrote "Raising $2m" ✅ / no-match (mined deck, nothing explicit) / skipped (already populated)
 Notion: Page body updated ✅ | Diligence Materials updated ✅ | Deal Docs updated ✅ (osascript + Chrome) / failed ⚠️ / skipped (Chrome not running)
 ```
 

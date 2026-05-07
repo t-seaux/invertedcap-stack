@@ -24,6 +24,21 @@ base, rather than presenting a sanitized summary.
 
 ---
 
+## Skip first-pass on follow-on rounds
+
+Never run this skill on a follow-on round Opportunity. First-pass is for net-new
+companies — Tom already has full context on prior investments and the framework is
+mis-calibrated for follow-ons. Detect via either signal:
+
+1. `"FO"` in parens anywhere in the Opportunity name (e.g., `Caplight (FO)`, `Caplight FO`) — Tom's near-universal convention
+2. Earlier Opportunity entries for the same company in Notion
+
+If either is present, do not run first-pass. Confirm with Tom what he actually wants
+— likely an `update-diligence-priors` refresh against the original thesis, or just
+materials handling for the new round.
+
+---
+
 ## Step 1: Gather All Available Context
 
 Before writing anything, assemble the full evidence base. Completeness matters — the analysis
@@ -194,7 +209,17 @@ rather than leaving them as generic unknowns. Typical research areas:
   online research from `neg1-enricher` Step 4.5. Capture URLs and the highest-signal
   pull-quotes — these feed Section 5's Founder Evaluation. If a founder has no discoverable
   online presence after a deeper search pass, note the absence — it is itself signal for
-  Intellectual Rigor scoring.
+  Intellectual Rigor scoring. Also check whether the founder is **associated with the
+  company on LinkedIn** (listed as a member on the company page, has the company in their
+  Experience block). **Absence of public presence is NOT inherently a flag** — many strong
+  founders are private, and the framework explicitly does not downgrade Intellectual Rigor
+  for thin public surfacing. Absence becomes a Conflict Callout *only* when the founder's
+  role or function arguably requires public visibility: CEO during an active fundraise
+  (warm-intro reach, investor diligence, narrative-building), GTM/sales lead (rolodex
+  visibility), marketing or comms function, public-facing community operator. For roles
+  where public presence is incidental (technical IC, back-office finance, ops, security,
+  legal), absence is neutral — drop the callout. The question to ask is "does this role
+  plausibly require public visibility?" — surface as Conflict Callout only if yes.
 
 When research findings contradict founder claims, flag this explicitly. The gap between what
 the founder says and what independent research shows is one of the most valuable outputs of
@@ -213,6 +238,11 @@ that convey ideas with high fidelity. When you lack sufficient context to make a
 on a topic, say so explicitly rather than filling space with generic language.
 
 ### Section Order
+
+Do NOT lead the body with a date stamp (`*April 27, 2026*` etc.). The Notion page title
+already carries the date (`[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY`),
+and the PDF subtitle does too. A leading body date is redundant and reads as a small
+production error. Start the body directly with the lead paragraph.
 
 The analysis follows this exact structure:
 
@@ -251,6 +281,44 @@ phrase them as "a deal Tom analyzed", "a comparable in the pipeline", or similar
 include Clusia and Third Space (Tom analyzed and gave feedback on both; neither is portfolio).
 If you find yourself about to name a company you haven't verified against the live Opportunities
 DB query, stop and re-verify.
+
+**Portfolio facts — analog truthfulness.** Naming a real portfolio company is necessary but not
+sufficient. Every characterization of what that company does, sells, buys, or has done as a
+business ("Quiet's wedge into AI-native compliance", "Rengo compounds a data asset for PE firms",
+"Hardik previously failed and rebuilt a company") must come from a primary source on that
+company — its memo, investor updates, call notes, or the Opportunity row's Description / Founder
+Description. If the analogy requires a fact about the analog company you can't locate in those
+sources, **drop the analog rather than invent the fact**. Forced parallels with fabricated detail
+are worse than no parallel — they degrade Tom's trust in every other claim in the doc. Before
+submitting, scan every sentence containing a portfolio-company name and ask: "Did I read this
+fact, or did I shape it to fit the analog?" If the answer is the latter, cut it. The same rule
+applies to characterizations of named individuals (founders, references, executives) — every
+biographical or behavioral claim must trace to a source, not be confected to fit the analogy.
+
+**Third-party company truthfulness (non-portfolio).** The same source-or-drop rule applies to any
+named third-party company used as a comp, GTM analog, or ecosystem reference (e.g., "Oun answers
+through the property management software ecosystem", "Signal7 operates in a regulated-adjacent
+space"). If a specific characterization of what a non-portfolio company does, how it routes GTM,
+or which category it sits in can't be traced to the provided materials, write only what is
+verifiable — "operates in [space]" or "builds in [category]" — rather than inventing product or
+go-to-market specifics. Do NOT extrapolate product architecture or distribution mechanics for
+companies whose memos or materials were not provided.
+
+**Regulatory framing — sector must warrant it.** Only characterize a business as operating in a
+regulated space, facing a regulated-partner requirement, or requiring a licensed counterparty if
+(a) the diligence materials or call notes use that language, or (b) the business clearly operates
+in a named regulated sector (financial services, healthcare, cannabis, etc.). Do NOT apply
+regulatory framing to adjacent-infrastructure plays or non-regulated verticals (home services,
+construction, logistics) even when the subject company operates nearby. If you're uncertain
+whether a sector is regulated, use neutral language or flag it as an open question.
+
+**Founder history must trace to source.** For any biographical or career claim about a named
+individual — especially claims that imply failure, pivots, or prior company founding — trace
+the claim to a primary source before writing it. If the Opportunity memo or Tuor memo says a
+founder is "first-time" or has no prior company, that overrides any inference you would draw from
+their operator arc. Do NOT use "prior failures and rebuilds" or similar framing unless a source
+uses that language. If the source says "multi-hop operator arc," describe the arc — don't
+editorialize about what it implies.
 
 **NEVER** use scorecard-style assessment labels like `**Assessment: STRONG FIT**` or
 `**Assessment: MODERATE-TO-STRONG**`. These reduce nuanced analysis to a rubric grade and strip
@@ -364,34 +432,72 @@ sourcing artifact built on web-only evidence; first-pass diligence is its own an
 on a richer, transcript-grounded base. Do NOT pull, link, or reference prior -1 Scanner
 scoring in this subsection.
 
-**Per-founder block structure.** Each founder named on the Opportunity gets a separate block
-in this order: primary founder first (CEO if titled, otherwise the founder doing most of the
-talking on calls), then co-founders. Within each block, write three sub-blocks in this exact
-order:
+**Scope — founders and co-founders only.** Profile only founders and co-founders. Do NOT
+profile non-founder C-level execs, early employees, advisors, or contractors — at pre-seed
+and seed stage the analysis is squarely about the founding team. If the team includes
+C-level titles whose founder status is ambiguous (a "CTO" who joined three months ago,
+a "Head of Product" with no founder/co-founder language on LinkedIn or the deck), confirm
+status before including. If status remains ambiguous after a good-faith check, mention them
+in the Team Dynamics rollup but do not run a per-founder block on them.
 
-***1. Headline — Working Description + Claude Rec.*** Open the block with `### [Founder Name]`,
-then immediately:
+**Stand-alone prose — no framework-internal references.** The prose must read clearly to
+someone who has never opened FOUNDER_EVAL_FRAMEWORK.md. Do NOT cite section numbers (`§5.A`,
+`§6.2 #3`, `§Signal 2 9/10 trigger`), framework-internal anchors (`composite-case Tuor`,
+`anti-accelerator sub-pattern`), or version-stamps (`v0.8.1`) in the published output.
+Translate framework-internal language into plain analytical English. The framework is your
+reasoning scaffold; it is not the reader's reading material.
+
+**Per-founder block structure.** Each founder/co-founder named on the Opportunity gets a
+separate block in this order: primary founder first (CEO if titled, otherwise the founder
+doing most of the talking on calls), then co-founders. Within each block, write three
+sub-blocks in this exact order:
+
+***1. Headline — Working Description + Recommendation.*** Open the block with
+`### [Founder Name]`, then immediately:
 - **Working Description** — 2-3 sentence TL;DR anchored on the founder's peak signal. Same
-  shape as `neg1-enricher`'s Working Description field.
-- **Claude Rec** — `Reach Out ✅` (peak ≥ 7), `Second Look 🤔` (peak 4–6), or `Pass ❌`
-  (peak 0–3) per FOUNDER_EVAL_FRAMEWORK.md §6.5. Note: at first-pass stage Tom is already in
-  conversation, so interpret Claude Rec as a read on founder caliber within the diligence
-  picture — not as a literal "should I reach out?" instruction.
+  structural shape as the Working Description field on the -1 Scanner row, but framed for
+  diligence (already-in-conversation) rather than sourcing (haven't-met-yet).
+- **Recommendation** — `Strong ✅` (peak signal rated Strong), `Moderate 🤔` (peak signal rated Moderate), or `Weak ❌` (peak signal rated Weak). Strong = signal scored 7–10 on the internal 0–10 scale; Moderate = 4–6; Weak = 0–3. This is a take on founder caliber as one input into the broader diligence
+  picture — distinct from the -1 Scanner's `Strong / Moderate / Weak` framing
+  (which is sourcing-context, since at -1 the question is "should I initiate contact?").
+  **Moderate is NOT a neutral verdict.** The framework is spike-based-MAX, so the absence
+  of a singular spike is itself a negative signal — "well-rounded mediocrity" (multiple
+  Moderate ratings with no clear peak) is a downweight, not a wash. A founder who rates
+  Moderate across all six signals reads as a *negative* on the founder dimension, even
+  though no individual signal is bad.
+  Keep the Recommendation line itself terse: verdict label + a one-line rationale tied to
+  the peak signal pattern. Do NOT use this line to forecast where the broader diligence
+  conviction will come from instead (category timing, unit economics, etc.) — that's the
+  job of other sections, not this one.
 
 ***2. Per-signal scoring + Spike Summary (the double-click).*** For each signal currently
 defined in §5.A of the framework, write a sub-block:
 
 ```
-**[Signal Name] — [score]/10**
+**[Signal Name] — Strong / Moderate / Weak**
 [2-3 sentence rationale weaving transcript/notes evidence with web evidence. Lead with
 transcript when present — cite specific moments: what was asked, what was said, in which
 call. Cite the URL when web evidence extends or corroborates. If transcript and web diverge,
 flag the divergence here AND surface it again in Conflict Callouts below.]
 ```
 
-After the per-signal sub-blocks, close with a **Spike Summary** paragraph: name the peak
-signal, restate the score, and explain in 2-3 sentences why this signal is the thesis anchor
-for this founder. Bold the peak-signal sentence.
+Use **Strong** (internally 7–10), **Moderate** (4–6), or **Weak** (0–3). The internal 0–10 scale from the framework drives the tier; express it as the label, not the number.
+
+After the per-signal sub-blocks, close with a **Spike Summary** paragraph. Be opinionated
+and honest — Tom wants a thought partner here, not a pleaser. The framework is explicitly
+spike-based-MAX: *"well-rounded mediocrity does not beat singular spikiness."* If the
+founder has a clear spike (peak signal rated Strong), name it and explain in 2-3
+sentences why this signal is the thesis anchor — bold the peak-signal sentence. **If the
+founder does NOT have a singular spike (multiple signals rated Moderate with no clear peak),
+say so plainly and call it a negative.** Do not search for the most-defensible-anchor
+or invent narrative cover. The framework treats well-rounded mediocrity as a *negative
+read* on the founder dimension, not a neutral one — and the prose should call that out
+directly. Phrases like "the deal can still work" or "this isn't fatal" are pandering;
+the founder eval's job is to deliver a clean read, not to hedge. The honest read is what makes this section useful as diligence input. If a
+founder's spike sits in a domain that does not apply to the current bet (e.g., deep
+cross-border finance reps in a healthcare AEO startup), call that out — score them on
+*relevance-adjusted* spike, and if the relevance-adjusted spike is weak, write "Weak"
+clearly, not euphemistically.
 
 ***3. Conflict Callouts.*** Final sub-block of each founder block. List every inconsistency
 surfaced during scoring — places where the founder's verbal framing diverges from the public
@@ -476,10 +582,12 @@ capture what they're building, what they've raised (total and most recent round)
 figures (ARR, users, or whichever metric the digest reports), valuation, and who's invested
 (lead and notable participants). Present as a table with columns: Company | Description | Total
 Raised / Latest Round | Traction | Valuation | Investors | Notes. Sort by stage earliest to
-latest. Follow the table with a short prose synthesis (1-2 paragraphs) on what the adjacent
-landscape signals — is capital consolidating around a particular approach, are incumbents
-over- or under-capitalized relative to the opportunity, which investors are building conviction
-in this neighborhood.
+latest. **Each row must be a named, discrete company — never a cluster aggregate (e.g., "Nauta
+portfolio," "YC cohort"). If a fund's portfolio or a cohort is noteworthy, mention it in the
+prose synthesis below the table, not as a row.** Follow the table with a short prose synthesis
+(1-2 paragraphs) on what the adjacent landscape signals — is capital consolidating around a
+particular approach, are incumbents over- or under-capitalized relative to the opportunity,
+which investors are building conviction in this neighborhood.
 
 *Implied Parameters for Next Round:* Based on comps, define two scenarios for the next round.
 Scenario A should be the round achievable from the current raise (e.g., seed from pre-seed).
@@ -538,6 +646,15 @@ data point cited in the analysis is linked to its source URL.
   underwriting models for Mexican consumers" is useful.
 - **Ground claims in evidence.** Every assertion should trace to a call note, a deck, a data point,
   or a research finding.
+- **No unverified numeric precision.** Specific numbers not traceable to a source document ("1–2
+  EMs per year globally", "sources 500 companies annually") are a hallucination risk marker. If a
+  number can't be cited, use qualitative language instead ("a small number of", "selectively", "a
+  few per year"). The absence of a number is better than a fabricated one.
+- **Bear cases lead with counter-evidence.** When writing a bear case or concern, open with the
+  strongest counter-evidence first, then state the residual risk. Burying the rebuttal as a
+  parenthetical after the concern undersells the evidence Tom has in hand and produces a
+  one-sided read. The structure should be: "Counter-evidence X suggests Y is not fatal, but
+  the open question is Z" — not "Risk Z exists (mitigated somewhat by X)."
 - **Flag contradictions.** When founder claims diverge from independent research, present both
   with a "yellow flag" notation.
 - **Include visual artifacts.** For data-dense topics (market sizing, competitor comparison,
@@ -598,6 +715,17 @@ If you catch yourself doing any of these, stop and correct:
 13. **Backslash-escaped special characters in Notion content** — writing `\\~2 yrs` or `\\$50M`
     instead of `~2 yrs` or `$50M`. Notion does not require backslash escaping of `~`, `$`, or
     other special characters. Write them directly — backslashes render as literal text.
+14. **Cluster aggregate rows in comp tables** — inserting a named row like "Nauta portfolio" or
+    "YC W23 cohort" as if it were a company. Every row in a comp table must be a named, discrete
+    company. If the observation is about a cluster (a fund's portfolio, a cohort, a category
+    bucket), move it to a prose sentence below the table — not a table row.
+15. **Unverified numeric precision** — writing "1–2 EMs per year globally," "sources 300 companies
+    annually," or any other specific figure that isn't traceable to a source document. See Writing
+    Guidance — use qualitative language when no sourced number is available.
+16. **Regulatory framing applied to non-regulated verticals** — characterizing a home services,
+    construction, or logistics company as operating in a regulated-adjacent space, requiring a
+    licensed partner, or needing a BaaS structure, simply because the current opportunity
+    involves financial infrastructure. See the Regulatory framing guardrail in Framework Mapping.
 
 ---
 
@@ -637,7 +765,7 @@ Create a new page in the Notes database (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`)
 parent: { data_source_id: "e8afa155-b41a-4aa2-8e9d-3d4365a11dfb" }
 pages: [{
   properties: {
-    "Name": "Claude: [Company Name] First-Pass Diligence — MM.DD.YYYY",
+    "Name": "[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY",
     "Category": "Diligence",
     "Opportunity": "[Opportunity page URL]"
   },
@@ -739,11 +867,22 @@ canvas callbacks. Canvas callbacks execute on every page (or the first page), wh
 header to repeat. Page numbers should still use canvas callbacks (`onFirstPage` and
 `onLaterPages`), but the title/subtitle should be regular flowables that appear once.
 
-Save the PDF to the outputs directory: `[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf`
-(replace spaces in company name with underscores).
+Save the PDF to `/tmp/[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf`
+(replace spaces in company name with underscores). Do NOT save to iCloud Downloads or
+`~/Downloads` — the Google Drive upload in Step 6 is the permanent artifact; the local
+file is staging only and lives in `/tmp/`.
 
 The PDF header should be:
-- **Title (14pt bold):** `[Company Name]: First-Pass Diligence`
+- **Title (14pt bold):** `[Company Name] ([Stage]): First Pass Diligence`
+  - `[Stage]` comes from the Opportunity row's `Stage` property (e.g. `Pre-Seed 💡`,
+    `Seed 🌱`, `Series A 🅰️`). Strip any trailing emoji and surrounding whitespace
+    before rendering — the parens should contain only the textual stage label
+    (e.g. `Pre-Seed`, `Seed`, `Series A`). If the Stage property is empty for some
+    reason, omit the parenthetical entirely rather than render `()` — fall back to
+    `[Company Name]: First Pass Diligence`.
+  - Note: "First Pass Diligence" is three words with no hyphen between "First" and
+    "Pass". Older outputs used "First-Pass" — the canonical form going forward is
+    unhyphenated.
 - **Subtitle (9pt italic, dark gray):** `[Date] | Notion` (where "Notion" is a clickable
   hyperlink to the Notion page URL)
 
@@ -810,7 +949,16 @@ Act autonomously — do not ask for permission. Report what was done in the summ
    ```
    - [**[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf**](https://drive.google.com/file/d/<fileId>/view) — Claude first-pass diligence analysis, [date]
    ```
-   Use `notion-update-page` with `update_content` for this.
+   Use `notion-update-page` with `update_content` for this. The Opportunity page body is
+   small (typically <20 blocks) and will not time out.
+
+   > **Large-page caveat:** `update_content` times out on pages >~50KB (~300+ blocks).
+   > The diligence Notes page is always large — never call `update_content` on it.
+   > The Opportunity page body is always small and safe. If `update_content` on the
+   > Opportunity page times out for any reason, fall back to the Chrome `javascript_tool`
+   > approach: navigate to the Opportunity page in Chrome, then use `loadPageChunk` to
+   > find the last block in the `## 📎 Diligence Materials` section and call
+   > `saveTransactions` to append a new bulleted text block after it.
 
 2. **Diligence Materials Files property field — MANDATORY in EVERY run, every code path.** Do not skip this step under any circumstance, including when an existing first-pass PDF link is already present in the property field. The helper is idempotent on URL (skips if the exact URL is already there) but a freshly-uploaded file always has a NEW URL per the rule above, so this call always adds the new entry. Shell out to the Python helper:
 

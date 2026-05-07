@@ -275,6 +275,8 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
 
 7. **Promote to Scheduled** for each match where a calendar event is confirmed AND the founder-on-invite guard passes. First verify the protected status guard — if status is Active Portfolio, Portfolio: Follow-On, Exited, or Committed, skip and note "skipped — protected status." Otherwise call `notion-update-page` to set Status → Scheduled.
 
+   **Acceptance is not required for Scheduled.** Invite-sent is the real state transition; counterparty acceptance is noisy (founders forget, accept day-of, etc.). If a calendar event exists with the founder on the invite list but RSVP is still pending, treat as Scheduled. Do NOT demote, flag, or surface "not accepted" as a movement marker. Only move out of Scheduled on actual reschedule/cancel/meeting-occurred signals.
+
 8. **Handle scheduling-intent emails with no calendar event yet**: if the email signals intent but no GCal event exists, do not change the Notion status. Note these in the summary as "scheduling signal detected, no calendar event yet — monitor" so Tom has visibility without a premature status change.
 
 9. **Do NOT surface past-meeting observations for opportunities sitting in Tracking.** If a Tracked opp has a past calendar event but no current scheduling signal and no status change, that's the resolved state. Silently skip in the summary.
@@ -315,7 +317,7 @@ Still follow the scanning and efficiency rules below (Steps 1–2) to identify w
 
 **IMPORTANT — Context Budget Discipline**: This task scans many companies and runs per-company Gmail searches. Follow these efficiency rules strictly to avoid stalling:
 
-1. Query the Agent View to get the current company list. Call `notion-query-database-view` with `view_url: "https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673"`. Extract each company name, founder name(s), contact email(s), and page ID.
+1. Query the Agent View to get the current company list. Call `notion-query-database-view` with `view_url: "https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673"`. Extract each company name, founder name(s), contact email(s), page ID, **and Status**. **Drop any row whose Status is in the portfolio set** (`Active Portfolio`, `Portfolio: Follow-On`, `Exited`) — those companies' inbound emails are `investor-update`'s territory, not diligence materials. Note the count of dropped rows in the Step 5 summary. (Do NOT drop `Committed` — Tom often runs final diligence while an Opp sits at Committed before flipping to Active Portfolio; treat Committed as pipeline.)
 2. For each company, run **one** targeted Gmail search combining the company name or founder name with `has:attachment newer_than:1d`. Example: `"LEDGR" has:attachment newer_than:1d`. Use `maxResults: 5` per search. **Cap at 15 companies** — if the view contains more, process the 15 with the most recent Notion activity and note the remainder were skipped.
 3. For each Gmail search hit, call `gmail_read_message` on the messageId to confirm the email contains relevant materials (deck, memo, model, term sheet, side letter, one-pager, blurb — not SaaS marketing or newsletters). Note the messageId, subject, sender, date, and attachment filenames. Also note any DocSend links, Google Drive share links, or other material URLs in the email body.
 
