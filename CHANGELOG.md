@@ -1,3 +1,15 @@
+## [2026-05-07] (Week of 2026-05-05)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `network-scan` -- expanded scope; now queries People DB in addition to LinkedIn cache; description updated to reflect broader use cases (intros, angel identification, advisor discovery)
+- `skill-map-refresh` -- added CACHE LAYER annotation block (dashed border, muted text) to Platform Map bottom row at column 3, labeling the cache layer purpose: Enrichment + Embeddings
+**Total skills:** 25
+**Functions:** No changes
+
+---
+
 ## [2026-05-07] (Week of 2026-05-04)
 
 **Added:** None
