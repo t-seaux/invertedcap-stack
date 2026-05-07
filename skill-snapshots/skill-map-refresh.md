@@ -255,10 +255,14 @@ All descriptions must render to exactly 3 lines at the card's display width — 
 
 A single horizontal annotation strip sits **above** the DB row (between the "System of Record | Notion" label and the DB cards) labeling the retrieval infrastructure that operates over the Notion DBs.
 
-- **Container**: `.sm-retrieval-strip` — no border, no background, no padding. `margin: 4px 0 12px`, `text-align: center`. Renders as a centered text line, not a box.
-- **Text**: single inline string `Retrieval Layer: Cache, Enrichment, Embeddings`. Styled at the container level: `font-size: 10px`, `text-transform: uppercase`, `letter-spacing: 0.14em`, `color: #8b949e`. No separate eyebrow/items spans — one line, one color, one weight.
+Visually mirrors the `.sm-mid-annotation` "Agentic Workflows" pill — same fill, border, radius, padding, and two-line title/sub treatment.
 
-> **Do not add chrome to this strip**: tried with a dashed border (2026-05-07) — read as too heavy. The retrieval layer is metadata about the row below it, not its own component. Keep it borderless.
+- **Wrapper**: `.sm-retrieval-strip` — `display: flex; justify-content: center; margin: 8px 0 14px;`. Centers the inner box horizontally without spanning full width.
+- **Box**: `.sm-retrieval-box` — `background-color: #161b22`, `border: 0.5px solid #30363d`, `border-radius: 8px`, `padding: 10px 22px 8px`, `white-space: nowrap`. Same shine gradient + shine hover behavior as `.sm-mid-annotation` and the cards (add to the shared hover rule).
+- **Title line**: `.sm-retrieval-title` — `font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px;`. Text: `Retrieval Layer`.
+- **Sub line**: `.sm-retrieval-sub` — `font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase;`. Text: `Cache · Enrichment · Embeddings` (middle dots, not commas — matches the "Continuous read / write across core databases" sub on Agentic Workflows).
+
+> **No dashed/dotted borders**: tried earlier (2026-05-07) — read as too cheap visually. The retrieval pill matches the Agentic Workflows pill's visual weight intentionally, anchoring the bottom DB section the same way Agentic Workflows anchors the middle SVG section.
 
 Reads as an annotation, not a database row. The strip is positioned above the DB cards so the "this is the retrieval layer over the DBs" framing precedes the DBs themselves rather than appearing as a footer. Full-width framing communicates "the retrieval stack covers everything below," which is the truthful scope (any DB can be cached/enriched/embedded as needs arise — the specific mapping is implementation, not architecture).
 
