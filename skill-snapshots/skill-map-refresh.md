@@ -255,14 +255,15 @@ All descriptions must render to exactly 3 lines at the card's display width — 
 
 A single horizontal annotation strip sits **above** the DB row (between the "System of Record | Notion" label and the DB cards) labeling the retrieval infrastructure that operates over the Notion DBs.
 
-Visually mirrors the `.sm-mid-annotation` "Agentic Workflows" pill — same fill, border, radius, padding, and two-line title/sub treatment.
+A single-line full-width bar visually consistent with the Agentic Workflows annotation (same `#161b22` fill, solid `#30363d` border, 8px radius, shine hover) but laid out horizontally as one row spanning the entire DB-row width. Title + sub appear inline, not stacked.
 
-- **Wrapper**: `.sm-retrieval-strip` — `display: flex; justify-content: center; margin: 8px 0 14px;`. Centers the inner box horizontally without spanning full width.
-- **Box**: `.sm-retrieval-box` — `background-color: #161b22`, `border: 0.5px solid #30363d`, `border-radius: 8px`, `padding: 10px 22px 8px`, `white-space: nowrap`. Same shine gradient + shine hover behavior as `.sm-mid-annotation` and the cards (add to the shared hover rule).
-- **Title line**: `.sm-retrieval-title` — `font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px;`. Text: `Retrieval Layer`.
-- **Sub line**: `.sm-retrieval-sub` — `font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase;`. Text: `Cache · Enrichment · Embeddings` (middle dots, not commas — matches the "Continuous read / write across core databases" sub on Agentic Workflows).
+- **Container**: `.sm-retrieval-strip` — full-width block (no flex centering — it stretches to its parent). `margin: 8px 0 14px`, `padding: 9px 22px 7px`, `text-align: center`, `background-color: #161b22`, `border: 0.5px solid #30363d`, `border-radius: 8px`. Same shine gradient + shine hover behavior as `.sm-mid-annotation` and the cards (add to the shared hover rule).
+- **Title span**: `.sm-retrieval-title` — `font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase;`. Text: `Retrieval Layer:` (with trailing colon).
+- **Sub span**: `.sm-retrieval-sub` — `font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; margin-left: 10px;`. Text: `Cache · Enrichment · Embeddings` (middle dots).
 
-> **No dashed/dotted borders**: tried earlier (2026-05-07) — read as too cheap visually. The retrieval pill matches the Agentic Workflows pill's visual weight intentionally, anchoring the bottom DB section the same way Agentic Workflows anchors the middle SVG section.
+Renders as: `RETRIEVAL LAYER:   CACHE · ENRICHMENT · EMBEDDINGS` — white label + space + gray items, centered in a full-width pill.
+
+> **No dashed/dotted borders, do not collapse to a centered narrow pill**: tried both earlier (2026-05-07). Dashed read as too cheap; the narrow centered pill wasted vertical space and broke alignment with the DB row. Full-width single-line bar is the chosen treatment.
 
 Reads as an annotation, not a database row. The strip is positioned above the DB cards so the "this is the retrieval layer over the DBs" framing precedes the DBs themselves rather than appearing as a footer. Full-width framing communicates "the retrieval stack covers everything below," which is the truthful scope (any DB can be cached/enriched/embedded as needs arise — the specific mapping is implementation, not architecture).
 

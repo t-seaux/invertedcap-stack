@@ -157,11 +157,7 @@
   .sm-dbs-top { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; align-items: stretch; }
   .sm-db-labels { display: flex; gap: 28px; margin-bottom: 10px; }
   .sm-retrieval-strip {
-    display: flex;
-    justify-content: center;
     margin: 8px 0 14px;
-  }
-  .sm-retrieval-box {
     text-align: center;
     background-color: #161b22;
     background-image: linear-gradient(120deg, transparent 0%, transparent 40%, rgba(255,255,255,0.06) 47%, rgba(255,255,255,0.13) 50%, rgba(255,255,255,0.06) 53%, transparent 60%, transparent 100%);
@@ -170,14 +166,13 @@
     transition: border-color 0.3s ease;
     border: 0.5px solid #30363d;
     border-radius: 8px;
-    padding: 10px 22px 8px;
-    white-space: nowrap;
+    padding: 9px 22px 7px;
     overflow: hidden;
     isolation: isolate;
     font-family: 'Courier New', Courier, monospace;
   }
-  .sm-retrieval-title { font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
-  .sm-retrieval-sub { font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; }
+  .sm-retrieval-title { font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; }
+  .sm-retrieval-sub { font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; margin-left: 10px; }
 
   .sm-db-card {
     border: 0.5px solid #30363d;
@@ -204,7 +199,7 @@
   .sm-fn-card:hover,
   .sm-db-card:hover,
   .sm-mid-annotation:hover,
-  .sm-retrieval-box:hover {
+  .sm-retrieval-strip:hover {
     background-position: 0% 0;
     border-color: #3d444d;
     transition: background-position 0.8s ease, border-color 0.3s ease;
@@ -375,10 +370,7 @@
             <div class="sm-sys-label">System of Record<span class="sm-sys-tag">Notion</span></div>
           </div>
           <div class="sm-retrieval-strip">
-            <div class="sm-retrieval-box">
-              <div class="sm-retrieval-title">Retrieval Layer</div>
-              <div class="sm-retrieval-sub">Cache · Enrichment · Embeddings</div>
-            </div>
+            <span class="sm-retrieval-title">Retrieval Layer:</span><span class="sm-retrieval-sub">Cache · Enrichment · Embeddings</span>
           </div>
           <div class="sm-dbs-top" id="dbs-top">
             <div class="sm-db-card" id="db-opp" style="border-left-color:#7F77DD;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Opportunities</div><div class="sm-db-desc">Pipeline deals, active portfolio, and exited investments</div></div>
