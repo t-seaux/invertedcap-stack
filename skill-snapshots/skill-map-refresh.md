@@ -213,10 +213,10 @@ A 120px-tall SVG region with cubic Bezier curves connecting each function to the
 | Function | Databases | Line Colors |
 |---|---|---|
 | Pipeline Management | Opportunities, People, -1 Scanner | `#7F77DD`, `#1D9E75`, `#D85A30` |
-| Intro Management | Opportunities, People, People Cache | `#7F77DD`, `#1D9E75`, `#52525B` |
+| Intro Management | Opportunities, People | `#7F77DD`, `#1D9E75` |
 | Portfolio Management | Opportunities, Company Updates | `#7F77DD`, `#BA7517` |
 | Diligence Management | Opportunities, People, Notes | `#7F77DD`, `#1D9E75`, `#A78BFA` |
-| Research Management | Notes, Companies, Companies Cache, Deals Digest Cache | `#A78BFA`, `#0EA5E9`, `#52525B`, `#52525B` |
+| Research Management | Notes, Companies | `#A78BFA`, `#0EA5E9` |
 
 Annotation box centered in the middle: "Agentic Workflows / Continuous read / write across core databases". Background per the color table above. The annotation box has `z-index: 2` to sit above the SVG lines.
 
@@ -234,13 +234,9 @@ The SVG `<defs>` block contains a single `<filter id="glow">` with `feGaussianBl
 
 **Key design rule**: The animation is a stationary pulse (breathing glow in place), NOT a directional sweep or marching dashes. No gradients, no dash arrays, no `animateTransform`. Pure opacity animation on `<animate>` for maximum browser compatibility.
 
-### Bottom Section — Databases (Two-Tier Layout)
+### Bottom Section — Databases
 
-The database section is a two-tier layout: a top Notion row and a bottom SQLite cache row, with short dashed vertical connectors between paired cards.
-
-#### Top Row — Notion Databases (6 cards)
-
-A 6-column grid. The label "SYSTEM OF RECORD | Notion" sits above this row on the left. Column order places Company Updates before People so that columns 4–6 (People, Companies, Notes) align directly above the cache row.
+A 6-column grid of Notion database cards. The label "SYSTEM OF RECORD | Notion" sits above the row on the left.
 
 All descriptions must render to exactly 3 lines at the card's display width — calibrate character count (~50 chars) accordingly:
 
@@ -253,40 +249,7 @@ All descriptions must render to exactly 3 lines at the card's display width — 
 | 5 | Companies | `#0EA5E9` | Company profiles enriched via Exa and ContactOut |
 | 6 | Notes | `#A78BFA` | Transcripts, conversations, reports, and letters |
 
-#### Connector Zone (between the two rows)
-
-A ~40px tall zone containing three short dashed vertical lines (stroke: `#484f58`, stroke-dasharray: `3 3`, stroke-width: 1) connecting:
-- People (column 4) → People Cache (column 1 of bottom row)
-- Companies (column 5) → Companies Cache (column 2 of bottom row)
-- Notes (column 6) → Deals Digest Cache (column 3 of bottom row)
-
-No arrowheads — pure dashed lines only. No connectors from columns 1–3.
-
-#### Bottom Row — SQLite Caches (annotation + 3 cards)
-
-A row containing a left-side annotation block followed by 3 cache cards, all aligned under columns 4–6 of the top row. The label "LOCAL CACHE | SQLite" sits above the 3 cache cards only (not above the annotation).
-
-**Left annotation block**: same height as the cache cards, dashed border (`#30363d`, `border-style: dashed`), transparent background, `#8b949e` text. Content:
-
-```
-CACHE LAYER
-① Enrichment
-② Embeddings
-```
-
-`CACHE LAYER` in 9px uppercase eyebrow style. ① and ② on separate lines, 11px. Width approximately equal to a cache card. This reads as an annotation, not a database card — no "DATABASE" eyebrow, no colored left border.
-
-All three cache cards use the same border color (`#52525B`) to unify the cache layer visually.
-
-Descriptions must render to exactly 3 lines — calibrate to match the Notion cards above:
-
-| Database | Border Color | Description |
-|---|---|---|
-| People Cache | `#52525B` | Mirror of People DB + LinkedIn network with embeddings |
-| Companies Cache | `#52525B` | Mirror of Companies DB enriched via Exa with embeddings |
-| Deals Digest Cache | `#52525B` | Fundraising and traction signals from Deal Digests |
-
-The cache cards are the same width as the Notion cards above them, positioned using CSS grid column placement to align under columns 4–6.
+> **Cache layer removed (2026-05-07)**: An earlier revision rendered a second tier of three SQLite cache cards (People Cache, Companies Cache, Deals Digest Cache) below the Notion row, with dashed connectors. Removed because it added visual noise without telling a story the rest of the map didn't already convey — caches are an implementation detail, not a parallel system of record. Do not re-introduce a cache row. If a future change wants to surface caches, do it as a single annotation strip rather than a card row.
 
 ### Legend
 
@@ -296,9 +259,6 @@ Above the function cards, include:
 
 Below the divider, on the left above the Notion row:
 - "System of Record" with a "Notion" tag
-
-Above the cache row on the right (or centered above cache cards):
-- "Local Cache" with a "SQLite" tag
 
 ---
 
