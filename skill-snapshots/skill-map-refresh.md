@@ -249,7 +249,17 @@ All descriptions must render to exactly 3 lines at the card's display width — 
 | 5 | Companies | `#0EA5E9` | Company profiles enriched via Exa and ContactOut |
 | 6 | Notes | `#A78BFA` | Transcripts, conversations, reports, and letters |
 
-> **Cache layer removed (2026-05-07)**: An earlier revision rendered a second tier of three SQLite cache cards (People Cache, Companies Cache, Deals Digest Cache) below the Notion row, with dashed connectors. Removed because it added visual noise without telling a story the rest of the map didn't already convey — caches are an implementation detail, not a parallel system of record. Do not re-introduce a cache row. If a future change wants to surface caches, do it as a single annotation strip rather than a card row.
+> **Cache layer removed (2026-05-07)**: An earlier revision rendered a second tier of three SQLite cache cards (People Cache, Companies Cache, Deals Digest Cache) below the Notion row, with dashed connectors. Removed because it added visual noise without telling a story the rest of the map didn't already convey — caches are an implementation detail, not a parallel system of record. Do not re-introduce a cache row.
+
+#### Retrieval Layer Strip
+
+A single horizontal annotation strip below the DB row labels the retrieval infrastructure that sits beneath the Notion DBs without making it a parallel topology element.
+
+- **Container**: `.sm-retrieval-strip` — full-width (spans all 6 DB columns), `margin-top: 14px`, `padding: 10px 16px`, `border: 1px dashed #30363d`, `border-radius: 8px`, transparent background. Flex row, baseline-aligned, `gap: 14px`.
+- **Eyebrow**: `.sm-retrieval-eyebrow` — text "Retrieval Layer" in 9px uppercase, `letter-spacing: 0.14em`, `color: #8b949e`, `white-space: nowrap`.
+- **Items**: `.sm-retrieval-items` — text "Cache · Enrichment · Embeddings" in 11px, `color: #b1bac4`, `letter-spacing: 0.04em`. Middle-dot separators, not bullets or pipes.
+
+Reads as an annotation, not a database row — no cards, no eyebrow per item, no border colors. Full-width framing communicates "the retrieval stack covers everything above," which is the truthful scope (any DB can be cached/enriched/embedded as needs arise; caches today happen to be People-derived + Companies-derived + Notes-derived but that mapping is implementation, not architecture).
 
 ### Legend
 
