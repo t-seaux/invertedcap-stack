@@ -213,10 +213,10 @@ A 120px-tall SVG region with cubic Bezier curves connecting each function to the
 | Function | Databases | Line Colors |
 |---|---|---|
 | Pipeline Management | Opportunities, People, -1 Scanner | `#7F77DD`, `#1D9E75`, `#D85A30` |
-| Intro Management | Opportunities, People | `#7F77DD`, `#1D9E75` |
+| Intro Management | Opportunities, People, People Cache | `#7F77DD`, `#1D9E75`, `#3B82F6` |
 | Portfolio Management | Opportunities, Company Updates | `#7F77DD`, `#BA7517` |
 | Diligence Management | Opportunities, People, Notes | `#7F77DD`, `#1D9E75`, `#888780` |
-| Research Management | Notes | `#888780` |
+| Research Management | Notes, Companies Cache | `#888780`, `#6366F1` |
 
 Annotation box centered in the middle: "Agentic Workflows / Continuous read / write across core databases". Background per the color table above. The annotation box has `z-index: 2` to sit above the SVG lines.
 
@@ -236,7 +236,7 @@ The SVG `<defs>` block contains a single `<filter id="glow">` with `feGaussianBl
 
 ### Bottom Row — Databases
 
-A 5-column grid of database cards with colored left borders:
+A 7-column grid of database cards with colored left borders. The first 5 are Notion-backed; the last 2 are local SQLite caches (visually grouped at the right):
 
 | Database | Border Color | Description |
 |---|---|---|
@@ -245,6 +245,8 @@ A 5-column grid of database cards with colored left borders:
 | People | `#1D9E75` | Founders, investors, and other network relations |
 | Company Updates | `#BA7517` | Updates from portfolio companies |
 | Notes | `#888780` | Transcripts, convos, reports, and letters |
+| People Cache | `#3B82F6` | SQLite mirror of LinkedIn network profiles + vector embeddings; feeds `network` skill |
+| Companies Cache | `#6366F1` | SQLite mirror of Companies DB + Exa enrichment + vector embeddings; feeds `companies` skill |
 
 ### Legend
 
@@ -253,7 +255,8 @@ Above the function cards, include:
 - Legend swatches in this order: "Manual Skill" (dark swatch), "Autonomous Skill" (white swatch `#fffffb`), "Composite – expand in Quick Reference" (white swatch with stacked-card shadow). The Composite entry uses an en dash (`–`), not an em dash. Only three entries — the prior "Scheduled Orchestrator" and "Event-Based Skill" entries were collapsed into "Autonomous Skill" since that binary no longer holds with multi-mode skills.
 
 Below the divider:
-- System label: "System of Record" with a "Notion" tag
+- System label: "System of Record" with a "Notion" tag (labels the first 5 Notion-backed DB cards)
+- System label: "Local Cache" with a "SQLite" tag (labels the last 2 SQLite DB cards — People Cache and Companies Cache)
 
 ---
 
