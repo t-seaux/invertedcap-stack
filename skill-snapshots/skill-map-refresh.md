@@ -213,10 +213,10 @@ A 120px-tall SVG region with cubic Bezier curves connecting each function to the
 | Function | Databases | Line Colors |
 |---|---|---|
 | Pipeline Management | Opportunities, People, -1 Scanner | `#7F77DD`, `#1D9E75`, `#D85A30` |
-| Intro Management | Opportunities, People, People Cache | `#7F77DD`, `#1D9E75`, `#3B82F6` |
+| Intro Management | Opportunities, People, People Cache | `#7F77DD`, `#1D9E75`, `#52525B` |
 | Portfolio Management | Opportunities, Company Updates | `#7F77DD`, `#BA7517` |
-| Diligence Management | Opportunities, People, Notes | `#7F77DD`, `#1D9E75`, `#888780` |
-| Research Management | Notes, Companies, Companies Cache | `#888780`, `#10B981`, `#6366F1` |
+| Diligence Management | Opportunities, People, Notes | `#7F77DD`, `#1D9E75`, `#A78BFA` |
+| Research Management | Notes, Companies, Companies Cache, Deals Digest Cache | `#A78BFA`, `#0EA5E9`, `#52525B`, `#52525B` |
 
 Annotation box centered in the middle: "Agentic Workflows / Continuous read / write across core databases". Background per the color table above. The annotation box has `z-index: 2` to sit above the SVG lines.
 
@@ -240,35 +240,41 @@ The database section is a two-tier layout: a top Notion row and a bottom SQLite 
 
 #### Top Row — Notion Databases (6 cards)
 
-A 6-column grid labeled "SYSTEM OF RECORD | Notion":
+A 6-column grid. The label "SYSTEM OF RECORD | Notion" sits above this row on the left. Column order places Company Updates before People so that columns 4–6 (People, Companies, Notes) align directly above the cache row.
 
-| Database | Border Color | Description |
-|---|---|---|
-| Opportunities | `#7F77DD` | Pipeline and portfolio — core system of record |
-| -1 Scanner | `#D85A30` | Pre-qual layer for founders entering pipeline |
-| People | `#1D9E75` | Founders, investors, and other network relations |
-| Companies | `#10B981` | Company profiles, enriched via Exa and ContactOut |
-| Company Updates | `#BA7517` | Updates from portfolio companies |
-| Notes | `#888780` | Transcripts, convos, reports, and letters |
+All descriptions must render to exactly 3 lines at the card's display width — calibrate character count (~50 chars) accordingly:
+
+| Column | Database | Border Color | Description |
+|---|---|---|---|
+| 1 | Opportunities | `#7F77DD` | Pipeline deals, active portfolio, and exited investments |
+| 2 | -1 Scanner | `#D85A30` | Pre-founder candidates sourced before formal pipeline entry |
+| 3 | Company Updates | `#BA7517` | Investor letters and updates from portfolio companies |
+| 4 | People | `#1D9E75` | Founders, investors, and other network relations |
+| 5 | Companies | `#0EA5E9` | Company profiles enriched via Exa and ContactOut |
+| 6 | Notes | `#A78BFA` | Transcripts, conversations, reports, and letters |
 
 #### Connector Zone (between the two rows)
 
-A ~40px tall zone containing two short dashed vertical lines (stroke: `#484f58`, stroke-dasharray: `3 3`, stroke-width: 1) connecting:
-- People (column 3) → People Cache (column 1 of bottom row)
-- Companies (column 4) → Companies Cache (column 2 of bottom row)
+A ~40px tall zone containing three short dashed vertical lines (stroke: `#484f58`, stroke-dasharray: `3 3`, stroke-width: 1) connecting:
+- People (column 4) → People Cache (column 1 of bottom row)
+- Companies (column 5) → Companies Cache (column 2 of bottom row)
+- Notes (column 6) → Deals Digest Cache (column 3 of bottom row)
 
-Each connector has a small downward arrow at the bottom (▼, 6px, `#8b949e`) to indicate sync direction (Notion → SQLite). No connectors from the other 4 Notion cards.
+No arrowheads — pure dashed lines only. No connectors from columns 1–3.
 
-#### Bottom Row — SQLite Caches (2 cards)
+#### Bottom Row — SQLite Caches (3 cards)
 
-A 2-card row left-aligned to sit under columns 3–4 of the top row, labeled "LOCAL CACHE | SQLite":
+A 3-card row aligned under columns 4–6 of the top row. The label "LOCAL CACHE | SQLite" sits above this row, right-aligned or centered above the 3 cache cards. All three cards use the same border color (`#52525B`) to unify the cache layer visually.
+
+Descriptions must render to exactly 3 lines — calibrate to match the Notion cards above:
 
 | Database | Border Color | Description |
 |---|---|---|
-| People Cache | `#3B82F6` | SQLite mirror of LinkedIn network profiles + vector embeddings; feeds `network-scan` |
-| Companies Cache | `#6366F1` | SQLite mirror of Companies DB + Exa enrichment + vector embeddings; feeds `company-scan` |
+| People Cache | `#52525B` | SQLite mirror of People DB and LinkedIn network + vector embeddings |
+| Companies Cache | `#52525B` | Company profiles enriched via Exa with vector embeddings |
+| Deals Digest Cache | `#52525B` | Fundraising and traction data for startups from Deal Digests |
 
-The two cache cards are the same width as the Notion cards above them, positioned to align under People and Companies respectively using CSS `position` or grid column placement.
+The cache cards are the same width as the Notion cards above them, positioned using CSS grid column placement to align under columns 4–6.
 
 ### Legend
 
@@ -276,9 +282,11 @@ Above the function cards, include:
 - System label: "System of Action" with a "Claude" tag
 - Legend swatches in this order: "Manual Skill" (dark swatch), "Autonomous Skill" (white swatch `#fffffb`), "Composite – expand in Quick Reference" (white swatch with stacked-card shadow). The Composite entry uses an en dash (`–`), not an em dash. Only three entries — the prior "Scheduled Orchestrator" and "Event-Based Skill" entries were collapsed into "Autonomous Skill" since that binary no longer holds with multi-mode skills.
 
-Below the divider: two system labels side by side:
-- "System of Record" with a "Notion" tag (left, labels the top Notion row)
-- "Local Cache" with a "SQLite" tag (right, labels the bottom cache row)
+Below the divider, on the left above the Notion row:
+- "System of Record" with a "Notion" tag
+
+Above the cache row on the right (or centered above cache cards):
+- "Local Cache" with a "SQLite" tag
 
 ---
 
