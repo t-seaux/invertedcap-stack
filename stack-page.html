@@ -158,7 +158,10 @@
   .sm-db-labels { display: flex; gap: 28px; margin-bottom: 10px; }
   .sm-retrieval-strip {
     margin: 8px 0 14px;
-    text-align: center;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
     background-color: rgba(22, 27, 34, 0.45);
     background-image: linear-gradient(120deg, transparent 0%, transparent 40%, rgba(255,255,255,0.06) 47%, rgba(255,255,255,0.13) 50%, rgba(255,255,255,0.06) 53%, transparent 60%, transparent 100%);
     background-size: 300% 100%;
@@ -166,13 +169,14 @@
     transition: border-color 0.3s ease;
     border: 0.5px solid #30363d;
     border-radius: 8px;
-    padding: 6px 22px 4px;
+    padding: 6px 22px 5px;
+    line-height: 1.2;
     overflow: hidden;
     isolation: isolate;
     font-family: 'Courier New', Courier, monospace;
   }
-  .sm-retrieval-title { font-size: 11px; font-weight: 700; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; }
-  .sm-retrieval-sub { font-size: 11px; font-weight: 700; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; margin-left: 8px; }
+  .sm-retrieval-title { font-size: 11px; font-weight: 700; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.2; }
+  .sm-retrieval-sub { font-size: 11px; font-weight: 700; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.2; }
 
   .sm-db-card {
     border: 0.5px solid #30363d;
