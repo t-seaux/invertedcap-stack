@@ -3,6 +3,17 @@
 **Added:** None
 **Removed:** None
 **Modified:**
+- `skill-map-refresh` -- database column reordering (Company Updates moved to column 3 so columns 4–6 align above the cache row); added third SQLite cache (Deals Digest Cache) connected to the Notes database; updated connection colors for Notes (#A78BFA) and Companies (#0EA5E9); connector zone expanded to 3 dashed lines, arrowheads removed
+**Total skills:** 25
+**Functions:** No changes
+
+---
+
+## [2026-05-07] (Week of 2026-05-04)
+
+**Added:** None
+**Removed:** None
+**Modified:**
 - `network-scan` -- renamed from `network`; skill identifier updated throughout
 - `company-scan` -- renamed from `companies`; skill identifier updated throughout
 - `skill-map-refresh` -- database section restructured to two-tier layout; Companies Notion database added as a distinct row; dashed vertical connectors added between Notion row and SQLite cache row; Research Management now connects to Companies in addition to Notes and Companies Cache
