@@ -257,7 +257,7 @@ A single horizontal annotation strip sits **above** the DB row (between the "Sys
 
 A single-line full-width bar visually consistent with the Agentic Workflows annotation (same `#161b22` fill, solid `#30363d` border, 8px radius, shine hover) but laid out horizontally as one row spanning the entire DB-row width. Title + sub appear inline, not stacked.
 
-- **Container**: `.sm-retrieval-strip` — full-width block (no flex centering — it stretches to its parent). `margin: 8px 0 14px`, `padding: 9px 22px 7px`, `text-align: center`, `background-color: #161b22`, `border: 0.5px solid #30363d`, `border-radius: 8px`. Same shine gradient + shine hover behavior as `.sm-mid-annotation` and the cards (add to the shared hover rule).
+- **Container**: `.sm-retrieval-strip` — full-width block (no flex centering — it stretches to its parent). `margin: 8px 0 14px`, `padding: 6px 22px 4px` (tight vertically), `text-align: center`, `background-color: rgba(22, 27, 34, 0.45)` (translucent — lower alpha than the cards so it recedes a notch), `border: 0.5px solid #30363d`, `border-radius: 8px`. Same shine gradient + shine hover behavior as `.sm-mid-annotation` and the cards (add to the shared hover rule).
 - **Title span**: `.sm-retrieval-title` — `font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase;`. Text: `Retrieval Layer:` (with trailing colon).
 - **Sub span**: `.sm-retrieval-sub` — `font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; margin-left: 10px;`. Text: `Cache · Enrichment · Embeddings` (middle dots).
 
