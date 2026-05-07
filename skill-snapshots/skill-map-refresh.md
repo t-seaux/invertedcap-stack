@@ -242,8 +242,8 @@ All descriptions must render to exactly 3 lines at the card's display width — 
 
 | Column | Database | Border Color | Description |
 |---|---|---|---|
-| 1 | Opportunities | `#7F77DD` | Pipeline deals, active portfolio, and exited investments |
-| 2 | -1 Scanner | `#D85A30` | Pre-founder candidates sourced before formal pipeline entry |
+| 1 | Opportunities | `#7F77DD` | Pipeline deals, portfolio, and exited investments |
+| 2 | -1 Scanner | `#D85A30` | Pre-founder candidates before pipeline entry |
 | 3 | Company Updates | `#BA7517` | Investor letters and updates from portfolio companies |
 | 4 | People | `#1D9E75` | Founders, investors, and other network relations |
 | 5 | Companies | `#0EA5E9` | Company profiles enriched via Exa and ContactOut |
