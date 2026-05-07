@@ -154,7 +154,8 @@
   .sm-ann-title { font-size: 11px; font-weight: 500; color: #fffffb; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
   .sm-ann-sub { font-size: 11px; color: #b1bac4; letter-spacing: 0.06em; text-transform: uppercase; }
   .sm-divider { height: 0.5px; background: #30363d; margin: 0 0 10px; }
-  .sm-dbs-row { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; align-items: stretch; }
+  .sm-dbs-row { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 8px; align-items: stretch; }
+  .sm-db-labels { display: grid; grid-template-columns: 5fr 2fr; gap: 8px; margin-bottom: 10px; }
 
   .sm-db-card {
     border: 0.5px solid #30363d;
@@ -347,13 +348,18 @@
             <div class="sm-mid-annotation"><div class="sm-ann-title">Agentic Workflows</div><div class="sm-ann-sub">Continuous read / write across core databases</div></div>
           </div>
           <div class="sm-divider"></div>
-          <div class="sm-sys-label" style="margin-bottom:12px;">System of Record<span class="sm-sys-tag">Notion</span></div>
+          <div class="sm-db-labels">
+            <div class="sm-sys-label">System of Record<span class="sm-sys-tag">Notion</span></div>
+            <div class="sm-sys-label">Local Cache<span class="sm-sys-tag">SQLite</span></div>
+          </div>
           <div class="sm-dbs-row" id="dbs-row">
             <div class="sm-db-card" id="db-opp" style="border-left-color:#7F77DD;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Opportunities</div><div class="sm-db-desc">Pipeline and portfolio — core system of record</div></div>
             <div class="sm-db-card" id="db-neg1" style="border-left-color:#D85A30;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">-1 Scanner</div><div class="sm-db-desc">Pre-qual for founders entering pipeline</div></div>
             <div class="sm-db-card" id="db-ppl" style="border-left-color:#1D9E75;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People</div><div class="sm-db-desc">Founders, investors, and other network relations</div></div>
             <div class="sm-db-card" id="db-upd" style="border-left-color:#BA7517;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Company Updates</div><div class="sm-db-desc">Updates from portfolio companies</div></div>
             <div class="sm-db-card" id="db-notes" style="border-left-color:#888780;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Notes</div><div class="sm-db-desc">Transcripts, convos, reports, and letters</div></div>
+            <div class="sm-db-card" id="db-ppl-cache" style="border-left-color:#3B82F6;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People Cache</div><div class="sm-db-desc">SQLite mirror of LinkedIn network + vector embeddings; feeds network skill</div></div>
+            <div class="sm-db-card" id="db-co-cache" style="border-left-color:#6366F1;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies Cache</div><div class="sm-db-desc">SQLite mirror of Companies DB + Exa enrichment + embeddings; feeds companies skill</div></div>
           </div>
         </div>
       </div>
@@ -464,10 +470,10 @@ var NS = 'http://www.w3.org/2000/svg';
 
 var connections = [
   {fn:'fn-pipeline',db:'db-opp',color:'#7F77DD'},{fn:'fn-pipeline',db:'db-ppl',color:'#1D9E75'},{fn:'fn-pipeline',db:'db-neg1',color:'#D85A30'},
-  {fn:'fn-intro',db:'db-opp',color:'#7F77DD'},{fn:'fn-intro',db:'db-ppl',color:'#1D9E75'},
+  {fn:'fn-intro',db:'db-opp',color:'#7F77DD'},{fn:'fn-intro',db:'db-ppl',color:'#1D9E75'},{fn:'fn-intro',db:'db-ppl-cache',color:'#3B82F6'},
   {fn:'fn-portfolio',db:'db-opp',color:'#7F77DD'},{fn:'fn-portfolio',db:'db-upd',color:'#BA7517'},
   {fn:'fn-diligence',db:'db-opp',color:'#7F77DD'},{fn:'fn-diligence',db:'db-ppl',color:'#1D9E75'},{fn:'fn-diligence',db:'db-notes',color:'#888780'},
-  {fn:'fn-research',db:'db-notes',color:'#888780'}
+  {fn:'fn-research',db:'db-notes',color:'#888780'},{fn:'fn-research',db:'db-co-cache',color:'#6366F1'}
 ];
 
 function drawConnections(scale) {
