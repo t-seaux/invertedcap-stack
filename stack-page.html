@@ -352,22 +352,25 @@
           <div class="sm-divider"></div>
           <div class="sm-db-labels">
             <div class="sm-sys-label">System of Record<span class="sm-sys-tag">Notion</span></div>
-            <div class="sm-sys-label">Local Cache<span class="sm-sys-tag">SQLite</span></div>
           </div>
           <div class="sm-dbs-top" id="dbs-top">
-            <div class="sm-db-card" id="db-opp" style="border-left-color:#7F77DD;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Opportunities</div><div class="sm-db-desc">Pipeline and portfolio — core system of record</div></div>
-            <div class="sm-db-card" id="db-neg1" style="border-left-color:#D85A30;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">-1 Scanner</div><div class="sm-db-desc">Pre-qual for founders entering pipeline</div></div>
+            <div class="sm-db-card" id="db-opp" style="border-left-color:#7F77DD;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Opportunities</div><div class="sm-db-desc">Pipeline deals, active portfolio, and exited investments</div></div>
+            <div class="sm-db-card" id="db-neg1" style="border-left-color:#D85A30;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">-1 Scanner</div><div class="sm-db-desc">Pre-founder candidates sourced before formal pipeline entry</div></div>
+            <div class="sm-db-card" id="db-upd" style="border-left-color:#BA7517;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Company Updates</div><div class="sm-db-desc">Investor letters and updates from portfolio companies</div></div>
             <div class="sm-db-card" id="db-ppl" style="border-left-color:#1D9E75;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People</div><div class="sm-db-desc">Founders, investors, and other network relations</div></div>
-            <div class="sm-db-card" id="db-co" style="border-left-color:#10B981;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies</div><div class="sm-db-desc">Company profiles, enriched via Exa and ContactOut</div></div>
-            <div class="sm-db-card" id="db-upd" style="border-left-color:#BA7517;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Company Updates</div><div class="sm-db-desc">Updates from portfolio companies</div></div>
-            <div class="sm-db-card" id="db-notes" style="border-left-color:#888780;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Notes</div><div class="sm-db-desc">Transcripts, convos, reports, and letters</div></div>
+            <div class="sm-db-card" id="db-co" style="border-left-color:#0EA5E9;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies</div><div class="sm-db-desc">Company profiles enriched via Exa and ContactOut</div></div>
+            <div class="sm-db-card" id="db-notes" style="border-left-color:#A78BFA;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Notes</div><div class="sm-db-desc">Transcripts, conversations, reports, and letters</div></div>
           </div>
           <div class="sm-dbs-connector" id="dbs-connector">
             <svg id="svg-connectors" style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;"></svg>
           </div>
+          <div class="sm-db-labels" style="justify-content:flex-end;">
+            <div class="sm-sys-label">Local Cache<span class="sm-sys-tag">SQLite</span></div>
+          </div>
           <div class="sm-dbs-bottom" id="dbs-bottom">
-            <div class="sm-db-card" id="db-ppl-cache" style="border-left-color:#3B82F6; grid-column:3;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People Cache</div><div class="sm-db-desc">SQLite mirror of LinkedIn network + vector embeddings; feeds network-scan</div></div>
-            <div class="sm-db-card" id="db-co-cache" style="border-left-color:#6366F1; grid-column:4;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies Cache</div><div class="sm-db-desc">SQLite mirror of Companies DB + Exa enrichment + embeddings; feeds company-scan</div></div>
+            <div class="sm-db-card" id="db-ppl-cache" style="border-left-color:#52525B; grid-column:4;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">People Cache</div><div class="sm-db-desc">SQLite mirror of People DB and LinkedIn network + vector embeddings</div></div>
+            <div class="sm-db-card" id="db-co-cache" style="border-left-color:#52525B; grid-column:5;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Companies Cache</div><div class="sm-db-desc">Company profiles enriched via Exa with vector embeddings</div></div>
+            <div class="sm-db-card" id="db-digest-cache" style="border-left-color:#52525B; grid-column:6;"><div class="sm-eyebrow">Database</div><div class="sm-db-name">Deals Digest Cache</div><div class="sm-db-desc">Fundraising and traction data for startups from Deal Digests</div></div>
           </div>
         </div>
       </div>
@@ -478,10 +481,10 @@ var NS = 'http://www.w3.org/2000/svg';
 
 var connections = [
   {fn:'fn-pipeline',db:'db-opp',color:'#7F77DD'},{fn:'fn-pipeline',db:'db-ppl',color:'#1D9E75'},{fn:'fn-pipeline',db:'db-neg1',color:'#D85A30'},
-  {fn:'fn-intro',db:'db-opp',color:'#7F77DD'},{fn:'fn-intro',db:'db-ppl',color:'#1D9E75'},{fn:'fn-intro',db:'db-ppl-cache',color:'#3B82F6'},
+  {fn:'fn-intro',db:'db-opp',color:'#7F77DD'},{fn:'fn-intro',db:'db-ppl',color:'#1D9E75'},{fn:'fn-intro',db:'db-ppl-cache',color:'#52525B'},
   {fn:'fn-portfolio',db:'db-opp',color:'#7F77DD'},{fn:'fn-portfolio',db:'db-upd',color:'#BA7517'},
-  {fn:'fn-diligence',db:'db-opp',color:'#7F77DD'},{fn:'fn-diligence',db:'db-ppl',color:'#1D9E75'},{fn:'fn-diligence',db:'db-notes',color:'#888780'},
-  {fn:'fn-research',db:'db-notes',color:'#888780'},{fn:'fn-research',db:'db-co',color:'#10B981'},{fn:'fn-research',db:'db-co-cache',color:'#6366F1'}
+  {fn:'fn-diligence',db:'db-opp',color:'#7F77DD'},{fn:'fn-diligence',db:'db-ppl',color:'#1D9E75'},{fn:'fn-diligence',db:'db-notes',color:'#A78BFA'},
+  {fn:'fn-research',db:'db-notes',color:'#A78BFA'},{fn:'fn-research',db:'db-co',color:'#0EA5E9'},{fn:'fn-research',db:'db-co-cache',color:'#52525B'},{fn:'fn-research',db:'db-digest-cache',color:'#52525B'}
 ];
 
 function drawConnections(scale) {
@@ -585,7 +588,7 @@ function drawCacheConnectors(scale) {
   if (!svg || !connector) return;
   var cR = connector.getBoundingClientRect();
   svg.innerHTML = '';
-  [['db-ppl', 'db-ppl-cache'], ['db-co', 'db-co-cache']].forEach(function(pair) {
+  [['db-ppl', 'db-ppl-cache'], ['db-co', 'db-co-cache'], ['db-notes', 'db-digest-cache']].forEach(function(pair) {
     var top = document.getElementById(pair[0]);
     var bot = document.getElementById(pair[1]);
     if (!top || !bot) return;
@@ -596,14 +599,9 @@ function drawCacheConnectors(scale) {
     var h = cR.height / scale;
     var line = document.createElementNS(NS, 'line');
     line.setAttribute('x1', xTop); line.setAttribute('y1', '0');
-    line.setAttribute('x2', xBot); line.setAttribute('y2', h - 8);
+    line.setAttribute('x2', xBot); line.setAttribute('y2', h);
     line.setAttribute('stroke', '#484f58'); line.setAttribute('stroke-dasharray', '3 3'); line.setAttribute('stroke-width', '1');
     svg.appendChild(line);
-    var arrow = document.createElementNS(NS, 'text');
-    arrow.setAttribute('x', xBot); arrow.setAttribute('y', h);
-    arrow.setAttribute('text-anchor', 'middle'); arrow.setAttribute('fill', '#8b949e'); arrow.setAttribute('font-size', '6');
-    arrow.textContent = '\u25bc';
-    svg.appendChild(arrow);
   });
 }
 
