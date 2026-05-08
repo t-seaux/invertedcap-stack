@@ -1,57 +1,10 @@
-## [2026-05-07] (Week of 2026-05-05)
-
-**Added:** None
-**Removed:** None
-**Modified:**
-- `network-scan` -- expanded scope; now queries People DB in addition to LinkedIn cache; description updated to reflect broader use cases (intros, angel identification, advisor discovery)
-- `skill-map-refresh` -- added CACHE LAYER annotation block (dashed border, muted text) to Platform Map bottom row at column 3, labeling the cache layer purpose: Enrichment + Embeddings
-**Total skills:** 25
-**Functions:** No changes
-
----
-
-## [2026-05-07] (Week of 2026-05-04)
-
-**Added:** None
-**Removed:** None
-**Modified:**
-- `skill-map-refresh` -- database column reordering (Company Updates moved to column 3 so columns 4–6 align above the cache row); added third SQLite cache (Deals Digest Cache) connected to the Notes database; updated connection colors for Notes (#A78BFA) and Companies (#0EA5E9); connector zone expanded to 3 dashed lines, arrowheads removed
-**Total skills:** 25
-**Functions:** No changes
-
----
-
-## [2026-05-07] (Week of 2026-05-04)
-
-**Added:** None
-**Removed:** None
-**Modified:**
-- `network-scan` -- renamed from `network`; skill identifier updated throughout
-- `company-scan` -- renamed from `companies`; skill identifier updated throughout
-- `skill-map-refresh` -- database section restructured to two-tier layout; Companies Notion database added as a distinct row; dashed vertical connectors added between Notion row and SQLite cache row; Research Management now connects to Companies in addition to Notes and Companies Cache
-**Total skills:** 25
-**Functions:** No changes
-
----
-
 # Changelog
 
 All notable changes to the Inverted Cap Stack platform are documented here.
-## [2026-05-07] (Week of 2026-05-04)
-
-**Added:** None
-**Removed:** None
-**Modified:**
-- `skill-map-refresh` -- extended Platform Map database row from 5 to 7 columns, adding People Cache (SQLite / LinkedIn network mirror) and Companies Cache (SQLite / Companies DB mirror); added connection lines from Intro Management to People Cache and Research Management to Companies Cache; added Local Cache / SQLite system label in the legend
-**Total skills:** 25
-**Functions:** No changes
-
----
-
 
 ## [2026-05-07] (Week of 2026-05-04)
 
-**Added:** `network` (Intro Management), `companies` (Research Management)
+**Added:** `network-scan` (Intro Management), `company-scan` (Research Management)
 **Removed:** None
 **Modified:**
 - `add-to-companies` -- switched identity enrichment from ContactOut to Exa+LLM extraction; dropped LinkedIn URL and Revenue/Funding Status fields from schema; icon now from Notion picker instead of ContactOut logo
@@ -65,12 +18,14 @@ All notable changes to the Inverted Cap Stack platform are documented here.
 - `investor-update` -- extended scope to include board materials; added Board Meeting title convention; expanded detection for board-related emails and Google Slides share notifications
 - `materials-handler` -- switched gmail label application to gmail-label.py helper script; alert format changed from Slack mrkdwn to GFM; added portfolio-set status guard to webhook mode
 - `neg1-enricher` -- score tiers renamed from Reach Out/Second Look/Pass to Strong/Moderate/Weak; added ContactOut payload caching step; updated calibration corpus reference to FOUNDER_EVAL_CASEBOOK
+- `network-scan` -- expanded scope; now queries People DB in addition to LinkedIn cache; broader use cases (intros, angel identification, advisor discovery)
 - `pipeline-agent` -- added rule that calendar-invite-sent (not accepted) triggers Scheduled status; portfolio-set opps excluded from materials scan (Active Portfolio, Follow-On, Exited -- not Committed)
 - `pre-mortem` -- added founder-thesis journey-length mismatch as a sub-dimension of Team/Org Fragility Risk
 - `research-agent` -- added curation feedback handling: Tom's rejections permanently edit skill tier lists and deny-list; added Diamond Hill Capital to deny-list
+- `skill-map-refresh` -- major Platform Map restructure: added Companies as a 6th Notion DB column; reordered DB row to Opportunities → -1 Scanner → Company Updates → People → Companies → Notes; tightened all 6 DB descriptions to 3-line fit; introduced a horizontal "Retrieval Layer (Cache, Enrichment & Embeddings)" annotation strip above the DB row (full-width, dotted halftone fill, white uppercase text matching Agentic Workflows weight). Earlier same-day iterations explored a parallel SQLite cache row (People Cache / Companies Cache / Deals Digest Cache with dashed connectors) before consolidating to the single Retrieval Layer annotation; the cache-row treatment is now documented as "do not re-introduce."
 - `update-diligence-priors` -- fixed Notion search prefix from `Claude:` to `[Claude]` format for first-pass diligence page lookup
 **Total skills:** 25
-**Functions:** Intro Management +1 (network), Research Management +1 (companies)
+**Functions:** Intro Management +1 (network-scan), Research Management +1 (company-scan)
 
 ---
 
