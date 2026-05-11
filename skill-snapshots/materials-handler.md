@@ -69,6 +69,7 @@ Posted via the `send-alert` skill. Format (GFM — `send-alert` converts to Slac
 - Header line is fully bolded with `**...**`. Two clickable segments: the Opp name (links to Notion `https://www.notion.so/{oppId}`) and the literal word `Email` wrapped in parens (links to the Gmail deep link `https://mail.google.com/mail/u/0/#all/{messageId}`). Use parens, not brackets.
 - Bullet lines use `- ` (GFM list). Each bullet's field name is bolded with `**...**`, followed by `:`, then a comma-separated list — no inner bullets, no per-artifact lines.
 - **Page Body items are plain text** (no links — the Opp link in the header already covers it).
+- **Page Body bullet reflects actual writes only** — list `Company Blurb` ONLY if the section was newly written on this run (not skipped due to existing section, not a no-op rewrite of identical content, not a precondition-fail per the Step 4 hard-precondition gate). If the section existed before and was untouched, omit the entire `Page Body:` bullet. Mis-reporting a no-op as a write is a bug, not a cosmetic issue — Tom uses these alerts to audit what changed.
 - **Diligence Materials and Deal Docs items are each individually linked** via `[label](url)`:
   - Drive-uploaded files → `[{filename}]({driveFileUrl})` (use the `url` returned by Drive Upload Apps Script — `https://drive.google.com/file/d/{fileId}/view`).
   - Link-only / interactive demos → `[{label}]({externalUrl})` (Figma, Loom, demo URLs, etc.).
@@ -322,6 +323,14 @@ When a founder/sender includes a company blurb in the email body — a paragraph
 - Place the Company Blurb section ABOVE the Note section if both exist — blurb is the higher-signal artifact for a future reader scanning the page.
 - If the email body has no clear blurb (just logistics or attachments), skip this step — do not fabricate one.
 
+**Hard preconditions — ALL must hold before writing. If any fails, skip silently and do NOT include `Company Blurb` in the Slack alert's Page Body bullet:**
+
+1. **Idempotency — page must not already have one.** Before writing, scan the page body for an existing `*Company Blurb*` section (case-insensitive match on the literal header `*Company Blurb*` or `**Company Blurb**`). If one already exists, skip. Never overwrite, never append a second. The prior pass — usually `add-to-crm` Step 6 — owns that section; Mode B is purely additive on subsequent emails and must not rewrite history.
+2. **Source must be the delta-set email body, verbatim.** The blurb text must be a contiguous extract from the `plaintextBody` (or its hyperlink-preserved HTML equivalent) of one of the delta-set messages. NOT the website, NOT the deck PDF, NOT WebFetch output from Step 4.6, NOT the existing Notion page content, NOT the model's paraphrase. If the proposed blurb is not a substring of any delta-set message body (modulo whitespace/markdown wrapping of inline links), skip.
+3. **Email must contain a recognizable blurb opener.** At least one of: company name + " is " / " is a " / " is the " / " helps " / " builds " / " makes " (within the first 200 chars of a candidate paragraph), OR an explicit framing line like "About us", "Here's a brief overview", "Quick context on [company]", "What we do:". A forwarded "stepping away from X, building something new" preamble does NOT qualify — that's founder backstory, not a company description. Pure logistics ("Thanks for the intro", "grab time on my calendar", "looking forward to chatting") never qualifies.
+
+If you skip on this gate, log the reason in the Step 5 summary (`Company Blurb: skipped — already present` / `skipped — no email-body source` / `skipped — no blurb opener detected`) so a future debug can trace the no-op.
+
 ### Page Body — DO NOT add a Diligence Materials section by default
 
 Skip the page body entirely for materials. The property-field chips are visible at the top of every opportunity page and are the canonical surface for material links. Adding a duplicate body section just restates what's already one scroll-up, and clutters the Note section below it (see `add-to-crm/references/schema.md` — body is Note-only by default).
@@ -403,6 +412,8 @@ After materials are saved/linked, check whether the Opp's `Round Details` proper
 - **PDFs available locally** (Step 3B DocSend, 3C Dropbox/raw, 3D email-body-to-PDF): re-use the `pdftotext -layout` output from Step 4.5 — same stdout, no need to re-run.
 - **Gmail Attachment Saver PDFs** (Step 3A — straight to Drive): reuse the Drive-byte download from Step 4.5 if it succeeded; skip otherwise.
 - **Link-only materials** (Step 3E — includes Vercel-hosted decks, static brand sites, Brieflink, Figma, Miro, Loom, Pitch, Canva, Notion.site): use **WebFetch** with the prompt `"What round size and valuation is this deck/site raising? Look for explicit fundraising terms like 'Raising $Xm' or '$Xm on $Ym cap/post' or stage-amount cover slides like 'SEED · $2M'. Quote exactly. Return 'NO_ROUND_FOUND' if nothing explicit appears."`. WebFetch is the right tool here even when Chrome is around — it works in unattended/headless contexts and is cheap. JS-only SPAs (Figma, Pitch) may return empty — that's fine, skip with a note.
+
+**Scope of WebFetch output — Round Details ONLY.** The WebFetch response is consumable by this step and only this step. Do not feed its output back into the Step 4 Company Blurb decision (Step 4's hard precondition #2 already forbids this, but stating it here too because the temptation is real — the model has just read the deck, has the marketing copy in context, and can be tempted to "helpfully" add it as a blurb). If Step 4 ran and skipped the blurb because the email body had none, that decision stands — Step 4.6's deck read does NOT reopen it.
 
 ### What to extract
 

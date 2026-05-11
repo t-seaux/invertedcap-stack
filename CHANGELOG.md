@@ -2,6 +2,20 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-11] (Week of 2026-05-11)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `deal-digest` -- after page update, now also rebuilds the deal digest cache and backfills the Companies DB mentions relation; both steps are idempotent
+- `investor-update` -- material and demo URLs (Loom, YouTube, product links) now added to Artifacts via headless helper in addition to page body; sweep alerts restricted to the lookback window per freshness framework
+- `materials-handler` -- added hard preconditions for Company Blurb writes (idempotency check, email-body-only source requirement, recognizable blurb opener gate); alert accuracy rule added (only report Company Blurb if written this run); WebFetch scope clarified as Round Details only
+- `network-scan` -- added `csearch` (company-side) search primitive for company-trait queries; Step 2 split into 2a (csearch) and 2b (vsearch) with routing logic; csearch returns company groups with per-person tenure data pre-extracted
+**Total skills:** 25
+**Functions:** No changes
+
+---
+
 ## [2026-05-08] (Week of 2026-05-04)
 
 **Added:** None

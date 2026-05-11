@@ -361,7 +361,7 @@ Founders sometimes ship updates as interactive content rather than written prose
 - `Source Email` — `N/A` if origin is iMessage; otherwise the Gmail thread URL.
 - `Traction` — usually `N/A` for product-demo videos (no aggregate metric disclosed). For founder-recorded video board updates that DO disclose ARR/revenue, extract per the standard rules.
 - `Period` — the month the videos were sent in, unless they explicitly cover prior-month data (apply normal Period extraction rules).
-- `Artifacts` — skip; no PDF was saved. Loom links live in the body.
+- `Artifacts` — after page creation, call the headless helper (Step 4.5) once per demo or material URL (Loom, YouTube, product demo link, slide link, any external resource that is the substantive artifact). Use the URL as `--url` and a short descriptive label as `--label` (e.g., `Demo 1 — AP inbox walkthrough`). These links also remain in the page body — both locations are populated.
 
 
 
@@ -542,6 +542,8 @@ If the email had multiple PDF attachments (rare but possible — e.g., letter + 
 
 If the original source was a Google Doc / Sheet (Case B in Step 3) AND a PDF was generated from it, link BOTH the original Google Doc/Sheet URL and the generated PDF URL — preserving the original artifact alongside the archive copy mirrors the Signal7 Financial Plan precedent (PDF + original Sheet both in Artifacts).
 
+**General rule (all cases):** Any URL in the email/message body that represents a material or demo — Loom, YouTube, product demo, slide deck, external doc, or similar — should also be added to Artifacts via the headless helper, in addition to living in the page body. Use a short descriptive label derived from the surrounding context (e.g., section header or founder's description). The Artifacts field is the canonical index of everything substantive attached to an update entry.
+
 ## Step 5: Unflag Processed Emails
 
 After successfully creating the Notion page and saving the local PDF for an investor update, remove the star/flag from the original Gmail email so Tom's inbox reflects that the update has been processed.
@@ -584,3 +586,4 @@ Rules:
 - For each Non-Portfolio entry, include a one-line reason so Tom can see why it didn't land in Notion as a portfolio update (e.g., "Status: Scheduled — saved as Diligence Material instead", "Not in Opportunities DB").
 - The header uses the 📬 emoji, an em dash (—), and ISO date format. Example: `📬 PORTFOLIO UPDATES — 2026-03-06`.
 - Internal sub-agent summary (returned to orchestrator) can be more verbose — include Gmail thread IDs, PDF paths, match attempts — but the Slack body stays to the format above.
+- **Freshness rule (per `feedback_alert_freshness_framework.md`):** Sweep alert content is restricted to the run's lookback window. The window size is `RUN_LOOKBACK_HOURS` exported by `run.sh` — 24h on Tue–Fri, 72h on Mondays (catches Sat/Sun/Mon since the sweep skips weekends). Do NOT add an "Already-present" or "Webhook activity also created" line for entries the webhook handled before the window. If sweep had no work because every fresh update was already webhook-processed within the window, list those entries in the Portfolio section with the same one-line shape (the entry exists and is fresh — sweep just didn't write it). If nothing landed in the window at all (webhook or sweep), report "No new investor updates or board materials found in the past {N} hours" (interpolating the actual window) and stop — no reconciliation breakdown.

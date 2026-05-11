@@ -70,7 +70,20 @@ When passing content to `notion-update-page` (`update_content` or `replace_conte
 
 ## Final Step
 
-After updating the page, run `note-classifier` (`/Users/tomseo/.claude/skills/note-classifier/SKILL.md`) to confirm Category=Research.
+After updating the page:
+
+1. Run `note-classifier` (`/Users/tomseo/.claude/skills/note-classifier/SKILL.md`) to confirm Category=Research.
+2. Re-parse the page into the cache (idempotent — replaces this page's entries):
+   ```bash
+   python3 ~/.claude/scripts/deal_digest_cache.py build --page <page_id>
+   ```
+3. Backfill the Companies DB `📰 Deal Digest Mentions` relation for any rows that match newly-cached bullets:
+   ```bash
+   python3 ~/.claude/scripts/digest_backfill_companies.py --page <page_id>
+   ```
+   Exact-match only (substring fallback rejected — it produces false positives like Rhino → Rhino Health). Idempotent: only writes when union differs.
+
+Both scripts are quick (single page fetch + ~159-row scan). Failures exit non-zero — surface to the caller.
 
 ## Example Page (after a few ingests)
 

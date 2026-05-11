@@ -25,24 +25,49 @@ Query Tom's cached LinkedIn profile database to answer questions about his netwo
 
 ---
 
-## Step 1 — Extract search intent
+## Step 1 — Extract search intent and route
 
 Parse the query to identify:
 - **Target type**: angels, operators, advisors, founders, specific expertise, reconnect candidates, etc.
 - **Context**: if a portfolio company is mentioned, note its sector and stage
-- **Natural language intent**: rephrase as a full descriptive sentence for semantic search (e.g. "people with fintech compliance and regulatory experience at banks or startups")
+- **Natural language intent**: rephrase as a full descriptive sentence for semantic search
+
+**Then pick a primitive based on whether the discriminating signal is on the COMPANY or the PERSON:**
+
+- **Company-trait queries** → `csearch` (company-side). Use when the filter is about the company someone worked at: revenue trajectory, sector, stage, funding, momentum, "worked at a 10x'er / hypergrowth / specific company", "operators from fintech infra", "anyone who's been at Stripe / Plaid / Ramp". The `csearch` primitive vector-searches the Companies DB, joins the pre-resolved `profile_companies` table, and returns each match with full tenure dates already extracted.
+
+- **Person-trait queries** → `vsearch` (person-side). Use when the filter lives in the person's bio/headline: expertise, role pattern, founder archetype, angel activity, "deep technical founders", "biotech investors", "operators with consumer marketing chops".
+
+When in doubt, run both and merge; they hit different parts of the index.
 
 ---
 
-## Step 2 — Search the cache
+## Step 2a — Company-side search (preferred for company-trait queries)
 
-Run a semantic vector search using the full natural-language intent:
+```bash
+python3 ~/.claude/scripts/network_cache.py csearch "<natural language query>" --no-vc --per-company 8
+```
+
+Returns JSON: array of company groups, each shaped as
+`{notion_url, name, category, distance, momentum, overview, total_funding, employee_count, people: [{person, url, role, employer, dates, is_current}]}`.
+
+Each `people[].dates` is the verbatim tenure tail extracted from the LinkedIn profile (e.g. `Jan 2020 - Jan 2021 • 1 year`). No further raw-text reads needed — Step 4's reasoning works directly on this output.
+
+Flags:
+- `--no-vc` — drop VC firms from company hits (recommended for operator queries).
+- `--companies N` — pre-filter pool size from company vsearch (default 40).
+- `--per-company N` — cap people per company in output (0 = no cap).
+- `--max-distance D` — embedding distance gate (default 1.06).
+
+For revenue/factual grounding (e.g. "10x ARR" claims), cross-reference the Deal Digest cache at `~/.claude/skills/shared-references/deal-digest-cache.json`. Each match's `momentum` field already includes recent digest mentions; pull additional bullets directly from the cache when the user wants exact dollar trajectories.
+
+## Step 2b — Person-side search (preferred for person-trait queries)
 
 ```bash
 python3 ~/.claude/scripts/network_cache.py vsearch "<natural language query>" --limit 40
 ```
 
-The script returns JSON: array of `{linkedin_url, name, distance, context_blob, raw_text_preview}`. Lower `distance` = more semantically similar (good results are typically under 1.05).
+Returns JSON: array of `{linkedin_url, name, distance, context_blob, raw_text_preview, companies}`. Lower `distance` = more semantically similar (good results are typically under 1.05).
 
 If vsearch returns <5 results or you need to find someone by exact company/name, supplement with FTS:
 
@@ -67,9 +92,11 @@ If the cache is empty, tell Tom:
 
 ## Step 4 — Reason over results
 
-Pass the `raw_text_full` of each candidate to yourself and reason against the query. For each person score relevance 1–10 against the specific ask. Keep only those ≥6.
+For `vsearch` results: pass the `raw_text_preview` (or fetch full `raw_text` from the cache via `dump <url>` for borderline cases) and reason against the query. Score relevance 1–10; keep ≥6.
 
-Each result also carries a `portfolio_companies` array — companies the person worked at that are in Tom's tracked Companies DB. Use this for extra context: stage, category, funding, momentum, overview. A non-empty `portfolio_companies` is a strong signal of domain fit or shared context with Tom's portfolio.
+For `csearch` results: each company group already carries everything you need — distance, momentum, overview, and per-person tenure tails. Filter people by tenure (was the person there during the relevant window?) and role fit (operator vs. board observer vs. investor).
+
+The person-side `vsearch` results also carry a `companies` array (resolved via `profile_companies`) with stage, category, funding, momentum, overview. A non-empty `companies` is a strong signal of domain fit or shared context with Tom's portfolio.
 
 **Angel investor ask** — look for: prior exits, angel activity mentioned in bio, operator at a company relevant to the portfolio company's space, strong network.
 
