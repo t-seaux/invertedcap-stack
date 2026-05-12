@@ -53,6 +53,11 @@ Scan the skills directory to build a complete inventory.
      | `office-cleaning-expense` | `office-cleaning-expense` |
      | `skill-map-refresh` | `skill-map-refresh` |
      | `draft-feedback-processor` | `draft-feedback` |
+     | `decision-retro-scan` | `decision-retro` |
+     | `decision-retro-listener` | `decision-retro` |
+     | `neg1-retro-scan` | `decision-retro` |
+     | `retro-weekly-summary` | `decision-retro` |
+     | `neg1-sourcing` | `neg1-sourcing` |
 
    **Excluded LaunchAgents** — infrastructure-only agents that do not correspond to a skill and must NOT be rendered on the Platform Map or Quick Reference. Listed here so the Step 0 guardrail finds them and does not flag them as unclassified.
 
@@ -94,14 +99,16 @@ Scan the skills directory to build a complete inventory.
      | `draft-feedback` | Event | Webhook triggers enqueue; scheduled processor drains the queue |
      | `founder-outreach` | Ad Hoc | Tom initiates; webhook is passive completion detection |
      | `pass-note-drafter` | Ad Hoc | Same as founder-outreach |
+     | `decision-retro` | Scheduled | Three scanners (`decision-retro-scan`, `neg1-retro-scan`, `retro-weekly-summary`) + listener (`decision-retro-listener`) drive cadence; Tom's manual retro writes happen in response to scheduled prompts |
+     | `neg1-sourcing` | Scheduled | Weekly Monday cron is the primary inflow — surfaces candidates to -1 Scanner; manual invocation is rare |
 
    If a new LaunchAgent appears (`com.tomseo.scheduled.<new-name>` not in this table) or a new webhook handler is registered in Apps Script (check `gmail-webhook` Code.gs `handlers` array), flag it in the summary and skip classification rather than guessing.
 4. Group skills into **Functions** using this canonical mapping:
 
 | Function | Skills |
 |---|---|
-| Pipeline Management | `pipeline-agent`, `add-to-crm`, `neg1-enricher`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback` |
-| Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro` as microsteps of one end-to-end value chain), `network-scan` |
+| Pipeline Management | `pipeline-agent`, `add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback` |
+| Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan` |
 | Portfolio Management | `investor-update`, `coinvestor-recommender` |
 | Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `add-conversation-to-notion`, `decision-retro` |
 | Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan` |
@@ -113,7 +120,7 @@ These functions are tracked internally for completeness but do NOT appear in ANY
 | Function | Skills | Why hidden |
 |---|---|---|
 | Fund Ops | `mmf-to-lp-calc`, `cpa-report` | Operational fund accounting -- not part of the deal/research workflow |
-| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `nightly-backup` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `nightly-backup` is the 3am ET LaunchAgent (`com.invertedcap.nightly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to 5 backup repos + monthly SA-key rotation; lives in `~/.claude/local-agents/nightly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). |
+| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `nightly-backup` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `nightly-backup` is the 3am ET LaunchAgent (`com.invertedcap.nightly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to 5 backup repos + monthly SA-key rotation; lives in `~/.claude/local-agents/nightly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). |
 
 #### Excluded duplicates
 
@@ -324,6 +331,7 @@ Each sub-row renders its own fused mode pill (most sub-rows light only one cell 
 | `intro-agent` | `intro-resolution-reply` | W | Inbound reply to outreach thread → enqueues intro-resolution-agent (webhook mode). |
 | `intro-agent` | `intro-made` | W | Tom-sent email with founder + contact both addressed → contact → Made. |
 | `intro-agent` | `intro-resolution-agent` | S+W+M | LLM-classifies reply as opt-in / decline / soft-deferral. |
+| `intro-agent` | `intro-note-processor` | W | Meeting note → extracts intro commitments → appends to Qualified + drafts outreach email. |
 | `diligence-agent` | `feedback-outreach-drafter` | S+M | Drafts backchannel diligence emails for entries in Pending Feedback relation. |
 | `diligence-agent` | `feedback-reply-detect` | W | Inbound reply from Pending Feedback contact → enqueues feedback-outreach-scanner. |
 | `diligence-agent` | `feedback-outreach-scanner` | S+W | LLM-classifies replies as substantive vs acknowledgment; updates Notion notes + relation. |
