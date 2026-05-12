@@ -4,6 +4,17 @@ All notable changes to the Inverted Cap Stack platform are documented here.
 
 ## [2026-05-12] (Week of 2026-05-12)
 
+**Added:** neg1-sourcing (Pipeline Management)
+**Removed:** None
+**Modified:**
+- `skill-map-refresh` -- added neg1-sourcing to Pipeline Management function mapping; added decision-retro-scan, neg1-retro-scan, retro-weekly-summary, neg1-sourcing LaunchAgents to scheduling table; added drive-save to hidden Admin category; added intro-note-processor as intro-agent composite sub-skill
+**Total skills:** 26
+**Functions:** Pipeline Management +1 (neg1-sourcing)
+
+---
+
+## [2026-05-12] (Week of 2026-05-12)
+
 **Added:** None
 **Removed:** None
 **Modified:**
