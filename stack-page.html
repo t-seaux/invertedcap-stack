@@ -368,7 +368,7 @@
             <div class="sm-al-item"><div class="sm-al-sw sm-al-c"></div>Composite – expand in Quick Reference</div>
           </div>
           <div class="sm-fns-row" id="fns-row">
-            <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk">add-to-contacts</span></div></div>
+            <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk sm-sched">neg1-sourcing</span><span class="sm-sk">add-to-contacts</span></div></div>
             <div class="sm-fn-card" id="fn-intro"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Intro Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">intro-agent</span><span class="sm-sk">network-scan</span></div></div>
             <div class="sm-fn-card" id="fn-portfolio"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Portfolio Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">investor-update</span><span class="sm-sk">coinvestor-recommender</span></div></div>
             <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched sm-composite">diligence-agent</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span></div></div>
@@ -426,6 +426,7 @@
               </div></div>
             </div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">neg1-enricher</span></div><div class="qr-skill-line">Enriches a pre-founder profile; verdict now uses High/Medium/Low signal ratings (no numeric score); primary employer field renamed to CurrentCo (CC); adds company cache write-back after enrichment.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">neg1-sourcing</span></div><div class="qr-skill-line">Weekly cron surfaces 2 in-network reconnect + 3 cold outreach candidates from Tier 1–3 companies; writes to -1 Scanner Pending Enrichment queue; sends Slack digest.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">add-to-contacts</span></div><div class="qr-skill-line">Creates a People DB entry from LinkedIn with ContactOut enrichment; requires bypass marker before Notion create; caches ContactOut payloads for network-intel index.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span><span class="qr-skill-text">draft-feedback</span></div><div class="qr-skill-line">Gmail send webhook enqueues jobs; local processor extracts voice patterns and posts a consolidated post-send confirmation.</div></div>
           </div>
@@ -446,6 +447,7 @@
                 <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span><span class="qr-sub-text">intro-resolution-reply</span></div><div class="qr-sub-line">Inbound reply to outreach thread → enqueues intro-resolution-agent (webhook mode).</div></div>
                 <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-off">M</span></span><span class="qr-sub-text">intro-made</span></div><div class="qr-sub-line">Tom-sent email with founder + contact both addressed → contact → Made.</div></div>
                 <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-sub-text">intro-resolution-agent</span></div><div class="qr-sub-line">LLM-classifies reply as opt-in / decline / soft-deferral; pre-write guards enforce terminal-status + common-word Opp disambiguation.</div></div>
+                <div class="qr-sub-row"><div class="qr-sub-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-sub-text">intro-note-processor</span></div><div class="qr-sub-line">Meeting note → extracts intro commitments → appends to Qualified + drafts outreach email.</div></div>
               </div></div>
             </div>
           </div>
@@ -626,3 +628,4 @@ document.addEventListener('transitionend', function(e) {
 
 </body>
 </html>
+
