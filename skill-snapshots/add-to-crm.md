@@ -82,7 +82,7 @@ Target fields to extract (leave blank if not found):
 
 ## Step 1B: Enrich from Attachments (Thin Email Body)
 
-After extracting data from the source, assess whether the extracted fields are sufficient to create a well-populated CRM entry. An email body is considered **thin** if it is missing 2 or more of these key fields: Description (a real product one-liner, not just round context), Founder First Name(s), Round Details (specific dollar amounts), HQ, or Website.
+After extracting data from the source, assess whether the extracted fields are sufficient to create a well-populated CRM entry. An email body is considered **thin** if it is missing 2 or more of these key fields: Description (a real product one-liner, not just round context), Founder identity (named founders in the page body Team section + linked Founder(s) relation), Round Details (specific dollar amounts), HQ, or Website.
 
 **If the email has PDF attachments and the extracted data is thin, you MUST read the attachments before creating the Notion page.** The attachment content takes priority over the email body for all fields — the email body is often just a brief cover note while the real deal data lives in the deck or memo.
 
@@ -135,6 +135,8 @@ Look for the founder's contact email using the following priority order. Stop as
    - Check the forwarded message chain — the founder's email may appear in an earlier reply or in the original sender field.
    - If the source is a screenshot, look for email addresses visible in the image.
 
+   **Custom-domain wins over personal/free providers.** If the source yields BOTH a custom-domain email (`john@highroad.capital`) AND a personal/free email (`jd4life217@gmail.com`) for the same founder, set Contact to the custom-domain email **alone** — do not alias-merge them. The custom-domain `From:` line in a forwarded thread is the authoritative signal: it's how the founder represents themselves to the world, and it survives gmail-account churn. Free-provider domains include `gmail.com`, `googlemail.com`, `yahoo.com`, `hotmail.com`, `outlook.com`, `live.com`, `icloud.com`, `me.com`, `protonmail.com`, `proton.me`, `aol.com`. The `;`-separated alias-merge pattern (per `feedback_upgrade_opp_contact_to_custom_domain_asap`) is reserved for the resolution/webhook layer when a custom-domain email is discovered AFTER initial creation — at creation time we already know the best one, so write it cleanly.
+
 2. **ContactOut lookup (only if source material yields nothing):**
    - **LinkedIn URL lookup** (preferred): Use `contactout_enrich_person` with the founder's LinkedIn URL. Set `include_work_email=true` and `include_personal_email=true`.
    - **Name + company fallback**: If the LinkedIn lookup returns no email, try `contactout_enrich_person` with `full_name` + `company` array.
@@ -143,7 +145,7 @@ Look for the founder's contact email using the following priority order. Stop as
 
 For `-1` opportunities (pre-company / bare LinkedIn profiles), **prioritize personal email** (e.g. Gmail) over work email, since the person is not yet attached to a specific company from Tom's pipeline perspective.
 
-If ContactOut returns multiple emails, prefer the work email for named-company opportunities and personal email for `-1` entries.
+If ContactOut returns multiple emails, prefer the work email for named-company opportunities and personal email for `-1` entries. **If ContactOut returns a different email than what the source material's `From:` header showed, the source material wins** — the founder's authoritative `From:` is the strongest signal of how they want to be contacted, regardless of what ContactOut surfaces.
 
 Set the `Contact` property on the Notion page to the best email found. If no email is found after all attempts, set `Contact` to `N/A`.
 
@@ -153,7 +155,7 @@ Present extracted data as a concise summary in the response, then proceed direct
 - Proposed page title (company name or `-1 (Founder Name)` format)
 - Description (one-liner)
 - Status (inferred from thread state — `Qualified`, `Outreach`, `Connected`, or `Scheduled` — per rules in Step 5), Stage, HQ
-- Website, Contact, Founder First Name(s)
+- Website, Contact, Founder name(s)
 - Round Details (if any)
 - Source person (if identified)
 - Close Date (if Status is `Scheduled`)
@@ -164,6 +166,8 @@ Present extracted data as a concise summary in the response, then proceed direct
 ## Step 5: Create the Notion Page
 
 Use `notion-create-pages` with parent `{"data_source_id": "fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"}`.
+
+**Before the `notion-create-pages` call, run `touch /tmp/.addcrm-bypass`** to set the hook bypass marker. A PreToolUse hook at `~/.claude/hooks/gate-opps-creation.sh` blocks all direct writes to the Opportunities data source unless this marker is fresh (≤5 min old). The marker auto-expires, so no cleanup is needed. If the hook denies a call with "Direct creation of Notion Opportunities-DB rows is gated", that's the signal you forgot this step.
 
 ### Page Icon
 
@@ -178,23 +182,23 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 
 ### Property Rules
 
-- `Status`: Infer from the full thread state. Defaults by source type:
+- `Status`: Infer from the full thread state. **If the caller (e.g. `inbound-deal-detect`) passed an explicit `status` directive, honor it verbatim — do not re-infer.** Otherwise apply the defaults below:
   - `Qualified` — deal is only **surfaced**: a forward of someone else's content, a LinkedIn URL, a pasted profile, a tip from a third party. No founder contact has occurred yet.
-  - **`Connected` — cold inbound founder email** (deal-scanner webhook path, `forwardedFromTom: true`, or any inbound-deal-detect-originated invocation) **where the founder is the actual sender**. The founder pinged Tom directly and the email landed in his inbox; Tom is in a live thread with the founder from message #1, even before he replies. Do NOT use Qualified for these.
+  - **`Connected` — cold inbound founder email** where the founder is the actual sender (deal-scanner webhook path, or `forwardedFromTom: true` AND the inner sender's email domain matches the pitched company). The founder pinged Tom directly and the email landed in his inbox; Tom is in a live thread with the founder from message #1, even before he replies. Do NOT use Qualified for these.
   - **`Connected` — double-opt-in intro thread**: a referrer sends an intro email putting Tom and the founder on the same To/Cc line (e.g. "Connecting Tom <> Founder"), or Tom replies into that intro thread with the founder still on it. The intro thread itself IS the connection — Tom and the founder are now in a live email channel. Set `Connected` from the moment that thread exists, even if the founder hasn't typed a response yet. Do NOT default to `Outreach` here — Outreach is reserved for cold direct outreach where no third party has bridged Tom to the founder.
-  - **Third-party referrer forward** (deal-scanner webhook path with a `Fwd:` subject, where the outermost sender is a referrer and the founder lives inside the forwarded body — e.g. a DRF associate forwarding a founder's pitch): the founder is NOT in the thread with Tom yet. Default to `Qualified` if Tom hasn't replied, or `Outreach` if Tom has replied opting in to the intro. Do NOT use `Connected` — Tom has not been connected to the founder yet. (Once the referrer follows up by sending a separate intro thread that puts Tom + founder together, the rule above takes over and status flips to `Connected`.)
+  - **Third-party referrer forward** — covers BOTH `forwardedFromReferrer: true` (a third party sent Tom a forward of a founder's pitch) AND `forwardedFromTom: true` where the inner sender's domain does NOT match the pitched company (e.g. `lurein@givecard.io` forwarding John Daniels's HighRoad pitch through Tom's `tom@dashfund.co` alias). In both shapes the founder is NOT in the thread with Tom yet — the referrer is offering an intro, not making one. Default to `Qualified` if Tom hasn't replied, or `Outreach` if Tom has replied opting in to the intro. Do NOT use `Connected` — Tom has not been connected to the founder yet. (Once the referrer follows up by sending a separate intro thread that puts Tom + founder together, the rule above takes over and status flips to `Connected`.)
   - `Outreach` — Tom has reached out cold directly to the founder and is waiting for a first response, no third party has bridged them. Also covers the post-`Qualified` state where Tom replies to a referrer opting in to an intro but the referrer hasn't yet looped the founder in.
   - `Connected` — generic fallback: founder has replied to Tom's outreach and the conversation is live but unscheduled.
   - `Scheduled` — a call is actually booked (Blockit/Calendly confirmation, calendar invite, or explicit time agreed in-thread).
 
   Read the full Gmail thread before deciding — never default to `Qualified` without first checking whether the thread already shows later-stage progression OR whether the founder is the original sender. If the user specifies a status explicitly, honor that instead.
 
-  **Detecting third-party referrer forward**: subject starts with `Fwd:`/`FW:`, the outermost `From:` is not Tom AND not the founder, and the forwarded body contains an inner `From: <founder>` block. The sender's email domain typically does NOT match the company being pitched (e.g. `madi@dormroomfund.com` forwarding a `connectupskill.com` pitch).
+  **Detecting third-party referrer forward**: subject starts with `Fwd:`/`FW:`, AND either the outermost `From:` is not Tom AND not the founder (`forwardedFromReferrer` case), OR the outermost `From:` is Tom but the inner sender is not the founder either (`forwardedFromTom` + 2-level forward case — e.g. Lurein forwarded John's pitch to Tom's `tom@dashfund.co`, which Tom then bounced to `tom@invertedcap.com`). The unifying signal is: **the inner sender's email domain does NOT match the pitched company domain** (e.g. `lurein@givecard.io` doesn't match `highroad.capital`; `madi@dormroomfund.com` doesn't match `connectupskill.com`). When this discriminator fires, treat as referrer forward regardless of which `forwardedFrom*` flag the webhook set.
 - `date:Close Date:start`: Set to the scheduled call date when Status is `Scheduled` (this anchors the pipeline agent's close-date logic). Leave blank otherwise — the pipeline agent will manage close dates for earlier stages.
 - `Website`: Infer from source material (email body links, founder email domain if company domain). `N/A` if unavailable.
 - `Contact`: Set to the founder's email if found (per Step 3 priority order). **Never leave this field empty/blank** — if no email is found after all lookup attempts, always set to `N/A`.
 - `Description`: One-liner only. Extra context goes in page body.
-- `Round Details`: See `references/schema.md` for formatting rules (lowercase m/k, "Raising $Xm" for unfinalized terms, "$Xm on $Ym cap/post" for finalized).
+- `Round Details`: **Strict format, two valid shapes only.** Either `Raising $Xm` / `Raising $X-Ym` for unfinalized rounds (no terms set), OR `$Xm on $Ym post` / `$Xm on $Ym cap` for rounds with terms set. Lowercase `m`/`k`. **Leave blank (null) if the source doesn't disclose a specific dollar amount or cap/post.** Never write timing-only or qualitative substitutes like `Kicking off seed this week`, `Raising soon`, `Active round`, `Closing this month`, `Seed extension` — those describe round *status* or *timing*, not round *terms*, and they belong in the page body (Source Blurb / Source Context), not the property field. If the email body doesn't disclose terms, **read the attached deck/memo before defaulting to blank** (Step 1B handles this) — round terms are most commonly buried in the deck's fundraise slide. If after reading the deck there's still no $ figure, blank is the correct answer; an inbound-deal-detect upstream hint of `""` is also correct. See `references/schema.md` for additional examples.
 - `Followed Up`: Always `__NO__`
 - `Fund`: Default `Inverted 1️⃣` unless user specifies otherwise
 - `Inv @ Round`: Only set if explicitly known
@@ -224,6 +228,8 @@ See `references/schema.md` for the canonical page body structure. Key sections: 
 - [Document Title](Drive URL)
 
 **IMPORTANT:** If DocSend materials were converted to PDF and uploaded to Drive as part of this flow, the Diligence Materials section must link ONLY to the Drive PDFs — never to the original `docsend.com/view/...` URLs. DocSend links are transient input; the Drive PDFs are the permanent artifact. This also applies to other sections (e.g. Round) — do not reference DocSend as the source of materials anywhere in the page body.
+
+**URL fidelity — never fabricate URLs in the page body.** Any URL written into the page body (deck links, demo URLs, GitHub repos, founder LinkedIn, company website, social profiles, third-party deck-sharing platforms, etc.) MUST appear as a literal substring of the source material (email body, screenshot OCR, deck text, pasted text). Before writing a link, verify the URL is present in the source — `grep -F "<url>" <source>` mentally. If the URL is not literally in the source, omit the link entirely and reference the artifact by name instead (e.g., `**Deck**: see attached` rather than `[Deck](https://docsend.com/view/<fabricated>)`). This rule overrides "be helpful by filling in plausible URLs" — a missing link is recoverable; a wrong link wastes Tom's time and corrupts the audit trail. Applies equally to: the Diligence Materials body section, the Source Context section, the Team section's founder LI links (if the LI URL wasn't in source, leave the founder name unlinked), and any inline references elsewhere on the page.
 
 **Source Context**
 [Raw source material: full email text, transcribed screenshot text, DM content, etc. Include Gmail deep link if from email.]
@@ -350,8 +356,7 @@ Every new entry in the Opportunities DB must ship enriched, not as a stub:
 - **Contact** — founder email. Source material first (signatures, forwarded threads, deck last slide), then public LinkedIn, then company website contact page. ContactOut (`profile_only=false` for `email`/`personal_email`) is the fallback.
 - **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none.
 - **Description** — one-line what-they-do: YC one-liner, company site hero/meta, LI headline, or deck. Not `TBD`.
-- **🏁 Founder(s)** — if the founder already exists in People DB (dedupe via `workspace_search` on "{first} {last}"), link the relation. If they DON'T exist, **leave the relation blank** — do not auto-create a People row. Note the gap in the response so Tom can decide whether to add them.
-- **Founder First Name(s)** — keep setting it.
+- **🏁 Founder(s)** — if the founder already exists in People DB (dedupe via `workspace_search` on "{first} {last}"), link the relation. If they DON'T exist, **leave the relation blank** — do not auto-create a People row. Note the gap in the response so Tom can decide whether to add them. The page body Team section is where founder names + LinkedIn URLs live; there is no separate scalar property for first names anymore.
 
 **Why:** When a tip arrives with a founder LinkedIn URL, Tom expects the full enrichment cascade (LinkedIn URL → ContactOut → People DB dedupe → Opportunities fields) — not "name + source reference" stubs that create downstream work.
 

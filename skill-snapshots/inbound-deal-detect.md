@@ -1,6 +1,6 @@
 ---
 name: inbound-deal-detect
-description: "Webhook-triggered classifier for inbound cold deal emails. Fetches a single Gmail message by ID, runs a deal-vs-not-deal classifier with confidence gating, and on a confident positive delegates to `add-to-crm` for full pipeline entry. Not user-facing — invoked exclusively by `gmail-webhook/deal-scanner.js` via the `claude-job-queue` primitive. Never trigger manually; for ad-hoc CRM creation use `add-to-crm` directly."
+description: "Webhook-triggered classifier for inbound cold deal emails. Fetches the target message via `get_thread(threadId)` and locates it by `messageId`, runs a deal-vs-not-deal classifier with confidence gating, and on a confident positive delegates to `add-to-crm` for full pipeline entry. Not user-facing — invoked exclusively by `gmail-webhook/deal-scanner.js` via the `claude-job-queue` primitive. Never trigger manually; for ad-hoc CRM creation use `add-to-crm` directly."
 ---
 
 # Inbound Deal Detector (Webhook)
@@ -13,7 +13,8 @@ This skill is the deeper-classification half of `gmail-webhook/deal-scanner.js`.
 
 The local processor invokes this skill with these args (set by `deal-scanner.js`):
 
-- `messageId` (required) — Gmail message ID.
+- `messageId` (required) — Gmail message ID. Use this to identify the target message inside the thread returned by `get_thread`.
+- `threadId` (required) — Gmail thread ID. **Always use this for the fetch** (see Step 1). The MCP toolset has no "get message by API ID" tool, so the messageId alone is not directly fetchable.
 - `senderEmail` (required) — pre-parsed by the webhook. For non-forwarded mail this is the outer `From:` header. For self-forwards (see `forwardedFromTom`) and third-party forwards (see `forwardedFromReferrer`), this is the **inner** forwarded `From:` line — the original founder or referrer who sent to Tom, not Tom and not the outer envelope.
 - `senderName` (optional) — display name from the same source.
 - `forwardedFromTom` (optional, boolean) — `true` when the message is a `Fwd:` from one of Tom's alias addresses (e.g. `tom@dashfund.co`) into the watched inbox. The webhook has already swapped `senderEmail`/`senderName` to the inner forwarded sender. The classifier should treat the forwarded body block as the canonical email content and infer Source from the inner `To:` header (see Step 1B).
@@ -25,15 +26,15 @@ The local processor invokes this skill with these args (set by `deal-scanner.js`
 
 ### Step 1: Fetch the email
 
-Read the full message via Gmail MCP (`mcp__claude_ai_Gmail__search_threads` for thread context, or read the single message by ID). Grab:
+Call `mcp__claude_ai_Gmail__get_thread` with the `threadId` arg. The MCP has no "get message by API ID" tool — `threadId` is the only direct fetch path. Inside the returned thread, locate the message whose `id` matches the `messageId` arg; that's the target. Grab:
 
 - Subject
 - Plain-text body (strip quoted history below the `On … wrote:` line — only the new content matters for classification)
 - Confirmed `From` (verify it matches `senderEmail` arg; if not, log and prefer the actual header)
 - Any attachment filenames
-- **`threadId`** — Gmail's conversation identifier (same field as `messageId` in the Gmail API response). Pass through to add-to-crm in Step 4 so it can write `Source Thread ID` on the new Opp page. This enables `outreach-detector` / `outreach-decliner` Path D (deterministic thread-based status flips on Tom's outbound replies).
+- Pass `threadId` through to add-to-crm in Step 4 so it can write `Source Thread ID` on the new Opp page. This enables `outreach-detector` / `outreach-decliner` Path D (deterministic thread-based status flips on Tom's outbound replies).
 
-If the fetch fails, log to the run log and exit non-zero so the job lands in `failed/` for retry.
+If the fetch fails (thread not found, target messageId missing inside thread), log to the run log AND append a line to `~/.claude/skills/inbound-deal-detect/audit-log/YYYY-MM-DD.log` via `mkdir -p ~/.claude/skills/inbound-deal-detect/audit-log && echo "[$(date '+%F %T')] FETCH_FAILED: <reason> (messageId: <id>, threadId: <tid>)" | tee -a ~/.claude/skills/inbound-deal-detect/audit-log/$(date '+%F').log`, then exit non-zero so the job lands in `failed/` for retry. The literal `tee -a` shell line must run — never claim the write happened without executing it.
 
 ### Step 1B: Forwarded-from-Tom handling
 
@@ -42,10 +43,14 @@ If `forwardedFromTom` is true, the outer envelope is just Tom forwarding the ema
 - Treat the forwarded block's `From:`, `To:`, `Subject:`, and body as the canonical email — that's what was actually sent to Tom.
 - The classifier should ignore Tom's outer `Fwd:` subject prefix and any cover note Tom wrote when forwarding (usually empty).
 
-For Source attribution when delegating to `add-to-crm`:
+For Source attribution and Status default when delegating to `add-to-crm`:
 
-- If the forwarded `To:` is one of Tom's alias addresses (`tom@dashfund.co`, `thomas.seo@outlook.com`, `tom@invertedcap.com`) → **Source = Direct** (founder pinged Tom directly at his alternate inbox).
-- Otherwise the forwarded `To:` is a referrer who passed the email along to Tom → **Source = <Referrer Name>** (the referrer's name, derived from the forwarded `To:` field; if unavailable, use the email-local-part).
+Compare the inner forwarded `From:` email domain against the pitched company's website/domain (from the classifier's `website` field, or inferred from the email body if `website` is empty).
+
+- **Inner sender's domain matches the pitched company** (e.g. `john@highroad.capital` for HighRoad) → the founder is the actual sender; Tom is just bouncing his own inbound to his watched inbox. **Source = Direct**, Status default = `Connected`.
+- **Inner sender's domain does NOT match the pitched company** (e.g. `lurein@givecard.io` forwarding John Daniels's HighRoad pitch — a 2-level forward where a third party referrer's intro offer to Tom got re-forwarded across Tom's aliases) → the inner sender is a referrer offering an intro, with the founder living in a deeper-nested forwarded block. **Source = <inner sender's display name>** (resolved by looking up `senderEmail` in the People DB — relation URL goes in `Source(s)`; do NOT default to "Direct"). Status default = `Qualified` — the intro is offered but not yet made; the founder is NOT in the thread with Tom yet. If Tom has already replied opting in to the intro in this thread, escalate Status to `Outreach`.
+
+The `To:` field is not authoritative for referrer detection — Tom often forwards to himself across his own aliases, which makes a `To: tom@*` match meaningless. Always discriminate on the inner sender's domain ↔ pitched company domain.
 
 ### Step 1C: Forwarded-from-referrer handling
 
@@ -90,7 +95,7 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
 - Other investment firms (VC funds, hedge funds, family offices) pitching coinvestment or fund intros — peer firms, not startups
 
 **Field formatting:**
-- `round_details` — `"Raising $3m"` or `"Raising $3-5m"` for unfinalized rounds; `"$3m on $12m post"` or `"$3m on $12m cap"` for finalized rounds. Lowercase `m`/`k`.
+- `round_details` — **strict format, two valid shapes only**: `"Raising $Xm"` / `"Raising $X-Ym"` for unfinalized rounds (no terms set), OR `"$Xm on $Ym post"` / `"$Xm on $Ym cap"` for rounds with terms set. Lowercase `m`/`k`. **Return empty string `""` if neither a dollar amount nor a cap/post is explicit in the source.** Never write timing-only or qualitative text like `"Kicking off seed this week"`, `"Raising soon"`, `"Active round"`, `"Closing this month"` — those are not round details and will be rejected by `add-to-crm`. If the source has a deck attached, the deck is part of the source — `add-to-crm`'s Step 1B reads decks for round disclosure before writing the field. Empty here is fine; the downstream skill will fill in from the deck if available.
 - `stage` — one of `Pre-Seed`, `Seed`, `Seed+`, `Series A`, `Series B`, `Growth`, `Angel` — infer from round size or explicit mention.
 - Use empty strings for fields you cannot extract.
 - Prefer `"low"` confidence for ambiguous cases — false negatives are cheaper than false positives here.
@@ -116,6 +121,8 @@ Pass these inputs explicitly so `add-to-crm` doesn't have to re-classify:
 
 - The full email body (subject, sender, plaintext body)
 - The classifier's extracted fields as **hints** (company, description, founder name, founder LI URL, website, round_details, stage). These are starting points — `add-to-crm`'s enrichment step may override them with better data from ContactOut / company website.
+- **Explicit `status` directive**: `"Connected"` if Step 1B / 1C resolved Source = Direct (founder is the actual sender), `"Qualified"` if Source = <referrer> (intro offered but not made). `add-to-crm` MUST honor this directive — do not let downstream inference flip it back to `Connected` for a referrer-forward case.
+- **Explicit `source` directive**: either `"Direct"` (use the canonical Direct People DB page) OR `{ email: <senderEmail>, name: <senderName> }` for a referrer. `add-to-crm` resolves the referrer against the People DB and populates `Source(s)`. If the referrer is not in the People DB, leave `Source(s)` blank and surface the gap in the Slack alert — do NOT auto-create.
 - The Gmail message URL (`https://mail.google.com/mail/u/0/#inbox/{messageId}`) for the Source Email field, and the `messageId` itself so it can probe attachments via the Gmail Attachment Saver per the skill's Step 1B.
 - The Gmail `threadId` for the new `Source Thread ID` property on the Opp.
 

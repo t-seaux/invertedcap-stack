@@ -73,15 +73,14 @@ OUTREACH_SUBJECT_PHRASES = [
   "intro request",
   "would love to intro",
   "up for an intro",
-  "want to chat",
-  "want to connect"
+  "want to chat"
 ]
 ```
 
 The Gmail query for a single-call subject scan is built by OR-ing these phrases:
 
 ```
-in:sent newer_than:1d (subject:"want an intro" OR subject:"intro request" OR subject:"would love to intro" OR subject:"up for an intro" OR subject:"want to chat" OR subject:"want to connect")
+in:sent newer_than:1d (subject:"want an intro" OR subject:"intro request" OR subject:"would love to intro" OR subject:"up for an intro" OR subject:"want to chat")
 ```
 
 This is **one Gmail API call** regardless of the number of phrases or active portfolio companies.
@@ -246,7 +245,7 @@ This runs FIRST, before the Qualified roster scan. Its purpose is to catch outre
 
 **Execute as a single Gmail call:**
 ```
-in:sent newer_than:3d (subject:"want an intro" OR subject:"intro request" OR subject:"would love to intro" OR subject:"up for an intro" OR subject:"want to chat" OR subject:"want to connect")
+in:sent newer_than:3d (subject:"want an intro" OR subject:"intro request" OR subject:"would love to intro" OR subject:"up for an intro" OR subject:"want to chat")
 ```
 Use `newer_than:3d` (not `newer_than:1d`) to buffer against scan timing gaps — same-day outreach sent after the prior scan run would otherwise be missed entirely.
 
@@ -357,6 +356,20 @@ Only for the small set of people where the batch query found a match (typically 
 
 Skip scanning — Tom has explicitly confirmed outreach. However, still ask Tom or check context for whether the intro has already been completed, so you can route to the correct stage.
 
+### Step 2.9: Pre-Write Guards (MANDATORY)
+
+Before executing any move in Step 3, every (person, opportunity) candidate must pass all three gates below. These apply uniformly across Sub-routine 2A (subject-line scanner), 2B (qualified roster), 2C (forward scanner), and all manual modes.
+
+**Gate 1 — Directionality (Tom must be writing outbound about an Opp he holds).** This skill records outreach Tom has initiated to a third party ABOUT one of his Opps — e.g., Tom pitching a portfolio company to investors, Tom pinging a customer prospect, Tom looping in an advisor. The defining shape: Tom is the OUTBOUND originator and the Opp is the SUBJECT of the message. If the signal is instead someone in Tom's network (friend, coinvestor, advisor, another founder) offering to intro Tom INTO an Opp — i.e., the Opp is the destination Tom is being routed to, not something Tom is pitching — SKIP. Inbound referrals belong to `add-to-crm` as deal sources, not here. Concrete miss: Lurein offering to intro Tom to HighRoad is an inbound referral from a contact — Lurein is sourcing the deal, not being intro'd to it. Do not write him into HighRoad's Outreach.
+
+**Forward scanner (2C) — `From:` must equal the Opp's own `Contact`.** Pattern 2C matches when Tom forwards a portfolio founder's fundraise email TO investors. The forwarded `From:` must equal the `Contact` email of the Opp being matched (i.e., that Opp's own founder). If `From:` is anyone else — including a different portfolio founder, a coinvestor, or a friend referring an outside deal — that's not Tom outreaching about the matched Opp. Skip the 2C match. (A different-portfolio-founder forward might still be a 2C match against a DIFFERENT Opp where their email IS the Contact — that's fine, the match is per-Opp.)
+
+**Gate 2 — Terminal-status skip (no writes to closed Opps).** Read the Opp's `Status` after fetching. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, skip this person entirely. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. (This is the same gate already enforced in Step 3 — restated here so it's understood as a hard pre-write check, not a Step-3 internal detail.)
+
+**Gate 3 — Common-word Opp name disambiguation.** If the Opp's `Name` is a single common English word, generic noun, or short token (≤6 chars) — e.g., `Current`, `Scout`, `Pulse`, `Echo`, `Core`, `Pillar`, `Arc`, `Atlas`, `Compass` — require corroboration before matching. Acceptable: founder name in the message, Opp's `Contact` email domain in the message, explicit "@CompanyName"/"[CompanyName Inc.]" framing, or capitalized Name adjacent to fundraising context ("raising", "round", "ARR", domain URL). Bare common-word mention with no corroboration → skip with `⚠️ ambiguous match on common-word Opp name "[Name]" — skipping write`. Concrete miss: Matt Harris runs a different company called Scout; a Matt Harris email referencing "scout" must NEVER auto-match to a Pass-status Scout Opp.
+
+If any gate fails, surface the skip in the return payload (so the orchestrator can include it in Needs Review) and write nothing.
+
 ### Step 3: Execute the Move (→ Correct Destination)
 
 For each person where outreach is detected or confirmed, use the routing decision to determine the target field.
@@ -368,6 +381,8 @@ For each person where outreach is detected or confirmed, use the routing decisio
    - `🚫 Intros (Declined / NR)` — current JSON array of page URLs
 
    Fetching all four fields is essential for accurate state reconciliation. If the person is ALREADY in Outreach, Made, or Declined, skip adding them and note their current state.
+
+   **Terminal-status gate (MANDATORY)**: After fetching, read the `Status` property. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, **skip this person entirely** — do NOT write any intro fields. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. This applies regardless of trigger mode (scheduled, subject-line scanner, forward scanner, or manual).
 
    **IMPORTANT**: Being absent from `👓 Intros (Qualified)` is NOT a blocker. People can be logged directly to `☎️ Intros (Outreach)` without ever having been in Qualified — this is the normal flow for batch outreach that Tom logs retroactively.
 

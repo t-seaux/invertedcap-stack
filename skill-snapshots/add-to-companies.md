@@ -93,6 +93,11 @@ This skill executes Steps A–E from `companies-enrichment-spec.md` in order:
    the spec — returns hq, founded_year, overview, total_funding.
    Apply HQ metro rollup. Then `notion-create-pages` or `notion-update-page`
    per the spec's field table. Set icon per the source hierarchy in the spec.
+   **Before any `notion-create-pages` call into the Companies data source
+   (`7d50b286-c431-49f5-b96a-6a6390691309`), run `touch /tmp/.addcompanies-bypass`** —
+   a PreToolUse hook at `~/.claude/hooks/gate-db-creation.sh` blocks direct
+   writes unless this marker is fresh (≤5 min). Marker auto-expires, no cleanup
+   needed. `notion-update-page` is not gated.
 3. **Step C — Sales Nav headcount scrape** for every `Company 🛠️` row (not
    optional — no size-based skipping). Writes Employee Count, Headcount,
    HC Commentary. Skip only for `Fund 💸` / `School 🎓` / Nonprofit / chart

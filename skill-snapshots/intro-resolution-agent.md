@@ -271,6 +271,18 @@ The key insight: only move from Qualified to a terminal state (Made or Declined)
 
 **iMessage**: Skip entirely in scheduled mode. Email detection is more reliable, and iMessage scanning adds N additional API calls that exhaust the turn budget.
 
+### Step 2.9: Pre-Write Guards (MANDATORY)
+
+Before executing any move in Step 3, every (person, opportunity) candidate must pass these gates. They apply in scheduled sweep, webhook, and manual modes.
+
+This skill trusts that entries sitting in `☎️ Intros (Outreach)` were placed there legitimately by intro-outreach-agent (which enforces directionality at write time). Resolution does NOT retroactively re-validate the original outreach — it has no access to the original signal. If you suspect an Outreach entry is poisoned (e.g., obvious mismatch between Opp and person), surface it in Needs Review for Tom to clean manually rather than silently progressing it to Made/Declined.
+
+**Gate 1 — Terminal-status skip.** Read the Opp's `Status`. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, do NOT add the person to Made or Declined — closed Opps should not accumulate fresh intro lifecycle entries. Log: `[Person Name] — opp [Company] is terminal status [status], skipping resolution write`. Surface in Needs Review so Tom can decide whether to scrub the stale Outreach entry manually.
+
+**Gate 2 — Common-word Opp disambiguation.** When detection relied on matching a reply or thread to an Opp by name (rather than by an unambiguous person→Opp link already in the Outreach roster), treat single-word/short-token Opp names (`Current`, `Scout`, `Pulse`, `Echo`, `Core`, `Pillar`, `Arc`, `Atlas`, `Compass`, etc.) with extra suspicion. Require corroboration: founder name, Opp domain match, or explicit company framing. Bare common-word matches → skip with `⚠️ ambiguous common-word match — skipping resolution`.
+
+If any gate fails, surface the skip in the report (Needs Review section) and write nothing.
+
 ### Step 3: Execute Moves
 
 For each resolved contact, update the Opportunity page:

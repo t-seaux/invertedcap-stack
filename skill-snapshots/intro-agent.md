@@ -141,6 +141,20 @@ Tom explicitly tells you to log an intro. This is the most straightforward patte
 
 **Extraction:** Parse the person name and the target Opportunity from Tom's instruction.
 
+## Anti-Pattern: Inbound Offer to Intro TOM (NOT an Intro Event)
+
+When someone in Tom's network offers to introduce **Tom himself** to a company, this is NOT an intro management event. It is an inbound deal sourcing signal that belongs to `add-to-crm`, not here. Do NOT write to ANY intro lifecycle field.
+
+**Telltale signals of inbound offers (skip these):**
+- "I'd love to intro you to [Founder/Company]" addressed to Tom
+- "Want me to connect you with [Company]?"
+- "Happy to make an intro to [Company]" from a friend to Tom
+- Tom replies declining ("No thanks, not for us right now") — the decline is about an opportunity, not about declining to be intro'd
+
+**Directionality rule:** The intro skills only fire when Tom (or one of Tom's portfolio founders) is the INTRODUCER — i.e., Tom is offering, sending, or facilitating an intro from his side to a third party. If Tom is the INTRODUCEE (the person being introduced to a company/founder), skip with no write. The intro lifecycle fields belong to Tom's outbound network activity only.
+
+**Example of what NOT to log:** Lurein offers to intro Tom to HighRoad. Tom declines. → Do NOT add Lurein to HighRoad's Outreach or Declined fields. Lurein is the offerer, not the intro target. (If anything, this is a `Source` for HighRoad's CRM record.)
+
 ## Execution Workflow
 
 ### Step 1: Detect Intros
@@ -189,6 +203,24 @@ notion-search with query = "<person name>" and data_source_url = "collection://1
 **If the person exists**: Note their Notion page ID. Verify it's the right person by checking the Company and Role fields match the context.
 
 **If the person does NOT exist**: Do NOT create a new People DB entry. Flag the person in the alert output (e.g., "⚠️ [Name] not found in People DB — skipping Qualified write") and skip the Notion write for that person. Tom will add them manually when he chooses to. Auto-creating stubs — even fully enriched ones — is not permitted without Tom's explicit instruction for that specific person.
+
+### Step 4.5: Pre-Write Guards (MANDATORY)
+
+Before writing to ANY intro lifecycle field, every candidate (person, opportunity) pair must pass all three gates below. Skipping a gate produces silent false positives that pollute Notion forever.
+
+**Gate 1 — Directionality (Tom must be the introducer).** Confirm the source signal has Tom (or a portfolio founder) as the offerer/sender, not the recipient. See the "Anti-Pattern: Inbound Offer" section above. If the signal is someone offering to intro Tom to a company, skip — that's `add-to-crm` territory, not intro management.
+
+**Gate 2 — Terminal-status skip (no writes to closed Opps).** After resolving the Opportunity in Step 3, read its `Status` property. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, skip this person entirely. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. Closed Opps should never receive new intro relations regardless of how the signal was detected.
+
+**Gate 3 — Common-word Opp name disambiguation.** If the Opportunity's `Name` is a single common English word, generic noun, or short token (≤6 chars) — e.g., `Current`, `Scout`, `Pulse`, `Echo`, `Core`, `Pillar`, `Arc`, `Atlas`, `Compass` — require corroborating evidence before matching. Acceptable corroboration:
+- Founder name appears in the message
+- Opportunity's `Contact` email domain appears in the message
+- Explicit framing: "@CompanyName", "[CompanyName Inc.]", "the company called CompanyName"
+- The word is capitalized AND adjacent to fundraising/company context ("raising", "round", "ARR", "founder", domain URL)
+
+If only the bare common word appears with no corroboration, skip with `⚠️ ambiguous match on common-word Opp name "[Name]" — skipping write`. Concrete miss: Matt Harris runs a separate company called Scout; a Matt-Harris email mentioning "scout" should NEVER auto-match to a Pass-status Scout Opp.
+
+If any gate fails, do NOT write — surface the skip in the report alongside the reason. Gates apply identically in scheduled, webhook, and manual modes.
 
 ### Step 5: Update the Opportunity's Intros (Qualified) Field
 

@@ -165,44 +165,23 @@ Create each draft independently.
 
 #### HTML Formatting Rules
 
-Always send as `text/html`. Use inline styles for compatibility with Gmail rendering:
+Always send as `text/html`. Use **`<div>` blocks, NOT `<p>`** — Gmail's native compose emits `<div>content</div>` with `<div><br></div>` for blank lines, and `<p>` adds excess top margin that visibly inflates spacing compared to Tom's regular emails. Confirmed against rendered diff 2026-05-12.
+
+**Critical rules:**
+1. The first `<div>` MUST carry inline `style="margin:0;padding:0"` to override iOS Mail's default body top padding (otherwise renders as a phantom blank line above the greeting).
+2. The entire `htmlBody` is a single continuous string with **zero whitespace between tags** (no newlines, no spaces between `</div><div>`).
+3. Use `<div><br></div>` for every blank line between paragraphs.
+4. No `<p>` elements anywhere.
+5. No `<!DOCTYPE>`, `<html>`, or `<body>` wrappers — Gmail strips them anyway.
 
 ```html
-<!DOCTYPE html>
-<html>
-<body style="font-family: Helvetica, Arial, sans-serif; font-size: 13px; color: #000; line-height: 1.6;">
-
-<p>Hey [First Name],</p>
-
-<p>[Opener paragraph]</p>
-
-<p>[No worries paragraph]</p>
-
-<p>* [Question 1]</p>
-<p>* [Question 2]</p>
-<p>* [Question 3]</p>
-
-<p>Best,<br>Tom</p>
-
-<p>--</p>
-
-<p><em>About [Company] ([website or "website N/A"])</em></p>
-
-<p><strong>[Company] is building [core product].</strong> [Supporting context sentence.]</p>
-
-<p><strong>[Company] orchestrates this work.</strong> [Mechanism sentence.]</p>
-
-<p>The company is co-founded by <a href="[LinkedIn URL]" style="color: #1155CC;">[Founder 1 Name]</a>, [background], and <a href="[LinkedIn URL]" style="color: #1155CC;">[Founder 2 Name]</a>, [background].</p>
-
-</body>
-</html>
+<div style="margin:0;padding:0">Hey [First Name],</div><div><br></div><div>[Opener paragraph]</div><div><br></div><div>[Personalization paragraph — 2-4 sentences explaining why Tom thought of THIS person]</div><div><br></div><div>[No worries paragraph]</div><div><br></div><div>* [Question 1]</div><div><br></div><div>* [Question 2]</div><div><br></div><div>* [Question 3]</div><div><br></div><div>Best,</div><div>Tom</div><div><br></div><div>--</div><div><br></div><div><em>About [Company] (<a href="[URL]" style="color:#1155CC">[domain]</a>)</em></div><div><br></div><div>[Blurb sentence(s) — use founder's verbatim memo blurb when provided by Tom; otherwise auto-generate per Step 3]</div>
 ```
 
 Key formatting rules:
-- The two core blurb sentences are wrapped in `<strong>` tags
-- Founder names in the team line are hyperlinked to their LinkedIn URLs using `<a href="..." style="color: #1155CC;">`
+- Founder name(s), when included in the blurb, are hyperlinked to their LinkedIn URLs using `<a href="..." style="color:#1155CC">`
 - The "About [Company]" header is italicized with `<em>`
-- Use `<p>` tags for all paragraphs; `<br>` for line breaks within a paragraph (e.g., "Best,\nTom")
+- Body prose uses en dashes (`–`) only — never em dashes (`—`)
 - LinkedIn URLs: retrieve from the opportunity's Founder(s) relation pages in Notion (People DB). If a LinkedIn URL is not found in the DB, use `contactout_enrich_person` with the founder's full name and company to attempt a lookup. If ContactOut also returns nothing, leave the founder name as plain text (no hyperlink) and note to Tom that a LinkedIn URL could not be verified. Never infer or guess a LinkedIn slug.
 
 ### Step 7: Update `📣 Pending Feedback` relation on the opportunity

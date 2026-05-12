@@ -143,6 +143,7 @@ If `Opportunity` is empty:
 - Scan the first ~2000 chars of the body for capitalized noun phrases that look like company names. Notion AI summaries typically have a "Company Overview" section that names the company directly.
 - Pull explicit candidate names (e.g. "Emily founded a GEO platform called Inlets" → candidate "Inlets").
 - Search Opportunities DB for each candidate; require an exact (case-insensitive) name match. Do NOT accept fuzzy body-derived matches — too noisy.
+- **Common-word disambiguation gate** — if the matched Opp's `Name` is a single common English word or short token (≤6 chars) like `Current`, `Scout`, `Pulse`, `Echo`, `Core`, `Pillar`, `Arc`, `Atlas`, `Compass`, etc., require corroboration before accepting the body match: founder name from the Opp's `🏁 Founder(s)` relation appearing in the body, OR the Opp's `Contact` email domain appearing in the body, OR explicit framing nearby in the body ("@CompanyName", "called CompanyName", "the company CompanyName"). Without corroboration, skip — bare common-word matches are too prone to false positives (e.g. a note discussing "current ARR" or "scouting talent" should not match a closed `Current` or `Scout` Opp).
 - If a confident match found and not `Pass *` status, use it.
 
 If still no match → log `unlinked-after-process` and proceed to Step 4 (classification can still happen on unlinked notes; Round Details can't).
@@ -284,7 +285,23 @@ Line 2 elides parts that didn't change. Use `·` as the separator. Conventions:
 
 This means category-only classification on a non-meeting note (a Notes-DB row that the webhook fired on but isn't actually a meeting note) is silent. The note-classifier daily sweep already reports on category counts; no need to double up here.
 
-### Step 8: Exit
+### Step 8: Intro extraction subroutine
+
+After the Slack alert fires, invoke `intro-note-processor` as a subroutine to scan the note for follow-up intro commitments Tom made on the call, stage them on the Opportunity's `👓 Intros (Qualified)` relation, and save Gmail drafts of the outreach. Read `~/.claude/skills/intro-note-processor/SKILL.md` and run its **Mode B** (Subroutine) flow.
+
+Pass these args (the caller already has them in memory — no re-fetches needed):
+- `note_page_id`, `note_title`, `note_url`
+- `note_body` (the same body content fetched in Step 1)
+- `opp_page_id`, `opp_name` (or empty if Step 3 left the note unlinked)
+
+**Skip conditions** (intro-note-processor's caller-side guard, but enforce here too):
+- `opp_page_id` is empty after Step 3 → skip; intros need an Opp anchor.
+- Note title starts with `Claude:` → skip (already filtered by pre-flight, but defensive).
+- Step 2 thin-content guard already triggered → won't reach this step.
+
+**Failure handling:** intro-note-processor emits its own Slack alert (separate from Step 7's). If it errors, log the error and continue to Step 9 — never fail the parent meeting-note-processor run on intro-extraction failure. The note's primary processing has already succeeded.
+
+### Step 9: Exit
 
 Exit 0 on success. Exit non-zero only on infrastructure errors (Notion API down, etc.) so the processor moves the job to `failed/` and posts a queue-layer failure alert.
 

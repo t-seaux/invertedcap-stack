@@ -59,6 +59,14 @@ existing diligence page references in its Sources section:
   via the Chrome-based pipeline (getSignedFileUrls API → navigate to signed URL → pdf.js text
   extraction), and DocSend links (`docsend.com/view/...`) via the `docsend-to-pdf` skill. If
   Chrome is unavailable for Notion attachments, note them as unreadable and flag the gap.
+  - **Inline attachments from Tom's invocation:** If Tom attached files inline when invoking the
+    skill (e.g., "update priors and refer to @file.pdf"), check the Diligence Materials property
+    FIRST before uploading them. The `materials-handler` webhook typically auto-uploads inline
+    Gmail/iMessage attachments to the Drive subfolder and adds them to the property field before
+    this skill runs. Re-uploading creates duplicate Drive files (different fileIds) and duplicate
+    property-field entries. Match by base filename (e.g., `Preseed plan notes.pdf` vs
+    `Factir_Preseed_Plan.pdf` — the former is the auto-add canonical version). Only upload if the
+    property field genuinely does not contain it.
 - **Page body changes** — the opportunity page body itself may have been updated with new context
   (round details, team changes, status updates).
 - **Property changes** — check for changes to Status, Stage, Round Details, or other properties
@@ -318,6 +326,12 @@ upload_resp = requests.post(DRIVE_URL, json={
 }, allow_redirects=True, timeout=120)
 file_url = upload_resp.json()["url"]
 ```
+
+If Tom attached supplementary materials (decks, plans, models) inline with the skill invocation,
+do NOT re-upload them — they are almost always already in the Diligence Materials property field
+courtesy of the `materials-handler` webhook that fires on inbound email/iMessage attachments.
+Reference the existing Drive URLs from the property field in the update section's "New Information
+Processed" list. The only file this skill should upload is the regenerated update PDF itself.
 
 After upload, link the updated PDF in two places on the Notion opportunity page:
 

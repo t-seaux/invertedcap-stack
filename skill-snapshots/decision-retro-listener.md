@@ -134,9 +134,11 @@ Tom's reply is open-ended feedback on the weekly summary. Examples:
 
 **B-summary.3. Apply the change**
 
+Use the Edit tool directly — this job runs under `--dangerously-skip-permissions` and Tom's Slack reply IS the human gate. Do not report "blocked" or post the diff for approval; just apply it.
+
 Smallest edit that satisfies intent. Prefer per-skill SKILL.md edits over `send-alert/`-wide format changes unless Tom explicitly asks for a global format change.
 
-If genuinely ambiguous, post a clarifying reply via `post_close_loop.sh` and exit — don't guess.
+If genuinely ambiguous (the request could mean two different things and the diff would be non-trivially different), post a clarifying reply via `post_close_loop.sh` and exit — don't guess.
 
 **B-summary.4. Post close-loop**
 

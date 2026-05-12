@@ -47,7 +47,7 @@ Manual trigger works the same way, independent of Status.
 Two scheduled agents:
 
 - **`decision-retro-scan`** (daily 9am ET) — queries Notion for Opps in terminal status, dedups against `queue.json`, posts new prompts to `#decision-retros` as the `claude` Slack app with fingerprint `[opp:<short>]`, records each prompt's thread `ts` in the queue with `scope="opp"`.
-- **`neg1-retro-scan`** (daily 9:05am ET) — mirror for the `-1 Scanner` DB. Queries rows where `Status ∈ {Passed, Outreach}`, posts prompts with fingerprint `[neg1:<short>]` and a person-shaped body (🧍 Current / Work History / Education / Status), records with `scope="neg1"`.
+- **`neg1-retro-scan`** (daily 9:05am ET) — mirror for the `-1 Scanner` DB. Queries rows where `Status ∈ {Passed, Outreach}`, posts compact prompts with fingerprint `[neg1:<short>]` and a person-shaped header (🧍 Name | Notion | LinkedIn / Status), records with `scope="neg1"`.
 - **`decision-retro-listener`** (daily 6pm ET) — for each `prompted` item in the queue, reads the Slack thread, handles both `[opp:]` and `[neg1:]` fingerprints, treats concatenated Tom replies as the retro, runs the extractor (founder-signal-weighted for `scope="neg1"`), logs to source page + `DECISION_RETROS.md`, marks `completed`. Items prompted >7 days ago with no reply auto-close as `no_retro`. `skip`/`ignore`/etc. replies mark as `skipped` and are excluded from framework feed.
 - **`retro-weekly-summary`** (Fri 4pm ET) — rolls up the week, groups by `scope` (Company retros / Founder-signal retros), posts synthesis to `#decision-retros`.
 
@@ -197,7 +197,7 @@ Triggered by the `claude-job-queue` processor with args `{ mode: "webhook-prompt
 3. Compose the Slack prompt per scope. For `scope="neg1"` use this template exactly (GFM markdown — `[text](url)` for links, `**text**` for bold). `md_to_blocks.py` converts to Slack Block Kit; Slack mrkdwn (`<url|text>`, `*text*`) ships as literal text / renders italic:
 
    ```
-   - 🧍 <u>**{Name} | [Notion]({Notion page url})**</u>
+   - 🧍 <u>**{Name} | [Notion]({Notion page url}) | [LinkedIn]({LI url})**</u>
    - **Status:** {Status}
    `[neg1:<short-id>]`
    ```
@@ -205,8 +205,9 @@ Triggered by the `claude-job-queue` processor with args `{ mode: "webhook-prompt
    Rules:
    - `<short-id>` = first 8 chars of the Notion page UUID
    - Compact format identical in shape to the Opp version (locked in 2026-04-25). Both lines are bullet items.
-   - Emoji OUTSIDE the `<u>**...**</u>` wrapping; name + Notion link are bold AND underlined with the link live.
-   - **No Current / Work History / Education / LI link** — Tom clicks through to the Notion page when he needs the resume context.
+   - Emoji OUTSIDE the `<u>**...**</u>` wrapping; name + Notion link + LinkedIn link are all bold AND underlined with both links live.
+   - **LinkedIn segment only appears when the `LI` property is populated.** If `LI` is empty/missing, drop the trailing ` | [LinkedIn](...)` — never emit a broken or placeholder link.
+   - **No Current / Work History / Education / standalone LI line** — Tom clicks through to the Notion page when he needs the rest of the resume context.
    - Status bullet is just the Status value — no trailing "flipped {date}" clause.
    - **No blank lines anywhere in the body** — fingerprint sits immediately under Status, in backticks.
 

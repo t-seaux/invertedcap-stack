@@ -4,9 +4,9 @@ description: >-
   Enrichment + evaluation primitive for pre-founder (-1) candidates. Takes a LinkedIn URL,
   builds a fully-enriched -1 Scanner row in Notion (ContactOut person + per-employer Company
   Search, online presence research, Companies DB relations), then applies Tom's signal
-  framework rubric to score the candidate and write the verdict (Eval Score + Eval Breakdown
-  + Signals + Working Description + Claude Rec + Eval Summary). Pure spike-based MAX, no
-  Intentionality gate (per FOUNDER_EVAL_FRAMEWORK.md v0.4). One-shot company enrichment (Company
+  framework rubric to evaluate the candidate and write the verdict (Eval Breakdown +
+  Working Description + Claude Rec + Eval Summary). Signal-level High/Medium/Low ratings,
+  pure spike-based MAX, no Intentionality gate. One-shot company enrichment (Company
   Search per distinct employer, skipped if Last Enriched is already populated — credit-
   saving). Supports a `--score-only` mode that re-runs rubric application against existing
   row data without re-fetching ContactOut (used for rubric drift checks per PRD §6.7).
@@ -70,7 +70,7 @@ From the enriched profile's experience array, identify the **primary current rol
 
 ### Step 3: Resolve Companies in Notion (via `add-to-companies`)
 
-The **Company** field (primary employer, limit 1), **Work History** field (all employers), and **School(s)** field (all schools from education) are all **relations** to the Companies database.
+The **CurrentCo (CC)** field (primary employer, limit 1), **Work History** field (all employers), and **School(s)** field (all schools from education) are all **relations** to the Companies database.
 
 **This skill does NOT reimplement the Companies enrichment spec.** For every distinct company and school in the person's experience + education arrays, invoke the `add-to-companies` skill as a subroutine. That skill handles dedup, enrichment, backfill, Sales Nav scrape, Deal Digest merge, icon, and Last Enriched per the canonical spec at:
 
@@ -88,6 +88,12 @@ Collect the page URL returned by each `add-to-companies` invocation — these ar
 
 **All relation URLs must be full `https://www.notion.so/` URLs, not bare UUIDs.**
 
+**Cache write-back:** after `add-to-companies` completes for the primary employer, sync that company into the local SQLite cache so future network-scan queries pick up the latest enriched data:
+
+```bash
+python3 /Users/tomseo/.claude/scripts/company_cache.py sync-one --domain {primary_domain}
+```
+
 ### Step 4: Create or Update the -1 Scanner Entry
 
 **Create path** (URL-driven, manual invocation from user): use `notion-create-pages` with parent `data_source_id: "32c00bef-f4aa-80a5-923b-000b83921fa3"`.
@@ -100,7 +106,7 @@ Set the page **icon** to `profile.profile_picture_url` from the ContactOut respo
 |-------------------|----------------|
 | **Name** | `profile.full_name` from the API |
 | **LI** | The LinkedIn URL provided as input |
-| **Company** | The primary company's Notion page URL as a JSON string (single relation) |
+| **CurrentCo (CC)** | The primary company's Notion page URL as a JSON string (single relation) |
 | **Role** | The person's title at their primary company |
 | **City** | Map `profile.location` to the metro area. Berkeley/Oakland/Palo Alto/Mountain View/Sunnyvale → "San Francisco". Brooklyn/Queens/Manhattan/Bronx → "New York". Arlington VA/Bethesda MD → "Washington DC". Use the core metro city name, not suburbs or neighborhoods. City is a **single select** field — if the metro area doesn't exist as an option yet, create a new one (Notion handles this automatically when you pass a new value). |
 | **Email** | Prefer `profile.personal_email` (first entry). If no personal email is available, fall back to `profile.work_email` (first entry). If neither exists, omit. |
@@ -111,6 +117,8 @@ Set the page **icon** to `profile.profile_picture_url` from the ContactOut respo
 | **Online Presence** | Files property holding all discovered URLs — populated by Step 4.5 (online-presence research). See dedicated section below. |
 | **Work History** | JSON array of Notion page URLs for every company in the person's experience history, **including the primary company as the first entry** (so its logo appears at the top). The primary company also appears in the Company field — that's intentional. |
 | **Experience Summary** | Entries separated by a **blank line** (double line break), no bullets, with bold company-name prefix through the colon. **Consolidate multiple roles at the same company into a single entry** — if someone held two positions at "Corgi" and "Corgi (YC S24)", group them: `**Corgi:** Chief of Staff (10/2025–Present); Founding Growth (12/2024–10/2025): AI insurance`. Match company names fuzzy (ignore parenthetical suffixes like "(YC S24)"). For distinct companies, format as: `**Company Name:** Title (Start–End): summary text`. Bold runs from company name through the first colon (after the company name). Include all experience entries regardless of whether they have a summary — if an entry has no summary, just show the company, title, and dates. |
+| **Growth Tier / Timing Signal** | **Do not write these fields — they don't exist.** Growth and timing context goes in `Eval Summary` prose via CC Momentum + tenure overlap (e.g. "Joined Stripe in 2019 when ARR was ~$50M, Series E-era rapid scaling"). |
+| **Type** | **Do not write this field.** neg1-sourcing sets it at row creation (Reconnect / Cold Outreach). Manual entries leave it null. |
 | **Last Enriched** | Today's date (ISO-8601). Set on the -1 Scanner row when enrichment completes — this is the person-level marker distinct from the Companies DB `Last Enriched` on each employer. Always populate on create AND on any re-enrichment pass. |
 
 ### Step 4.5: Research Online Presence
@@ -185,7 +193,7 @@ Apply the framework in two phases:
 
 **Phase 1 — derive HIGH-fidelity signals from already-ingested structured data:**
 - **Non-Linearity**: count function/discipline crossings across `experience[].job_function` + title transitions.
-- **Earned Reps**: cross-reference `experience[]` tenure against the highest-fidelity hypergrowth signal available, in priority order (per FOUNDER_EVAL_FRAMEWORK.md §Signal 2): (1) **Current Company Momentum** rollup on the -1 Scanner row — pulls Deal Digest revenue traction directly from the primary employer's Companies DB row, no extra hop required; (2) Companies DB Headcount + HC Commentary (Sales Nav scrape); (3) Companies DB Hypergrowth Windows (funding-round cadence). When tenure overlaps best-in-class peer-tier ramp (e.g., 6-10x+ YoY ARR for early-stage), score 9/10. Apply sector-difficulty multiplier (health systems, public sector, defense, regulated finance) when the traction was earned in a hard buyer environment.
+- **Earned Reps**: cross-reference `experience[]` tenure against the highest-fidelity hypergrowth signal available, in priority order (per FOUNDER_EVAL_FRAMEWORK.md §Signal 2): (1) **CC Momentum** rollup on the -1 Scanner row — pulls Deal Digest revenue traction directly from the primary employer's Companies DB row, no extra hop required; (2) Companies DB Headcount + HC Commentary (Sales Nav scrape); (3) Companies DB Hypergrowth Windows (funding-round cadence). When tenure overlaps best-in-class peer-tier ramp (e.g., 6-10x+ YoY ARR for early-stage), rate High. Apply sector-difficulty multiplier (health systems, public sector, defense, regulated finance) when the traction was earned in a hard buyer environment.
 - **Range**: triple intersection of `job_function` × `industry` across employers (Technical / Commercial / Domain).
 
 **Phase 2 — narrative research for LOW–MED fidelity signals (only if Phase 1 doesn't already disqualify):**
@@ -194,17 +202,16 @@ Apply the framework in two phases:
 - **Intentionality**: LLM read of `experience[].summary` for demotion / anti-accelerator / patient-tenure markers; "On leaving X" essays; podcast career-arc framing.
 
 **Compute the verdict (per FOUNDER_EVAL_FRAMEWORK.md §6):**
-- `Eval Score (Spike) = MAX(signal scores)`. Pure spike-based MAX. **No Intentionality gate** (v0.4 removed it — Intentionality is informational, not a veto). Internal 0–10 scale drives scoring; express the peak signal as **Strong** (7–10), **Moderate** (4–6), or **Weak** (0–3) in all displayed fields.
-- `Claude Rec` per §6.5 thresholds:
-  - peak ≥ 7 → `Strong ✅`
-  - peak 4–6 → `Moderate 🤔`
-  - peak 0–3 → `Weak ❌`
-- `Signals` (multi-select): tag every signal that scored ≥ 5.
+- Rate each signal **High**, **Medium**, or **Low** using the rubric anchors in FOUNDER_EVAL_FRAMEWORK.md. Pure spike-based MAX — one singular High is enough. **No Intentionality gate** (Intentionality is informational, not a veto).
+- `Claude Rec` based on peak signal rating:
+  - Any signal High → `Reach Out ✅`
+  - Peak Medium → `Second Look 🤔`
+  - All signals Low → `Pass ❌`
 - `Working Description` (2-3 sentence TL;DR, anchored on the peak signal).
 - `Eval Breakdown` (per-signal rationale with evidence URLs from Phase 2 research).
-- `Eval Summary` (rationale paragraph; bold the peak-signal sentence).
+- `Eval Summary` — use the canonical structure from memory `feedback_eval_summary_format.md`: **Primary Signal: [Name].** paragraph → **Other Qualities** bullets (• **Signal Name (Rating).** sentence.) → **Gaps.** paragraph.
 
-Write all six fields back to the -1 Scanner row via `notion-update-page`. Do not touch Status here.
+Write all four fields back to the -1 Scanner row via `notion-update-page`. Do not touch Status here.
 
 ### Step 6: Chain to Drafting (manual invocation only)
 
@@ -228,7 +235,7 @@ The split: `neg1-enricher` produces the scored row. On manual invocation it also
 
 After creating (or updating) entries, provide a brief confirmation per person: name, primary company, role, **peak signal + rating (Strong/Moderate/Weak) + Claude Rec**, and a link to the Notion page. Surface a one-line excerpt of the Eval Summary so Tom can quickly scan whether the verdict reads right.
 
-For batches, present results as a summary table sorted by Eval Score descending.
+For batches, present results as a summary table sorted by peak signal rating descending (High → Medium → Low).
 
 ---
 
@@ -240,19 +247,19 @@ Per FOUNDER_EVAL_FRAMEWORK.md §6.7 (re-scoring without re-enriching). Used when
 
 **Behavior**:
 - **Skip Steps 1–4.5 entirely** — no ContactOut calls, no online presence re-research, no Companies DB writes.
-- **Run Step 5 only**, against whatever data is already on the -1 Scanner row (Experience Summary, LI Profile Summary, Online Presence files, Companies relations + their Headcount/Momentum/HC Commentary).
-- **Overwrite** Eval Score, Eval Breakdown, Signals, Working Description, Claude Rec, Eval Summary with the new verdict.
-- **Preserve Status** — a row that's already `Reached Out` stays `Reached Out` regardless of the new score. We're updating the scoring artifact, not the workflow state.
+- **Run Step 5 only**, against whatever data is already on the -1 Scanner row (Experience Summary, LI Profile Summary, Online Presence files, Companies relations + their Headcount/CC Momentum/HC Commentary).
+- **Overwrite** Eval Breakdown, Working Description, Claude Rec, Eval Summary with the new verdict.
+- **Preserve Status** — a row that's already `Reached Out` stays `Reached Out` regardless of the new rating. We're updating the evaluation artifact, not the workflow state.
 - **No Step 6 chain** to founder-outreach in score-only mode (it's a re-evaluation, not a fresh outreach decision).
 
 **Targeting**:
 - Single row: pass a -1 Scanner page URL or person name.
 - The 6-founder calibration corpus (per FOUNDER_EVAL_FRAMEWORK.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `FOUNDER_EVAL_CASEBOOK.md`).
-- Bulk: pass `--score-only --where "Eval Score is null"` or any Notion filter. Use sparingly — re-scoring 100+ rows takes time even without ContactOut calls.
+- Bulk: pass `--score-only --where "Claude Rec is null"` or any Notion filter. Use sparingly — re-scoring 100+ rows takes time even without ContactOut calls.
 
-**Snapshot before overwrite**: write before-state to `/tmp/score_only_snapshot_{timestamp}.jsonl` (one JSON per row: page_id, name, before_eval_score, before_eval_breakdown, before_eval_summary, before_claude_rec). Lets Tom diff old vs new verdicts and revert if a rubric change misfires.
+**Snapshot before overwrite**: write before-state to `/tmp/score_only_snapshot_{timestamp}.jsonl` (one JSON per row: page_id, name, before_eval_breakdown, before_eval_summary, before_claude_rec). Lets Tom diff old vs new verdicts and revert if a rubric change misfires.
 
-**Reporting**: after a `--score-only` batch, surface a diff table — for each row, show `before → after` on Eval Score and Claude Rec. Highlight rows where the verdict changed (Strong → Moderate, etc.).
+**Reporting**: after a `--score-only` batch, surface a diff table — for each row, show `before → after` on Claude Rec. Highlight rows where the verdict changed (Reach Out → Second Look, etc.).
 
 ## Important Rules
 
@@ -272,9 +279,9 @@ Per FOUNDER_EVAL_FRAMEWORK.md §6.7 (re-scoring without re-enriching). Used when
 2. Determines primary: VP of Engineering at Stripe.
 3. Dedup-searches Companies DB by domain → Stripe found (Last Enriched → skip re-enrich), Google found (skip), Meta found but Last Enriched empty → backfills Meta with the 12 enrichment fields.
 4. Creates -1 Scanner entry with the full field set.
-5. Runs Step 5 scoring → Eval Score 8 (Earned Reps peak — Strong), Claude Rec = Strong ✅.
+5. Runs Step 5 evaluation → Earned Reps: High (peak signal), Claude Rec = Reach Out ✅.
 6. Auto-chains into `founder-outreach` → Gmail draft created, Status = Draft Ready.
-7. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. Earned Reps: Strong (8/10) / Claude Rec: Strong ✅. Gmail draft ready. [link]"
+7. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. Earned Reps: High / Claude Rec: Reach Out ✅. Gmail draft ready. [link]"
 
 ## Behavior Rules
 

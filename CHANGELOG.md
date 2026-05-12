@@ -2,6 +2,30 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-12] (Week of 2026-05-12)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `add-to-companies` -- requires hook bypass marker before Notion create call; existing enrichment flow unchanged
+- `add-to-contacts` -- requires hook bypass marker before Notion People create call
+- `add-to-crm` -- requires hook bypass marker before Notion Opportunities create; custom-domain From: wins over ContactOut for Contact email at creation time; honors explicit status directive passed by caller; third-party-referrer-forward definition expanded to cover additional forward shapes
+- `decision-retro` -- neg1 daily prompts now include LinkedIn link in header when the field is populated
+- `feedback-outreach-drafter` -- email body switched from `<p>` to `<div>` blocks for iOS Mail / Gmail div-layout compatibility
+- `founder-outreach` -- removed numeric Eval Score requirement; now checks Claude Rec + Eval Breakdown (High/Medium/Low ratings) before drafting
+- `intro-agent` -- added directionality anti-pattern section (inbound offers to intro Tom are not intro events); added pre-write gates (directionality, terminal-status, common-word Opp disambiguation)
+- `intro-outreach-agent` -- removed "want to connect" from Gmail subject search; added pre-write gates (directionality, terminal-status, common-word disambiguation); forward-scanner gate requires From: to match Opp's Contact email
+- `intro-resolution-agent` -- added pre-write gates (terminal-status, common-word Opp disambiguation)
+- `investor-update` -- removed post-processing email unflag step; step numbering updated accordingly
+- `log-intro` -- added terminal-status guard; skips write and surfaces confirmation prompt when Opp is in a terminal status
+- `neg1-enricher` -- evaluation verdict now uses High/Medium/Low signal ratings instead of a numeric score; primary employer field renamed CurrentCo (CC); added company cache write-back step after enrichment
+- `network-scan` -- revenue-trajectory queries now run csearch + deal-digest intersection pipeline for factual ARR grounding
+- `update-diligence-priors` -- deduplicates inline attachments against existing Diligence Materials property before uploading to Drive
+**Total skills:** 25
+**Functions:** No changes
+
+---
+
 ## [2026-05-11] (Week of 2026-05-11)
 
 **Added:** None

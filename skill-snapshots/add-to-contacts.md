@@ -160,6 +160,8 @@ use it. If not, it's fine to create a new option — Notion will handle that aut
 
 ### Step 4: Create the Notion Page
 
+**Before the `notion-create-pages` call, run `touch /tmp/.addcontacts-bypass`** to set the hook bypass marker. A PreToolUse hook at `~/.claude/hooks/gate-db-creation.sh` blocks all direct writes to the People data source unless this marker is fresh (≤5 min old). The marker auto-expires, so no cleanup is needed. If the hook denies a call with "Direct creation of Notion People-DB rows is gated", that's the signal you forgot this step.
+
 Use `notion-create-pages` with:
 ```
 parent: {"data_source_id": "1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9"}

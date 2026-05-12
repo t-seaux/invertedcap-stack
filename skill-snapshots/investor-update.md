@@ -49,8 +49,7 @@ This applies to both the Notion page title (`Name` property) and the PDF filenam
 3. Locate the matching Notion opportunity (Active Portfolio only)
 4. Save a local PDF archive to `~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/Portfolio/Investor Updates/` (mounted workspace folder on Tom's Mac)
 5. Create a page in the Company Updates database with a plain-text file path to the local PDF and the email content formatted below
-6. Unflag (unstar) processed emails in Gmail
-7. Report results
+6. Report results
 
 ## Investor Type Prioritization
 
@@ -130,8 +129,8 @@ Triggered by `gmail-webhook` (`investor-update.js`) on inbound mail that passes 
 - Process exactly the one message identified by `messageId`. Do **not** scan the inbox for other updates in this run.
 - Run the same dedup check (Step 4 — `investorUpdatePageExists` by intended page title). If a page already exists, log and exit without re-uploading the PDF.
 - Skip Step 1's portfolio-list query and per-company searches entirely — those exist for the scheduled mode.
-- Otherwise proceed through Steps 2–6 unchanged. The Slack alert in Step 6 is the single notification for this update — the webhook does not post its own alert in this path.
-- Single-message alert format (override Step 6's batch format): one line, same shape as a row in the batch — `📬 **<Company>** — "<subject or period>" — <PDF source>. <Notion page link>`. Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
+- Otherwise proceed through Steps 2–5 unchanged. The Slack alert in Step 5 is the single notification for this update — the webhook does not post its own alert in this path.
+- Single-message alert format (override Step 5's batch format): one line, same shape as a row in the batch — `📬 **<Company>** — "<subject or period>" — <PDF source>. <Notion page link>`. Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
 
 ### Mode C: Manual / Forwarded Email
 
@@ -156,7 +155,7 @@ Use `notion-search` to search for the company name among Active Portfolio opport
 - ✅ Allowed Statuses: `Committed`, `Active Portfolio`, `Portfolio: Follow-On`, `Exited`
 - ❌ Forbidden Statuses (refuse to write): `Pass (Met)`, `Pass (DNM)`, `Pass Note Pending`, `NR / Missed`, `Lost`, `Qualified`, `Outreach`, `Connected`, `Scheduled`, `Exploration`, `Active`, `Track`, `Assigned`, `N/A`
 
-The Company Updates DB exists to track investments-Tom-actually-made. Pipeline activity, passed deals, and unmatched senders all belong elsewhere. If the matched Opp is non-portfolio, log the email under "Non-Portfolio (filtered)" in Step 6's Slack alert and exit without writing — DON'T create the entry.
+The Company Updates DB exists to track investments-Tom-actually-made. Pipeline activity, passed deals, and unmatched senders all belong elsewhere. If the matched Opp is non-portfolio, log the email under "Non-Portfolio (filtered)" in Step 5's Slack alert and exit without writing — DON'T create the entry.
 
 This rule applies in all three modes (sweep / webhook / manual). In Mode B (webhook), the cheap gate already filters by founder lookup, but always re-verify the Status before writing — Statuses can move (e.g., a company moves from Active Portfolio → Pass over time, or vice versa). The Status check at write-time is the source of truth.
 
@@ -172,7 +171,7 @@ Two shapes to reject:
 
 2. **Fresh note about a different company.** Sender is in the matched Opp's Contact (e.g. coinvestor on the cap table, advisor, or even a portfolio founder) and writes a fresh email tipping Tom on a different company — no `Fwd:` prefix, but the body's primary subject is some OTHER company by name, with pitch/intro framing. Identify by: the body names a company that is NOT the matched Opp, plus pitch markers, plus the email reads as third-person commentary about that company rather than first-person reporting on the matched Opp's metrics.
 
-When either shape is detected, log under "Non-Portfolio (filtered)" in Step 6's Slack alert with reason "referral — content does not match Opp" and exit without writing.
+When either shape is detected, log under "Non-Portfolio (filtered)" in Step 5's Slack alert with reason "referral — content does not match Opp" and exit without writing.
 
 Common drivers Tom flagged: (a) portfolio founders sometimes refer Tom to investment opportunities; (b) coinvestors who attended a joint meeting may sit in the Opp's Contact and later forward or write up unrelated deals.
 
@@ -536,7 +535,7 @@ python3 ~/.claude/local-agents/notion-internal/add_link_to_files_property.py \
   --label "<filename, e.g. Quiet AI - Dec 2025 Update.pdf>"
 ```
 
-Per pinned memory `feedback_notion_files_property_headless_default.md`, the headless helper is the canonical path for Files-property writes — Notion's public API can't write Files properties for arbitrary external URLs. The helper is idempotent (skips if URL already present) and uses `token_v2` from `~/.claude/local-agents/notion-internal/token_v2`. On `TOKEN_EXPIRED` (exit code 2), surface the error in Step 6's Slack alert so Tom can refresh the cookie.
+Per pinned memory `feedback_notion_files_property_headless_default.md`, the headless helper is the canonical path for Files-property writes — Notion's public API can't write Files properties for arbitrary external URLs. The helper is idempotent (skips if URL already present) and uses `token_v2` from `~/.claude/local-agents/notion-internal/token_v2`. On `TOKEN_EXPIRED` (exit code 2), surface the error in Step 5's Slack alert so Tom can refresh the cookie.
 
 If the email had multiple PDF attachments (rare but possible — e.g., letter + accompanying deck), call the helper once per file. The Artifacts property becomes the full list of files belonging to this update entry.
 
@@ -544,19 +543,7 @@ If the original source was a Google Doc / Sheet (Case B in Step 3) AND a PDF was
 
 **General rule (all cases):** Any URL in the email/message body that represents a material or demo — Loom, YouTube, product demo, slide deck, external doc, or similar — should also be added to Artifacts via the headless helper, in addition to living in the page body. Use a short descriptive label derived from the surrounding context (e.g., section header or founder's description). The Artifacts field is the canonical index of everything substantive attached to an update entry.
 
-## Step 5: Unflag Processed Emails
-
-After successfully creating the Notion page and saving the local PDF for an investor update, remove the star/flag from the original Gmail email so Tom's inbox reflects that the update has been processed.
-
-For each email that was flagged (starred) in Gmail and has been fully processed (Notion page created + PDF saved):
-
-1. Check whether the email is starred (it may not be — only starred emails need unflagging)
-2. Remove the `STARRED` label from the message/thread to unflag it
-3. If the Gmail modify tool is unavailable, use Claude in Chrome to navigate to the email and manually unstar it
-
-Only unflag emails that were **successfully** processed end-to-end. If the Notion page creation failed or the PDF save failed, leave the flag intact so the email gets picked up on the next scan.
-
-## Step 6: Report Results
+## Step 5: Report Results
 
 **Notification channel:** All alerts (success, non-portfolio, misclassification review) MUST be delivered via the `send-alert` skill at `/Users/tomseo/.claude/skills/send-alert/SKILL.md` — pipe the GFM body through `~/.claude/skills/send-alert/send.sh`. This posts as the `claude` bot identity (the canonical channel for LLM-synthesized alerts; distinct from `tom` MCP and `alerts` Apps Script).
 

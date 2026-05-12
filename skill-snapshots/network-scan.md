@@ -36,6 +36,8 @@ Parse the query to identify:
 
 - **Company-trait queries** → `csearch` (company-side). Use when the filter is about the company someone worked at: revenue trajectory, sector, stage, funding, momentum, "worked at a 10x'er / hypergrowth / specific company", "operators from fintech infra", "anyone who's been at Stripe / Plaid / Ramp". The `csearch` primitive vector-searches the Companies DB, joins the pre-resolved `profile_companies` table, and returns each match with full tenure dates already extracted.
 
+  **For revenue-trajectory queries** ("10x", "hypergrowth", "company that scaled ARR fast"): run `csearch` for recall, then intersect with the Deal Digest cache for factual revenue grounding — this is the default pipeline, not an optional step. See Step 2a below for the exact sequence.
+
 - **Person-trait queries** → `vsearch` (person-side). Use when the filter lives in the person's bio/headline: expertise, role pattern, founder archetype, angel activity, "deep technical founders", "biotech investors", "operators with consumer marketing chops".
 
 When in doubt, run both and merge; they hit different parts of the index.
@@ -59,7 +61,31 @@ Flags:
 - `--per-company N` — cap people per company in output (0 = no cap).
 - `--max-distance D` — embedding distance gate (default 1.06).
 
-For revenue/factual grounding (e.g. "10x ARR" claims), cross-reference the Deal Digest cache at `~/.claude/skills/shared-references/deal-digest-cache.json`. Each match's `momentum` field already includes recent digest mentions; pull additional bullets directly from the cache when the user wants exact dollar trajectories.
+**Revenue-trajectory queries — hybrid pipeline (default for "10x", "hypergrowth", "scaled ARR fast"):**
+
+Run these three steps in sequence; the whole pipeline completes in ~5–10 seconds:
+
+1. `csearch` for recall — semantic search over Companies DB + profile_companies join (broad net, may include VC firms without `--no-vc` context):
+```bash
+python3 ~/.claude/scripts/network_cache.py csearch "<revenue/growth query>" --no-vc --per-company 8
+```
+
+2. Deal Digest intersection — ground the csearch hits against factual revenue trajectories. Load the cache and filter to companies with documented ≥5x ARR growth:
+```bash
+python3 -c "
+import json, re
+cache = json.load(open('/Users/tomseo/.claude/skills/shared-references/deal-digest-cache.json'))
+# Print companies with explicit ARR multiples or hypergrowth signals
+for c, entries in cache.items():
+    text = ' '.join(e.get('raw','') for e in entries)
+    if re.search(r'\b([5-9]\d*x|10x|[1-9]\d{1,}x|\\\$\d+M.*ARR.*\\\$\d+[BM]|\\\$\d+[BM].*ARR)', text, re.I):
+        print(c)
+" 2>/dev/null
+```
+
+3. Intersect: keep only csearch hits whose company name appears in the deal-digest filter output. Annotate each person with the deal-digest revenue data for that company.
+
+Each match's `momentum` field in csearch output also includes recent digest mentions inline — use that as a quick signal before loading the full cache.
 
 ## Step 2b — Person-side search (preferred for person-trait queries)
 

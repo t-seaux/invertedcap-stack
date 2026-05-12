@@ -2,7 +2,7 @@
 name: founder-outreach
 description: >-
   Drafting primitive for pre-founder (-1) candidates. Reads an already-evaluated -1 Scanner
-  row (Eval Score + Eval Breakdown + Claude Rec populated by neg1-enricher) and generates a
+  row (Eval Breakdown + Claude Rec populated by neg1-enricher) and generates a
   Gmail draft using the canonical writing-style/outreach/STYLE.md cold email format, personalization anchored on
   the spike signal. Sets Status to "Draft Ready" when complete. Idempotent, never sends.
   Scoring + evaluation lives in neg1-enricher — this skill refuses to run if the row is
@@ -31,7 +31,6 @@ Single-mode drafting primitive for pre-founder candidates. Reads a fully-evaluat
 
 Before doing anything, verify the target row is fully evaluated. Required populated fields on the -1 Scanner row:
 
-- `Eval Score (Spike)` — the peak signal score
 - `Eval Summary` — the rationale (includes the bold peak sentence)
 - `Claude Rec` — the verdict (`Reach Out ✅` or `Pass ❌`)
 - `Eval Breakdown` — per-signal breakdown (needed for personalization anchor)
@@ -124,7 +123,7 @@ Exit code 0 = both writes succeeded. Exit codes 1/2/3 = failure — abort the ro
 
 **Both writes are MANDATORY on every invocation, including the 2nd/3rd/Nth iteration during a workshop session.** Defensive belt-and-suspenders — primary fix is Step 3's iteration-aware skip-deletion, but re-asserting Status here protects against any other event that might have flipped it. See memory `feedback_workshop_iteration_not_pass.md`.
 
-**Leave unchanged**: everything else (Eval Score, Eval Breakdown, Signals, Claude Rec, Eval Summary, Working Description — all of which were written by `neg1-enricher` and are out of scope here). The legacy `Email Draft` Notion property is no longer used — the snapshot lives in Drive instead.
+**Leave unchanged**: everything else (Eval Breakdown, Claude Rec, Eval Summary, Working Description — all of which were written by `neg1-enricher` and are out of scope here). The legacy `Email Draft` Notion property is no longer used — the snapshot lives in Drive instead.
 
 **9. Report back.** Per person: name, spike signal, 1-line personalization preview, Gmail draft URL. Summary table for batches.
 
@@ -160,7 +159,7 @@ Manual invocation via this skill is for:
 **User:** (after reviewing Greg Reiner's scored -1 Scanner row in Notion) `"draft for greg"`
 
 **Claude:**
-1. Finds Greg → Eval Score = 8 (peak Earned Reps), Claude Rec = "Reach Out ✅", Gmail Draft URL empty.
+1. Finds Greg → Earned Reps: High (peak signal), Claude Rec = "Reach Out ✅", Gmail Draft URL empty.
 2. Precondition check passes.
 3. Deletes any existing Gmail draft for the recipient.
 4. Builds personalization anchored on peak Earned Reps (Meta cross-surface — pulled from Eval Breakdown).
@@ -173,5 +172,5 @@ Manual invocation via this skill is for:
 **User:** `"draft for jane smith"`
 
 **Claude:**
-1. Finds Jane Smith → Eval Score empty, Claude Rec empty.
-2. Refuses: "Jane Smith's -1 Scanner row hasn't been evaluated yet. Run `neg1-enricher` on her profile first — that skill handles enrichment + scoring + the Claude Rec verdict. Once the row shows Eval Score + Claude Rec = ✅, come back to draft."
+1. Finds Jane Smith → Claude Rec empty, Eval Breakdown empty.
+2. Refuses: "Jane Smith's -1 Scanner row hasn't been evaluated yet. Run `neg1-enricher` on her profile first — that skill handles enrichment + scoring + the Claude Rec verdict. Once the row shows Claude Rec = ✅, come back to draft."

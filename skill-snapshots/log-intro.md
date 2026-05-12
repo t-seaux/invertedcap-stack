@@ -61,13 +61,22 @@ Fund 2) — unless Tom explicitly specifies a different one.
 
 ### Step 2: Fetch the Opportunity's Current Intro State (Opportunity Path Only)
 
-Fetch the full Opportunity page and read the current state of all four intro lifecycle fields:
+Fetch the full Opportunity page and read:
+- `Status`
 - `👓 Intros (Qualified)`
 - `☎️ Intros (Outreach)`
 - `✉️ Intros (Made)`
 - `🚫 Intros (Declined / NR)`
 
-This is needed for both duplicate detection (Step 4) and the append-safe write (Step 5).
+This is needed for the terminal-status guard (Step 2.5), duplicate detection (Step 4), and the append-safe write (Step 5).
+
+### Step 2.5: Terminal-Status Guard (MANDATORY)
+
+If the Opp's `Status` ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, SKIP the write and report back to Tom: `⚠️ [Opp Name] is in terminal status [status] — not a live deal. Confirm you still want to log [Person Name] here, and I'll proceed.` Tom can override by re-running with explicit confirmation; otherwise stop without writing.
+
+Rationale: Tom occasionally names a closed Opp by accident (homonym, stale recall, or genuine intent to add to a revived deal). Stopping to confirm is cheaper than silently polluting closed Opps.
+
+(Directionality is N/A here — log-intro is manual and Tom is always the introducer by definition. Common-word disambiguation is also N/A — Tom names the Opp explicitly.)
 
 ### Step 3: Resolve the Person in the People DB
 
