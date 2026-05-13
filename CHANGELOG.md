@@ -2,6 +2,19 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-13] (Week of 2026-05-11)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `add-to-crm` -- thin-body enrichment extended to hyperlinked deck URLs (Drive, DocSend, Brieflink, Pitch, Figma, Canva, raw PDFs) in addition to PDF attachments; verification gate added to confirm Diligence Materials property was populated post-entry
+- `feedback-outreach-scanner` -- added Mode B-outbound sub-mode: per-event webhook fires on outbound feedback-ask sends (in addition to existing inbound-reply mode)
+- `intro-outreach-agent` -- added 4th pre-write gate: Pending Feedback suppression (backchannel outbound to a feedback contact is not intro outreach)
+**Total skills:** 26
+**Functions:** No changes
+
+---
+
 ## [2026-05-12] (Week of 2026-05-12)
 
 **Added:** neg1-sourcing (Pipeline Management)

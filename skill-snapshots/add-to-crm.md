@@ -46,11 +46,12 @@ This filter applies to the same caller scope as the rest of the guard: manual `a
 ## Workflow
 
 1. Determine input type and extract data
-2. **Enrich from attachments if email body is thin (Step 1B)**
+2. **Enrich from attachments or hyperlinked decks if email body is thin (Step 1B)**
 3. Enrich from founder LinkedIn via ContactOut (HQ, Contact, Website, Description)
 4. Present extracted fields to user for confirmation
 5. Create the Notion opportunity page (with a thematic emoji as icon)
 6. Handle any deck/material uploads
+7. **Verification gate — re-scan source for deck URLs and confirm they landed in the Diligence Materials property; re-invoke materials-handler if not (Step 7)**
 
 ## Step 1: Extract Data from Source
 
@@ -80,33 +81,52 @@ Target fields to extract (leave blank if not found):
 - Who referred / sourced the deal
 - Any deck or material links (DocSend, Google Drive, etc.)
 
-## Step 1B: Enrich from Attachments (Thin Email Body)
+## Step 1B: Enrich from Attachments OR Hyperlinked Decks (Thin Email Body)
 
 After extracting data from the source, assess whether the extracted fields are sufficient to create a well-populated CRM entry. An email body is considered **thin** if it is missing 2 or more of these key fields: Description (a real product one-liner, not just round context), Founder identity (named founders in the page body Team section + linked Founder(s) relation), Round Details (specific dollar amounts), HQ, or Website.
 
-**If the email has PDF attachments and the extracted data is thin, you MUST read the attachments before creating the Notion page.** The attachment content takes priority over the email body for all fields — the email body is often just a brief cover note while the real deal data lives in the deck or memo.
+**If the email has PDF attachments OR a hyperlinked deck URL AND the extracted data is thin, you MUST read the deck content before creating the Notion page.** Deck content takes priority over the email body for all fields — the email body is often just a brief cover note while the real deal data lives in the deck or memo.
 
-### How to read attachments
+### What counts as a "hyperlinked deck URL"
 
-1. **Save attachments to Drive** via the Gmail Attachment Saver Apps Script (see `/Users/tomseo/.claude/skills/shared-references/gmail-attachment-saver.md`). Use the Diligence root folder (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`) as the target — or create per-company subfolders first via the Drive Upload Apps Script `createFolder` action (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`). This works in all environments.
+The trigger discriminates on **content type** (deck/memo/data room), not **transport** (Gmail attachment vs. inline URL). Treat the following identically to a PDF attachment:
 
-2. **Read the PDFs via Chrome** — navigate to the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`) and use `get_page_text` to extract the content. Google Drive's built-in PDF viewer renders the text, making it accessible without downloading the binary.
+- Google Drive file URLs (`drive.google.com/file/d/<id>/view`) and Drive folder URLs (`drive.google.com/drive/folders/<id>`)
+- DocSend (`docsend.com/view/<id>` or data rooms `/view/s/`)
+- Dropbox share links to single files
+- Brieflink (`brieflink.com/...`), Pitch.com (`pitch.com/...`), Canva (`canva.com/...`), Figma decks (`figma.com/deck/...`, `figma.com/file/...`)
+- Notion-hosted pages used as decks (`notion.site/...`)
+- Raw PDF URLs hosted anywhere (`<host>/.../*.pdf`)
+- Hyperlinked text inside the email body where the anchor text reads "deck", "pitch deck", "memo", "one-pager", "data room", "investor update" — follow the underlying URL regardless of host.
 
-3. **If Chrome is unavailable** — fall back to creating the Notion page with whatever data the email body provides, but **mark the page with `⚠️ Incomplete — attachment data not extracted` at the top of the page body** so it is obvious the entry needs manual enrichment. Do NOT echo the thin email text into fields like Description or Round Details as a substitute for real data — leave those fields blank or set to `TBD` rather than populate them with non-substantive content.
+The only thing that does NOT count is a generic company-website link (`unicornsnot.com`, `acme.com/about`) — that's a website, not a deck. Distinguish by the anchor text and URL pattern.
 
-4. **Extract fields from the PDF content** and merge with what was already extracted from the email body. PDF-sourced data overrides email-body-sourced data where both exist (e.g., if the email says "raising SPV" but the memo says "$3.5m on $27m post SAFE", use the memo's round details).
+### How to read decks
+
+1. **Gmail attachments** — save via the Gmail Attachment Saver Apps Script (see `/Users/tomseo/.claude/skills/shared-references/gmail-attachment-saver.md`). Use the Diligence root folder (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`) as the target — or create per-company subfolders first via the Drive Upload Apps Script `createFolder` action (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`). Then read the saved PDF: navigate to the Drive file URL in Chrome and `get_page_text`, OR `curl -sL "https://drive.google.com/uc?export=download&id=<fileId>" -o /tmp/<file>.pdf && pdftotext -layout /tmp/<file>.pdf -`.
+
+2. **Foreign Google Drive URLs (e.g. a founder's or referrer's own Drive)** — DO NOT re-upload to Tom's Drive at this step; the URL gets linked as-is in Step 6. To read content for field extraction: `curl -sL "https://drive.google.com/uc?export=download&id=<fileId>" -o /tmp/<slug>.pdf` (extract `<fileId>` from the URL between `/file/d/` and `/view`), check the output is a PDF not an HTML interstitial (`file /tmp/<slug>.pdf`), then `pdftotext -layout`. If `curl` returns the virus-scan interstitial (small file is HTML), fall back to Chrome: navigate to the Drive file URL and `get_page_text` against the rendered viewer.
+
+3. **DocSend URLs** — convert to PDF via `docsend-to-pdf` skill (Python `requests` + `Pillow`), then `pdftotext`. Same skill handles data room URLs (`/view/s/`).
+
+4. **Link-only / non-convertible decks (Brieflink, Pitch, Figma, Canva, Notion.site)** — use `WebFetch` with a content-extraction prompt: `"What round size, valuation, HQ, founder names, and product description does this deck/memo state? Quote verbatim where possible. Return 'NO_DATA' for any field with no explicit signal."`. WebFetch is the right tool — works headless, works in unattended/webhook contexts. JS-only SPAs may return empty; if so, note in the page body and proceed with what the email gave you.
+
+5. **If no path works** — create the Notion page with whatever data the email body provides, but **mark the page with `⚠️ Incomplete — deck content not extracted` at the top of the page body** so it is obvious the entry needs manual enrichment. Do NOT echo the thin email text into fields like Description or Round Details as a substitute for real data — leave those fields blank or set to `TBD` rather than populate them with non-substantive content.
+
+6. **Extract fields from the deck content** and merge with what was already extracted from the email body. Deck-sourced data overrides email-body-sourced data where both exist (e.g., if the email says "raising SPV" but the memo says "$3.5m on $27m post SAFE", use the memo's round details).
 
 ### What NOT to do
 
-- Do NOT create a CRM entry with Description set to the email's brief context line (e.g., "Seed extension round. Will raise SPV in May.") when a full investment memo is attached.
-- Do NOT skip reading attachments because the email body technically has a company name and a vague round mention — those are insufficient for a useful pipeline entry.
-- Do NOT defer attachment reading to Step 6 (Materials Handler) — by that point the Notion page is already created with empty/wrong fields. Materials Handler handles the Drive upload and Notion linking; this step handles content extraction for field population.
+- Do NOT create a CRM entry with Description set to the email's brief context line (e.g., "Seed extension round. Will raise SPV in May.") when a full investment memo is attached or linked.
+- Do NOT skip reading deck content because the email body technically has a company name and a vague round mention — those are insufficient for a useful pipeline entry.
+- Do NOT defer deck reading to Step 6 (Materials Handler) — by that point the Notion page is already created with empty/wrong fields. Materials Handler handles the Drive upload and Notion linking; this step handles content extraction for field population.
+- Do NOT skip this step just because the deck arrived as a hyperlinked URL rather than a Gmail attachment. A Drive/DocSend/Brieflink URL in the body is the same artifact as an attachment — the discriminator is whether deck content exists, not how it was delivered.
 
 ### When to skip this step
 
-- The email body already contains rich deal data (founder names, product description, round specifics, etc.) — no need to read attachments for field population (though Step 6 will still handle uploading them).
-- The source is not an email (screenshot, LinkedIn URL, pasted text) — attachments are not relevant.
-- The email has no attachments.
+- The email body already contains rich deal data (founder names, product description, round specifics, etc.) — no need to read decks for field population (though Step 6 will still handle linking them).
+- The source is not an email (screenshot, LinkedIn URL, pasted text) — attachments and deck URLs are not relevant.
+- The email has no attachments AND no hyperlinked deck URL.
 
 ## Step 2: Enrich from Founder LinkedIn + Web (ContactOut as fallback)
 
@@ -250,7 +270,16 @@ Before creating the page, resolve these relation fields. **All relation lookups 
 
 ## Step 6: Handle Decks and Materials
 
-If the source email, screenshot, or pasted text contains any diligence materials (deck links, DocSend URLs, Google Drive share links, Gmail attachments), delegate the full materials-handling flow to the `materials-handler` skill.
+If the source email, screenshot, or pasted text contains any diligence materials (deck links, DocSend URLs, Google Drive share links, Gmail attachments, Brieflink/Pitch/Figma/Canva/Notion.site deck URLs, raw PDF URLs), delegate the full materials-handling flow to the `materials-handler` skill. **This step is mandatory whenever a deck URL or attachment is present — it is not optional and cannot be skipped because "the URL is already in Source Context."** The Diligence Materials property field is Tom's actionable surface; a URL buried in page body prose does not populate it.
+
+### Explicit `materialUrls` directive from upstream callers
+
+When this skill is invoked via `inbound-deal-detect` (gmail-webhook deal-scanner path), the caller may pass an explicit `materialUrls: [...]` array — a server-side regex extraction of deck-host URLs from the email body. **Treat this list as authoritative**:
+
+- Every URL in `materialUrls` MUST be processed by Step 1B (read content for thin-body field enrichment) AND Step 6 (link via `materials-handler` into the Diligence Materials property).
+- Do NOT re-evaluate whether a URL is "really" a deck — the webhook regex already filtered out company-website links, vanity URLs, and other noise. If it's in the list, it counts.
+- If you cannot process a URL (Drive virus-scan interstitial on a large foreign file, DocSend conversion fails, etc.) — log the failure in the run summary AND leave a note on the page body so Tom can intervene. Do NOT silently drop it.
+- The Step 7 verification gate (below) will re-check that every entry in `materialUrls` landed in the Diligence Materials property at exit.
 
 **Note:** If Step 1B already saved attachments to Drive and read them for field extraction, pass the Drive file IDs and URLs from that step to materials-handler so it does not re-upload them. Materials-handler still needs to run for: creating per-company subfolders (if not already done), moving files into subfolders, updating the Notion page body Diligence Materials section, and linking files in the Notion Diligence Materials property field via Chrome.
 
@@ -281,6 +310,23 @@ The materials-handler skill will determine whether Chrome is available and execu
 If **no materials are present** in the source (no attachments, no deck links, no DocSend URLs), skip this step entirely — there's nothing to delegate.
 
 If materials-handler encounters an error or stalls, fall back to adding a **Diligence Materials** section in the page body with whatever links or references are available from the source material, plus a note for manual follow-up.
+
+## Step 7: Verification Gate (mandatory pre-exit)
+
+Before declaring add-to-crm complete (manual reply summary, or unattended exit-0), run a verification pass:
+
+1. **Build the expected-URL set:**
+   - If the caller passed an explicit `materialUrls` arg (e.g. from `inbound-deal-detect`), the expected set is that list verbatim — it's authoritative.
+   - Otherwise, re-scan the source material (email body, screenshot text, pasted text, full thread plaintext) for deck/material URL patterns: `drive.google.com/file/`, `drive.google.com/drive/folders/`, `docsend.com/view/`, `dropbox.com/s/`, `dropbox.com/scl/`, `brieflink.com/`, `pitch.com/v/`, `figma.com/(deck|file|proto|slides)/`, `canva.com/design/`, `notion.site/`, raw `*.pdf` URLs.
+2. **Re-fetch the newly-created Notion page** and read the `Diligence Materials` property (Files property — chips at the top of the page).
+3. **For each URL in the expected set, assert that either:**
+   - (a) the URL appears as a chip in the Diligence Materials property field, OR
+   - (b) the URL was re-hosted in Tom's Drive (per Step 3B/3C of materials-handler) and the resulting Drive file URL appears as a chip.
+4. **If any expected URL is missing from the property field → Step 6 was not completed.** Re-invoke `materials-handler` with the missing URLs and the new page ID. Do not exit until the property is populated.
+
+For unattended/webhook runs: log the verification result (`materials-verified: ✅` or `materials-verified: ⚠️ re-invoked materials-handler for <N> missing URLs`) in the run summary. Failing the verification gate is a soft fail — re-invoking materials-handler is the recovery path, not an error exit.
+
+Skip this gate only if there are zero expected URLs (no `materialUrls` arg AND no deck-host patterns in the source).
 
 ## Examples
 

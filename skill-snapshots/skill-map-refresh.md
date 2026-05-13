@@ -120,7 +120,7 @@ These functions are tracked internally for completeness but do NOT appear in ANY
 | Function | Skills | Why hidden |
 |---|---|---|
 | Fund Ops | `mmf-to-lp-calc`, `cpa-report` | Operational fund accounting -- not part of the deal/research workflow |
-| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `nightly-backup` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `nightly-backup` is the 3am ET LaunchAgent (`com.invertedcap.nightly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to 5 backup repos + monthly SA-key rotation; lives in `~/.claude/local-agents/nightly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). |
+| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `nightly-backup`, `design-language`, `writing-style`, `office-cleaning-expense` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense` is a LaunchAgent-driven personal expense logger. `nightly-backup` is the 3am ET LaunchAgent (`com.invertedcap.nightly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to 5 backup repos + monthly SA-key rotation; lives in `~/.claude/local-agents/nightly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). |
 
 #### Excluded duplicates
 

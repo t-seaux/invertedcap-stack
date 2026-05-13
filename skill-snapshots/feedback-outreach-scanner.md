@@ -1,7 +1,7 @@
 ---
 name: feedback-outreach-scanner
 description: >
-  Scheduled sweep + per-event webhook handler for feedback outreach replies. Scans the Notion 📣 Pending Feedback relation as source of truth for feedback outreach contacts, then searches Gmail sent mail and inbox for outreach activity and replies. The sweep mode runs as a sub-agent of the Diligence Agent and reconciles what the feedback-reply-detect webhook missed; the webhook (Mode B) processes one inbound reply at a time via the claude-job-queue primitive. Creates per-person Notion feedback notes, appends replies, and removes people from Pending Feedback once their feedback is logged. Uses email-first matching with name-based fallback to avoid missing emails sent to alternate addresses. NOT the feedback-outreach-drafter skill (which drafts outreach emails) — this skill runs after emails are sent, not before.
+  Scheduled sweep + per-event webhook handlers for feedback outreach. Scans the Notion 📣 Pending Feedback relation as source of truth for feedback outreach contacts, then searches Gmail sent mail and inbox for outreach activity and replies. The sweep mode runs as a sub-agent of the Diligence Agent and reconciles what the per-event webhooks missed; webhook Mode B has two sub-modes — B-inbound (feedback-reply-detect, one inbound reply at a time) and B-outbound (feedback-outreach-sent-detect, one outbound feedback ask at a time), both via the claude-job-queue primitive. Creates per-person Notion feedback notes on the outbound side, appends replies on the inbound side, and removes people from Pending Feedback once substantive feedback is logged. Uses email-first matching with name-based fallback to avoid missing emails sent to alternate addresses. NOT the feedback-outreach-drafter skill (which drafts outreach emails) — this skill runs after emails are sent, not before.
 ---
 
 # Feedback Outreach Scanner
@@ -22,7 +22,14 @@ Scans Gmail for feedback outreach activity over the past 12 hours, using the Not
 
 ## Mode B: Single-Message (Webhook)
 
-When invoked by `gmail-webhook/Code.js` (`feedback-reply-detect` handler) via the `claude-job-queue` primitive, the skill processes ONE specific reply rather than scanning inbox + sent mail across the full Pending Feedback roster.
+Mode B has two sub-modes selected by the `mode` arg the queue payload carries:
+
+- **B-inbound** (`mode` absent, OR explicitly `'reply'`) — invoked by `gmail-webhook/Code.js` (`feedback-reply-detect` handler) on a single inbound reply.
+- **B-outbound** (`mode === 'sent'`) — invoked by `gmail-webhook/Code.js` (`feedback-outreach-sent-detect` handler) on a single outbound feedback ask Tom just sent.
+
+In both sub-modes the queue payload includes `personId` and `oppCandidateIds` (≥ 1) pre-resolved by the webhook gate — no Step 0 roster scan is required.
+
+### Mode B-inbound (single inbound reply)
 
 **Args:**
 - `messageId` (required) — Gmail message ID of the inbound reply
@@ -31,16 +38,41 @@ When invoked by `gmail-webhook/Code.js` (`feedback-reply-detect` handler) via th
 - `personId` (required) — Notion People DB page ID, pre-resolved by webhook gate
 - `oppCandidateIds` (required) — array of Opportunity page IDs where this person sits in `📣 Pending Feedback`. Webhook gate guarantees length ≥ 1.
 
-**Behavior in Mode B:**
+**Behavior:**
 - **Skip Step 0** — the webhook already built the list-of-one (this person, these candidate opps).
 - **Skip Step 1** — no need to scan sent mail; this is an inbox reply event.
 - Run Step 2's per-message logic on this single message:
   1. If `oppCandidateIds.length > 1`, disambiguate by reading the thread's earliest sent message and haystack-matching its subject + body-head against the candidate opp names. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
   2. Apply Step 2's "Processing matches" sub-steps (read full thread, sanity-check it's a feedback outreach thread, classify the reply) exactly as written. The classification rubric (substantive vs acknowledgment/deferral) lives in Step 2 — do not restate it here.
 - Run Steps 3-5 (note creation OR append + remove from Pending Feedback if substantive) exactly as in scheduled mode.
-- **Skip Step 6's scheduled-scan summary.** Emit a single-line run-log entry: `single-message feedback-reply: <person> on <opp> — <classification> → <action>`. No standalone Slack alert in webhook mode (the scheduled scan's grouped alert format isn't appropriate for one-off events; if Tom needs realtime visibility, the Notion note itself is the artifact).
+- **Skip Step 6's scheduled-scan summary.** Emit a single-line run-log entry: `single-message feedback-reply: <person> on <opp> — <classification> → <action>`. No standalone Slack alert in webhook mode.
 
 Idempotency at queue layer (key = `feedback-reply-{messageId}`); skill does not re-check.
+
+### Mode B-outbound (single outbound feedback ask)
+
+**Args:**
+- `mode` (required) — literal string `'sent'`
+- `messageId` (required) — Gmail message ID of Tom's outbound feedback ask
+- `threadId` (required) — Gmail thread ID (almost always a fresh thread, but pass through anyway)
+- `recipientEmail` (required) — the resolved-and-PF recipient's email address
+- `personId` (required) — Notion People DB page ID, pre-resolved by webhook gate
+- `oppCandidateIds` (required) — array of Opportunity page IDs where this person sits in `📣 Pending Feedback`. Webhook gate guarantees length ≥ 1. The webhook ALSO ran the `feedback-ask-intent` LLM classifier (Haiku → Sonnet escalation) before enqueueing, so the body is already confirmed as a feedback ask — do not re-classify intent.
+
+**Behavior:**
+- **Skip Step 0** — the webhook already resolved (person, candidate opps).
+- **Skip Step 2 entirely** — this is an outbound event, no inbound reply scan needed.
+- Run Step 1's "Processing matches" sub-steps on this single sent message:
+  1. If `oppCandidateIds.length > 1`, disambiguate by reading the sent message's subject + body-head and haystack-matching against the candidate opp names. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
+  2. Read the full sent message to extract subject, recipient name/email, send date, and the **complete verbatim body**.
+  3. Sanity check: skim the body to confirm it reads as a feedback ask (mentions the opp company name, asks for input/take/perspective, or contains diligence questions). The LLM gate is the primary trust signal, but a second pass here is cheap insurance against misclassification.
+  4. Deduplication check: fetch the Opp page and inspect its `✍️ Notes` relation array against `[PENDING] [Company]: [First Name] [Last Name]` (with or without the `[PENDING]` prefix). If a match exists, exit 0 — the scheduled sweep or a prior webhook run already logged it.
+- Run Step 3 (create the per-person `[PENDING]` note) exactly as in scheduled mode, using the sent-message body as the outreach note body and `## Response — [No reply yet]` placeholder.
+- Set the new note's `Opportunity` relation to the resolved Opp page URL on creation — Notion bidirectional sync then auto-links it into the Opp's `✍️ Notes` array.
+- **Do NOT remove the person from `📣 Pending Feedback`.** Outbound = note created; PF removal happens only when substantive feedback arrives (Step 5, triggered on the inbound reply later).
+- **Skip Step 6's scheduled-scan summary.** Emit a single-line run-log entry: `single-message feedback-outreach-sent: <person> on <opp> — note created`. No standalone Slack alert.
+
+Idempotency at queue layer (key = `feedback-outreach-sent-{messageId}-{personId}`); skill does not re-check.
 
 ## Step 0: Build the Pending Feedback Contact List from Notion
 
@@ -188,6 +220,31 @@ After creating the note:
 1. Search the Opportunities DB for the company name to get the opportunity page.
 2. Fetch the current `✍️ Notes` array from the opportunity page.
 3. Append the new note's URL and write the full array back as a JSON array string in a single call.
+
+---
+
+## Step 3b: Post-create reconciliation (race-condition guard)
+
+**Always run this immediately after Step 3's link-to-opportunity write, regardless of mode (sweep, webhook B-outbound, manual).**
+
+The pre-write dedup check at Step 1.3 / Mode B Step 4 reads the Opp's `✍️ Notes` array — but two concurrent jobs (e.g. webhook + sweep, or two webhook events from the same thread before the queue-layer dedup catches up) both pass that check because neither has written yet, then both write. Observed in production 2026-05-12 (Gilad Rom / Factir, two `[PENDING]` notes created ~1s apart).
+
+Procedure:
+1. Re-fetch the Opp page's `✍️ Notes` array.
+2. For each note URL in the array, fetch and inspect the title. Build the list of notes whose title matches either `[PENDING] [Company]: [First Name] [Last Name]` or `[Company]: [First Name] [Last Name]` for the SAME `(Company, First Name, Last Name)` triple you just wrote.
+3. If exactly one match exists (your own write), done — exit normally.
+4. If two or more matches exist, you raced a peer. Apply the deterministic tiebreaker: **keep the note with the EARLIEST `Created` timestamp; archive every other matching note and remove its URL from the Opp's `✍️ Notes` array.** Earliest-wins means both racers converge on the same survivor without coordination.
+5. Archive via the Notion REST API: `PATCH /v1/pages/{pageId}` with `{"archived": true}`. The token decryption pattern is the same one `~/.claude/scripts/network_sync_notion.py` uses (`cd ~/code/notion-backup && SOPS_AGE_KEY_FILE=... python3 -c "from export import get_token; ..."`). Do NOT skip this step — leaving the duplicate as a live `[PENDING]` note pollutes the Opp's Notes feed.
+6. Re-fetch the Opp's `✍️ Notes` array, remove the archived note URLs, and write it back.
+7. Emit a run-log entry: `post-create reconciliation: archived N peer note(s) on <opp> for <person> (kept <survivor-url>)`.
+
+This guard makes Step 3 self-healing under concurrent writes. The gmail-webhook layer's `(threadId, personId)` idempotency key prevents the common case (two webhook events for the same outreach thread); Step 3b is the safety net for webhook+sweep overlap and any other path that races.
+
+---
+
+## Cross-skill: meeting-note-processor handles the email-then-call case
+
+If Tom hops on a Zoom with a feedback giver AFTER the `[PENDING]` stub has been created (call transcript becomes the substantive feedback instead of an email reply), `meeting-note-processor` Step 4b detects the stub on the linked Opp, ports the outreach context into the meeting note, archives the stub, renames the meeting note to this skill's `[Company]: [Person] ([Their Company]) Feedback` convention, and removes the person from `📣 Pending Feedback`. No action needed here — the scanner's prefix-based dedup at Step 1.3 / Step 2.4 will recognize the renamed meeting note on any subsequent inbound reply and append rather than re-create.
 
 ---
 
