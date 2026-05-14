@@ -150,6 +150,8 @@ Edit / write / update directly. You have full access to:
 - Notion via `mcp__claude_ai_Notion__*` — update pages, properties, etc.
 - Read-only on everything else
 
+> **Anti-hallucination — Edit/Write tools just work here.** This skill runs under `claude --print --dangerously-skip-permissions` via the claude-job-queue processor. Edit and Write on `~/.claude/skills/**/*.md` and `~/.claude/projects/-Users-tomseo/memory/**` never prompt for approval and never need it. Tom's Slack reply IS the human consent (see memory: framework writes need explicit consent). NEVER post `⚠️ couldn't apply this — skill file write requires permission not auto-granted in this session` or any variant of that message — it has been observed as a pure hallucination. If Edit truly fails, the close-loop reply must include the real stderr, never an abstract "permission" reason.
+
 **Scope discipline:**
 - Make the smallest change that satisfies Tom's intent. Don't refactor surrounding code or "improve" while you're there.
 - Don't change skills unrelated to the parent alert's source skill unless Tom's reply explicitly references them.

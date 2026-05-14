@@ -62,7 +62,7 @@ The caller passes:
 
 **Skip conditions for Mode B (caller's responsibility, but this skill double-checks):**
 - `opp_page_id` empty → skip silently. Without an Opp anchor, we don't know which Opportunity's Qualified relation to write to. Log `no-opportunity-skip` and exit 0. Mode C with explicit user intent can override.
-- Note title starts with `Claude:` (LLM-generated artifact) → skip. The meeting-note-processor already filters these but the caller may not always.
+- Note title starts with `Claude:` OR `[Claude]` (LLM-generated artifact) → skip. The meeting-note-processor already filters these but the caller may not always.
 - Note body has < 500 chars meaningful content → skip. Same thin-content guard as upstream.
 
 ---

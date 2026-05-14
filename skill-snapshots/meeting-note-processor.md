@@ -42,7 +42,7 @@ Manual mode (Mode C): Tom passes a page URL/ID conversationally; treat as `phase
 
 ## Pre-flight: Skip Claude-generated artifact notes
 
-Before any step runs in any mode, check if the note's title starts with `Claude:` (case-sensitive). These are LLM-generated artifacts (e.g. `Claude: Caplight First-Pass Diligence — 04.22.2026`), not real meeting notes — even when they end up in the Notes DB and get linked to a portfolio Opportunity. Skip the entire pipeline: no Opportunity link, no Category classification, no Round Details extraction, no Live Company Updates upsert. Log `claude-prefix-skip` and exit 0.
+Before any step runs in any mode, check if the note's title starts with `Claude:` OR `[Claude]` (case-sensitive). These are LLM-generated artifacts (e.g. `Claude: Caplight First-Pass Diligence — 04.22.2026` from older runs, or `[Claude] Aerion First-Pass Diligence — 05.13.2026` from `first-pass-diligence`), not real meeting notes — even when they end up in the Notes DB and get linked to a portfolio Opportunity. Skip the entire pipeline: no Opportunity link, no Category classification, no Round Details extraction, no Live Company Updates upsert. Log `claude-prefix-skip` and exit 0.
 
 ---
 
@@ -163,6 +163,93 @@ If `Category` is empty → run the `note-classifier` skill as a subroutine. Read
 
 The note-classifier handles its own Opp lookup + Status/Close Date logic. It will set Update Type to `Diligence` for live deals, `Portfolio` for committed/active companies, or `Other` if no Opp link.
 
+### Step 4b: Feedback-shape merge (rename + port stub context + archive)
+
+This step handles the case where the meeting note IS a feedback call (Tom hopped on a Zoom with someone who's providing feedback on an Opp). Two goals:
+1. Rename the meeting note to match the `feedback-outreach-scanner` title convention so format stays consistent across the Notes DB.
+2. If a `[PENDING]` stub note was already created by `feedback-outreach-scanner` for the same (person, Opp) pair (outreach went out by email, then Tom hopped on a call), port the stub's context (person mention + LinkedIn + outreach body) into the meeting note and archive the stub.
+
+**Skip conditions:**
+- `Opportunity` is empty after Step 3 → skip; we have no anchor.
+- Title does NOT match the `<Person> (<Company>): <Subject>` shape with `Feedback`/`Backchannel` in the subject → skip. This step targets Rule 3 feedback titles specifically; standalone `<X> Feedback` (Rule 2) has no person to attribute and isn't renamed.
+- The note is already in the canonical `[Opp]: [Person] ([Company]) Feedback` form → skip (idempotent re-run).
+
+**Step 4b.1 — Re-parse the title** using Rule 3 to extract:
+- `person_name` — text before the `(`
+- `person_company` — text inside the parens
+- `subject` — text after the `): ` up to the trailing `Feedback`/`Backchannel`
+
+Example: `Gilad Rom (OnOrder): Factir Feedback` → `person_name=Gilad Rom`, `person_company=OnOrder`, `subject=Factir`.
+
+If parsing fails (multiple people, malformed parens, no trailing Feedback/Backchannel), log `feedback-merge-unparseable` and skip.
+
+**Step 4b.2 — Search for an existing stub** on the linked Opp's `✍️ Notes` array. Fetch each note's title and check (case-insensitive) for:
+- `[PENDING] {subject}: {person_name}` (prefix match — current scanner convention) OR
+- `[PENDING] {subject} – {person_name}` (older en-dash variant) OR
+- `[PENDING] {subject} — {person_name}` (defensive: em-dash legacy)
+
+If multiple `[PENDING]` matches exist for the same (subject, person_name), pick the EARLIEST by `Created` timestamp; archive the others as part of Step 4b.5 cleanup.
+
+**Step 4b.3 — Compose the canonical new title:**
+```
+{subject}: {person_name} ({person_company}) Feedback
+```
+Example: `Factir: Gilad Rom (OnOrder) Feedback`. No `[PENDING]` prefix — the call transcript IS substantive feedback.
+
+**Step 4b.4 — Append stub body to the meeting note (only if a stub was found):**
+
+Placement matters: the outreach context goes **BELOW** the meeting-notes transcript block, NOT above. Content inserted inside the `<meeting-notes>...</meeting-notes>` widget renders as inline text within the widget (markdown headers/dividers collapse into `<br>` line breaks instead of separate blocks). Appending below the widget keeps the outreach text as proper sibling blocks with real header/divider rendering.
+
+Use `update_content` with `</meeting-notes>` as the anchor — this is the closing tag of the meeting-notes block in the page's markdown representation. Match it exactly and replace with `</meeting-notes>\n\n---\n\n<appended content>`:
+
+1. Fetch the stub's full body content.
+2. Extract the person header line (the `<mention-page url="..."/> ([LinkedIn](...)) — Role, Company. [background]` line at the top).
+3. Extract the `## Outreach Note — [Date sent]` section and its verbatim body (everything from that header to end of stub, or to the next `---` separator).
+4. Discard the stub's `## Response — [No reply yet]` placeholder — the meeting transcript IS the response.
+5. Compose the appended content:
+   ```
+   ---
+
+   {person header line}
+
+   ---
+
+   ## Outreach Note — [Date sent]
+
+   {verbatim outreach body from stub}
+   ```
+6. Issue `notion-update-page` with `command: update_content`, `content_updates: [{old_str: "</meeting-notes>", new_str: "</meeting-notes>\n\n{appended content}"}]`. This places the appended blocks as siblings AFTER the meeting-notes widget — they render with proper block formatting (real `##` headers, real `---` dividers).
+
+If no stub was found, skip the body append — just rename the title in Step 4b.6.
+
+**Step 4b.5 — Archive the stub (only if a stub was found):**
+1. Use the Notion REST API pattern from `feedback-outreach-scanner` Step 3b: `PATCH /v1/pages/{stub_page_id}` with `{"archived": true}`. Token decryption pattern: `cd ~/code/notion-backup && SOPS_AGE_KEY_FILE=... python3 -c "from export import get_token; ..."`.
+2. Re-fetch the Opp's `✍️ Notes` array and remove the archived stub's URL.
+3. Write the updated array back.
+4. If Step 4b.2 found multiple `[PENDING]` matches (rare race-condition leftover), archive each.
+
+**Step 4b.6 — Rename the meeting note:**
+```
+notion-update-page
+  command: update_properties
+  page_id: <meeting note ID>
+  properties: { "Name": "{subject}: {person_name} ({person_company}) Feedback" }
+```
+
+**Step 4b.7 — Remove the person from `📣 Pending Feedback` (only if a stub was found and merged):**
+The stub's existence proves the person was on the Opp's `📣 Pending Feedback` list. A call transcript is substantive feedback by definition — same logic as `feedback-outreach-scanner` Step 5.
+
+1. Parse the stub's person mention to extract the People DB page URL (the `<mention-page url="..."/>` at the top of the stub's body).
+2. Fetch the Opp's current `📣 Pending Feedback` array.
+3. Remove the person's People DB page URL from the array.
+4. Write the updated array back.
+
+If the stub's person mention can't be parsed (malformed), log `feedback-merge-pending-removal-unparseable` and continue — the rename + body merge + archive still happened, and the daily scanner sweep can reconcile `📣 Pending Feedback` later.
+
+**Step 4b.8 — Log the action:**
+- `feedback-merge: stub <stub_url> archived, body ported, renamed to "{new_title}", removed <person> from Pending Feedback on <opp>` (full merge case)
+- `feedback-merge-rename-only: no stub found, renamed to "{new_title}"` (consistency rename case)
+
 ### Step 5: Round Details extraction (only if Opportunity is now linked)
 
 If `Opportunity` is empty → skip this step.
@@ -242,7 +329,7 @@ Query Company Updates DB scoped to `Update Type=Live` matches where `Company con
    - `date:Update Date:start = note.Created` (date only)
    - `Summary`, `Traction` (Sonnet output, en dashes only, inline date parens at end of clauses for Summary; per-line `(Mon DD)` stamps for Traction bullets)
    - `content` = single dated subsection: `### {Mon} {DD} – Call ([Notes]({note_url}))\n\n{per_call_summary}`
-4. Add the note's Notion page URL to `Artifacts` via `python3 ~/.claude/local-agents/notion-internal/add_link_to_files_property.py --page-id <new_entry_id> --prop "Artifacts" --url <note_url> --label "<note title>"`.
+4. Add the note's Notion page URL to `Artifacts` via `python3 ~/.claude/scripts/notion_files_property.py --page-id <new_entry_id> --prop "Artifacts" --url <note_url> --label "<note title>"`.
 
 **Case B — entry exists, `target_month == current_month_key`:**
 1. Generate per-call summary via Sonnet (same prompt as Case A).
@@ -260,6 +347,75 @@ Query Company Updates DB scoped to `Update Type=Live` matches where `Company con
 5. Log `prior-month-frozen-skip-rolling-fields` so the alert in Step 7 reflects what happened.
 
 **On Sonnet failure (per-call or cumulative):** if either Sonnet call returns malformed output, missing JSON keys, or fails outright, leave the existing entry untouched (Cases B/C skip the body update too) and log a warning. Do NOT write garbage. The daily sweep can re-run this step against the note tomorrow.
+
+**Step 6d — Pre-write format validation (MANDATORY before any Notion write in Cases A/B):**
+
+Before calling `notion-create-pages` (Case A) or `notion-update-page` (Case B) with `Summary` + `Traction`, run the validator below against BOTH the Sonnet-generated values AND any hand-written values (Mode C / manual / debugging — same gate, no bypass). Case C skips this step because rolling fields stay frozen.
+
+This guard exists because Live `Traction` has a strict shape (canonical reference: `~/.claude/skills/shared-references/company-updates-db.md` "Track 2" section + FORBIDDEN counter-examples block). Past failure modes include: multi-line bullets, per-customer ACVs, uppercase `M`/`K`, missing date paren, and accepting Notion-AI mis-transcriptions of spoken numbers (e.g., founder says "$1.2m" → AI summary writes "$1-2M" → un-cross-checked Traction landed wrong).
+
+**Traction validator (Python — run via inline `python3 -c` before write):**
+
+```python
+import re, sys
+
+t = (traction or "").strip()
+
+# 1. Single-line — no newlines, no carriage returns
+if "\n" in t or "\r" in t:
+    raise ValueError(f"Traction must be single-line; got multi-line value: {t!r}")
+
+# 2. Allowed terminal values
+if t in ("N/A", "$0"):
+    pass  # short-circuit OK
+else:
+    # 3. Must contain at least one aggregate metric keyword (case-sensitive)
+    METRIC_RE = re.compile(r"\b(ARR|MRR|CARR|Live ARR|GMV|Revenue|ACV|NDR|NRR|HC)\b")
+    if not METRIC_RE.search(t):
+        raise ValueError(f"Traction must contain an aggregate metric keyword (ARR/MRR/CARR/Live ARR/Revenue/etc.): {t!r}")
+
+    # 4. No uppercase M or K directly following a digit/period
+    if re.search(r"[\d.]\s*[MK]\b", t):
+        raise ValueError(f"Traction must use lowercase m/k, not uppercase M/K: {t!r}")
+
+    # 5. Must contain a date paren (Mon DD format) — single date paren only
+    DATE_PAREN_RE = re.compile(r"\((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}\)")
+    parens = DATE_PAREN_RE.findall(t)
+    if len(parens) != 1:
+        raise ValueError(f"Traction must contain exactly one (Mon DD) date paren; got {len(parens)}: {t!r}")
+
+    # 6. Suspicious-range guard — if the metric value looks like a range like "$1-2m"
+    # or "$3-5m", that's almost always a Notion-AI mis-transcription of a single number
+    # (e.g., founder says "$1.2m" → AI writes "$1-2M"). Range values are forbidden in
+    # Traction — either pick the canonical single figure or use `N/A`. (Real ranges
+    # belong in Summary as prose, never in Traction.)
+    if re.search(r"\$\d+-\d+[mk]\b", t):
+        raise ValueError(f"Traction must not contain a dollar range; resolve to a single figure or N/A. Got: {t!r}")
+```
+
+**Summary validator (lighter — Summary is prose):**
+
+```python
+s = (summary or "").strip()
+
+# 1. No uppercase M / K following digits in dollar amounts (lowercase-only convention)
+if re.search(r"[\d.]\s*[MK]\b(?!\.)", s):  # the negative lookahead skips abbreviations like "M.D."
+    raise ValueError(f"Summary must use lowercase m/k for dollar amounts; got uppercase: {s!r}")
+
+# 2. No escaped tildes or dollar signs (per pinned `feedback_no_escaped_tildes.md`)
+if "\\$" in s or "\\~" in s:
+    raise ValueError(f"Summary must not contain escaped \\$ or \\~ — write plain: {s!r}")
+
+# 3. No em dashes (per pinned `feedback_use_en_dash.md`)
+if "\u2014" in s:
+    raise ValueError(f"Summary must use en dash –, not em dash —: {s!r}")
+```
+
+**On validation failure:**
+1. If running under Sonnet output (the normal flow): log the violation, re-prompt Sonnet ONCE with the validator error message appended to the prompt as a corrective hint. If the re-prompt still fails, halt the write and surface via Slack alert (`**Validation:** ✗ {field} failed: {reason}`) — leave the entry untouched.
+2. If running under Mode C / manual / debugging: HALT immediately. Do not "fix it manually and proceed" — the whole point of the guard is to catch instinct-overrides. Surface to Tom in the response with the bad value and the rule it violated.
+
+**Notion-AI cross-check before write:** if the Notes body contains the founder's stated metric in narrative form (e.g., "ARR run rate at 1-2M" in the body), treat dashed dollar ranges as suspect transcription artifacts. Before writing, cross-check against any audio transcript snippets quoted in the body, or just halt and ask Tom to confirm — the cost of one extra round-trip is far lower than shipping a wrong metric into the SoR.
 
 **Idempotency:** all three cases are idempotent. Re-running this step against the same note with the same body is a no-op for the body (subsection prepend would produce a duplicate header — guard by checking whether the entry's body already contains the note's URL; if so, skip).
 
@@ -279,9 +435,10 @@ Line 2 elides parts that didn't change. Use `·` as the separator. Conventions:
 - `**Cat:** <value>` only if Category was just set this run; omit if already set
 - `**Round:** <value>` only if Round Details was just written; omit if already set or skipped
 - `**Live:** <Company> – <Mon YYYY>` only if Step 6 created or appended to a Live entry this run. If frozen-prior-month case applied, append `(prior-month, body-only)` so Tom can tell at a glance the rolling fields weren't touched.
+- `**Feedback merged:** ✓` if Step 4b ported a stub's context into this meeting note and archived the stub. If Step 4b only renamed the title (no stub found), use `**Renamed:** ✓` instead.
 
 **Suppress the alert entirely when:**
-- No Opp link was made this run AND no Round Details was written this run AND no Live entry upsert happened.
+- No Opp link was made this run AND no Round Details was written this run AND no Live entry upsert happened AND no Step 4b action happened.
 
 This means category-only classification on a non-meeting note (a Notes-DB row that the webhook fired on but isn't actually a meeting note) is silent. The note-classifier daily sweep already reports on category counts; no need to double up here.
 

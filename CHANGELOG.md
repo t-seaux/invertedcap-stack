@@ -2,6 +2,24 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-14] (Week of 2026-05-11)
+
+**Added:** neg1-promote (Pipeline Management — pipeline-agent composite sub-skill)
+**Removed:** None
+**Modified:**
+- `add-to-crm` -- enhanced dedup: harvests signals from inner forwarded-message headers (From, Subject, Cc) to catch same-pitch-forwarded-by-different-referrers duplicates
+- `first-pass-diligence` -- alert body switched to GFM link syntax; Files property writes migrated to public Notion API (internal API + Chrome path retired)
+- `intro-agent` -- word-boundary corroboration gate expanded: now mandatory for ALL Opp name matches regardless of name length (removed 6-char size threshold)
+- `intro-resolution-agent` -- same corroboration gate tightening as intro-agent; bare word-boundary matches with no corroboration are skipped
+- `materials-handler` -- added per-message idempotency gate (Step 2.5) using claude/materials-processed Gmail label to prevent duplicate uploads; Files property writes migrated to public Notion API
+- `neg1-enricher` -- Online Presence URL writes migrated from osascript/Chrome to public Notion API via notion_files_property.py; Chrome dependency fully removed
+- `research-agent` -- added Artisan Partners to scheduled scan targets; Crescat Capital repositioned in tier list
+- `update-diligence-priors` -- strict incremental processing: now assembles "already processed" set from all prior update sections before identifying new materials; each run is additive only
+**Total skills:** 26
+**Functions:** No changes
+
+---
+
 ## [2026-05-13] (Week of 2026-05-11)
 
 **Added:** None

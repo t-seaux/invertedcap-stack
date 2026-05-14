@@ -21,6 +21,7 @@ The local processor invokes this skill with these args (set by `deal-scanner.js`
 - `forwardedFromReferrer` (optional, boolean) — `true` when the message is a `Fwd:` from an external third party (not Tom, not the founder) who is forwarding the founder's email along. The webhook has already swapped `senderEmail`/`senderName` to the inner forwarded sender (the founder candidate). `referrerEmail` / `referrerName` carry the outer envelope (the referrer). See Step 1C.
 - `referrerEmail` (optional) — outer envelope email when `forwardedFromReferrer` is true.
 - `referrerName` (optional) — outer envelope display name when `forwardedFromReferrer` is true.
+- `materialUrls` (optional, array of strings) — deck/material URLs the webhook extracted from the email body (Drive, DocSend, Dropbox, Brieflink, Pitch.com, Figma, Canva, Notion.site, raw PDFs). When present, this list is **authoritative**: every URL MUST be passed through to `add-to-crm` so it runs Step 1B (read for thin-body field extraction) and Step 6 (link in Diligence Materials property). Skipping a URL because "the body context didn't seem deck-shaped" is not allowed — the webhook already filtered out company-website links. See the 2026-05-12 Unicorn Snot regression for why this gate moved server-side.
 
 ## Workflow
 
@@ -125,6 +126,7 @@ Pass these inputs explicitly so `add-to-crm` doesn't have to re-classify:
 - **Explicit `source` directive**: either `"Direct"` (use the canonical Direct People DB page) OR `{ email: <senderEmail>, name: <senderName> }` for a referrer. `add-to-crm` resolves the referrer against the People DB and populates `Source(s)`. If the referrer is not in the People DB, leave `Source(s)` blank and surface the gap in the Slack alert — do NOT auto-create.
 - The Gmail message URL (`https://mail.google.com/mail/u/0/#inbox/{messageId}`) for the Source Email field, and the `messageId` itself so it can probe attachments via the Gmail Attachment Saver per the skill's Step 1B.
 - The Gmail `threadId` for the new `Source Thread ID` property on the Opp.
+- **Explicit `materialUrls` directive** (if non-empty): pass the array verbatim to `add-to-crm`. The skill treats this as the authoritative list of deck/material URLs that MUST be processed by Step 1B (read for thin-body enrichment) and linked via Step 6 (Diligence Materials property). The webhook ran the regex; the skill doesn't get to second-guess what counts as a deck URL.
 
 **Unattended mode:** This skill is invoked by an automated webhook job — do **not** ask Tom for confirmation at any point. If `add-to-crm`'s "Step 4: Present extracted fields to user" would normally pause for confirmation, skip the pause and create the page directly with the classifier-extracted fields. If a duplicate is found in a protected terminal status, log `protected-status-skip` with the existing page ID and exit 0 — do **not** prompt.
 

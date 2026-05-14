@@ -160,25 +160,26 @@ Starting source list (non-exhaustive — if a search result reveals a platform n
 
 **Validation heuristic**: for each candidate URL, verify name match in the page title or bio. WebFetch the URL briefly if ambiguous. Filter out common-name collisions (multiple "John Smiths" on GitHub, etc.) by cross-referencing their `primary company` or domain.
 
-**Write to Notion via osascript + Chrome (DEFAULT path, not fallback).** The Notion public API / MCP cannot write external URLs to Files properties. The canonical path is Notion's internal `/api/v3/saveTransactions` endpoint, driven by osascript against the active Chrome tab on Tom's Mac.
+**Write to Notion via the public API.** As of 2026-05-13 Notion's public API supports external-URL writes to Files properties directly — the prior osascript + Chrome path is obsolete. Shell out to the helper:
 
-Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` for the generalized `addLinkToFilesProperty` function, the osascript bridge pattern, and known property-key mappings (Online Presence key on -1 Scanner = `n]Rk`). Use with these parameters:
+```bash
+python3 ~/.claude/scripts/notion_files_property.py \
+    --page-id <neg1_scanner_page_id> \
+    --prop "Online Presence" \
+    --url "<discovered_url>" \
+    --label "<display_label>"
+```
 
-- `pageId`: the -1 Scanner page ID for the target row
-- `propertyName`: `"Online Presence"`
-- `url`: the discovered URL
-- `displayName`: the **platform label formatted per the convention below**
+See `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` for the canonical interface. Exit 0 = success (idempotent on URL); exit 1 = hard failure.
 
 **Display name convention** (for consistency across all -1 Scanner rows):
 - **Social/account URLs with a handle**: `"[Platform] (@handle)"` — e.g., `"X (@gregreiner)"`, `"Instagram (@greg)"`, `"Farcaster (@greg.eth)"`, `"GitHub (@greg)"`
 - **Personal sites / articles / other**: descriptive phrase — e.g., `"Personal site"`, `"Hamden Hall alumni feature"`, `"Acquired podcast guest"`
 - **Writing platforms with a custom subdomain/slug**: `"[Platform]: [Publication/Handle]"` — e.g., `"Substack: greg.substack.com"`, `"Medium: @greg"`
 
-**Call once per discovered URL** — the function is self-contained read-modify-write and correctly appends sequential calls without clobbering.
+**Call once per discovered URL** — the helper is self-contained read-modify-write; sequential calls correctly append without clobbering.
 
-**Chrome availability**: Chrome is assumed running on Tom's Mac. If it isn't, launch it (`open -a "Google Chrome"`) before the osascript calls. Do NOT skip this step because "Chrome MCP is unavailable" — osascript is the bridge.
-
-**True fallback (only if Chrome itself cannot run)**: write the list as a markdown `## Online Presence` section in the page body via `notion-update-page`. Flag this in the Step 6 report so Tom knows the canonical location moved. Re-run the osascript path next time Chrome is available.
+**Fallback (only on helper exit 1)**: write the list as a markdown `## Online Presence` section in the page body via `notion-update-page`. Flag in the Step 6 report so Tom knows the canonical location moved. Retry the helper on the next run.
 
 **Empty**: if ContactOut + web search both return nothing, leave Online Presence empty. Don't fabricate.
 

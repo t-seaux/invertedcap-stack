@@ -83,7 +83,6 @@ These are firms/investors Tom actively tracks. Search for each by name. Organize
 | Bridgewater Associates (Ray Dalio) | Research notes, daily observations |
 | Duquesne Family Office (Stanley Druckenmiller) | Published commentary, interview transcripts, conference remarks |
 | Appaloosa Management (David Tepper) | Quarterly letters (rare but notable when published) |
-| Crescat Capital (Kevin Smith / Tavi Costa) | Quarterly letters, macro research notes |
 | Marathon Asset Management (London) | Capital cycle research, published investment perspectives |
 | Gavekal Research (Louis-Vincent Gave) | Published research pieces, macro frameworks |
 
@@ -189,9 +188,11 @@ Confirm the edits back to him with a one-liner — don't just say "noted."
 Tom has reviewed and rejected these firms — they are **not interesting** for his research scan and must be filtered out of Tier 2 / discovery output. If a search result matches any name below, drop it silently (do not include in the digest, do not flag as a "promotion candidate"). Tom curates this list iteratively — when he flags additional firms as not interesting, append them here.
 
 - Ariel Investments (all funds — Ariel Fund, Ariel Focus Fund, Ariel Small Cap Value Fund, etc.)
+- Artisan Partners (all funds — Mid Cap Fund, etc.)
 - ByteTree
 - Carillon Tower Advisers (incl. Carillon Eagle Mid Cap Growth Fund)
 - Conestoga Capital Advisors
+- Crescat Capital (Kevin Smith / Tavi Costa)
 - Diamond Hill Capital (all funds/strategies)
 - Fiduciary Management Inc.
 - Greystone Capital

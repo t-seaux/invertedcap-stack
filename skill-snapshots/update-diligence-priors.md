@@ -18,6 +18,12 @@ a dated update section to the Notion page. This skill is designed to be run mult
 life of an opportunity — each run adds a new update section at the top of the page, creating a
 chronological record of how the thesis has evolved as new evidence emerges.
 
+**Each run is strictly incremental.** Only look at materials that have been added to the
+opportunity since the most recent prior update (or, on the first run, since the original first-pass
+publication date). Do not reprocess items that any earlier update section already cited in its
+"New Information Processed" list. The new update block always goes ON TOP of the existing stack of
+update sections — newest first.
+
 The update should be opinionated. The point is not to summarize new information neutrally — it is
 to assess whether the new evidence strengthens or weakens specific priors from the original
 analysis, and to say so clearly.
@@ -42,16 +48,30 @@ what priors were established.
 
 Fetch the Notion Opportunity page for the company from the Opportunities DB
 (`fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`). Compare the current state of the opportunity against
-what was available when the diligence page was last written or updated.
+what was already processed by prior runs of this skill.
+
+### Build the "already processed" set first
+
+Before identifying new items, assemble the complete set of materials that have already been
+incorporated into the diligence page:
+
+1. **Original Sources section** — every item cited in the original first-pass memo's Sources list.
+2. **Every prior Update section's "New Information Processed" list** — walk down each `## Update —
+   [date]` section already on the page and collect every bullet (call notes, references, materials,
+   research items) it cites.
+
+Union those two sets. Anything in the opportunity's current relations / property fields / page body
+that is NOT in that union is fair game for THIS update. Anything already in the union is off-limits
+— do not re-cite it, do not reassess it.
 
 ### What counts as new information
 
-Fetch every linked item in the opportunity's relation fields and compare against what the
-existing diligence page references in its Sources section:
+Fetch every linked item in the opportunity's relation fields and compare against the
+"already processed" set assembled above:
 
-- **✍️ Notes relation** — fetch each linked note. Any note not cited in the existing diligence
-  page's Sources section is new. These are typically call notes, backchannel references, research
-  threads, or Claude analysis pages.
+- **✍️ Notes relation** — fetch each linked note. Any note not in the "already processed" set
+  (Sources + every prior Update's New Information Processed list) is new. These are typically
+  call notes, backchannel references, research threads, or Claude analysis pages.
 - **Diligence Materials** — check for new Google Drive files, PDFs, or attachments not referenced
   in the existing Sources. Fetch and read any new materials using the type-specific access methods
   documented in the `first-pass-diligence` skill (Step 1c): Google Drive PDFs via `read_pdf_bytes`,

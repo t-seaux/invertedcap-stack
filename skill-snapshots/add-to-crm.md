@@ -13,13 +13,30 @@ Read `references/schema.md` for the full database schema and field formatting ru
 
 Before creating ANY new opportunity, run the dedup check below. This is MANDATORY — do not skip it. Unattended callers (e.g. `inbound-deal-detect`) must run this guard the same way as manual invocations.
 
+### Signal harvesting (run BEFORE the dedup queries)
+
+The outer envelope is not enough. Third-party intro-offer forwards (a referrer bouncing a founder's pitch to Tom) hide the dedup-critical signals — founder email, founder domain, founder-side subject — inside the forwarded message block, not in the outer `From:`/`Subject:`. Two unrelated outer senders forwarding the same pitch produce identical inner headers; those alone are the unambiguous dedup oracle.
+
+Before running the queries below, harvest signals from these sources and **take the union**:
+
+1. **Outer envelope.** Outer `From:` email + domain, outer `Subject:` (strip `Fwd:`/`Re:` prefixes).
+2. **Webhook hints.** When invoked from `inbound-deal-detect`, the webhook has already swapped `senderEmail` to the inner forwarded sender on `forwardedFromTom` / `forwardedFromReferrer`. Treat those as primary candidates.
+3. **Forwarded-message headers (REQUIRED for any email containing a forwarded block).** Walk the body for every `---------- Forwarded message ----------` or `Begin forwarded message:` marker. For each block, parse the header lines that immediately follow (`From:`, `Subject:`, `To:`, `Cc:`, `Date:`) and harvest:
+   - Inner `From:` email → contact-email candidate (founder-most-likely)
+   - Inner `Cc:` emails → additional contact-email candidates (typical co-founder location)
+   - Inner `Subject:` (strip `Fwd:`/`Re:`) → title-match candidate
+   - Domain stems of every inner email → website-domain candidates
+4. **Recursive forwards.** If a forwarded block contains a nested `Forwarded message` marker (forward-of-a-forward), recurse — the innermost layer is closest to the founder. Harvest from every layer.
+
+The dedup queries below run against the **union** of all harvested signals — not just the classifier-extracted `company`/`website`/`contact email`. This is the failure mode the Agentiq dup (2026-05-12/13) exposed: two outer senders (`aadik@povventures.com` and `ben.futor@gmail.com`) bounced the same Reuben Abraham pitch, both with inner `From: reuben@agentiqsports.com` and inner `Subject: Agentiq Seed`. The second arrival's outer envelope alone produced zero dedup hits; the inner `From:` would have hit Step 3 immediately.
+
 ### Dedup procedure (run all three — don't short-circuit on a single miss)
 
-1. **Title match.** Call `notion-search` with `data_source_url: "collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"` and the extracted company name as the query. Check results whose title matches the company name exactly OR with a `(Series X FO)` / `(Seed FO)` / similar follow-on suffix.
-2. **Website-domain match.** If a website is extracted (e.g. `tuor.dev`), also query with the bare domain — Notion semantic search indexes page properties, so this surfaces rows where only the `Website` field matches.
-3. **Contact-email match.** If a founder email is extracted (e.g. `hardik@tuor.dev`), also query with that email — this catches cases where the company was logged under a different spelling/casing.
+1. **Title match.** For every title candidate in the harvested set (the classifier's `company` field PLUS every inner `Subject:` stem), call `notion-search` with `data_source_url: "collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"` and the candidate as the query. Check results whose title matches the company name exactly OR with a `(Series X FO)` / `(Seed FO)` / similar follow-on suffix.
+2. **Website-domain match.** For every domain in the harvested set (classifier's `website` PLUS every inner-email domain stem), query with the bare domain — Notion semantic search indexes page properties, so this surfaces rows where only the `Website` or `Contact` field matches.
+3. **Contact-email match.** For every email in the harvested set (classifier's `contact email` PLUS every inner `From:`/`Cc:` email), query with that email — this catches cases where the company was logged under a different spelling/casing OR forwarded by a different outer referrer.
 
-Collect the union of matches from all three queries, then fetch each candidate page and read its `Status`.
+Collect the union of matches from all queries across all harvested signals, then fetch each candidate page and read its `Status`.
 
 ### Filter name-only collisions
 

@@ -960,26 +960,19 @@ Act autonomously — do not ask for permission. Report what was done in the summ
    > find the last block in the `## 📎 Diligence Materials` section and call
    > `saveTransactions` to append a new bulleted text block after it.
 
-2. **Diligence Materials Files property field — MANDATORY in EVERY run, every code path.** Do not skip this step under any circumstance, including when an existing first-pass PDF link is already present in the property field. The helper is idempotent on URL (skips if the exact URL is already there) but a freshly-uploaded file always has a NEW URL per the rule above, so this call always adds the new entry. Shell out to the Python helper:
+2. **Diligence Materials Files property field — MANDATORY in EVERY run, every code path.** Do not skip this step under any circumstance, including when an existing first-pass PDF link is already present in the property field. The helper is idempotent on URL (skips if the exact URL is already there) but a freshly-uploaded file always has a NEW URL per the rule above, so this call always adds the new entry. Shell out to the public-API helper:
 
    ```bash
-   python3 ~/.claude/local-agents/notion-internal/add_link_to_files_property.py \
+   python3 ~/.claude/scripts/notion_files_property.py \
        --page-id <opportunity_page_id> \
        --prop "Diligence Materials" \
        --url "<drive_url>" \
        --label "<Company>_First_Pass_Diligence.pdf"
    ```
 
-   Exit 0 = ok, 1 = log error and fall back to page body link, 2 = token expired (alert Tom). This is the canonical path now — Chrome only as fallback. Read the shared reference at
-   `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md` and follow its
-   instructions to add the Drive file link to the Diligence Materials property on the
-   opportunity page. Pass the opportunity page ID, the Drive file URL
-   (`https://drive.google.com/file/d/<fileId>/view`), and a display name like
-   `[Company]_First_Pass_Diligence.pdf`.
+   Exit 0 = ok (including idempotent skip), 1 = hard failure (log + fall back to page body link). See the canonical interface at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity page ID, the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`), and a display name like `[Company]_First_Pass_Diligence.pdf`.
 
-   If Chrome tools are not available at all (no browser session), skip this step — the page
-   body link is sufficient and the property field can be updated in the next session where
-   Chrome is available.
+   The helper uses the public Notion API (PATCH `/v1/pages/{id}` with the Files property's `files` array). No Chrome dependency.
 
 ### 6b. Send the alert
 
@@ -988,18 +981,27 @@ Send the alert as **exactly 2 lines** — the standard webhook-alert shape used 
 meeting-note-processor and other webhook-triggered skills. No header line, no blank lines,
 no trailing flags.
 
-**Alert body — exactly 2 lines:**
+**Alert body — exactly 2 lines. Use GFM `[text](url)` link syntax, NEVER Slack mrkdwn `<url|text>` syntax** (the converter passes Slack mrkdwn through as literal text inside the underline+bold wrapper, which is what produced broken alerts in the past):
+
+Template (substitute the three values directly — do not keep angle brackets around the placeholders):
 
 ```
-🪏 <u>**First Pass Diligence: [<Company>](<opp URL>) ([PDF](<Drive PDF URL>))**</u>
-<one-liner summary>
+🪏 <u>**First Pass Diligence: [COMPANY_NAME](OPP_URL) ([PDF](PDF_URL))**</u>
+ONE_LINER_SUMMARY
+```
+
+Concrete example of the rendered body that should be piped into `send.sh`:
+
+```
+🪏 <u>**First Pass Diligence: [Shine](https://www.notion.so/35700beff4aa8147b93ede0f63694110) ([PDF](https://drive.google.com/file/d/1mjbovMWmrjdYWCqc6RNnlbhHfuxFxdHW/view))**</u>
+Moderate founder pair; wedge is real but UserEvidence and Listen Labs are 10-50x better-capitalized.
 ```
 
 Conventions:
-- **Line 1 — bolded title with two links.** `🪏` (pickaxe emoji) outside the wrapper, then `<u>**...**</u>` wrapping the title `First Pass Diligence: <Company> (PDF)`. The company name is hyperlinked to the Notion Opportunity URL (NOT the analysis page URL). The literal text `PDF` (in parens) is hyperlinked to the Drive PDF URL returned from step 6a.
+- **Line 1 — bolded title with two links.** `🪏` (pickaxe emoji) outside the wrapper, then `<u>**...**</u>` wrapping the title `First Pass Diligence: COMPANY (PDF)`. The company name is hyperlinked to the Notion Opportunity URL (NOT the analysis page URL). The literal text `PDF` (in parens) is hyperlinked to the Drive PDF URL returned from step 6a.
 - **Line 2 — one-liner summary.** Plain text, no bold, no bullets, no links. 1–2 sentences max — what Tom needs to know before clicking through. Lead with the most important signal (e.g., "Strong founder fit + obvious market, but $3M seed is later than my typical entry — fund-fit pass.").
 
-If for any reason the PDF upload (step 6a) failed and only the Notion analysis exists, replace `([PDF](<Drive PDF URL>))` on line 1 with `([analysis](<Notion analysis URL>))` so the user always has one click-through. Do NOT skip the alert.
+If for any reason the PDF upload (step 6a) failed and only the Notion analysis exists, replace `([PDF](PDF_URL))` on line 1 with `([analysis](NOTION_ANALYSIS_URL))` so the user always has one click-through. Do NOT skip the alert.
 
 ---
 

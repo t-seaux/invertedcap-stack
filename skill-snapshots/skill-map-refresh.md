@@ -316,6 +316,7 @@ Each sub-row renders its own fused mode pill (most sub-rows light only one cell 
 |---|---|---|---|
 | `pipeline-agent` | `deal-scanner-inbound` | W | Inbound cold email → LLM classify → add-to-crm delegation. |
 | `pipeline-agent` | `add-to-crm` | M | Manual entry for forwarded / pasted deals with full ContactOut enrichment. |
+| `pipeline-agent` | `neg1-promote` | M | Renames an existing -1 (FounderName) Opp to the real company once revealed; merges new content + dedups email aliases. Invoked by add-to-crm dedup or chat. |
 | `pipeline-agent` | `pipeline-sent-detect` | W | Tom-sent email matching a Qualified opp → promotes to Outreach. |
 | `pipeline-agent` | `founder-outreach` | M | Drafts personalized cold emails for pre-founder (-1) candidates. Voice-tuned. |
 | `pipeline-agent` | `intro-connected-detect` | W | Three-way intro inbound → flips matching opp Outreach → Connected. |

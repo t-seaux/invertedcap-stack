@@ -33,22 +33,15 @@ The processing logic (Steps 1–5) is shared across modes. Mode-specific deltas 
 
 The skill is bound to a specific message + Opp; do not search Gmail freshly (Step 2 is replaced by the inputs).
 
-**Idempotency — Gmail label `claude/materials-processed`:**
-
-1. On entry, fetch all messages in `threadId` and read their labels.
-2. For each message in the thread, check whether it carries the `claude/materials-processed` label. Only process attachments / links / blurbs from messages that DO NOT carry the label yet (the "delta set"). The trigger message is in the delta set by definition (the gate fired *because* of new content).
-3. After successfully processing a message's artifacts (chips written to Notion + page-body update), apply the `claude/materials-processed` label to that specific message by shelling out to the Gmail label helper. See `/Users/tomseo/.claude/skills/shared-references/gmail-label.md` for the canonical interface; the call is one line:
-   ```bash
-   /Users/tomseo/.claude/scripts/gmail-label.py --label claude/materials-processed <messageId> [<messageId> ...]
-   ```
-   The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `gmail.modify` scope (the Gmail MCP does not). Multiple message IDs in one call are fine; the label is created if it doesn't exist.
-4. If the delta set is empty (every message in the thread is already labeled), exit cleanly — no Notion writes, no Slack alert.
+**Idempotency:** per-message gate uses the `claude/materials-processed` Gmail label — see the canonical "Step 2.5: Per-message Idempotency Gate" below, which applies to all modes. For Mode B, the message set is every message in `threadId`; the trigger message is in the delta set by definition (the gate fired *because* of new content). If the delta set is empty (every message in the thread is already labeled), exit cleanly — no Notion writes, no Slack alert.
 
 **Mode B steps:**
 
 - Skip Step 1's full lookup — `oppId` and `oppName` are passed in — but **still fetch the Opp page to read Status** and apply the Step 0 Status Guard before any further work. Portfolio-set statuses (`Active Portfolio`, `Portfolio: Follow-On`, `Exited`) belong to `investor-update`, not here. On a guard hit, exit cleanly: no Notion writes, no Slack alert, and log the skip via `logEvent`-equivalent so the dedup trail is visible.
-- Skip Step 2 (Gmail search) — the message set is the unlabeled subset of the thread.
+- Skip Step 2 (Gmail search) — the message set is `threadId`'s messages.
+- Run Step 2.5 (idempotency gate) to filter to the unlabeled subset.
 - Run Steps 3 + 4 normally on the delta set, scoped to the thread.
+- Apply the `claude/materials-processed` label per Step 2.5 after writes succeed.
 - Replace Step 5 with the Slack alert format below.
 
 **Slack alert (Mode B only) — fires only on success with ≥1 new artifact:**
@@ -95,8 +88,8 @@ Posted via the `send-alert` skill. Format (GFM — `send-alert` converts to Slac
 ## Critical Operating Principles
 
 1. **Act autonomously** — never ask Tom clarifying questions. Make reasonable decisions and proceed. If something is ambiguous, pick the most likely interpretation and note the assumption in the summary.
-2. **Notion links go in TWO places, always** — the page body `📎 Diligence Materials` section AND the Diligence Materials Files property field. The property field is populated via Notion's internal `/api/v3/saveTransactions` endpoint. The public Notion API cannot set external URLs in Files properties. Never skip the property field.
-3. **Headless Python script is the default for Files-property writes** — shell out to `~/.claude/local-agents/notion-internal/add_link_to_files_property.py` (token_v2 cookie + `/api/v3/saveTransactions`). No Chrome required, runs cleanly in scheduled / unattended / job-queue contexts. See `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md` for the canonical interface and exit codes. Chrome+osascript is now a **fallback** path, used only when the Python helper hits TOKEN_EXPIRED (exit 2) and an interactive Chrome tab is already attached.
+2. **Notion links go in TWO places, always** — the page body `📎 Diligence Materials` section AND the Diligence Materials Files property field. Never skip the property field.
+3. **Public Notion API is the path for Files-property writes** — shell out to `~/.claude/scripts/notion_files_property.py`. As of 2026-05-13 Notion's public API supports external-URL writes to Files properties directly (PATCH `/v1/pages/{id}` with `files: [{name, external: {url}}]`); the prior internal-API / token_v2 / Chrome+osascript workarounds are obsolete. See `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` for the canonical interface and exit codes.
 4. **Four delivery paths for materials**:
    - **Gmail attachment** → Gmail Attachment Saver Apps Script → saves directly to the target Drive folder, returns `fileId` and `url` → link in Notion
    - **DocSend link** → Python convert (`requests` + `Pillow`) → save to `/Users/tomseo/Downloads/` → upload to Drive via Drive Upload Apps Script
@@ -128,7 +121,7 @@ Google Drive Decks folder ID: 1YUxmNe8LI9ctlMKQ22WoVSbyjkyKJXr0
 
 ## Environment Detection
 
-Chrome is assumed available on Tom's Mac. The property-field write uses `osascript` to drive the active Chrome tab by default. If Chrome MCP (`Claude_in_Chrome`) is exposed in the current harness, prefer it — otherwise fall through to `osascript`. Only skip the property-field step if Chrome itself isn't running and can't be launched.
+Property-field writes use the public Notion API via `~/.claude/scripts/notion_files_property.py` — no Chrome required. The helper reads `$NOTION_API_TOKEN` (or falls back to the SOPS file at `~/code/notion-backup/.notion-token.enc.txt`).
 
 All file uploads go through the Drive Upload Apps Script and the Gmail Attachment Saver Apps Script. Body-only email rendering uses Chrome headless (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=...`).
 
@@ -207,7 +200,30 @@ Every saved artifact lands in EITHER `Diligence Materials` OR `Deal Docs`, never
 
 **Ambiguous case** — if a doc is borderline (e.g. "Acme Round Overview.pdf" that includes both deal terms and a deck-style narrative), route to whichever signal dominates the first 2 pages. If still unclear, default to Diligence Materials and note the assumption in the Step 5 summary so Tom can re-route.
 
-The chip-add function (`addLinkToFilesProperty`) is generalized — pass `propertyName: "Deal Docs"` or `propertyName: "Diligence Materials"` as appropriate. Same osascript + Chrome bridge, no per-property code needed (see `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`).
+The chip-add helper (`notion_files_property.py`) takes `--prop "Deal Docs"` or `--prop "Diligence Materials"` as appropriate — same script, no per-property code needed (see `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`).
+
+## Step 2.5: Per-message Idempotency Gate (`claude/materials-processed`)
+
+**Applies in all modes (B and C).** This gate is the canonical "this message was already handled" check — without it, a webhook+manual race or two delegated invocations against the same email produce duplicate Drive uploads and duplicate chips on the Opp (each upload gets a fresh fileId, so URL-based dedup at the chip-write layer misses).
+
+**Before processing each message in the working set:**
+
+1. Read its labels. If it carries `claude/materials-processed`, drop it from the working set — already handled. (Mode B: the trigger message itself is exempt only when the webhook just fired *because* of new content on that message — in practice the trigger is unlabeled by construction; do not bypass the check.)
+2. After processing, keep only the messages that lack the label — the "delta set."
+3. If the delta set is empty, exit cleanly: no Notion writes, no Drive uploads, no Slack alert. Log the skip with reason `already-processed`.
+
+**After writes succeed for a message** (chips written to Notion + page-body update + Step 4.5/4.6 if applicable), apply the label to that specific message:
+
+```bash
+/Users/tomseo/.claude/scripts/gmail-label.py --label claude/materials-processed <messageId> [<messageId> ...]
+```
+
+The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `gmail.modify` scope (the Gmail MCP does not). Multiple message IDs in one call are fine; the label is created if it doesn't exist. Label only after writes complete — labeling before writes risks marking a message processed when the run actually failed.
+
+**Mode-specific notes:**
+- **Mode B (webhook):** working set = all messages in the inbound `threadId`. Apply this gate as the first thing after Step 0 / Status Guard.
+- **Mode C (manual / delegated):** working set = Step 2's Gmail search hits, deduped by messageId. Apply this gate immediately after Step 2, before any Drive uploads or processing.
+- **Partial-success runs:** if some chips landed for a message and others failed, still label the message — re-running won't recover the failed chips anyway, and leaving it unlabeled risks duplicating the chips that succeeded.
 
 ## Step 3: Process Materials
 
@@ -345,21 +361,29 @@ If you're writing an exception-case body section, use the bullet format below. O
 - [**[Filename]**](<URL>) — [per-material context]
 ```
 
-### Notion Files Property Field — Diligence Materials OR Deal Docs (osascript + Chrome, default)
+### Notion Files Property Field — Diligence Materials OR Deal Docs (public API)
 
 **This step always runs.** Append each saved Drive link to the appropriate Files property on the opportunity page — either **Diligence Materials** or **Deal Docs** per the routing rules in Step 2's "Property Routing" section. Term sheets, SAFEs, side letters, pro forma cap tables, etc. → Deal Docs. Decks, memos, models, demos, etc. → Diligence Materials.
 
-The bridge is `osascript` driving the active Chrome tab — that's the default on Tom's Mac. If the Chrome MCP `javascript_tool` is exposed in the current harness, prefer it; otherwise osascript is first-class, not a fallback.
+Shell out to the public-API helper:
 
-Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md` for the `addLinkToDiligenceMaterials` function, and `/Users/tomseo/.claude/projects/-Users-tomseo/memory/feedback_notion_internal_api.md` for the osascript bridge pattern (navigate to the page, wait ~4s, fire the JS as an async IIFE that stashes the result in `window._notionResult`, poll `JSON.stringify(window._notionResult)` via a second osascript call). Required headers for internal API calls: `x-notion-active-user-header: c6058e42-a6df-4155-9e7e-9a2a5b6af322`, `x-notion-space-id: ebe97bdb-2635-4ecc-abee-968e61632450`, `notion-audit-log-platform: web`. The Diligence Materials property key is hardcoded as `=sSX`.
+```bash
+python3 ~/.claude/scripts/notion_files_property.py \
+    --page-id <opportunity_page_id> \
+    --prop "Diligence Materials" \
+    --url "<drive_or_external_url>" \
+    --label "<display_label>"
+```
+
+Exit 0 = success (including idempotent skip when URL already present); exit 1 = hard failure (log + body-only fallback). See `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` for the full interface.
 
 **Critical: Always link the specific file URL** (`https://drive.google.com/file/d/<fileId>/view`), never the folder URL. The file ID comes from the Drive Upload Apps Script `upload` response — use it directly, don't re-search.
 
-**Link-only materials (Step 3E) are the explicit exception** — for Figma, Miro, Loom, Pitch.com, Canva, Notion.site etc., pass the external URL itself (e.g. `https://figma.com/deck/...`) to `addLinkToDiligenceMaterials`. These materials have no Drive counterpart; the external URL is the canonical artifact and MUST still be written to the property field — "no Drive URL" is not a reason to skip.
+**Link-only materials (Step 3E) are the explicit exception** — for Figma, Miro, Loom, Pitch.com, Canva, Notion.site etc., pass the external URL itself (e.g. `https://figma.com/deck/...`). These materials have no Drive counterpart; the external URL is the canonical artifact and MUST still be written to the property field — "no Drive URL" is not a reason to skip.
 
-For each file saved to Drive in the preceding steps, call the function with the opportunity page ID, the Drive file URL, and a descriptive display name that matches the PDF filename (e.g., `Chief Rebel - Week 20 Investor Update.pdf`). For link-only materials, use the external URL and a label like `Bloom - Deck (Figma)`. For multiple files, call once per URL — each call is a self-contained read-modify-write cycle.
+For each file saved to Drive in the preceding steps, call the helper with the opportunity page ID, the Drive file URL, and a descriptive display name that matches the PDF filename (e.g., `Chief Rebel - Week 20 Investor Update.pdf`). For link-only materials, use the external URL and a label like `Bloom - Deck (Figma)`. For multiple files, call once per URL — the helper is idempotent on URL.
 
-Skip this step only if Chrome is not running and cannot be launched. In that case, note it in the summary and continue — the page body link is the interim record.
+Skip this step only if the helper exits 1 (hard failure). In that case, note it in the summary and continue — the page body link is the interim record.
 
 ## Step 4.5: Extract Contact Signals from Materials
 
@@ -443,6 +467,10 @@ If the deck also states a clearer **Stage** than what's currently on the Opp (e.
 
 Note in the Step 5 summary: extracted (with the value written) / no-match (deck mined, nothing explicit) / skipped (Round Details already populated, or no readable materials).
 
+## Step 4.7: Apply `claude/materials-processed` Label
+
+After all writes for a message succeed (chips on the property, page body, Contact/Round Details updates if applicable), apply the `claude/materials-processed` Gmail label per the rules in Step 2.5. This closes the idempotency loop in **all modes** — Mode B, Mode C manual, and delegated invocations from `pipeline-agent` / `add-to-crm`. Without this step, a follow-up run against the same Opp re-finds the same email in Gmail search and re-processes it, creating duplicate Drive uploads and duplicate chips (the canonical-filename dedup in `notion_files_property.py` catches the chip duplication, but the wasted Drive uploads remain).
+
 ## Step 5: Report Summary
 
 Return a concise summary:
@@ -462,7 +490,7 @@ Found: [N] materials across [M] emails
 DocSend: [N] converted and uploaded
 Contact extraction: upgraded tom@old.com → tom@company.com ✅ / kept existing (custom domain) / nothing found
 Round Details extraction: wrote "Raising $2m" ✅ / no-match (mined deck, nothing explicit) / skipped (already populated)
-Notion: Page body updated ✅ | Diligence Materials updated ✅ | Deal Docs updated ✅ (osascript + Chrome) / failed ⚠️ / skipped (Chrome not running)
+Notion: Page body updated ✅ | Diligence Materials updated ✅ | Deal Docs updated ✅ (public API) / failed ⚠️
 ```
 
 ## Constraints and Known Limitations
@@ -470,7 +498,7 @@ Notion: Page body updated ✅ | Diligence Materials updated ✅ | Deal Docs upda
 - **Gmail MCP cannot download binary attachments** — there is no attachment download endpoint. The Gmail Attachment Saver Apps Script (`/Users/tomseo/.claude/skills/shared-references/gmail-attachment-saver.md`) is the primary path for saving Gmail attachments to Drive.
 - **Google Drive MCP is read-only** — `google_drive_search` and `google_drive_fetch` cannot upload files or move files between folders. All writes go through the Drive Upload Apps Script.
 - **Google Drive MCP does not index PDFs** — only Google Docs appear in search results. Prefer the `fileId` / `url` returned by the Apps Script over re-searching after upload.
-- **Notion API does not support external URLs in Files properties** — the Diligence Materials property field is populated via Notion's internal API (`/api/v3/saveTransactions`), driven by osascript + Chrome by default (or Chrome MCP's `javascript_tool` if exposed). This is reliable and deterministic. Only skip if Chrome itself isn't running.
+- **Notion Files property writes use the public API** — `~/.claude/scripts/notion_files_property.py` does the PATCH. No Chrome dependency, no token_v2 cookie, no internal endpoints.
 - **DocSend `docsend2pdf` pip package fails on CSRF** — use the Python `requests` + `Pillow` approach instead.
 
 ## Integration with Other Skills
@@ -504,33 +532,22 @@ Never rely on `plaintextBody` alone to determine whether attachments exist. Gmai
 - Default action for "grab the materials from this email": run the attachment saver **first**, then parse body for additional links (DocSend, Drive, Dropbox). Never the other way around.
 - If `has:attachment` filter returns the thread, there IS an attachment somewhere — find it.
 
-### osascript + Chrome is PRIMARY for Notion Files property writes
+### Public API is PRIMARY for Notion Files property writes
 
-Writing external URLs to Notion Files/Media properties (Diligence Materials, Online Presence, any future Files property) must use `osascript` driving the active Chrome tab against Notion's internal `/api/v3/saveTransactions` endpoint. This is the **primary** path, not a fallback.
-
-**Why:** The public Notion API and the MCP tool both reject external URL writes to Files properties — they only accept file uploads. Tom explicitly said "prioritize osascript automation" on 2026-04-19. Do not report "Chrome unavailable, skipped — update next session."
+Writing external URLs to Notion Files/Media properties (Diligence Materials, Deal Docs, Online Presence, any future Files property) uses the public Notion API via `~/.claude/scripts/notion_files_property.py`. As of 2026-05-13 the public API supports external-URL writes directly — the prior internal-API / token_v2 / Chrome+osascript workarounds are obsolete and have been removed.
 
 **How to apply:**
 
-1. **Canonical reference**: `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` has the generalized `addLinkToFilesProperty(pageId, propertyName, url, displayName)` function plus the osascript bridge pattern (navigate → wait 4s → fire async IIFE → poll result from `window._notionResult`).
+1. **Canonical reference**: `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` has the helper interface and the importable Python entrypoint.
 
-2. **One function for all Files properties** — the generalized function discovers the property key by searching the collection schema for `name == propertyName && type == 'file'`. Works for Diligence Materials, Online Presence, and any new Files property without per-property code.
+2. **One helper for all Files properties** — pass `--prop "Diligence Materials"` or `--prop "Online Presence"` or any other Files property name. The helper validates that the named property exists and is of type `files`.
 
-3. **Property-key fallback** — schema discovery occasionally fails with "Cross-cell memcached access" on repeated `getRecordValues` calls in the same tab session. Mitigate by navigating fresh to the target page before firing the script. Known keys captured in the shared ref.
+3. **No Chrome, no cookies, no special headers.** Auth is the standard Notion `Authorization: Bearer <PAT>`. Token is read from `$NOTION_API_TOKEN` first, then the SOPS file at `~/code/notion-backup/.notion-token.enc.txt`.
 
-4. **Do NOT skip the property-field write** because "Chrome MCP isn't available." osascript IS the bridge on Tom's Mac. Only skip if Chrome itself cannot run — and even then try `open -a "Google Chrome"` first.
+4. **Idempotent on URL** — re-running with the same URL returns `{"skipped": true}` instead of duplicating the entry. Safe to re-run.
 
-5. **Chrome prerequisites** (already set up on Tom's Mac):
-   - Chrome: View → Developer → "Allow JavaScript from Apple Events" enabled
-   - System Settings → Accessibility: `node` allowed
-   - Tom signed in to Notion in Chrome (session cookies authenticate internal API)
+5. **Call per URL** — each invocation is a self-contained read-modify-write (GET page → check existing → PATCH if missing). Multiple URLs = sequential calls.
 
-6. **Required fetch headers for internal API calls** (without user + space headers, requests hit 502 `MemcachedCrossCellError`):
-   - `Content-Type: application/json`
-   - `x-notion-active-user-header: c6058e42-a6df-4155-9e7e-9a2a5b6af322` (Tom's user ID)
-   - `x-notion-space-id: ebe97bdb-2635-4ecc-abee-968e61632450` (Inverted space ID)
-   - `notion-audit-log-platform: web`
+6. **Exit codes**: 0 = success (including idempotent skip), 1 = hard failure (page not found, property doesn't exist, API error). Log the failure and continue with the page-body fallback.
 
-7. **Call per URL** — function is self-contained read-modify-write. Multiple URLs = sequential calls. Deduplication built in — checks for existing URL before appending. Safe to re-run.
-
-Consumers: this skill, first-pass-diligence, neg1-enricher (Step 4.5 Online Presence), future skills needing Files property writes.
+Consumers: this skill, first-pass-diligence, neg1-enricher (Step 4.5 Online Presence), meeting-note-processor (Artifacts), future skills needing Files property writes.

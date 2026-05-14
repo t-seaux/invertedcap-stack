@@ -212,13 +212,13 @@ Before writing to ANY intro lifecycle field, every candidate (person, opportunit
 
 **Gate 2 — Terminal-status skip (no writes to closed Opps).** After resolving the Opportunity in Step 3, read its `Status` property. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, skip this person entirely. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. Closed Opps should never receive new intro relations regardless of how the signal was detected.
 
-**Gate 3 — Common-word Opp name disambiguation.** If the Opportunity's `Name` is a single common English word, generic noun, or short token (≤6 chars) — e.g., `Current`, `Scout`, `Pulse`, `Echo`, `Core`, `Pillar`, `Arc`, `Atlas`, `Compass` — require corroborating evidence before matching. Acceptable corroboration:
-- Founder name appears in the message
-- Opportunity's `Contact` email domain appears in the message
+**Gate 3 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** Any haystack-matched Opp Name requires at least one corroboration signal before writing. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7 chars), `Compass` (7 chars), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4), `Core` (4), `Arc` (3) all require the same corroboration. Acceptable corroboration (one is sufficient):
+- The Opp's `Website` domain stem OR any `Contact` email domain appears in the haystack OR among recipient email domains
+- A founder name from the Opp's `🏁 Founder(s)` relation appears in the message
 - Explicit framing: "@CompanyName", "[CompanyName Inc.]", "the company called CompanyName"
-- The word is capitalized AND adjacent to fundraising/company context ("raising", "round", "ARR", "founder", domain URL)
+- The capitalized Name appears adjacent to fundraising/company context ("raising", "round", "ARR", "Series A/B/C", "founder", a domain URL)
 
-If only the bare common word appears with no corroboration, skip with `⚠️ ambiguous match on common-word Opp name "[Name]" — skipping write`. Concrete miss: Matt Harris runs a separate company called Scout; a Matt-Harris email mentioning "scout" should NEVER auto-match to a Pass-status Scout Opp.
+If none of the above hold, skip with `⚠️ ambiguous match on Opp name "[Name]" — no corroboration, skipping write`. Mirrors the webhook gate in `~/code/gmail-webhook/Code.js handleIntroOutreach()` + `company-match.js`. Concrete misses: (1) Matt Harris running a separate "Scout" company emailed mentioning "scout" → wrote to Pass-status Scout Opp; (2) Tom using "connect" as a verb in an email wrote Emily Man and Subham Agarwal to Pass-status Connect Opp; (3) generic "bottleneck"/"anchor" mentions wrote to Opps of the same name.
 
 If any gate fails, do NOT write — surface the skip in the report alongside the reason. Gates apply identically in scheduled, webhook, and manual modes.
 
