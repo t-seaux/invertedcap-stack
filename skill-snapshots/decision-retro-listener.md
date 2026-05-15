@@ -219,6 +219,8 @@ Fetch the source page via `notion-fetch` with `opp_url`:
 - `scope == "opp"`: Opportunity page. Context snippet = stage, fund, brief description.
 - `scope == "neg1"`: -1 Scanner page. Context snippet = Current role, Work History headline, Eval Summary, Signals (cap ~500 chars). Extraction should be founder-signal-weighted.
 
+Do NOT pass `include_transcript: true` here — Opp / -1 pages aren't meeting notes, no transcript exists to include.
+
 Apply the taxonomy:
 
 ```

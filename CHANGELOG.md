@@ -2,6 +2,21 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-15] (Week of 2026-05-11)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `add-to-contacts` -- profile photo extraction now always required; added fallback to `profile_only` ContactOut endpoint when the primary enrichment call returns no photo
+- `pass-note-drafter` -- added mandatory Pass Note Guidance check (Step 3f): must scan Opp body for a "Pass Note Guidance" section before drafting in both sweep and webhook modes; guidance overrides call notes and materials when substance conflicts
+- `first-pass-diligence` -- added `include_transcript: true` requirement on all Notes-DB fetches (meeting notes were returning only AI summaries without it); added video diligence support: local video files transcribed via Whisper (`small` model), Loom/hosted video via in-page transcript panel extraction
+- `update-diligence-priors` -- added `include_transcript: true` requirement on all Notes-DB fetches, mirroring the first-pass-diligence rule so update runs operate on the same data fidelity as original analyses
+- `decision-retro` -- clarified `notion-fetch` call: Opp/-1 target pages do not get `include_transcript`, but Lookup-mode fetches of linked Notes-DB meeting notes do
+**Total skills:** 26
+**Functions:** No changes
+
+---
+
 ## [2026-05-14] (Week of 2026-05-11)
 
 **Added:** neg1-promote (Pipeline Management — pipeline-agent composite sub-skill)

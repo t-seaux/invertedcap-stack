@@ -96,6 +96,15 @@ For each new item found, fetch its full content. Call notes and transcripts are 
 important — read them carefully for founder signal, new data points, and answers to previously
 open questions.
 
+**CRITICAL — `include_transcript: true` is mandatory on every Notes-DB fetch in this step.**
+When fetching a linked note via `notion-fetch`, ALWAYS pass `include_transcript: true`. Without
+it, meeting notes return only the Notion AI summary block — and that summary compresses
+metrics, omits verbal commitments, and silently strips the transcript content this skill needs
+to update priors with fidelity. The param is a no-op on non-meeting-note pages (Claude
+threads, backchannel notes, research artifacts). No exceptions, no "only if needed" — default
+ON. This same rule applies in `first-pass-diligence` Step 1b; we mirror it here so an update
+run never operates on thinner data than the original analysis.
+
 If the current conversation contains information Tom has shared directly (e.g., "I just learned
 that..." or forwarded content), treat that as new information too.
 

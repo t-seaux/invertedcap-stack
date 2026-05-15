@@ -20,6 +20,7 @@ Handles new Notion AI meeting-note pages that land in the `✏️ Notes` databas
 
 ## Operating Modes
 
+- **Mode A** — Scheduled reconciliation sweep, runs daily at 18:06 ET via launchd. Catches webhook drops (cf-queue retry exhaustion, Notion delivery misses, worker exceptions) by re-processing any portfolio meeting note from the last 48h that doesn't yet have a Company Updates Live entry.
 - **Mode B-link** — Webhook, phase=`link`, runs immediately on Notion `page.created`. Cheap, title-only opportunity match.
 - **Mode B-process** — Webhook, phase=`process`, runs ~45 min after page creation (gated on `not_before` in the queue payload). Heavy lift: opportunity match (if still empty), classify, Round Details.
 - **Mode C** — Manual. Tom passes a Notes page URL or ID; runs the full B-process logic against that page. Used for retroactive runs and validation.
@@ -46,11 +47,84 @@ Before any step runs in any mode, check if the note's title starts with `Claude:
 
 ---
 
+## Mode A — Reconciliation sweep (daily, catches webhook drops)
+
+Background: the notion-webhook delivers `page.created` events to a Cloudflare Worker, which retries D1 enqueue 4× with backoff (`cf-queue.ts`). Two failure modes still leak through:
+
+1. **D1 outage longer than the ~1.5s retry budget** — `writeJobToD1` exhausts attempts. The worker fires a `:rotating_light:` Slack alert via `alertSlackOnGiveUp` so Tom hears immediately, but the job itself is lost.
+2. **Notion doesn't deliver the webhook at all** — silent miss; no Slack signal from the worker because the worker never ran.
+
+Mode A is the safety net for both. It runs daily at 18:06 ET via launchd (`~/Library/LaunchAgents/com.tomseo.scheduled.meeting-note-processor-sweep.plist` → `~/.claude/scheduled-tasks/meeting-note-processor-sweep/run.sh`). The scheduled wrapper just reads canonical-skill Mode A; the actual logic lives here.
+
+### Step 1: Query candidate notes
+
+Query the Notes DB (`collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for pages where:
+- `Created` is within the last **48 hours**
+- `Opportunity` relation is non-empty
+
+Use `notion-search` with a `created_date_range` filter scoped to the Notes data source. 48h gives a generous buffer beyond the 45-min `not_before` delay so even late-evening calls from yesterday are covered.
+
+### Step 2: Apply portfolio gate
+
+For each candidate, fetch the linked Opportunity. Drop the candidate unless ALL of these hold (mirrors B-process Step 6's gate — see `~/.claude/skills/shared-references/company-updates-db.md` "Skip / exclusion rules" section for the canonical list):
+
+- Opportunity Status ∈ {`Committed`, `Active Portfolio`, `Portfolio: Follow-On`, `Exited`}
+- `note.Created >= Opp.Close Date` (post-investment only — pre-close calls are diligence, not portfolio updates)
+- Title does NOT match any exclusion pattern (Claude/Reference/Feedback/Backchannel/Pre-Memo/Pre-Mortem/follow-up/Intro/Demo/Deep Research/DDQ/Onboarding/Deck)
+- Opp Name doesn't end with a follow-on parenthetical suffix (`(Series A)`, `(Seed FO)`, etc.) — if it does, swap to the parent investment Opp before continuing
+
+### Step 3: Idempotency check — has this note already been processed?
+
+For each surviving candidate, query the Company Updates DB for Live entries where:
+- `Update Type = Live`
+- `Company` relation contains the candidate's linked Opp
+- `Period` multi-select contains the `Mon YYYY` derived from `note.Created`
+
+If a matching entry exists AND its `Artifacts` files property includes this note's URL → already processed, drop the candidate. The Artifacts entry is the canonical "this note has been incorporated" marker because `add_link_to_files_property.py` writes it as the last step of B-process Step 6.
+
+If no matching entry OR matching entry exists but doesn't reference this note → this is a real gap; keep the candidate.
+
+### Step 4: Heal each gap via Mode B-process
+
+For each remaining candidate, run the full B-process flow against its `pageId`. B-process is idempotent across its Steps 3/4/5/6, so any partially-completed work (e.g., Opp linked but Category not set) gets finished cleanly. Step 6's body-content guard prevents duplicate subsection prepend if a parallel B-process race appended the call already.
+
+Run candidates sequentially within this Mode A invocation — no parallel sub-skill spawning. The volume is bounded (≤ a few notes/day in steady state) and sequential keeps Notion rate-limit pressure bounded.
+
+### Step 5: Slack alert — silent on green
+
+If ≥1 gap was healed, post one consolidated alert via `~/.claude/skills/send-alert/send.sh`. GFM links, never Slack mrkdwn (per pinned memory `feedback_send_alert_gfm_not_mrkdwn.md`):
+
+```
+🛡 **Meeting-note sweep healed N drop(s)**
+- [Company A](opp-url) — [note](note-url) → [Live entry](entry-url)
+- [Company B](opp-url) — [note](note-url) → [Live entry](entry-url)
+```
+
+If 0 heals (the happy path — webhook worked all day) → silent. No alert. Tom doesn't want a daily "0 drops" pulse.
+
+### Step 6: Reconciliation manifest
+
+Emit one JSONL file to `~/.claude/scheduled-tasks/reconciliation/inbox/meeting-note-processor-sweep-YYYY-MM-DD-HHMMSS.jsonl` for the admin-agent orchestrator. One record per candidate touched (healed, observed-already-done, or skipped). Always include `entity_url`:
+
+```json
+{"ts": "<iso8601>", "source_task": "meeting-note-processor-sweep", "entity_id": "<note_page_id>", "entity_name": "<note_title>", "entity_url": "<note_notion_url>", "db": "NOTES", "transition": "Note: → Company Updates Live entry upserted", "outcome": "wrote|observed_already_in_state|skipped", "detail": "<entry url or skip reason>"}
+```
+
+Empty-manifest policy: zero candidates → empty file (still write it).
+
+### Step 7: Exit
+
+Exit 0 on success. Mode A NEVER ask questions — runs unattended per the standard Unattended Execution Guard (`~/.claude/scheduled-tasks/SHARED_SAFETY.md`). On infrastructure errors that prevent reaching Step 5, log to the run log AND attempt the Slack alert in degraded form (`🛡 **Meeting-note sweep crashed** — see logs`) so silent failures are impossible.
+
+---
+
 ## Mode B-link — Title-based Opportunity match (fast, runs immediately)
 
 ### Step 1: Read the note
 
-Fetch the page via `notion-fetch`. Extract:
+Fetch the page via `notion-fetch` (do NOT pass `include_transcript: true` here — this phase
+runs at +0 min on `page.created`, before Notion AI has processed the call, so the transcript
+doesn't exist yet, and the link decision uses only the title anyway). Extract:
 - `Name` (title)
 - `Opportunity` relation (current value)
 - `Category` (current value)
@@ -117,13 +191,24 @@ No Slack alert at this phase. Job B will produce a single consolidated alert lat
 
 ## Mode B-process — Full processor (heavy, runs +45 min)
 
+**Transcript Rule (scoped):** Pass `include_transcript: true` on the meeting-note fetch in
+this mode. The transcript is consumed by **Step 5d (Round Details extraction)** for spoken-
+metric cross-check ("$1.2M ARR" vs. summary's dashed "$1-2M" artifact) and by the **Live
+Company Updates upsert (Step 6)** which builds Summary/Traction strings — both benefit from
+transcript-grounded content over summary-only. Category classification (Step 3) and
+Opportunity relink (Step 4) use title + body and do NOT depend on the transcript, but a
+single fetch with the param covers both needs at the same cost. Do NOT re-fetch later for the
+transcript — one fetch, transcript included.
+
 ### Step 1: Read the note + body
 
-Fetch the page via `notion-fetch`, including the page body content. Extract:
+Fetch the page via `notion-fetch` with **`include_transcript: true`**, including the page body
+content. Extract:
 - `Name` (title)
 - `Opportunity` relation (current value — may have been set by Job A)
 - `Category` (current value — may have been set by note-classifier sweep already)
 - Page body — full text content of the meeting note (Notion AI's auto-generated Action Items / Summary / etc.)
+- **`<transcript>` block content** — raw call transcript, used downstream by Step 5d's metric cross-check and Step 6's Live Company Updates upsert
 
 ### Step 2: Thin-content guard
 
@@ -415,7 +500,7 @@ if "\u2014" in s:
 1. If running under Sonnet output (the normal flow): log the violation, re-prompt Sonnet ONCE with the validator error message appended to the prompt as a corrective hint. If the re-prompt still fails, halt the write and surface via Slack alert (`**Validation:** ✗ {field} failed: {reason}`) — leave the entry untouched.
 2. If running under Mode C / manual / debugging: HALT immediately. Do not "fix it manually and proceed" — the whole point of the guard is to catch instinct-overrides. Surface to Tom in the response with the bad value and the rule it violated.
 
-**Notion-AI cross-check before write:** if the Notes body contains the founder's stated metric in narrative form (e.g., "ARR run rate at 1-2M" in the body), treat dashed dollar ranges as suspect transcription artifacts. Before writing, cross-check against any audio transcript snippets quoted in the body, or just halt and ask Tom to confirm — the cost of one extra round-trip is far lower than shipping a wrong metric into the SoR.
+**Notion-AI cross-check before write:** if the Notes body contains the founder's stated metric in narrative form (e.g., "ARR run rate at 1-2M" in the body), treat dashed dollar ranges as suspect transcription artifacts. Cross-check against the `<transcript>` block (which Step 1 fetched via `include_transcript: true`) — find where the founder actually says the number and use that figure verbatim. The transcript IS the ground truth here; only halt and ask Tom if the transcript itself is ambiguous (founder genuinely said "one to two million") or absent (rare — only if the call had no audio).
 
 **Idempotency:** all three cases are idempotent. Re-running this step against the same note with the same body is a no-op for the body (subsection prepend would produce a duplicate header — guard by checking whether the entry's body already contains the note's URL; if so, skip).
 

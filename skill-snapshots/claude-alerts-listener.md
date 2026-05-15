@@ -71,6 +71,73 @@ You now have:
 - **Parent alert** — the original Claude-bot post Tom replied to. Includes a header that names the source skill (e.g. `📬 Pipeline Agent — 2026-04-25`, `📬 Research Agent`, etc.) and per-entity rows.
 - **Tom's reply** — the args `text` field.
 
+### Special branch: First-Pass Diligence feedback
+
+Check this **before** the generic taxonomy. If the parent alert header starts with `🪏` AND
+contains `First Pass Diligence:`, route the reply to `first-pass-diligence/FEEDBACK_PATTERNS.md`
+instead of attempting a SKILL.md edit. First-pass feedback is soft taste correction — the
+kind that compounds over time but rarely warrants an absolute rule edit.
+
+**Routing rules:**
+
+1. **Default route → FEEDBACK_PATTERNS.md.** Most first-pass feedback is texture: "the Tuor
+   analog was forced", "Section 4 prose was too dense", "skip regulatory framing when sector
+   isn't actually regulated". These append as new entries (newest on top) at the top of
+   `/Users/tomseo/.claude/skills/first-pass-diligence/FEEDBACK_PATTERNS.md`, immediately
+   after the header HTML comment block.
+
+2. **Escalate to SKILL.md edit ONLY when Tom uses absolute-rule language.** Phrases like
+   "never X", "always Y", "from now on", "stop including X" signal an absolute rule. In
+   those cases, edit the appropriate prescriptive file (`first-pass-diligence/SKILL.md`,
+   `FOUNDER_EVAL_FRAMEWORK.md`, or memory) instead of FEEDBACK_PATTERNS. When in doubt,
+   route to FEEDBACK_PATTERNS — absolute rules will surface naturally through repetition
+   (Step 3 promotion logic below).
+
+3. **Ack-only replies** ("good catch", "perfect", "thanks") get a `✅ noted, no change needed`
+   close-loop and no file write. Tom said he won't send filler replies, so this is rare.
+
+**FEEDBACK_PATTERNS.md entry format** (append immediately below the header HTML comment
+block — newest on top):
+
+```markdown
+## YYYY-MM-DD — <Company> — <one-line tag>
+
+**Feedback:** "<Tom's reply, verbatim>"
+
+**Pattern:** <generalized rule the listener extracted, 1-2 sentences>
+
+**How to apply:** <when/where this should kick in on future runs, 1-2 sentences>
+
+---
+```
+
+The `<Company>` value comes from the parent alert's first line (between `First Pass
+Diligence:` and the opening `(`). The `<one-line tag>` is your 3-5 word characterization
+of the pattern type (e.g., "forced-analog", "section-density", "regulatory-overreach").
+
+**Promotion-on-repetition.** Before appending, grep `FEEDBACK_PATTERNS.md` for related
+existing entries. If the same Pattern shows up in 3+ prior entries, include in the
+close-loop reply: `📌 also: this pattern has appeared N times — consider promoting to
+SKILL.md as a hard rule?` Don't promote unilaterally — Tom decides.
+
+**Close-loop reply format for this branch:**
+
+```
+✅ logged to FEEDBACK_PATTERNS.md — <one-line summary of pattern>
+```
+
+Or if also flagging promotion candidacy:
+
+```
+✅ logged to FEEDBACK_PATTERNS.md — <one-line summary of pattern>
+📌 this pattern has now appeared 3 times — consider promoting to SKILL.md as a hard rule?
+```
+
+After handling, skip Step 3 (generic taxonomy) and proceed to Step 4 (close-loop) and
+Step 5 (audit log, intent tag: `first-pass-feedback`).
+
+---
+
 ### Special branch: NEW DEAL opt-in / opt-out
 
 Check this **before** the generic taxonomy below. If the parent alert header contains `NEW DEAL` AND Tom's reply text matches `/^\s*opt[\s-]?(in|out)\b\.?\s*$/i`, run the dedicated handler in this section and skip Step 3 + the generic Step 4 close-loop.

@@ -63,10 +63,19 @@ the Notes relation. Pay close attention to:
 - **Backchannel / reference notes** — third-party perspective on the team
 - **Prior Claude analysis** — earlier research or framework mapping
 
+**CRITICAL — `include_transcript: true` is mandatory on every call note fetch.** Every
+`notion-fetch` call against a Notes-DB page in this step MUST pass `include_transcript: true`.
+Without it, the meeting-notes widget returns only the AI summary block, and the `<transcript>`
+section comes back as the placeholder "Transcript omitted." The raw transcript is the
+highest-fidelity founder-signal input this skill has — silently working off the summary
+contradicts this skill's "transcripts are primary" rule downstream (Step "Founder Profile"
+explicitly cites specific transcript moments). If the page is not a meeting note (no
+`<meeting-notes>` widget), the param is a harmless no-op. Default ON, no exceptions.
+
 ### 1c. Fetch Diligence Materials
 
-The Diligence Materials field may contain four types of sources. Identify each by its URL
-format and use the corresponding access method:
+The Diligence Materials field may contain five types of sources. Identify each by its URL
+or file extension and use the corresponding access method:
 
 **Type 1: Google Drive PDFs** (`drive.google.com/file/d/{FILE_ID}/...`)
 Use the PDF MCP tool `read_pdf_bytes` with the download URL format:
@@ -134,6 +143,57 @@ to convert the DocSend document to a local PDF. Once converted, read the resulti
 `read_pdf_bytes` using the local file path. DocSend data rooms (multi-document links) should
 have each document converted individually.
 
+**Type 5: Video files** (`.mp4`, `.mov`, `.m4v`, `.webm` — typically product demos, recorded
+calls, founder pitches uploaded to Notion or Drive)
+
+Download the file to `/tmp/firstpass_demo_<original_name>.<ext>`, then transcribe via the
+local Whisper helper:
+
+```bash
+python3 ~/.claude/scripts/transcribe_video.py /tmp/firstpass_demo_<name>.<ext> --model small > /tmp/firstpass_demo_<name>.txt
+```
+
+Use `--model small` as the default — better fidelity than `base` for diligence-grade
+transcripts (founder names, product terminology, technical claims) without the latency
+cost of `medium`/`large`. First run downloads the model (~500 MB for `small`); subsequent
+runs reuse the cached weights.
+
+Treat the resulting transcript as a **first-class diligence artifact** — fold it into the
+source bundle (Step 4b) under `==== DILIGENCE MATERIALS ====` with a `--- Material:
+<name> demo (transcribed) ---` header, and the lint/audit gates will check claims against
+it the same way they check call transcripts. Specifically watch for product claims the
+founder makes only in the demo (loop architecture, latency numbers, partnership names)
+that don't appear in the deck or one-pager — these are common analytical gold and easy
+to miss without the transcript.
+
+**System deps:** `ffmpeg` (`brew install ffmpeg`) and `openai-whisper`
+(`pip install openai-whisper --break-system-packages`). If either is missing, the script
+exits 2 and prints the install command. Flag the gap in the analysis (Materials & Sources
+Reviewed + Suggested Additional Analysis) rather than skipping silently.
+
+**Type 6: URL-based video** (Loom — `loom.com/share/...` — and comparable hosted video
+platforms: Wistia, Vidyard, etc.)
+
+For Loom links, navigate Chrome to the URL. Loom renders a transcript panel alongside the
+player — extract it via:
+
+```javascript
+document.querySelector('[data-testid="transcript-panel"]')?.innerText
+// fallback if selector changes:
+Array.from(document.querySelectorAll('[class*="transcript"]')).map(el => el.innerText).join('\n')
+```
+
+If the transcript panel is absent (some Loom plans don't generate transcripts), look for a
+Download button to save the `.mp4` and fall back to the Type 5 Whisper transcription
+pipeline. For other hosted platforms (Wistia, Vidyard), attempt the same transcript
+extraction first; if unavailable, check whether the embed page exposes a download link,
+then fall back to Whisper.
+
+Treat the resulting transcript as a first-class diligence artifact — fold it into the
+source bundle under `==== DILIGENCE MATERIALS ====` with a `--- Material: <name> (Loom
+transcript) ---` header, and cite it in the Context section footnotes and terminal Sources
+section like any other diligence material.
+
 ### 1d. Gather Founder-Specific Evidence
 
 For each founder named on the Opportunity (extract from the Opportunity page properties and the
@@ -186,6 +246,28 @@ Select the frameworks most relevant to the specific opportunity — not all will
 force to every deal. The selection should feel natural and evidence-driven, not forced. Evaluate
 each selected framework against the opportunity, with attention to whether the founders are
 proactively surfacing these themes (unprompted) vs. responding to investor questioning.
+
+**Memo manifest — capture and use as the authoritative source set.** As you read each memo,
+build an explicit manifest: `{company name → Drive file URL → frameworks extracted}`. This
+manifest is the **only** set of companies you may later cite as "the [X] memo" or quote from
+as memo content. Any portfolio company NOT in this manifest has no memo readable for this run
+— do not invent one, do not infer one from the company's Opportunity page body, and do not
+upgrade decision-retro snippets or call-note prose into "memo" framing. Carry the manifest
+forward into Step 3; the Reference Documents section in Step 5 must reconcile against it.
+
+### 1f. Load Feedback Patterns
+
+Read `/Users/tomseo/.claude/skills/first-pass-diligence/FEEDBACK_PATTERNS.md`. This file
+accumulates Tom's Slack-thread feedback on prior published first-passes — soft taste
+corrections that aren't absolute rules but should shape draft choices ("the Tuor analog
+tends to be forced for B2B fintech", "Section 4 prose was too dense in Shine", "regulatory
+framing should be cut when sector isn't actually regulated"). Treat each entry as a
+context signal, not an override: if a pattern conflicts with this deal's specific evidence
+base, the evidence wins — but flag the conflict in the publish summary so Tom knows you
+saw the pattern and chose to deviate.
+
+If the file is empty or only contains the header comment, that's fine — the corpus
+builds over time. No action needed beyond reading.
 
 ---
 
@@ -242,9 +324,94 @@ on a topic, say so explicitly rather than filling space with generic language.
 Do NOT lead the body with a date stamp (`*April 27, 2026*` etc.). The Notion page title
 already carries the date (`[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY`),
 and the PDF subtitle does too. A leading body date is redundant and reads as a small
-production error. Start the body directly with the lead paragraph.
+production error. Start the body directly with the **Context** section, then proceed into
+Framework Mapping. Context has three subheaders — rendered as **bold text only, not
+underlined headings and not H-level headings**: Company Overview, Working Thesis, and
+Materials & Sources Reviewed.
+
+**Citation style — document-wide:** Use footnote numbers in brackets — `[1]`, `[2]`, etc. —
+rather than inline parenthetical references **throughout the entire document**, including
+Framework Mapping, Founder Evaluation, Market Context, and every other section. Never write
+"(per the deck)", "(per the May 13 call)", "(per the unit economics primer)", or any similar
+parenthetical anywhere in the output. At the end of the Context section (immediately before
+Framework Mapping), include a compact footnote block where each entry uses `^N` at the start
+of the line (caret + number, no brackets, no colon):
+
+> The deck positions the company as a data layer for property managers [1], and the March 19
+> call elaborates on the regulatory strategy [2].
+>
+> ^1 Company Name — Investor Deck (March 2026)
+> ^2 Reed & Nolan Intro Call — March 19, 2026
+
+**Why `^N` not `[^N]:`:** Notion interprets `[^N]:` as a reference-link definition and
+mangles it into `[\[N\]](N):` on save. `^N` at the start of a line is inert to Notion's
+parser and survives the round-trip intact. Inline `[N]` markers are stored by Notion as
+`\[N\]`; the PDF builder's artifact cleanup converts them back to `[N]` before applying
+superscript rendering. Both formats are handled automatically — just write them as shown.
+
+Sources that are obvious from context may be cited without a number — reserve footnote
+markers for cases where the specific source artifact matters.
 
 The analysis follows this exact structure:
+
+**Context**
+
+**Company Overview**
+A factual 1–2 paragraph description of the company: what the product does, who it
+serves, business model basics, stage, and the current round context. Draws on the
+full Notion Opportunity record — page body, properties (Description, Founder
+Description, Round Details, HQ, stage), all linked Notes (call notes, intro
+context), and Diligence Materials (deck, one-pager, memo, data room contents).
+The reader should finish this section knowing what the business is, who it's for,
+and where it sits in its lifecycle — before any analytical framing kicks in.
+
+This section is **descriptive, not evaluative**. No thesis claims, no framework
+references, no "we like this because…" language. If the materials disagree on a
+basic fact (e.g., deck says X customers, one-pager says Y), surface the discrepancy
+factually here rather than resolving it.
+
+**Working Thesis**
+The founder's view of what this company is betting on.
+
+If the founder has articulated their own thesis in any captured source — a call
+(transcript or Tom's notes), the deck, a one-pager, an investor update, a written
+memo — capture it verbatim or in close paraphrase, and cite the source inline
+("From the March 19 intro call:…" / "The deck frames the thesis as:…").
+
+If no explicit founder thesis is present in any captured source, **synthesize an
+implicit thesis from the materials and call transcripts** — state, in 3–5 sentences,
+what the cumulative evidence suggests the company is betting on. You have enough source
+material to synthesize — do NOT punt with "thesis unclear" if call transcripts and
+materials are in hand. Every claim in a synthesized thesis must be traceable to a source
+via the Context footnote system — the synthesis is auditable or it doesn't ship.
+
+**Stay in the founder's frame.** This section is the founder's bet, not Inverted's
+read on it. Do NOT layer in framework references, decision retros, memo analogs,
+or "this maps to our [X] framework" framing — that is the explicit job of Framework
+Mapping below. Everything that follows develops, stress-tests, or qualifies this
+working thesis.
+
+**Materials & Sources Reviewed**
+An upfront inventory of what was scanned to produce this analysis, organized by
+type. This is distinct from the terminal **Sources** section at the end of the
+document (which is the clickable audit trail with full URLs and annotations); this
+upfront block gives the reader at-a-glance scope of what informed the doc before
+they read the analysis.
+
+Format as a bulleted list grouped by source type — one line per entry, terse:
+- **Notion Opportunity** — page name (no URL; the terminal Sources section carries it)
+- **Call notes** — title + date for each note in the ✍️ Notes relation
+- **Diligence Materials** — name each: deck, one-pager, memo, data room contents
+- **Founder evidence** — LinkedIn profiles scraped, online presence sources
+  consulted (no URLs here)
+- **Inverted memos referenced** — list the investment memos actually drawn on in this analysis
+- **External research** — high-level categories surveyed (competitive landscape,
+  market sizing, regulatory environment) — full URLs live in the terminal
+  Sources section
+
+Keep entries terse — this is an inventory, not the audit trail. If a category
+was not consulted (e.g., no diligence materials yet), omit the row rather than
+writing "None" — the absence is itself informative.
 
 **Framework Mapping — Inverted Lens**
 Evaluate the opportunity against the Inverted Lens frameworks that are most relevant to this
@@ -259,12 +426,44 @@ For each selected framework, write a subsection with a descriptive header (e.g.,
 as the Driver of Enduring Value" — not numbered, not abbreviated). Each framework subsection
 must contain **multiple substantive paragraphs** (3-5 paragraphs minimum) that:
 - Develop the analytical argument with evidence from the diligence record
-- Cross-reference how the framework has been applied in other Inverted portfolio memos (e.g.,
-  "Just as Rengo compounds a data asset for each PE firm through structured portfolio monitoring
-  data..." or "The parallel to the Inverted portfolio is direct...") — this grounding in the
-  portfolio vocabulary is essential
+- Cross-reference how the framework has been applied in other Inverted portfolio memos — but
+  **only at the framework-label level** unless quoting verbatim from a manifest memo (see
+  "Analog claims — verbatim-or-label rule" below). Acceptable: "Rengo's memo anchors the
+  data-asset compounding framework in PE-firm portfolio monitoring data." Unacceptable
+  without a quoted manifest source: any biographical or operating-history claim about an
+  analog founder ("X spent years doing Y", "X's anchor was Z", "X built the company by W").
 - Surface tensions, caveats, and honest assessments of where the mapping is strong vs. weak
 - Note whether the founder is proactively raising the theme vs. responding to investor questioning
+
+**Analog claims — verbatim-or-label rule.** When invoking a portfolio company as an analog,
+you have two and only two options:
+
+1. **Framework-label reference (no quote required):** State the framework the analog company
+   maps to, using only the company name and a high-level description of HOW the framework
+   applies, sourced from that company's `Description` or memo first paragraph. Example:
+   "Rengo applies the data-asset compounding framework — structured portfolio monitoring data
+   accruing per PE firm." No founder names, no biographical detail, no operating-history
+   claims, no quotes.
+2. **Verbatim-quote reference (memo manifest entry required):** Quote a specific passage from
+   the analog's memo (which must be in the Step 1e manifest) and attribute it explicitly:
+   "The Tuor memo writes: '<verbatim quote>'." Then connect the quoted passage to the
+   subject company's situation. Quotes must be exact; do not paraphrase and frame as a quote.
+
+**Anything in between is forbidden.** Specifically, do NOT write any of the following without
+a verbatim manifest-memo quote backing it up:
+
+- Founder biographical detail for the analog company ("X spent a decade in finance", "X built
+  in vertical Y for years", "X's prior failure was Z")
+- Operating-history framing for the analog company ("X lived inside the workflow", "X earned
+  the right to build by doing Y")
+- Behavioral or stylistic characterization of the analog founder ("X is a forward-deployed
+  operator", "X's edge is unprompted structured thinking")
+- Implied causal stories about why the analog succeeded ("X's bet was that A would lead to B")
+
+These are the specific failure modes the Kestrel first-pass (2026-05-13) exhibited — none of
+the analog biographical detail there was traceable to a source, and several claims were
+fabricated to fit the analogy. When in doubt, drop to the framework-label form. Better to say
+less, accurately, than more, imaginatively.
 
 **Grounding portfolio references — MANDATORY guardrail.** When citing companies as Inverted
 portfolio examples ("Just as Rengo…", "The parallel to the Inverted portfolio…", etc.), the
@@ -282,6 +481,26 @@ include Clusia and Third Space (Tom analyzed and gave feedback on both; neither 
 If you find yourself about to name a company you haven't verified against the live Opportunities
 DB query, stop and re-verify.
 
+**Memo citation traceability — MANDATORY guardrail.** Every memo citation in the analysis must
+trace to the Step 1e memo manifest. Concretely:
+
+- Before writing "the [X] memo", "the original Inverted memo on X", or any quoted phrase
+  attributed to a memo, look up X in the manifest. If X is not there, **you did not read its
+  memo and it does not exist for this run.** Drop the citation, or reframe without memo
+  attribution (e.g., "Suppli, also in the portfolio, took a similar approach" — no quote, no
+  "memo says").
+- **`DECISION_RETROS.md` is not a memo source.** Phrases, framework ideas, or characterizations
+  pulled from retro nuggets are decision-retro content. Never quote a retro line as if it
+  came from a memo, and never group retro-sourced citations under a "memo set" framing
+  ("frameworks derived from the memo set covering A, B, C, D…" must list ONLY manifest
+  entries). If a retro nugget is genuinely useful, cite it explicitly as "Tom's decision
+  retro on [company]" — not as a memo.
+- Portfolio status alone does NOT imply a memo exists. Suppli and MakersHub are portfolio
+  companies; neither has a memo in the Drive folder (as of 2026-05-14). Do not infer the
+  existence of a memo from Active Portfolio / Committed status.
+- Before submitting Step 5, scan the draft for every occurrence of "memo" referencing a
+  named company and verify each named company appears in the manifest. Drop the rest.
+
 **Portfolio facts — analog truthfulness.** Naming a real portfolio company is necessary but not
 sufficient. Every characterization of what that company does, sells, buys, or has done as a
 business ("Quiet's wedge into AI-native compliance", "Rengo compounds a data asset for PE firms",
@@ -294,6 +513,35 @@ submitting, scan every sentence containing a portfolio-company name and ask: "Di
 fact, or did I shape it to fit the analog?" If the answer is the latter, cut it. The same rule
 applies to characterizations of named individuals (founders, references, executives) — every
 biographical or behavioral claim must trace to a source, not be confected to fit the analogy.
+
+**Founder names — exact-match verification before writing.** Any time you write a founder's
+name in the analysis (including analog companies in the Framework Mapping section), verify the
+**exact spelling of both first and last name** against a primary source for THAT company —
+the Opportunity row's `🏁 Founder(s)` relation, the Opp `Contact` email (e.g.,
+`rayers@gosuppli.com` → "Ayers"), or the company memo if one is in the manifest. **Do not
+write a founder name from memory or pattern-match against common surnames.** Concrete prior
+incident: Kestrel first-pass (2026-05-13) named Suppli's founder as "Ryan Walsh" when the
+Opp `Contact` field plainly reads `rayers@gosuppli.com` (Ryan Ayers). Pre-submit, scan every
+proper noun naming a founder and confirm it traces to a primary source. If you cannot verify
+the surname, use first-name-only ("Ryan at Suppli") rather than guessing.
+
+**Analog-company fact pre-fetch — MANDATORY before writing Framework Mapping.** Before composing
+any analog passage that names a portfolio company AND attributes biographical / operating-history
+detail to a founder there ("X's anchor was Y", "X spent years doing Z", "X built the company by
+doing W"), fetch that company's Opportunity row and read **at minimum** the `Name`,
+`Description`, `Founder Description`, `Contact`, and `🏁 Founder(s)` properties. If the analog
+also has a memo in the Step 1e manifest, read it. **Do not write analog-company biographical
+detail from prior conversation, training data, or pattern-match against the company name.**
+Concrete prior incident: Kestrel first-pass (2026-05-13) wrote "Oun Homes, where Robert's anchor
+was years of physical builds" — the Oun Homes Opp `Contact` is `santi@oun.homes; pj@oun.homes`
+(founders Santi and PJ, not Robert), and the Opp `Description` is "Buyer-led operating system
+for the entire home buying journey" (a software OS, not physical building). Both the name and
+the operating-history framing were confected to fit an analogy. If you cannot locate the
+specific biographical fact you want to claim in the Opp properties or a manifest memo, **cut
+the analog** — do not invent the fact, and do not weaken to a vaguer version of the same
+fabrication ("operator orientation", "lived in the space" without grounding). A good analog
+requires a real, sourced parallel; a bad analog masquerading as a real one is worse than no
+analog at all.
 
 **Third-party company truthfulness (non-portfolio).** The same source-or-drop rule applies to any
 named third-party company used as a comp, GTM analog, or ecosystem reference (e.g., "Oun answers
@@ -631,6 +879,13 @@ available is a miss.
    Founder backgrounds, solution architecture, GTM strategy`. For Google Drive files, link
    directly: `[Clusia Memo](https://drive.google.com/file/d/<id>/view)`.
 
+   **Memo entries must reconcile against the Step 1e manifest.** Every `Inverted Capital Memo:
+   [X]` (or equivalent memo-citation) entry must correspond to a memo actually fetched in
+   Step 1e, with the URL pointing to the manifest's Drive file — not a guessed Notion page ID
+   for the Opportunity, and not the Opportunity page itself. If a portfolio company has no
+   memo in the manifest, do not list it under memos. It may still appear elsewhere in
+   Internal Materials (as an Opportunity page, a call note, etc.) with accurate labeling.
+
 2. **External References** — every web source researched in Step 2 MUST include the URL.
    Format: `[Source Name](URL) — brief relevance annotation and key data contributed`. Group
    logically (Founder Backgrounds, Competitive Landscape, Market Data, Regulatory, etc.) with
@@ -726,10 +981,218 @@ If you catch yourself doing any of these, stop and correct:
     construction, or logistics company as operating in a regulated-adjacent space, requiring a
     licensed partner, or needing a BaaS structure, simply because the current opportunity
     involves financial infrastructure. See the Regulatory framing guardrail in Framework Mapping.
+17. **Citing a memo for a portfolio company whose memo you did not read** — naming "the [X]
+    memo" or quoting from it when X is not in the Step 1e memo manifest. Portfolio status does
+    not imply a memo exists. Concrete prior incident: Kestrel first-pass (2026-05-13) cited
+    "the original Suppli memo" with a verbatim quote and grouped MakersHub into the "memo set"
+    framing — the quote came from `DECISION_RETROS.md`, not a memo, and no MakersHub memo
+    exists. See the Memo citation traceability guardrail in Framework Mapping.
+18. **Upgrading decision-retro snippets to memo content** — quoting a line from
+    `DECISION_RETROS.md` as if it appeared in a memo, or listing a retro-sourced company in
+    "the memo set covering A, B, C…". Retro nuggets are retro nuggets — cite them as such if
+    used at all.
+19. **Hallucinated founder names** — writing a founder's surname from memory or pattern-match
+    rather than verifying against a primary source on that specific company. The Suppli Opp
+    `Contact` field is `rayers@gosuppli.com` (Ryan **Ayers**), but the Kestrel first-pass
+    wrote "Ryan Walsh" — a pattern-match against a common surname, with no traceable source.
+    See the Founder names guardrail in Framework Mapping.
+21. **Fabricated time-with-founders figures** — stating "X minutes of conversation" or "X hours
+    with the team" without deriving the number from a verifiable source. The only valid sources
+    are: (a) the calendar event duration, (b) an explicit timestamp range in the transcript, or
+    (c) multiple call events summed from calendar data. Never infer call length from transcript
+    length or guess a round number. If the duration is not verifiable, write "one call" or
+    "the May 13 call" — not a time figure.
+20. **Internal step references in output** — writing "Step 1e memo", "Step 1e manifest",
+    "the Step 1e manifest entry", or any reference to internal skill step numbers in the
+    published analysis. These are drafting-process labels that should never appear in output.
+    In the document, always say "the investment memos", "the Inverted portfolio memos", or
+    name the specific memo by company — never "Step 1e".
 
 ---
 
 ## Step 4: Create the Notion Page
+
+### 4a. Pre-Publish Lint — MANDATORY GATE
+
+Before writing the analysis to Notion, run the deterministic verification pass at
+`/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_lint.py`. The lint
+catches the specific hallucination classes that prose-level guardrails have failed to
+prevent (Kestrel-Suppli "Ryan Walsh", Kestrel-Oun "Robert", fabricated memo
+citations, Clusia/Third Space portfolio misattribution, fabricated burn-rate
+numerics, and uncited synthesized Working Thesis claims).
+
+**Build the manifest first.** Write a JSON file to a tmp path with this shape:
+
+```json
+{
+  "subject_company": "<name>",
+  "memo_manifest": {"<analog company>": "<drive_url>", ...},
+  "portfolio_set": ["<active+exited+committed companies from Opps DB>"],
+  "founder_names_by_company": {
+    "<subject company>": ["<founder full names from 🏁 Founder(s) + Contact email surnames>"],
+    "<each analog company referenced in draft>": ["<their founders>"]
+  },
+  "narrator_names": ["Tom", "Claude"]
+}
+```
+
+Sources for each manifest field:
+- `memo_manifest` — exactly the manifest you built in Step 1e (company → Drive URL)
+- `portfolio_set` — query Opps DB for `Status IN ("Active Portfolio", "Exited", "Committed")`
+- `founder_names_by_company` — for the subject company AND every analog company named
+  in the draft's Framework Mapping section, pull from that company's Opp row: the
+  `🏁 Founder(s)` relation (People DB names) + `Contact` email local-parts where they
+  resemble surnames (`rayers@gosuppli.com` → add "Ayers" as a candidate). Analog
+  company founder sets MUST be populated — this is the check that catches the Kestrel
+  failure mode.
+- `narrator_names` — defaults `["Tom", "Claude"]`; extend if other narrator names
+  appear in the doc.
+
+**Write the draft markdown to a tmp file**, then run the lint:
+
+```bash
+python3 /Users/tomseo/.claude/skills/first-pass-diligence/first_pass_lint.py \
+  --draft /tmp/firstpass_draft.md \
+  --manifest /tmp/firstpass_manifest.json
+```
+
+**Hard gate.** Exit code 0 = proceed to 4b. Exit code 1 = STOP. For each finding,
+either (a) fix the draft and re-run, or (b) verify the finding is a genuine false
+positive against the source materials and explicitly note the suppression in the
+publish summary you surface to Tom. Do NOT publish past a failing lint without
+explicit acknowledgement of each finding. "Lint failed but I shipped anyway" is the
+exact behavior this gate exists to prevent.
+
+The lint is a floor, not a ceiling — passing it doesn't mean the draft is correct,
+only that the documented failure classes are absent. The prose-level guardrails in
+Step 3 still apply.
+
+### 4b. LLM Audit — MANDATORY SURFACE
+
+After the deterministic lint passes, run the Layer 2 LLM-judge audit at
+`/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py`. Where the
+lint catches surface-form hallucinations with regex, the audit catches the subtler
+class — claims that don't trip any regex but whose substance isn't traceable to
+the source bundle (analog-biographical fabrications, characterizations of analog
+companies that don't appear in their memos, founder-history claims without
+sourcing).
+
+**Build the source bundle first.** The audit needs every piece of source material
+the drafter consumed, concatenated into a single markdown file with clear
+delimiters. Write `/tmp/firstpass_sources.md` with this structure:
+
+```markdown
+==== OPPORTUNITY PAGE ====
+
+<full Opp page body, including properties summary>
+
+==== LINKED NOTES ====
+
+--- Note: <title> (<date>) ---
+<full content, including transcript where present>
+
+--- Note: <title> (<date>) ---
+<full content>
+
+==== DILIGENCE MATERIALS ====
+
+--- Material: <name> ---
+<full extracted text from deck/one-pager/memo/data room>
+
+==== INVESTMENT MEMOS (Step 1e manifest) ====
+
+--- Memo: <company> ---
+<full memo text>
+
+==== ANALOG COMPANY OPP ROWS ====
+
+--- Opp: <company> ---
+<Description, Founder Description, 🏁 Founder(s), Contact, page body — for every
+analog portfolio company named in the draft's Framework Mapping section>
+
+==== EXTERNAL RESEARCH ====
+
+--- Source: <URL or title> ---
+<key data points and quotes from web research>
+```
+
+The audit is **only as good as the bundle**. If you omit a source the drafter
+actually used, the judge will mark its claims untraced and flag false positives.
+Conversely, if the bundle includes a source the drafter never actually drew on,
+no harm — the judge only checks claims, not coverage.
+
+**Run the audit:**
+
+```bash
+python3 /Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py \
+  --draft   /tmp/firstpass_draft.md \
+  --sources /tmp/firstpass_sources.md \
+  --output  /tmp/firstpass_audit.json
+```
+
+Default model is `claude-sonnet-4-6`. Typical latency: 1–3 minutes per chunk.
+
+**Source-bundle chunking — automatic above 80KB.** The audit auto-chunks the source
+bundle at section boundaries (`==== … ====`) when it exceeds 80KB, targeting ~50KB
+per chunk. Each chunk is judged independently against the full draft, then results
+are merged: a claim is `traced` if ANY chunk found a source for it (positive
+evidence trumps absence in any single chunk). This addresses the long-context
+fidelity decay we saw on the Kestrel 2026-05-14 run, where a 200KB un-chunked
+bundle pushed Sonnet past its timeout and the Haiku fallback started fabricating
+findings ("judge hallucinations") by iter2.
+
+To force a single-pass un-chunked audit (for small bundles or debugging), pass
+`--chunk-size 0`. To override the chunk size, pass `--chunk-size <N>`.
+
+**Iteration loop — drafter resolves untraced claims before publish.** When the
+audit returns `untraced` claims (exit 1), the drafter is responsible for working
+through them before publish — not just dumping them at Tom. The loop:
+
+1. **Read each untraced finding.** For each, classify the failure:
+   a. **Load-bearing fabrication** → cut the claim from the draft. If the
+      surrounding paragraph collapses without it, rewrite the paragraph
+      without the claim.
+   b. **Real claim, missing citation** → the substance is sourced but you
+      didn't mark the citation inline. Add the inline citation pointing to the
+      source (e.g., `(per the March 19 call)`, `the deck states:…`).
+   c. **Forced characterization** → the named entity is real but the
+      characterization is invented (e.g., "Rengo compounds a data asset" is
+      real; "Rengo's CEO is forward-deployed" is invented). Cut the invented
+      half, keep the real half.
+2. **Re-write `/tmp/firstpass_draft.md`** with the resolutions applied.
+3. **Re-run the audit** against the updated draft.
+4. **Cap at 3 iterations.** If untraced count still > 0 after 3 iterations, stop
+   iterating and surface the remaining findings to Tom in the publish summary
+   (the alert's `⚠️` line + a Notion page note). Three rounds is enough — past
+   that, the residual findings are usually subtle calls Tom needs to make.
+
+**`partial` claims are NOT auto-resolved by the iteration loop.** Partial means
+"entity is real but the characterization may be off" — exactly the kind of taste
+call only Tom can make. Every partial claim goes to Tom in the publish summary
+regardless of how many iterations the loop ran.
+
+**Surface what remains.** After the loop terminates (either at 0 untraced or at
+the 3-iteration cap), the publish summary you send to Tom must include:
+
+- The final iteration count and the audit JSON output path.
+- Every remaining `untraced` claim (if any) with the judge's notes — so Tom can
+  see what the drafter couldn't resolve.
+- Every `partial` claim with the judge's source quote and gap note.
+
+The Slack alert appends `⚠️ Audit: <N> untraced, <M> partial after <K>
+iterations` as a fourth line when any findings remain. If the loop reaches 0
+untraced and 0 partial cleanly, no `⚠️` line — the alert stays at three lines.
+
+**Exit codes (from the audit script, not the iteration loop):** `0` = zero
+untraced this run; `1` = at least one untraced this run; `2` = judge invocation
+or parse failure. Code 2 STOPS the iteration loop and the publish — investigate.
+Codes 0 and 1 drive the loop above.
+
+**Never auto-strip silently.** Every iteration's revisions are visible to Tom
+in the diff between the original draft snapshot (stored at
+`/tmp/firstpass_draft.iter0.md` before the first audit) and the final draft.
+Save each intermediate iteration to `/tmp/firstpass_draft.iterN.md` so Tom can
+reconstruct the loop's edits if needed.
 
 ### Notion Table Formatting
 
@@ -775,7 +1238,7 @@ pages: [{
 
 Save the resulting Notion page URL — it will be referenced in the PDF and the Signal alert.
 
-### 4b. Set the Claude Logo Icon
+### 4c. Set the Claude Logo Icon
 
 Immediately after creating the page — before moving to Step 5 — set the page icon to the custom
 Claude logo emoji. This is what lets Tom visually distinguish Claude-generated analysis from his
@@ -977,17 +1440,19 @@ Act autonomously — do not ask for permission. Report what was done in the summ
 ### 6b. Send the alert
 
 Read the `send-alert` skill (`**/send-alert/SKILL.md`) for delivery and format conventions.
-Send the alert as **exactly 2 lines** — the standard webhook-alert shape used by
-meeting-note-processor and other webhook-triggered skills. No header line, no blank lines,
-no trailing flags.
+Send the alert as **exactly 3 lines**. No header line, no blank lines between lines, no
+trailing flags. The third line is the feedback prompt that closes the learning loop —
+Tom's thread replies are routed through `claude-alerts-listener` and appended to
+`FEEDBACK_PATTERNS.md` (loaded in Step 1f of future runs).
 
-**Alert body — exactly 2 lines. Use GFM `[text](url)` link syntax, NEVER Slack mrkdwn `<url|text>` syntax** (the converter passes Slack mrkdwn through as literal text inside the underline+bold wrapper, which is what produced broken alerts in the past):
+**Alert body — exactly 3 lines. Use GFM `[text](url)` link syntax, NEVER Slack mrkdwn `<url|text>` syntax** (the converter passes Slack mrkdwn through as literal text inside the underline+bold wrapper, which is what produced broken alerts in the past):
 
 Template (substitute the three values directly — do not keep angle brackets around the placeholders):
 
 ```
 🪏 <u>**First Pass Diligence: [COMPANY_NAME](OPP_URL) ([PDF](PDF_URL))**</u>
 ONE_LINER_SUMMARY
+💬 Reply in thread with any takeaways for next time.
 ```
 
 Concrete example of the rendered body that should be piped into `send.sh`:
@@ -995,11 +1460,15 @@ Concrete example of the rendered body that should be piped into `send.sh`:
 ```
 🪏 <u>**First Pass Diligence: [Shine](https://www.notion.so/35700beff4aa8147b93ede0f63694110) ([PDF](https://drive.google.com/file/d/1mjbovMWmrjdYWCqc6RNnlbhHfuxFxdHW/view))**</u>
 Moderate founder pair; wedge is real but UserEvidence and Listen Labs are 10-50x better-capitalized.
+💬 Reply in thread with any takeaways for next time.
 ```
 
 Conventions:
 - **Line 1 — bolded title with two links.** `🪏` (pickaxe emoji) outside the wrapper, then `<u>**...**</u>` wrapping the title `First Pass Diligence: COMPANY (PDF)`. The company name is hyperlinked to the Notion Opportunity URL (NOT the analysis page URL). The literal text `PDF` (in parens) is hyperlinked to the Drive PDF URL returned from step 6a.
 - **Line 2 — one-liner summary.** Plain text, no bold, no bullets, no links. 1–2 sentences max — what Tom needs to know before clicking through. Lead with the most important signal (e.g., "Strong founder fit + obvious market, but $3M seed is later than my typical entry — fund-fit pass.").
+- **Line 3 — feedback prompt.** Literal text `💬 Reply in thread with any takeaways for next time.` Do not modify or personalize. The static prompt is the trigger `claude-alerts-listener` keys on for routing first-pass feedback to `FEEDBACK_PATTERNS.md`.
+
+If the lint or audit surfaced findings that publish-proceeded with caveats, append a fourth line (after the feedback prompt) starting with `⚠️ ` and naming the count and category — e.g. `⚠️ Audit flagged 2 untraced claims; see Notion page note for details.`
 
 If for any reason the PDF upload (step 6a) failed and only the Notion analysis exists, replace `([PDF](PDF_URL))` on line 1 with `([analysis](NOTION_ANALYSIS_URL))` so the user always has one click-through. Do NOT skip the alert.
 

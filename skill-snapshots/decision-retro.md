@@ -193,7 +193,7 @@ Triggered by the `claude-job-queue` processor with args `{ mode: "webhook-prompt
 **Behavior (per invocation):**
 
 1. Load `queue.json`. If an entry with matching `{scope, neg1_page_id}` already exists with `status ∈ {"prompted", "completed", "skipped"}`, exit silently (dedup — the scheduled scan may have beaten us, or this is a retry). Log reason.
-2. Fetch the target page via `mcp__claude_ai_Notion__notion-fetch`.
+2. Fetch the target page via `mcp__claude_ai_Notion__notion-fetch`. The target is the Opp or -1 page — no transcript content exists, so do NOT pass `include_transcript: true` here. **Exception for Lookup mode:** if the Lookup ever fetches a linked Notes-DB page that IS a meeting note (e.g., a specific call note Tom asks to revisit), pass `include_transcript: true` on THAT fetch only — the workflow is then summarizing call content.
 3. Compose the Slack prompt per scope. For `scope="neg1"` use this template exactly (GFM markdown — `[text](url)` for links, `**text**` for bold). `md_to_blocks.py` converts to Slack Block Kit; Slack mrkdwn (`<url|text>`, `*text*`) ships as literal text / renders italic:
 
    ```

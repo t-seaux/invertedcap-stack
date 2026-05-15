@@ -66,10 +66,13 @@ are either computed or populated by other workflows.
    URL. This is the preferred method — faster and more reliable than the browser sidebar. If the
    MCP returns a work email and/or personal email, use those. Prioritize the work email (company
    domain) unless this is a `-1` entry (see add-to-crm rules), in which case prioritize personal email.
-4. **Profile photo extraction:** If ContactOut enrichment was performed via `contactout_enrich_linkedin_profile`
-   or `contactout_enrich_person`, check for a `profile_picture_url` in the response. Save this URL
-   for use as the Notion page icon in Step 4. If no ContactOut profile photo is available, skip —
-   do not set a page icon (no emoji fallback for People entries).
+4. **Profile photo extraction — always required:** Get `profile_picture_url` for the page icon.
+   - If step 3 (`contactout_enrich_person`) returned a `profile_picture_url`, use it.
+   - If step 3 returned no photo or 404'd, call `contactout_enrich_linkedin_profile` with
+     `profile_only: true`. This endpoint returns the photo even when `contactout_enrich_person`
+     has no record. Save the `profile_picture_url` from the response.
+   - Run these in parallel with step 3 when practical to save time.
+   - If both ContactOut calls return no photo, leave the icon unset — no emoji fallback for People entries.
 5. **Cache raw ContactOut payloads.** After each ContactOut MCP call in steps 3 and 4, write the
    raw response payload to `~/.claude/plugins/data/contactout-enrichment-inline/people/{vanity}.{endpoint}.json`
    using the Write tool, BEFORE extracting any fields. The vanity slug is the LinkedIn URL's last
@@ -173,10 +176,9 @@ to empty strings or placeholders.
 **Page body: always leave blank.** Do not add any text content to the page body — no bio, no
 summary, no notes. Properties only. Tom manages body content separately.
 
-**Page icon — LinkedIn profile photo:** If a `profile_picture_url` was captured in Step 1, set
-it as the page `icon` (external image URL) when creating the page. This makes the People database
-visually scannable. If no profile photo URL is available, omit the icon field entirely — do not
-fall back to an emoji for People entries.
+**Page icon — LinkedIn profile photo:** Always set the page `icon` to the `profile_picture_url`
+captured in Step 1. This makes the People database visually scannable — Tom requires it. If both
+ContactOut calls returned no photo, omit the icon field entirely — no emoji fallback for People entries.
 
 **Do not confirm with the user before creating** — Tom wants this to be fast. If the LinkedIn
 profile is clear and unambiguous, just create the entry. If something is genuinely unclear (e.g.,

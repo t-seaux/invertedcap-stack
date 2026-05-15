@@ -25,6 +25,8 @@ that Tom can send with minimal or zero edits — it must sound exactly like him.
 Read the Style Guide section carefully before drafting anything. Tom's voice is specific and
 consistent, and getting it right is the whole point.
 
+> ⚠️ **Non-skippable check, every run:** before drafting any pass note, you MUST inspect the Opportunity page body for a "Pass Note Guidance" section (see Step 3f). This applies to every Opp, in both Mode A and Mode B. Tom sometimes drops raw notes there to steer the draft — missing them when they exist produces a wrong-substance draft. Absence is a valid outcome; skipping the check is not.
+
 ---
 
 ## Notion Context
@@ -163,7 +165,27 @@ For each confirmed "Pass Note Pending" opportunity, collect:
 **3e. Opportunity body**
 - Read the `Description` and any body content on the Opportunity page itself for additional context (e.g., how the deal came in, quick notes Tom may have left).
 
-**3f. First-pass diligence doc (if present)**
+**3f. Pass Note Guidance from Tom — MANDATORY CHECK**
+
+> **This check runs on every single Opp, every single time — Mode A sweep and Mode B webhook alike. There is no skip path. Absence of a guidance section is a valid outcome; not checking is not.** Tom may have dropped in-his-head notes here giving you a quick read on where he landed — what to lean into, what the actual pass reason is, things to acknowledge, things to avoid — and missing those notes when they exist would produce a wrong-substance draft. So you always look.
+
+- Scan the Opportunity page body for a section labeled **"Pass Note Guidance"** (accept casing/punctuation variants: `pass note guidance`, `Pass-Note Guidance`, `Pass note guidance`). Use `notion-fetch` on the Opp page and walk its block children — do not rely solely on the Description property or a preview snippet, since guidance lives deeper in the body.
+- **If the section is absent:** note that explicitly in your internal context as "no Pass Note Guidance found — proceeding from other sources" and continue. Do not silently skip the step; the explicit absence-note is what proves the check ran.
+- **If the section is present:** capture its full contents and apply the priority rules below.
+- **Label format is flexible — match any of these shapes:**
+  - A Notion `heading_1` / `heading_2` / `heading_3` block whose text equals the label.
+  - A `paragraph` block whose entire content is bolded text equal to the label (Tom's most common format — e.g., a single bolded line `Pass Note Guidance` sitting on its own paragraph, followed by bullets).
+  - A `paragraph` block that begins with the bolded label followed by inline content (rarer, but accept it).
+- **Section boundaries:** the section starts immediately after the label block and extends until the next heading block, the next standalone bolded-label paragraph that looks like a new section marker, or the end of the page — whichever comes first. Captured content can be paragraphs, bullets, numbered list items, or a mix.
+- If present, treat the contents as **direct authorial intent, not background context.** It outranks the call notes, materials, and first-pass diligence doc when those conflict with it. Tom's guidance is the freshest read on his actual thinking; everything else is upstream signal you used to form a hypothesis.
+- Apply it specifically to:
+  - **Bullet 3 (pass reason):** if Tom's guidance names the reason (e.g., "really it's capital intensity for me," "stage mismatch — too late," "market's fine but the founder felt off"), that reason wins. Do not manufacture a different pass reason just because the materials suggest one.
+  - **Bullets 1 and 2 (what excited him):** if the guidance highlights specific strengths to acknowledge, lead with those.
+  - **Opener and humility close:** if the guidance suggests a particular relational tone (e.g., "make sure he knows I really mean stay in touch" or "this one stung — keep it especially warm"), reflect it.
+- **Do NOT lift Tom's words verbatim into the draft.** The guidance is shorthand; the pass note is finished prose. Filter through Tom's voice per the Style Guide — same as you would with any other source material.
+- If the guidance is ambiguous, brief, or only partial (e.g., just one line: "fund fit, not the company"), use it as the spine and fill in around it from the other sources. If absent, proceed with the rest of the context normally — no special handling needed.
+
+**3g. First-pass diligence doc (if present)**
 - If a first-pass diligence analysis exists for this company (produced by the `first-pass-diligence` skill), read it in full. These docs contain Tom's structured evaluation of the market opportunity, risks, open questions, and conviction gaps — they are high-signal source material for both the "what excited Tom" bullets (1 and 2) and the "where his hesitation lies" bullet (3).
 - Look for first-pass docs via: (a) the `Notes` relation on the Opportunity (first-pass docs are logged to the Notes DB), (b) a Notion search for the company name scoped to diligence pages, or (c) the Diligence Materials field.
 - Draw specifically on: the market sizing section, the thesis/strengths section, and the risks/open-questions section. These map directly onto the three-bullet structure. Do not copy language verbatim — filter through Tom's voice per the Style Guide.
@@ -198,6 +220,8 @@ Before drafting, read the pass-note stylebook:
 - `~/.claude/skills/writing-style/pass-note/VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth.
 
 Both files are auto-maintained by the `draft-feedback` pipeline (FRAMEWORK_PRD.md §13). Patterns are observations, not commands.
+
+**Priority order when sources disagree:** Tom's Pass Note Guidance (Step 3f) > call notes / transcripts > first-pass diligence doc > materials > Opportunity body description. Style Guide always governs voice; the priority order governs *substance* (which pass reason, which strengths to highlight, which tone to strike).
 
 Then produce the email body, following the Style Guide precisely.
 

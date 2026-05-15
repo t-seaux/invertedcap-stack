@@ -78,12 +78,19 @@ Tom says e.g. "process the Inlets call note for intros" or pastes a Notion URL. 
 
 ## Execution Workflow
 
+**Transcript Rule (applies to every `notion-fetch` call on a Notes-DB page in this skill):**
+ALWAYS pass `include_transcript: true`. Verbal intro commitments ("yeah I'll connect you with
+Sarah") almost always live in the raw transcript and get compressed away by Notion AI's
+summary. Without the transcript, this skill's whole reason for existing — catching follow-up
+intros — silently misses cases. Param is a no-op on non-meeting-note pages. No exceptions,
+no "only if needed" — default ON.
+
 ### Step 1: Resolve note + Opportunity (Mode C only)
 
 Mode B inherits these from the caller — skip to Step 2.
 
 Mode C:
-1. Fetch the Notes page via `notion-fetch`. Extract `Name`, `Opportunity` relation, full body.
+1. Fetch the Notes page via `notion-fetch` with **`include_transcript: true`** (MANDATORY — see Transcript Rule below). Extract `Name`, `Opportunity` relation, full body INCLUDING the `<transcript>` block.
 2. If `Opportunity` is empty, run the title-parsing rules from `meeting-note-processor` Mode B-link Step 2 (priority order: meeting-note format → `<X> Feedback` / `<X> Backchannel` → colon-suffixed → paren fallback) to infer the company. Search Opportunities DB; require a confident single match. If ambiguous → ask Tom and stop.
 3. Apply the same skip conditions (Claude prefix, thin content, terminal Pass status).
 
