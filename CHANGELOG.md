@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-18] (Week of 2026-05-18)
+
+**Added:** None
+**Removed:** neg1-sourcing (Pipeline Management)
+**Modified:**
+- `first-pass-diligence` -- added hard rule against bypassing audit script failures with an alert escape hatch; added mandatory Notion property write verification after each Diligence Materials PATCH; added footnote unescaping regex
+- `update-diligence-priors` -- added mandatory pre-PDF lint gate (Step 5a) before each PDF build; enhanced page break rule to insert breaks between every update section in multi-update PDFs; added mandatory Notion property write verification
+**Total skills:** 25
+**Functions:** Pipeline Management -1 (neg1-sourcing removed)
+
+---
+
 ## [2026-05-15] (Week of 2026-05-11)
 
 **Added:** None

@@ -255,6 +255,41 @@ stack multiple date suffixes. Strip the old date portion entirely and replace wi
 
 ---
 
+## Step 5a: Pre-PDF Lint — MANDATORY GATE
+
+After the Notion prepend in Step 5 but BEFORE PDF build in Step 5b, run the
+deterministic shape-rule lint over the FULL updated markdown (new update
+prepended to original). This catches structural failures — malformed update
+headers, missing "New Information Processed" sub-sections, empty NIP lists,
+missing `---` page-break sentinel before the Original First-Pass Memo — that
+would otherwise leak into the PDF and the Slack alert.
+
+Write the rebuilt full markdown to a tmp path (e.g.,
+`/tmp/<company>_updated_full.md`) and run:
+
+```bash
+python3 /Users/tomseo/.claude/skills/update-diligence-priors/update_priors_lint.py \
+    --draft /tmp/<company>_updated_full.md
+```
+
+**Hard gate.** Exit code 0 = proceed to 5b. Exit code 1 = STOP. For each
+finding, fix the underlying issue (typo in update header, forgot the bolded
+NIP bullets, missing `---` sentinel) and re-run the lint. Do NOT proceed past
+a failing lint silently; the rules it catches all manifest in the published
+artifact.
+
+The lint covers (first wave shipped 2026-05-15):
+- **U1** — update header well-formed: `## Update — Month DD, YYYY` (em dash,
+  spelled-out month). Catches numeric dates (`05.15.2026`), wrong dash
+  (`-` vs `—`), missing year/comma/space.
+- **U2** — each `## Update — ...` block contains `### New Information Processed`.
+- **U3** — each NIP section has ≥1 bolded bullet (`- **<label>** — <description>`).
+- **U4** — `---` page-break sentinel directly above `# Original First-Pass Memo —`.
+
+See `update_priors_lint.py --self-test` for the full fixture set.
+
+---
+
 ## Step 5b: Build the Updated PDF
 
 Generate a new PDF containing the full updated analysis — the new update section(s) prepended
@@ -276,7 +311,15 @@ entirely from the filename — the update date is the only date in the name. Exa
 The PDF should contain:
 1. **The full update section(s)** — all updates prepended since the original, newest first,
    rendered exactly as they appear on the Notion page.
-2. **A page break** — insert a `PageBreak()` flowable before the original memo section.
+2. **Page breaks between EVERY major section.** Insert a `PageBreak()` flowable before:
+   - **Every `## Update — ...` section after the first** (so Update #2 starts on its own
+     page, Update #3 starts on its own page, etc. — the very first / topmost Update is
+     the natural top of the doc, no break needed there).
+   - **The `# Original First-Pass Memo — ...` heading** (always — the original memo
+     starts on a fresh page after all the prepended updates).
+   The canonical PDF templates at `~/.claude/skills/shared-references/pdf_builder_template.py`
+   and `pdf_builder_from_md_template.py` implement this automatically in `parse_content()`
+   — just use them. See `long-form-pdf-spec.md` §"Page Breaks Between Sections" for details.
 3. **An H1 header** — `Original First-Pass Memo — [Original Publication Date]` rendered as
    an underlined H1, marking the start of the original analysis.
 4. **The full original first-pass analysis** — everything from Framework Mapping through Sources,
@@ -373,6 +416,14 @@ After upload, link the updated PDF in two places on the Notion opportunity page:
    `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md`. Pass the opportunity
    page ID, the Drive file URL, and display name
    `[Company]_First_Pass_Diligence_MM.DD.YYYY_Update.pdf`.
+
+   **MANDATORY verification — never trust the 200 response alone.** Immediately after the property write, re-fetch the Opportunity page and confirm an entry in the `Diligence Materials` files array has `external.url` matching the Drive URL you just wrote. If absent, the write silently failed (observed Factir 2026-05-15 — PATCH returned 200 but Notion kept the stale URL underneath the new display label). Re-PATCH the full files array explicitly, then re-verify. After 3 retries, surface to Tom rather than publish silently. Reference snippet:
+
+   ```python
+   opp = json.loads(urlopen(Request(f"https://api.notion.com/v1/pages/{OPP_ID}", headers=HDR)).read())
+   urls = {f.get("external",{}).get("url") for f in opp["properties"]["Diligence Materials"]["files"]}
+   assert drive_url in urls, f"Property write did NOT take — URL {drive_url} not in {urls}"
+   ```
 
    If Chrome is unavailable, skip the property field and rely on the page body link.
 

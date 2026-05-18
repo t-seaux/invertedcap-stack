@@ -1188,6 +1188,24 @@ untraced this run; `1` = at least one untraced this run; `2` = judge invocation
 or parse failure. Code 2 STOPS the iteration loop and the publish — investigate.
 Codes 0 and 1 drive the loop above.
 
+**Hard rule — never use the `⚠️ Audit invocation failed` Slack-alert escape hatch.**
+Tom explicitly rejected this pattern on 2026-05-15: publishing the draft with a
+`⚠️ Audit invocation failed on chunk N` line in the Slack alert as a workaround
+when the audit hit exit 2 is **not acceptable**. The `⚠️` 4th line is reserved
+ONLY for the case where the audit RAN cleanly but finished with residual
+untraced/partial findings after the 3-iteration cap. If the audit script itself
+failed to execute (exit 2: timeout, parse failure on all chunks, judge crash),
+the response is to fix the audit script or the judge prompt and re-run — never
+to publish the draft with a caveat line. The audit is the only check that
+catches subtler hallucinations; bypassing it puts the burden on Tom to spot
+what the judge would have caught, which is the exact failure mode he's
+flagged repeatedly. **Diagnostics for common parse failures (all patched 2026-05-15
+in `first_pass_audit.py`):** judge emits bare JSON without the `<audit_report>`
+wrapper (script falls back to bare-JSON extraction now); single chunk's judge
+crashes (script continues past, contributes zero claims from that chunk, only
+aborts if ALL chunks fail). If a new failure mode appears that the script can't
+recover from, patch `first_pass_audit.py` inline and re-run — do not ship.
+
 **Never auto-strip silently.** Every iteration's revisions are visible to Tom
 in the diff between the original draft snapshot (stored at
 `/tmp/firstpass_draft.iter0.md` before the first audit) and the final draft.
@@ -1283,6 +1301,7 @@ md_content = re.sub(r'\\+\$', '$', md_content) # \\$ or \\\$ → $
 md_content = re.sub(r'\\+~', '~', md_content)  # \\~ → ~ (tildes)
 md_content = md_content.replace('\\<', '<')     # \< → < (HTML tag opener)
 md_content = md_content.replace('\\>', '>')     # \> → > (HTML tag closer)
+md_content = re.sub(r'(?m)^\\\^', '^', md_content)  # \^ → ^ at line start (footnote markers; Notion roundtrip escapes ^N)
 md_content = md_content.replace('\\\\', '\\')   # \\ → \ (literal backslash) — apply LAST so prior rules don't double-strip
 ```
 
@@ -1436,6 +1455,14 @@ Act autonomously — do not ask for permission. Report what was done in the summ
    Exit 0 = ok (including idempotent skip), 1 = hard failure (log + fall back to page body link). See the canonical interface at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity page ID, the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`), and a display name like `[Company]_First_Pass_Diligence.pdf`.
 
    The helper uses the public Notion API (PATCH `/v1/pages/{id}` with the Files property's `files` array). No Chrome dependency.
+
+   **MANDATORY verification — never trust the 200 response alone.** Immediately after the PATCH, re-fetch the Opportunity page and scan the `Diligence Materials` files array for an entry whose `external.url` matches the Drive URL you just wrote. If not present, the write silently failed (observed on Factir 2026-05-15 — PATCH returned 200 but Notion kept the prior URL in the files array). Re-try the PATCH with an explicit replacement payload (read the full files array, mutate, PATCH the whole array), then re-verify. If verification still fails after 3 retries, surface to Tom in the publish summary — do NOT publish silently. Reference snippet:
+
+   ```python
+   opp = json.loads(urlopen(Request(f"https://api.notion.com/v1/pages/{OPP_ID}", headers=HDR)).read())
+   urls = {f.get("external",{}).get("url") for f in opp["properties"]["Diligence Materials"]["files"]}
+   assert drive_url in urls, f"Property write did NOT take — URL {drive_url} not in {urls}"
+   ```
 
 ### 6b. Send the alert
 
