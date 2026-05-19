@@ -2,6 +2,17 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-19] (Week of 2026-05-19)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `skill-map-refresh` -- updated internal scheduled-task configuration to track two additional personal automation LaunchAgents under the Admin hidden category; no visible skill changes
+**Total skills:** 25
+**Functions:** No changes
+
+---
+
 ## [2026-05-18] (Week of 2026-05-18)
 
 **Added:** None
