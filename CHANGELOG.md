@@ -2,6 +2,20 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-20] (Week of 2026-05-19)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `add-to-contacts` -- Tom-supplied company, role, or email now overrides ContactOut when provided explicitly; email domain mismatch between Tom's input and ContactOut triggers preference for Tom's data
+- `first-pass-diligence` -- LLM-judge audit logic extracted into shared audit module; added start-time anchoring for elapsed-time reporting; added citation grouping format rule; added deterministic final-draft file selection (prefer normalized over raw)
+- `neg1-enricher` -- Type field behavior updated: manual mode defaults to Cold unless Tom's phrasing indicates a prior relationship (then Reconnect); bulk enrichment mode does not write the field
+- `research-agent` -- expanded curated firm list with 7 new targets; updated canonical firm naming for two existing targets
+**Total skills:** 25
+**Functions:** No changes
+
+---
+
 ## [2026-05-19] (Week of 2026-05-19)
 
 **Added:** None

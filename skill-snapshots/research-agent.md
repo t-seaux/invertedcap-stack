@@ -61,7 +61,6 @@ These are firms/investors Tom actively tracks. Search for each by name. Organize
 | Gotham Asset Management (Joel Greenblatt) | Published commentary (infrequent) |
 | Vulcan Value Partners (C.T. Fitzpatrick) | Quarterly letters |
 | Bronte Capital (John Hempton) | Blog posts (long-form, investigative) |
-| FPA Capital / FPA Funds | Quarterly commentaries |
 
 ### Activist / Special Situations
 
@@ -93,7 +92,6 @@ These are firms/investors Tom actively tracks. Search for each by name. Organize
 | Fundsmith (Terry Smith) | Annual letter (typically January), shareholder letters |
 | Akre Capital Management (Chuck Akre) | Annual letter, quarterly commentaries |
 | Giverny Capital (François Rochon) | Annual letter (typically Q1, thoughtful long-form) |
-| Polen Capital | Quarterly commentaries |
 | Brown Capital Management | Quarterly letters |
 
 ### Hedge Fund / Public Equity Focused
@@ -188,25 +186,33 @@ Confirm the edits back to him with a one-liner — don't just say "noted."
 Tom has reviewed and rejected these firms — they are **not interesting** for his research scan and must be filtered out of Tier 2 / discovery output. If a search result matches any name below, drop it silently (do not include in the digest, do not flag as a "promotion candidate"). Tom curates this list iteratively — when he flags additional firms as not interesting, append them here.
 
 - Ariel Investments (all funds — Ariel Fund, Ariel Focus Fund, Ariel Small Cap Value Fund, etc.)
+- Aristotle Capital Management (all funds — Aristotle Core Equity Fund, etc.)
 - Artisan Partners (all funds — Mid Cap Fund, etc.)
+- Baron Capital (all funds — Baron Asset Fund, etc.)
+- Broyhill Asset Management
 - ByteTree
 - Carillon Tower Advisers (incl. Carillon Eagle Mid Cap Growth Fund)
 - Conestoga Capital Advisors
 - Crescat Capital (Kevin Smith / Tavi Costa)
 - Diamond Hill Capital (all funds/strategies)
 - Fiduciary Management Inc.
+- FPA Funds (all funds — FPA Crescent Fund, etc.)
 - Greystone Capital
 - Henchmen Partners
 - Hotchkis & Wiley (all funds)
 - JB Global Capital
+- Jensen Investment Management (all funds — Jensen Quality Mid Cap Fund, etc.)
 - Laughing Water Capital
 - Lawrence Lepard / Equity Management Associates
+- Matrix Asset Management
 - Montaka Global Investments
 - Nightview Capital
+- Polen Capital (all strategies — 5Perspectives Small Growth Strategy, etc.)
 - Praetorian Capital
 - Rowan Street Capital
 - Value Guinea (GVI)
 - Wedgewood Partners
+- Weitz Investment Management (all funds — Weitz Large Cap Equity Fund, etc.)
 - White Brook Capital
 
 

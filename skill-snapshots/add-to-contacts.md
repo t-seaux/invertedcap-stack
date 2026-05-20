@@ -225,6 +225,18 @@ Execute all steps without pausing for permission. This applies to:
 
 Tom's explicit "add to contacts" request is full authorization for the entire flow. Never ask mid-skill.
 
+### Tom-supplied fields override ContactOut
+
+When Tom explicitly provides an email, company, or role inline with the request (or in a follow-up before the create call), that value is canonical — use it over whatever ContactOut returns. ContactOut payloads can be months stale and miss recent moves (new company, new role, custom-domain email at a new venture).
+
+**Why:** 2026-05-19 — Vedant Khamesra created with Company=AtoB / Role=Product Lead from ContactOut, but Tom had provided `vedant@getlemma.com` in the same flow; he had to follow up to correct Company→Lemma, Role→Co-Founder. Email-domain mismatch should have been the signal to ask or trust Tom's input.
+
+**How to apply:**
+1. If Tom provides an email whose domain doesn't match ContactOut's current-company domain, prefer Tom's email AND infer the company from the email domain rather than ContactOut's stale current-position. If the role under that new company is unknown, leave Role blank rather than carrying over the stale title.
+2. If Tom explicitly states a company or role ("he's at X", "co-founder of Y"), write that verbatim — don't second-guess against ContactOut.
+3. Still cache the raw ContactOut payload (for the network-intel index), but treat Tom-supplied fields as the authoritative write to Notion.
+4. Photo / education / prior experience still come from ContactOut — only the current Company/Role/Email are affected by this override.
+
 ### Dedupe before create — always use `workspace_search`
 
 Before creating a new entry in the People DB (data source `1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`), first search for the person's name. If an entry already exists, decide whether to update in place or (per Tom's preference) create fresh and archive the old one.

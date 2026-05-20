@@ -41,6 +41,13 @@ materials handling for the new round.
 
 ## Step 1: Gather All Available Context
 
+**Anchor the start time first** so the audit-start Slack alert (Step 4b) can
+report elapsed-from-start minutes. Write this once, before any other work:
+
+```bash
+date +%s > /tmp/firstpass_start_ts.txt
+```
+
 Before writing anything, assemble the full evidence base. Completeness matters — the analysis
 quality is directly proportional to how much source material you have.
 
@@ -342,6 +349,16 @@ of the line (caret + number, no brackets, no colon):
 >
 > ^1 Company Name — Investor Deck (March 2026)
 > ^2 Reed & Nolan Intro Call — March 19, 2026
+
+**Multi-source citations — single bracket, no space after comma:** When a sentence cites
+multiple sources, group them inside ONE pair of brackets with `,` (no space) between
+numbers — `[1,2]`, `[1,2,3]`, `[2,5,7]`. Do NOT write `[1] [2]` (adjacent brackets),
+`[1][2]` (no space), `[1, 2]` (space after comma), or `[1-3]` (range form). Notion's
+renderer squashes the space between adjacent brackets, so `[1] [2]` reads as `12` in the
+published page and PDF; the unified `[1,2]` form keeps the superscript tight in the PDF
+and is unambiguous across Notion, the PDF builder, and grep. The lint check
+`adjacent_citation_brackets` blocks `] [` patterns between citation markers and any
+`[N, M]` form with a space after the comma.
 
 **Why `^N` not `[^N]:`:** Notion interprets `[^N]:` as a reference-link definition and
 mangles it into `[\[N\]](N):` on save. `^N` at the start of a line is inert to Notion's
@@ -1069,17 +1086,44 @@ Step 3 still apply.
 
 ### 4b. LLM Audit — MANDATORY SURFACE
 
-After the deterministic lint passes, run the Layer 2 LLM-judge audit at
-`/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py`. Where the
-lint catches surface-form hallucinations with regex, the audit catches the subtler
-class — claims that don't trip any regex but whose substance isn't traceable to
-the source bundle (analog-biographical fabrications, characterizations of analog
-companies that don't appear in their memos, founder-history claims without
-sourcing).
+The audit mechanics (HARD EXIT GATE, iteration loop, Step 3.5 partial
+normalization, exit codes, the never-use-the-bypass-alert prohibition) are
+defined ONCE in `~/.claude/skills/research-artifact-audit/SKILL.md`. Read
+that file in full before continuing this step.
 
-**Build the source bundle first.** The audit needs every piece of source material
-the drafter consumed, concatenated into a single markdown file with clear
-delimiters. Write `/tmp/firstpass_sources.md` with this structure:
+**Diligence-specific wiring — apply these bindings when following research-artifact-audit/SKILL.md:**
+
+| Binding (per research-artifact-audit) | Value (first-pass-diligence) |
+|---|---|
+| `DRAFT` | `/tmp/firstpass_draft.md` |
+| `SOURCES` | `/tmp/firstpass_sources.md` |
+| `AUDIT_JSON` | `/tmp/firstpass_audit.json` |
+| `JUDGE_PROMPT` | `/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.prompt.md` |
+| `AUDIT_RUNNER` | `/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py` |
+| `MAX_ITER` | `3` |
+| `WEB_RESEARCH_CAP` | `6` |
+| `ITER_SNAPSHOT_PREFIX` | `/tmp/firstpass_draft.iter` |
+| `NORMALIZED_DRAFT` | `/tmp/firstpass_draft.normalized.md` |
+
+**Fire the audit-start Slack alert BEFORE building the source bundle.** This
+is a diligence-specific progress ping (not part of research-artifact-audit's
+generic flow):
+
+```bash
+ELAPSED_MIN=$(( ($(date +%s) - $(cat /tmp/firstpass_start_ts.txt)) / 60 ))
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🧪 First-pass audit starting for **${COMPANY}** — T+${ELAPSED_MIN} min from job start
+EOF
+```
+
+Single line, no feedback prompt, no links. Do NOT include `💬 Reply in thread`
+(that's reserved for Step 6b — the listener routes thread replies based on
+that exact string).
+
+**Diligence-specific source bundle structure (Step A in research-artifact-audit).**
+Write `/tmp/firstpass_sources.md` with this layout (the runner chunks at the
+`==== … ====` boundaries):
 
 ```markdown
 ==== OPPORTUNITY PAGE ====
@@ -1116,101 +1160,24 @@ analog portfolio company named in the draft's Framework Mapping section>
 <key data points and quotes from web research>
 ```
 
-The audit is **only as good as the bundle**. If you omit a source the drafter
-actually used, the judge will mark its claims untraced and flag false positives.
-Conversely, if the bundle includes a source the drafter never actually drew on,
-no harm — the judge only checks claims, not coverage.
+The bundle layer (this list) is diligence-specific; the auto-chunking, judging,
+gate-checking, iterating, normalizing, and publish-summary requirements are all
+in research-artifact-audit/SKILL.md.
 
-**Run the audit:**
+**Lint/audit relationship.** The Layer 1 deterministic lint at Step 4a catches
+surface-form hallucinations with regex. The Layer 2 LLM-judge audit (per
+research-artifact-audit) catches the subtler class — claims that don't trip
+any regex but whose substance isn't traceable to the source bundle. Both gates
+must pass before publish.
 
-```bash
-python3 /Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py \
-  --draft   /tmp/firstpass_draft.md \
-  --sources /tmp/firstpass_sources.md \
-  --output  /tmp/firstpass_audit.json
-```
-
-Default model is `claude-sonnet-4-6`. Typical latency: 1–3 minutes per chunk.
-
-**Source-bundle chunking — automatic above 80KB.** The audit auto-chunks the source
-bundle at section boundaries (`==== … ====`) when it exceeds 80KB, targeting ~50KB
-per chunk. Each chunk is judged independently against the full draft, then results
-are merged: a claim is `traced` if ANY chunk found a source for it (positive
-evidence trumps absence in any single chunk). This addresses the long-context
-fidelity decay we saw on the Kestrel 2026-05-14 run, where a 200KB un-chunked
-bundle pushed Sonnet past its timeout and the Haiku fallback started fabricating
-findings ("judge hallucinations") by iter2.
-
-To force a single-pass un-chunked audit (for small bundles or debugging), pass
-`--chunk-size 0`. To override the chunk size, pass `--chunk-size <N>`.
-
-**Iteration loop — drafter resolves untraced claims before publish.** When the
-audit returns `untraced` claims (exit 1), the drafter is responsible for working
-through them before publish — not just dumping them at Tom. The loop:
-
-1. **Read each untraced finding.** For each, classify the failure:
-   a. **Load-bearing fabrication** → cut the claim from the draft. If the
-      surrounding paragraph collapses without it, rewrite the paragraph
-      without the claim.
-   b. **Real claim, missing citation** → the substance is sourced but you
-      didn't mark the citation inline. Add the inline citation pointing to the
-      source (e.g., `(per the March 19 call)`, `the deck states:…`).
-   c. **Forced characterization** → the named entity is real but the
-      characterization is invented (e.g., "Rengo compounds a data asset" is
-      real; "Rengo's CEO is forward-deployed" is invented). Cut the invented
-      half, keep the real half.
-2. **Re-write `/tmp/firstpass_draft.md`** with the resolutions applied.
-3. **Re-run the audit** against the updated draft.
-4. **Cap at 3 iterations.** If untraced count still > 0 after 3 iterations, stop
-   iterating and surface the remaining findings to Tom in the publish summary
-   (the alert's `⚠️` line + a Notion page note). Three rounds is enough — past
-   that, the residual findings are usually subtle calls Tom needs to make.
-
-**`partial` claims are NOT auto-resolved by the iteration loop.** Partial means
-"entity is real but the characterization may be off" — exactly the kind of taste
-call only Tom can make. Every partial claim goes to Tom in the publish summary
-regardless of how many iterations the loop ran.
-
-**Surface what remains.** After the loop terminates (either at 0 untraced or at
-the 3-iteration cap), the publish summary you send to Tom must include:
-
-- The final iteration count and the audit JSON output path.
-- Every remaining `untraced` claim (if any) with the judge's notes — so Tom can
-  see what the drafter couldn't resolve.
-- Every `partial` claim with the judge's source quote and gap note.
-
-The Slack alert appends `⚠️ Audit: <N> untraced, <M> partial after <K>
-iterations` as a fourth line when any findings remain. If the loop reaches 0
-untraced and 0 partial cleanly, no `⚠️` line — the alert stays at three lines.
-
-**Exit codes (from the audit script, not the iteration loop):** `0` = zero
-untraced this run; `1` = at least one untraced this run; `2` = judge invocation
-or parse failure. Code 2 STOPS the iteration loop and the publish — investigate.
-Codes 0 and 1 drive the loop above.
-
-**Hard rule — never use the `⚠️ Audit invocation failed` Slack-alert escape hatch.**
-Tom explicitly rejected this pattern on 2026-05-15: publishing the draft with a
-`⚠️ Audit invocation failed on chunk N` line in the Slack alert as a workaround
-when the audit hit exit 2 is **not acceptable**. The `⚠️` 4th line is reserved
-ONLY for the case where the audit RAN cleanly but finished with residual
-untraced/partial findings after the 3-iteration cap. If the audit script itself
-failed to execute (exit 2: timeout, parse failure on all chunks, judge crash),
-the response is to fix the audit script or the judge prompt and re-run — never
-to publish the draft with a caveat line. The audit is the only check that
-catches subtler hallucinations; bypassing it puts the burden on Tom to spot
-what the judge would have caught, which is the exact failure mode he's
-flagged repeatedly. **Diagnostics for common parse failures (all patched 2026-05-15
-in `first_pass_audit.py`):** judge emits bare JSON without the `<audit_report>`
-wrapper (script falls back to bare-JSON extraction now); single chunk's judge
-crashes (script continues past, contributes zero claims from that chunk, only
-aborts if ALL chunks fail). If a new failure mode appears that the script can't
-recover from, patch `first_pass_audit.py` inline and re-run — do not ship.
-
-**Never auto-strip silently.** Every iteration's revisions are visible to Tom
-in the diff between the original draft snapshot (stored at
-`/tmp/firstpass_draft.iter0.md` before the first audit) and the final draft.
-Save each intermediate iteration to `/tmp/firstpass_draft.iterN.md` so Tom can
-reconstruct the loop's edits if needed.
+**Diligence-specific Slack publish-summary surface (Step D in research-artifact-audit).**
+The Slack alert appends `⚠️ Audit: <N> untraced after <K> iterations, <M>
+partials normalized` as a fourth line when there are residual untraced findings
+OR any partials were normalized. If the audit ends with 0 untraced and 0
+partial cleanly, no `⚠️` line — the alert stays at three lines. The substance
+(residual untraced claims with judge notes; normalized partials as before→after
+diffs) is required by research-artifact-audit; this paragraph only specifies
+the Slack format.
 
 ### Notion Table Formatting
 
@@ -1238,6 +1205,22 @@ When writing the analysis content to Notion, do NOT backslash-escape special cha
 `~`, `$`, or other markdown-adjacent symbols. Notion's markdown parser does not require these
 escapes, and they render as literal backslashes (e.g., `\\~2 yrs` instead of `~2 yrs`). Write
 tildes, dollar signs, and other special characters directly without any preceding backslash.
+
+**Select the final draft.** Before writing to Notion, pick the source-of-truth
+file deterministically:
+
+```bash
+if [ -f /tmp/firstpass_draft.normalized.md ]; then
+  FINAL_DRAFT=/tmp/firstpass_draft.normalized.md
+else
+  FINAL_DRAFT=/tmp/firstpass_draft.md
+fi
+echo "publishing from: $FINAL_DRAFT"
+```
+
+Load `$FINAL_DRAFT` and use its contents as the `content` field below. Do
+NOT use the unnormalized draft when a normalized version exists — that
+re-introduces the partials Step 3.5 just resolved.
 
 Create a new page in the Notes database (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) using
 `notion-create-pages`:
