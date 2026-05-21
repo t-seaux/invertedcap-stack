@@ -121,6 +121,18 @@ Do not create an empty update section.
 This is the analytical core of the skill. For each piece of new information, evaluate its
 impact on the priors established in the original analysis (or the most recent update).
 
+**Product-section refreshes.** When the new evidence touches the §2 Product section of the
+existing analysis (new demo recording, product walkthrough, deck v2 with architecture
+detail, technical backchannel, founder follow-up on the stack), apply the canonical
+framework spec at
+`/Users/tomseo/.claude/skills/shared-references/product-build-teardown-framework.md`
+and the cost-calibration reference at
+`/Users/tomseo/.claude/skills/shared-references/product-build-cost-calibration.md`
+to keep refresh outputs aligned with first-pass and standalone-teardown framings.
+Single source of truth, no drift across invocation paths — same six lenses (Product
+Anatomy, Delivery Mechanism, Build Cost & Time to v1, Path to Production-Grade, Moat
+Read, Killshots), same citation rules, same `(per calibration §<N>)` cite format.
+
 Work through these questions for each new data point:
 
 1. **Which specific prior does this affect?** Map new information to the Need to Believe items,
@@ -299,12 +311,41 @@ first-pass PDF. Do NOT overwrite or modify the original.
 ### Filename convention
 
 ```
-[Company]_First_Pass_Diligence_MM.DD.YYYY_Update.pdf
+[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf
 ```
 
-Where `MM.DD.YYYY` is today's date (the update date). The original first-pass date is dropped
+Where `MM.DD.YYYY` is today's date (the update date) and `N` is the update number
+(2 for Update #2, 3 for Update #3, etc.). The original first-pass date is dropped
 entirely from the filename — the update date is the only date in the name. Example:
-`Tuor_First_Pass_Diligence_04.02.2026_Update.pdf`
+`Tuor_First_Pass_Diligence_04.02.2026_v2.pdf`
+
+**Retention rule — keep only the latest version.** Each new update's PDF
+*contains* all prior updates plus the original first-pass (it's a full
+consolidated snapshot). Once the new `_v[N].pdf` is uploaded and the Notion
+links are swapped, **trash every prior diligence-snapshot PDF for this company
+in the same Drive subfolder** (any file matching
+`[Company]_First_Pass_Diligence_*.pdf` except the new one). Use rclone:
+
+```bash
+# List the Factir subfolder
+rclone lsf "gdrive:Diligence/[Company]"
+# Trash old snapshots (any _v<N-1>.pdf, _Update.pdf, _v5.pdf, etc.)
+rclone deletefile "gdrive:Diligence/[Company]/[Company]_First_Pass_Diligence_<OLD_NAME>.pdf" --drive-use-trash
+```
+
+Do **NOT** trash the source materials in the same folder (founder memo, deck,
+plan, ACV build, founder positioning notes, Q&A docs, etc.) — only the prior
+diligence-snapshot PDFs that this skill itself wrote.
+
+Then scrub stale Drive URLs from BOTH:
+- The Opp's `Diligence Materials` files-property (drop entries whose URL is no
+  longer in Drive)
+- The Opp page body's `## 📎 Diligence Materials` bulleted list (replace the
+  whole list with the single latest `_v[N].pdf` link)
+
+The latest snapshot is canonically the only diligence PDF that should be linked
+anywhere. Caught after Factir 2026-05-20 Update #4: prior `_v5`/`_Update1`/
+`_Update2`/`_Update.pdf` accumulated across runs and confused the reader.
 
 ### Content
 
@@ -363,7 +404,7 @@ that converts markdown formatting to reportlab XML before being wrapped in `Para
 This ensures no stray asterisks appear in the rendered PDF.
 
 Save the PDF to:
-`/sessions/loving-modest-fermat/Users/tomseo/Downloads/[Company]_First_Pass_Diligence_MM.DD.YYYY_Update.pdf`
+`/sessions/loving-modest-fermat/Users/tomseo/Downloads/[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf`
 
 ### Upload and link in Notion
 
@@ -391,7 +432,7 @@ with open(pdf_path, 'rb') as f:
 
 upload_resp = requests.post(DRIVE_URL, json={
     "action": "upload",
-    "fileName": "[Company]_First_Pass_Diligence_MM.DD.YYYY_Update.pdf",
+    "fileName": "[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf",
     "fileBase64": pdf_b64,
     "mimeType": "application/pdf",
     "folderId": subfolder_id
@@ -409,13 +450,13 @@ After upload, link the updated PDF in two places on the Notion opportunity page:
 
 1. **Page body** — append to the `## 📎 Diligence Materials` section:
    ```
-   - [**[Company]_First_Pass_Diligence_MM.DD.YYYY_Update.pdf**](https://drive.google.com/file/d/<fileId>/view) — Claude diligence priors update, [update date]
+   - [**[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf**](https://drive.google.com/file/d/<fileId>/view) — Latest Claude diligence snapshot through Update #[N] (consolidates all prior updates + original first-pass)
    ```
 
 2. **Diligence Materials Files property field** — follow the shared reference at
    `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md`. Pass the opportunity
    page ID, the Drive file URL, and display name
-   `[Company]_First_Pass_Diligence_MM.DD.YYYY_Update.pdf`.
+   `[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf`.
 
    **MANDATORY verification — never trust the 200 response alone.** Immediately after the property write, re-fetch the Opportunity page and confirm an entry in the `Diligence Materials` files array has `external.url` matching the Drive URL you just wrote. If absent, the write silently failed (observed Factir 2026-05-15 — PATCH returned 200 but Notion kept the stale URL underneath the new display label). Re-PATCH the full files array explicitly, then re-verify. After 3 retries, surface to Tom rather than publish silently. Reference snippet:
 

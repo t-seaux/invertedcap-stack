@@ -626,8 +626,115 @@ contradicts the founder's timeline, cost, or complexity estimates.
 Each subsection ends with ***Open Questions*** in bold-italic.
 
 **2. Product**
-Three subsections: Product Architecture & Roadmap, Underwriting/Data/Technical Strategy (adapt to
-the company), Technical Differentiation. End each with Open Questions.
+
+§2 has seven subsections. The first two pair the company's stated view of
+the build (Product Anatomy & Roadmap, Core Technical Strategy) with the
+deeper teardown lenses that follow (Delivery Mechanism, Build Cost & Time
+to v1, Path to Production-Grade, Moat Read,
+Killshots). Each subsection has a single clear job; do not collapse,
+merge, or drop any. Evidence-thin subsections run short — a single
+honest paragraph naming the gap is better than three paragraphs of
+training-data extrapolation. **Structure stays full; depth scales with
+evidence.**
+
+**Read the canonical framework spec** at
+`/Users/tomseo/.claude/skills/shared-references/product-build-teardown-framework.md`
+once at the start of this section. It owns the spec for §2.3–§2.7 below
+(structure, depth requirements, table formats, citation discipline,
+cost-calibration cites, killshot taxonomy). The same file is read by the
+standalone `product-build-teardown` skill and `update-diligence-priors`
+Product refreshes — single source of truth, no drift across invocation
+paths.
+
+**Read the cost-calibration reference** at
+`/Users/tomseo/.claude/skills/shared-references/product-build-cost-calibration.md`
+once before drafting §2.4 / §2.5. Every cost, time, FTE-month, infra
+unit cost, or third-party API integration cost cited must trace to a
+specific row formatted as `(per calibration §<N>)` inline.
+
+**Crawl prep — before drafting any subsection.** Apply the
+public-surface, engineering-signal, peer-surface, and broad-based-web-
+research crawls defined in the framework spec ("Public surface area
+crawl", "Engineering signal crawl", "Competitor / peer surfaces",
+"Broad-based web research" subsections). Save screenshots to
+`/tmp/firstpass_product_screens_<n>.png`. Fold all extracted signal
+into the Step 4b source bundle under the `==== PUBLIC PRODUCT SURFACE
+====`, `==== ENGINEERING SIGNAL ====`, `==== COMPETITOR / PEER SURFACES
+====`, and `==== EXTERNAL RESEARCH ====` blocks so the audit can
+verify every claim.
+
+***2.1 Product Anatomy & Roadmap.*** Apply framework spec §1 for
+Product Anatomy — three layers: Core Components (flowing prose + bullet
+inventory, lead with the primary loop), Data Flows, and Integrations &
+Data Sources (table with Source / Purpose / Access Tier / Build
+Complexity columns). Then a short **Roadmap** sub-block (one paragraph)
+covering the founder's stated direction over the next 6–18 months —
+what's being built next and how it changes the anatomy above (does it
+add components, integrations, delivery surfaces?). The anatomy is the
+mechanical inventory; the roadmap is the forward-looking trajectory.
+End with ***Open Questions***.
+
+***2.2 Core Technical Strategy.*** Adapt the header to the company's
+actual technical core: **Underwriting Strategy** for a credit business;
+**Data Ingestion & Quality Strategy** for an AI/data product;
+**Matching Algorithm & Liquidity Strategy** for a marketplace;
+**Hardware-Firmware Strategy** for a physical-product business; etc.
+This subsection covers the **vertical-specific strategic bet that
+defines whether the business can be built at all** — distinct from
+§2.1 (which inventories components generically) and §2.3 (delivery
+mechanism). The question this subsection answers: *WHY is this the
+right technical approach for this specific business, and what would
+falsify the bet?* End with ***Open Questions***.
+
+***2.3 Delivery Mechanism.*** Apply framework spec §2. Name the primary
+delivery archetype (standalone web app, SDK, API-only, browser
+extension, native mobile, marketplace listing, embedded inside another
+platform, async agent, data feed, hardware-adjacent), call out
+secondary surfaces, assess distribution implications. End with
+***Open Questions***.
+
+***2.4 Build Cost & Time to v1.*** Apply framework spec §3. Both
+dollars and calendar time get explicit treatment — neither one is the
+"primary" axis. Engineering Scope (FTE-month range citing calibration
+§6 archetype), Team Composition (citing calibration §1 rates),
+**Calendar Time to v1** (range in months from kickoff, with friction
+adjustments named), Infra & API Run-Rate table, Total v1 Capital
+Required, Assumptions paragraph. When the company has disclosed actual
+costs or team size or timeline, surface any material disagreement with
+the calibration as an analytical finding. End with ***Open Questions***.
+
+***2.5 Path to Production-Grade.*** Apply framework spec §4. Data
+quality maintenance, operational reliability, scale stress points,
+customer-facing edge cases, security & compliance gates (calibration
+§5), support tooling. End with a Production-Hardening Cost & Time
+estimate (calibration §7 — typically a doubling of cumulative
+engineering investment, with calendar timeline implications called
+out). End with ***Open Questions***.
+
+***2.6 Moat Read.*** Apply the Moat Read section of the canonical
+framework spec. Survey the moat sources in prose (unique data,
+self-improvement / data compounding loop, integration depth /
+switching costs, distribution lock, regulatory barrier, technical
+complexity / scarce expertise, network effects), and **score each
+lens High / Medium / Low** with the rating leading the prose
+(`**Unique data — Low.** [explanation]`). Technical complexity /
+scarce expertise IS the technical-differentiation lens — no separate
+sub-header. Close with an honest counter-case paragraph. Be
+opinionated — well-rounded mediocrity on moat is a negative read,
+not a wash.
+
+***2.7 Killshots.*** Apply framework spec §6. Each killshot is a
+numbered sub-subsection (2.7.1, 2.7.2, …) with descriptive title,
+analytical paragraph, and bold-italic ***Failure mode:*** paragraph.
+End with a Killshot Summary table (Failure Mode | Key Evidence | Kill
+Shot?). When a killshot here is the same mechanism that will appear
+in §6 Risks, write it in full here (the product-architecture-anchored
+framing is the right home) and cross-reference from §6 Risks rather
+than re-narrating.
+
+End the full Product section with ***Open Questions*** in bold-italic
+— cross-cutting questions that span multiple subsections and that the
+founder is best positioned to answer.
 
 **3. Go-to-Market & Distribution**
 Three subsections: Initial Customer Acquisition (is there an "unfair" advantage?), Steady-State
@@ -1154,10 +1261,37 @@ Write `/tmp/firstpass_sources.md` with this layout (the runner chunks at the
 <Description, Founder Description, 🏁 Founder(s), Contact, page body — for every
 analog portfolio company named in the draft's Framework Mapping section>
 
+==== PUBLIC PRODUCT SURFACE ====
+
+--- Page: <URL> ---
+<key extracted text / structured signal from the company's marketing, product, pricing,
+docs, integrations, security pages — only populated when §2 Product section was drafted>
+
+==== ENGINEERING SIGNAL ====
+
+--- JD: <URL> ---
+<verbatim stack mentions + team-shape signals from careers pages>
+
+--- Blog: <URL> ---
+<key passages from engineering blog posts>
+
+--- GitHub: <org URL> ---
+<observable signal: languages, repo names, commit cadence>
+
+==== COMPETITOR / PEER SURFACES ====
+
+--- Peer: <name> (<URL>) ---
+<extracted signal from each peer's product / docs / pricing — only when §2 cites the peer>
+
 ==== EXTERNAL RESEARCH ====
 
 --- Source: <URL or title> ---
 <key data points and quotes from web research>
+
+==== COST CALIBRATION ====
+
+<full text of /Users/tomseo/.claude/skills/shared-references/product-build-cost-calibration.md
+so the audit can verify every "(per calibration §X)" cite the Product section makes>
 ```
 
 The bundle layer (this list) is diligence-specific; the auto-chunking, judging,

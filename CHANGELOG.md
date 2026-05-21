@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-21] (Week of 2026-05-19)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- `first-pass-diligence` -- expanded §2 Product section with canonical product-build framework (six sections: Product Anatomy, Delivery Mechanism, Build Cost to v1, Path to Production-Grade, Moat Read, Killshots); PDF naming updated to `_v[N].pdf` convention; added retention rule to remove prior diligence-snapshot PDFs after each update run
+- `update-diligence-priors` -- added product-section refresh mode aligned to shared build framework; PDF naming updated to `_v[N].pdf` convention matching first-pass convention
+**Total skills:** 25
+**Functions:** No changes
+
+---
+
 ## [2026-05-20] (Week of 2026-05-19)
 
 **Added:** None

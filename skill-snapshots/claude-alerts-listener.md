@@ -20,9 +20,26 @@ When Tom replies to an alert in `#claude-alerts`, act on his feedback. Post a `W
   "thread_ts": "<parent message ts>",
   "reply_ts": "<Tom's reply ts>",
   "user": "<Slack user ID>",
-  "text": "<Tom's reply text>"
+  "text": "<Tom's reply text>",
+  "files": [
+    {
+      "id": "F...",
+      "name": "citi.csv",
+      "mimetype": "text/csv",
+      "url_private": "https://files.slack.com/files-pri/...",
+      "url_private_download": "https://files.slack.com/files-pri/.../download/..."
+    }
+  ]
 }
 ```
+
+`files` is `[]` when Tom replies with text only. When present, branches that ingest dropped files (e.g. coop-finances) should download via:
+
+```bash
+curl -sSL -H "Authorization: Bearer $SLACK_USER_TOKEN" "<url_private>" -o /tmp/<name>
+```
+
+Requires `SLACK_USER_TOKEN` in env with `files:read` scope (same token used by the Slack MCP — user-scoped works since Tom is the only uploader).
 
 ---
 
@@ -70,6 +87,63 @@ If the parent isn't a bot message — i.e. someone other than the `claude` Slack
 You now have:
 - **Parent alert** — the original Claude-bot post Tom replied to. Includes a header that names the source skill (e.g. `📬 Pipeline Agent — 2026-04-25`, `📬 Research Agent`, etc.) and per-entity rows.
 - **Tom's reply** — the args `text` field.
+
+### Special branch: Coop finances ingest / classify
+
+Check this **before** First-Pass Diligence and the generic taxonomy. If the parent alert header contains `📒 Coop finances` (from the monthly prompt by `coop-finances-prompt` or a flag-summary from a prior run), route to one of two sub-flows based on the reply shape:
+
+**Sub-flow A — files attached (`args.files` non-empty).**
+
+This is Tom dropping the monthly Citi CSV and/or Reserve account screenshot/xls.
+
+1. For each file in `args.files`:
+   - Download: `curl -sSL -H "Authorization: Bearer $SLACK_USER_TOKEN" "<url_private>" -o /tmp/coop_<reply_ts>_<name>` (require `SLACK_USER_TOKEN` env; if missing, post `⚠️ SLACK_USER_TOKEN not set — can't download attachment` and exit).
+   - Classify by name + mimetype:
+     - `.csv` containing header `Status,Date,Description,Debit,Credit` → operating-account CSV → use as `--csv`
+     - `.csv` containing header `date,type,amount,balance` → reserve CSV → use as `--reserve-csv`
+     - `.xls` / `.xlsx` → reserve xls (parse first; if it has the Citi columns, treat as operating)
+     - `.png` / `.jpg` → reserve screenshot. Read with vision, transcribe to a temp reserve CSV (`date,type,amount,balance` — one row per visible INTEREST line), then use as `--reserve-csv`.
+2. Invoke the mutator:
+   ```bash
+   python3 ~/.claude/skills/coop-finances/update_pl.py \
+     [--csv /tmp/coop_<ts>_citi.csv] \
+     [--reserve-csv /tmp/coop_<ts>_reserve.csv]
+   ```
+   Capture stdout (JSON: `posted`, `flagged`, `summary`).
+3. Format the close-loop reply:
+   ```
+   📒 Coop finances updated
+   • <N> cells written
+   • <M> items flagged for review:
+     - <flag.reason> ($<amount> on <date>)
+     - ...
+
+   Reply `CHECK <NNNN> = <Category>` or `VENDOR <substring> = <Category>` to classify any flagged items.
+   Workbook: 25_Garden_Place_PL.xlsx (iCloud)
+   ```
+   Post via `post_close_loop.sh`. Skip Step 3 (generic taxonomy). Audit intent: `coop-finances-ingest`.
+
+**Sub-flow B — text classification (no files).**
+
+Tom is replying to a prior flag summary with a classification. Parse patterns:
+
+- `CHECK <N> = <Category>` (case-insensitive, optional spaces) → append a row to `~/.claude/skills/coop-finances/references/CHECK_LEDGER.md` in the existing table format: `| <N> | <today> | <amount-if-known-from-parent-alert> | <Category> | confirmed via Slack |`. If the same `<N>` is already in the ledger with a different category, REPLACE the row rather than append.
+- `VENDOR <substring> = <Category>` → append a new rule row to `~/.claude/skills/coop-finances/references/VENDOR_CLASSIFICATIONS.md` under the appropriate section (EXPENSES — Recurring auto-classify, in most cases). Also append a matching entry to the `VENDOR_RULES` Python list in `~/.claude/skills/coop-finances/update_pl.py` — find the list and insert before the closing `]`, preserving formatting.
+- Multiple classifications can appear in one reply (one per line). Process each.
+
+After applying:
+1. Re-invoke `update_pl.py` to apply the new classifications retroactively (no new CSV needed — `update_pl.py` reads the CSV last dropped, which... actually requires holding state). **Workaround for v1**: just skip the re-run. The next monthly drop will pick up the new classifications. Note in the close-loop: `(will apply on next CSV drop)`.
+2. Post close-loop:
+   ```
+   ✅ Classified:
+   • CHECK <N> → <Category>
+   • VENDOR <substring> → <Category>
+   ```
+3. Audit intent: `coop-finances-classify`.
+
+After handling either sub-flow, skip Step 3 (generic taxonomy) and proceed to Step 5 (audit log).
+
+---
 
 ### Special branch: First-Pass Diligence feedback
 
