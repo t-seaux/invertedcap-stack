@@ -2,6 +2,16 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-22] (Week of 2026-05-19)
+
+**Added:** None
+**Removed:** None (skill directory entry for neg1-sourcing was removed; it was not rendered on the stack page)
+**Modified:**
+- update-diligence-priors — Step 5 Notion write tooling split into MCP (initial markdown-to-blocks conversion) and direct REST API calls (title updates, block deletions, large-payload operations); adds timeout handling and block consolidation logic
+- inbound-deal-detect — classifier tightened for investment-entity senders: entities explicitly raising venture capital are now always classified as deals regardless of entity type, overriding the peer-firm exclusion
+**Total skills:** 26
+**Functions:** No changes
+
 ## [2026-05-21] (Week of 2026-05-19)
 
 **Added:** None

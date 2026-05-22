@@ -508,3 +508,5 @@ A good prior update:
 A bad prior update just summarizes the new call notes or materials without connecting them back
 to the original framework. If you find yourself writing "the founder discussed X" without then
 saying "which [reinforces/challenges] the prior that Y," stop and add the analytical layer.
+
+<!-- snapshot refreshed 2026-05-22 -->
