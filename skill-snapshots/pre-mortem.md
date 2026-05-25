@@ -74,6 +74,146 @@ Date the document and specify when it should be revisited (e.g., "Q3 2026 or fir
 
 ---
 
+## Step 2.5: LLM Audit Gate — MANDATORY
+
+Per memory `feedback_research_artifact_self_audit`, long-form research artifacts get the
+research-artifact-audit discipline before delivery. A pre-mortem is squarely in scope —
+factual claims about analog company failures, competitor histories, market dynamics, and
+regulatory precedent are the evidentiary backbone of the failure-mode analysis, and they
+must trace to the source bundle.
+
+The audit mechanics (HARD EXIT GATE, un-chunked re-verification, iteration loop, Step 3.5
+partial normalization, exit codes, the never-use-the-bypass-alert prohibition) are defined
+ONCE in `~/.claude/skills/research-artifact-audit/SKILL.md`. **Read that file in full
+before continuing this step** so the A.0 verbatim mandate, A.1 bundle completeness gate,
+and B.2.1 un-chunked re-verification all inherit correctly.
+
+**Scope:** the audit fires on the full pre-mortem draft, but the judge prompt is narrowed
+to factual claims only. Failure-scenario speculation, prospective probability assignments,
+and opinion-class statements about how leadership might respond are EXCLUDED — that's the
+whole point of a pre-mortem exercise. The judge prompt at
+`~/.claude/skills/pre-mortem/pre_mortem_audit.prompt.md` enforces this scope.
+
+### Pre-mortem-specific wiring — apply these bindings when following research-artifact-audit/SKILL.md
+
+| Binding (per research-artifact-audit) | Value (pre-mortem) |
+|---|---|
+| `DRAFT` | `/tmp/<company>_premortem_only.md` |
+| `SOURCES` | `/tmp/<company>_premortem_sources.md` |
+| `AUDIT_JSON` | `/tmp/<company>_premortem_audit.json` |
+| `JUDGE_PROMPT` | `/Users/tomseo/.claude/skills/pre-mortem/pre_mortem_audit.prompt.md` |
+| `AUDIT_RUNNER` | `/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py` |
+| `MAX_ITER` | `3` |
+| `WEB_RESEARCH_CAP` | `6` |
+| `ITER_SNAPSHOT_PREFIX` | `/tmp/<company>_premortem_draft.iter` |
+| `NORMALIZED_DRAFT` | `/tmp/<company>_premortem_draft.normalized.md` |
+
+### Pre-mortem-specific source bundle structure (Step A in research-artifact-audit)
+
+Write `/tmp/<company>_premortem_sources.md` with this layout. The A.0 verbatim mandate
+from research-artifact-audit applies in full — every section must contain the full
+verbatim body of each cited source, NOT pointer manifests or summaries.
+
+```markdown
+==== MASTER DILIGENCE DOC ====
+
+<full current state of the Master Diligence Doc page — first-pass + every Update block
+in document order. The pre-mortem reconciles against the documented thesis, load-bearing
+priors, and prior diligence findings. This section is authoritative ground truth.>
+
+==== LINKED NOTES ====
+
+--- Note: <title> (<date>) ---
+<full verbatim body of every cited call/backchannel note, including the Notion ID
+anchor, the page URL, the full transcript (always fetch with include_transcript: true
+for call/meeting notes), the AI-summary block, and structured fields. NOT a pointer
+manifest. NOT a summary.>
+
+==== DILIGENCE MATERIALS ====
+
+--- Material: <name> ---
+<full extracted text from every cited Drive PDF / Google Doc / DocSend / Notion
+attachment — pdftotext / google_drive_fetch output, not a pointer or summary.>
+
+==== ANALOG / COMPETITOR REFERENCES ====
+
+--- Reference: <name> ---
+<verbatim text of every cited analog company case study, competitor reference, prior
+postmortem, market report, or comparator memo. The pre-mortem may cite these heavily
+for failure-mode triangulation — every analog-company failure mode, regulatory
+precedent, or competitor-shutdown claim must be grounded here or in the diligence
+record. Include the source URL / Drive ID / Notion page anchor for each entry.>
+```
+
+### Source bundle completeness check — MANDATORY GATE before audit
+
+The bundle completeness gate is canonical in `research-artifact-audit` Step A.1 — read
+that for the full spec. The pre-mortem binding is:
+
+```bash
+python3 ~/.claude/skills/shared-references/bundle_completeness_check.py \
+    --draft  /tmp/<company>_premortem_only.md \
+    --bundle /tmp/<company>_premortem_sources.md \
+    --notes-section 'LINKED NOTES' \
+    --required-sections 'LINKED NOTES,DILIGENCE MATERIALS,ORIGINAL FIRST-PASS MEMO' \
+    --self-page-ids <Master Diligence Doc page ID, 32hex no hyphens>
+```
+
+The `--self-page-ids` argument is REQUIRED — pre-mortems frequently cite the Master
+Diligence Doc's own first-pass section or Update sections via the page's own URL.
+Without exempting the self-page-id, B2 will false-positive on those self-references.
+Look up the Master Diligence Doc page ID from the Opportunity's `✍️ Notes` relation
+(it's the `[Claude] [Company] Master Diligence Doc` page).
+
+Note: `--required-sections` lists `ORIGINAL FIRST-PASS MEMO` for naming continuity with
+the canonical caller table in research-artifact-audit Step A.1, but the actual section
+header in the pre-mortem bundle is `MASTER DILIGENCE DOC` (which contains the original
+first-pass plus all updates as a single ground-truth block). The check matches by
+substring `in k`, so adjust `--required-sections` to
+`'LINKED NOTES,DILIGENCE MATERIALS,MASTER DILIGENCE DOC'` if matching is tighter than
+expected.
+
+Exit 0 = proceed to audit. Exit 1 = bundle is missing verbatim content. STOP, rebuild,
+re-run. The audit verdict on a broken bundle is structurally meaningless.
+
+### Draft to audit
+
+Build `/tmp/<company>_premortem_only.md` containing JUST the pre-mortem markdown body
+(Opening Frame through Closing note). This is identical to what Step 3 will write to the
+Notion page — the audit fires on the publish-ready text.
+
+### Run the audit + iterate
+
+Follow research-artifact-audit Steps B-D in full — invoke the runner, check the HARD EXIT
+GATE, run B.2.1 un-chunked re-verification if chunked + untraced > 0, iterate per B.3,
+normalize partials per Step C, surface remaining findings per Step D.
+
+The final published pre-mortem markdown is `$NORMALIZED_DRAFT` when Step C ran (partials
+> 0); otherwise `$DRAFT`. Select the source-of-truth file deterministically before
+Step 3's Notion write so partials Step C just resolved aren't re-introduced:
+
+```bash
+if [ -f /tmp/<company>_premortem_draft.normalized.md ]; then
+  FINAL_PREMORTEM_MD=/tmp/<company>_premortem_draft.normalized.md
+else
+  FINAL_PREMORTEM_MD=/tmp/<company>_premortem_only.md
+fi
+echo "publishing from: $FINAL_PREMORTEM_MD"
+```
+
+Use `$FINAL_PREMORTEM_MD`'s contents as the `content` field in Step 3's
+`notion-create-pages` call.
+
+### Audit-result surface
+
+If the audit ends with residual untraced findings after max iterations OR any partials
+were normalized, surface this in the final summary message to Tom alongside the Notion
+URL: `⚠️ Audit: <N> untraced after <K> iterations, <M> partials normalized`. Include
+the residual untraced claims with judge notes and any normalized partials as
+before→after diffs per research-artifact-audit Step D.
+
+---
+
 ## Step 3: Save to Notion
 
 Create a new page in the Notes database (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) with the following:

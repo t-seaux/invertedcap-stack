@@ -321,6 +321,20 @@ research — they will populate the Sources section.
 
 ## Step 3: Draft the Analysis
 
+### MANDATORY — drafting runs on Opus tier
+
+Per memory `feedback_model_tier_framework`: Opus = no-rubric + final-artifact tasks.
+The first-pass analysis is a long-form synthesis artifact with no scoring rubric —
+Opus territory. The Layer-2 audit gate in Step 4b is Sonnet (rubric-based review); the
+drafting itself must be Opus.
+
+- If you're in an interactive Opus session, proceed inline.
+- If you delegate to a subagent for context-budget reasons, pass `model: "opus"` to the
+  Agent tool explicitly (`subagent_type: "general-purpose"` inherits parent model — if
+  the parent isn't Opus, the subagent degrades silently).
+- If you're stuck in a Sonnet session: tell Tom, ask him to re-invoke from an Opus
+  session. Don't silently ship Sonnet-quality first-pass content.
+
 Write the analysis in a professional, analytical voice. The tone should be factual and objective —
 not promotional, not dismissive. Each section should contain substantive paragraphs (not one-liners)
 that convey ideas with high fidelity. When you lack sufficient context to make an informed assessment
@@ -329,7 +343,7 @@ on a topic, say so explicitly rather than filling space with generic language.
 ### Section Order
 
 Do NOT lead the body with a date stamp (`*April 27, 2026*` etc.). The Notion page title
-already carries the date (`[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY`),
+already carries the date (`[Claude] [Company Name] Master Diligence Doc — MM.DD.YYYY`),
 and the PDF subtitle does too. A leading body date is redundant and reads as a small
 production error. Start the body directly with the **Context** section, then proceed into
 Framework Mapping. Context has three subheaders — rendered as **bold text only, not
@@ -724,8 +738,12 @@ opinionated — well-rounded mediocrity on moat is a negative read,
 not a wash.
 
 ***2.7 Killshots.*** Apply framework spec §6. Each killshot is a
-numbered sub-subsection (2.7.1, 2.7.2, …) with descriptive title,
-analytical paragraph, and bold-italic ***Failure mode:*** paragraph.
+`#### Killshot N — [Descriptive Title]` H4 sub-subsection (per
+`shared-references/label-hierarchy.md` — the H4 anchor keeps killshot
+children visually distinct from §2.7's inline bold-italic header and
+from the body-size `**Killshot N — Title.**` paragraph leaders that
+would otherwise collapse against each other). Each H4 is followed by
+an analytical paragraph and a bold-italic ***Failure mode:*** paragraph.
 End with a Killshot Summary table (Failure Mode | Key Evidence | Kill
 Shot?). When a killshot here is the same mechanism that will appear
 in §6 Risks, write it in full here (the product-architecture-anchored
@@ -1363,7 +1381,7 @@ Create a new page in the Notes database (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`)
 parent: { data_source_id: "e8afa155-b41a-4aa2-8e9d-3d4365a11dfb" }
 pages: [{
   properties: {
-    "Name": "[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY",
+    "Name": "[Claude] [Company Name] Master Diligence Doc — MM.DD.YYYY",
     "Category": "Diligence",
     "Opportunity": "[Opportunity page URL]"
   },
@@ -1466,22 +1484,23 @@ canvas callbacks. Canvas callbacks execute on every page (or the first page), wh
 header to repeat. Page numbers should still use canvas callbacks (`onFirstPage` and
 `onLaterPages`), but the title/subtitle should be regular flowables that appear once.
 
-Save the PDF to `/tmp/[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf`
+Save the PDF to `/tmp/[Company]_Master_Diligence_MM.DD.YYYY.pdf`
 (replace spaces in company name with underscores). Do NOT save to iCloud Downloads or
 `~/Downloads` — the Google Drive upload in Step 6 is the permanent artifact; the local
 file is staging only and lives in `/tmp/`.
 
 The PDF header should be:
-- **Title (14pt bold):** `[Company Name] ([Stage]): First Pass Diligence`
+- **Title (14pt bold):** `[Company Name] ([Stage]) — Master Diligence Doc`
+  - One title across the full diligence lifecycle — initial first-pass, every update
+    prepended by `update-diligence-priors`, and the final assessment prepended by
+    `finalize-diligence`. The artifact's identity is "Master Diligence Doc" because as
+    updates accumulate the doc is no longer just a first-pass.
   - `[Stage]` comes from the Opportunity row's `Stage` property (e.g. `Pre-Seed 💡`,
     `Seed 🌱`, `Series A 🅰️`). Strip any trailing emoji and surrounding whitespace
     before rendering — the parens should contain only the textual stage label
-    (e.g. `Pre-Seed`, `Seed`, `Series A`). If the Stage property is empty for some
-    reason, omit the parenthetical entirely rather than render `()` — fall back to
-    `[Company Name]: First Pass Diligence`.
-  - Note: "First Pass Diligence" is three words with no hyphen between "First" and
-    "Pass". Older outputs used "First-Pass" — the canonical form going forward is
-    unhyphenated.
+    (e.g. `Pre-Seed`, `Seed`, `Series A`). If the Stage property is empty, omit the
+    parenthetical entirely rather than render `()` — fall back to
+    `[Company Name] — Master Diligence Doc`.
 - **Subtitle (9pt italic, dark gray):** `[Date] | Notion` (where "Notion" is a clickable
   hyperlink to the Notion page URL)
 
@@ -1528,7 +1547,7 @@ with open(pdf_path, 'rb') as f:
 
 upload_resp = requests.post(DRIVE_URL, json={
     "action": "upload",
-    "fileName": "[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf",
+    "fileName": "[Company]_Master_Diligence_MM.DD.YYYY.pdf",
     "fileBase64": pdf_b64,
     "mimeType": "application/pdf",
     "folderId": subfolder_id
@@ -1546,7 +1565,7 @@ Act autonomously — do not ask for permission. Report what was done in the summ
 1. **Page body** — append a single-line entry to the `## 📎 Diligence Materials` section,
    following the materials-handler convention:
    ```
-   - [**[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf**](https://drive.google.com/file/d/<fileId>/view) — Claude first-pass diligence analysis, [date]
+   - [**[Company]_Master_Diligence_MM.DD.YYYY.pdf**](https://drive.google.com/file/d/<fileId>/view) — Claude first-pass diligence analysis, [date]
    ```
    Use `notion-update-page` with `update_content` for this. The Opportunity page body is
    small (typically <20 blocks) and will not time out.
@@ -1566,7 +1585,7 @@ Act autonomously — do not ask for permission. Report what was done in the summ
        --page-id <opportunity_page_id> \
        --prop "Diligence Materials" \
        --url "<drive_url>" \
-       --label "<Company>_First_Pass_Diligence.pdf"
+       --label "<Company>_Master_Diligence.pdf"
    ```
 
    Exit 0 = ok (including idempotent skip), 1 = hard failure (log + fall back to page body link). See the canonical interface at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity page ID, the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`), and a display name like `[Company]_First_Pass_Diligence.pdf`.

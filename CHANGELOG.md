@@ -2,6 +2,19 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-25] (Week of 2026-05-19)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- first-pass-diligence — artifact renamed from "First-Pass Diligence" to "Master Diligence Doc" throughout (Notion page title, PDF filename, PDF header); killshot subsections reformatted to H4 headers; added mandatory Opus-tier drafting rule
+- pre-mortem — added mandatory LLM audit gate (Step 2.5) with research-artifact-audit wiring; factual claims in failure-mode analysis must trace to source bundle before delivery
+- update-diligence-priors — added mandatory Opus-tier drafting rule; prior subheads reformatted to H4 headers; added mandatory LLM audit gate (Step 4.5) scoped to the new Update block only
+**Total skills:** 26
+**Functions:** No changes
+
+---
+
 ## [2026-05-22] (Week of 2026-05-19)
 
 **Added:** None
