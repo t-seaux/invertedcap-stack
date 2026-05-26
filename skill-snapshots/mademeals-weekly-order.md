@@ -4,13 +4,13 @@ description: >
   Compute Tom's MadeMeals subscription rotation for the upcoming delivery,
   apply the swaps directly on mademeals.co via Playwright (the wc-autoship
   AngularJS plugin), and post the outcome to Slack. Runs automatically every
-  Sunday at 9 AM ET via launchd (`com.tomseo.scheduled.mademeals-weekly-order`).
+  Saturday at 9 AM ET via launchd (`com.tomseo.scheduled.mademeals-weekly-order`).
 
   Also triggers when Tom says "what's this week's mademeals order", "run
   mademeals rotation", "next week's mademeals", "show me this week's swaps",
   "mademeals pick", or any variant asking what to order this week. Manual
   triggers should pass `--dry-run` to apply.py so the live subscription is
-  not mutated outside the Sunday scheduled run.
+  not mutated outside the Saturday scheduled run.
 ---
 
 # MadeMeals Weekly Order
@@ -24,7 +24,7 @@ End-to-end automated: rotate.py computes the pick → apply.py swaps live items 
 ## Architecture
 
 ```
-Sunday 9 AM (launchd)
+Saturday 9 AM (launchd)
         │
         ▼
    run.sh
@@ -33,6 +33,9 @@ Sunday 9 AM (launchd)
         │
         ├─► apply.py              (Playwright; reads state.json desired; executes swaps on
         │                          live wc-autoship; verifies via re-fetch; prints outcome)
+        │
+        ├─► osascript             (on apply rc=0: check off the recurring "mademeals" reminder
+        │                          in Apple Reminders "Tasks" list — advances to next Saturday)
         │
         └─► send-alert/send.sh    (combined Slack alert: rotate diff + apply outcome)
 ```
@@ -100,7 +103,7 @@ All product IDs live in `rotate.py` constants — update there when the menu cha
 
 ## State (`state.json`)
 
-- `current_subscription` — what the next delivery should contain. rotate.py advances this each Sunday to the new pick; apply.py uses it as the desired state.
+- `current_subscription` — what the next delivery should contain. rotate.py advances this each Saturday to the new pick; apply.py uses it as the desired state.
 - `rotation_state.wildcard_cycle_position` — 0..3 pointer into the wildcard cycle.
 - `rotation_state.chicken_turkey_cycle_index` — monotonic counter; modulo 4 picks slot, every 6th is Thai Peanut.
 - `rotation_state.individual_dish_recent` — FIFO of last 4 individual dish IDs.
@@ -123,7 +126,7 @@ State is committed to disk by rotate.py after each non-dry-run invocation.
 
 ## Triggers
 
-**Scheduled (Sunday 9 AM):**
+**Scheduled (Saturday 9 AM):**
 - plist: `~/.claude/local-agents/plists/com.tomseo.scheduled.mademeals-weekly-order.plist`
 - runner: `~/.claude/scheduled-tasks/mademeals-weekly-order/run.sh`
 - Pipeline: rotate.py → apply.py → send-alert

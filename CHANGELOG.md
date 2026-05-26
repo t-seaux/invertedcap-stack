@@ -2,6 +2,18 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-05-26] (Week of 2026-05-19)
+
+**Added:** neg1-sourcing (Pipeline Management — added to Platform Map and Quick Reference as a standalone skill)
+**Removed:** None
+**Modified:**
+- neg1-sourcing — script path corrected from scheduled-tasks directory to skills directory; no behavioral change
+**Total skills:** 27
+**Functions:** No changes
+
+---
+
+
 ## [2026-05-25] (Week of 2026-05-19)
 
 **Added:** None

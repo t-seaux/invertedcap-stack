@@ -30,7 +30,7 @@ Growth Tier and Timing Signal are intentionally NOT separate fields — that con
 ## Step 1 — Run the sourcing script
 
 ```bash
-/opt/homebrew/bin/python3 /Users/tomseo/.claude/scheduled-tasks/neg1-sourcing/neg1_sourcing.py run
+/opt/homebrew/bin/python3 /Users/tomseo/.claude/skills/neg1-sourcing/neg1_sourcing.py run
 ```
 
 Captures stdout as JSON: `{run_date, reconnect: [...], cold: [...]}`.

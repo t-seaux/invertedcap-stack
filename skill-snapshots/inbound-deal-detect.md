@@ -93,7 +93,7 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
 - SaaS marketing, newsletters, product announcements, cold sales
 - Recruiting / job postings / hiring asks
 - LP communications / fund updates / allocator outreach
-- Other investment firms (VC funds, hedge funds, family offices) pitching coinvestment or fund intros — peer firms, not startups
+- **Hierarchy for investment-related entities**: (1) If the sender is **explicitly raising venture capital** — asking Tom to write an equity/investment check into their company or vehicle — that IS a deal regardless of entity type (VC firm, family office, fund, asset manager, anything). (2) Only if you cannot determine they are raising venture capital, apply these exclusions: other venture capital firms reaching out (co-invest pitches, deal flow sharing, fund intros); LP-type entities such as fund of funds, family offices, and endowments.
 
 **Field formatting:**
 - `round_details` — **strict format, two valid shapes only**: `"Raising $Xm"` / `"Raising $X-Ym"` for unfinalized rounds (no terms set), OR `"$Xm on $Ym post"` / `"$Xm on $Ym cap"` for rounds with terms set. Lowercase `m`/`k`. **Return empty string `""` if neither a dollar amount nor a cap/post is explicit in the source.** Never write timing-only or qualitative text like `"Kicking off seed this week"`, `"Raising soon"`, `"Active round"`, `"Closing this month"` — those are not round details and will be rejected by `add-to-crm`. If the source has a deck attached, the deck is part of the source — `add-to-crm`'s Step 1B reads decks for round disclosure before writing the field. Empty here is fine; the downstream skill will fill in from the deck if available.
@@ -153,5 +153,3 @@ Exit 0 on any successful path (created, skipped, deduped). Exit non-zero only on
 - **Idempotency:** the webhook keys the job by `messageId` (`idempotencyKey: 'inbound-deal-detect-' + messageId`), so re-deliveries from Gmail Pub/Sub are deduped at the queue layer. The skill itself does not need its own dedup beyond `add-to-crm`'s existing duplicate check.
 - **Founder-sender exclusion is now this skill's job.** The webhook used to skip emails whose sender matched a portfolio founder, but the heuristics (Contact-field substring, People→Founder relation) misfired in both directions — referrers tripped the substring check, and Opps with no Founder relation leaked through. Removed 2026-05-06. The classifier's not-deal rubric ("Founder update on an existing portfolio company") now gates this entirely; rely on it instead of pre-screening on the sender.
 - **No People DB row creation** for the founder (per Tom's standing rule) — `add-to-crm` already honors this.
-
-<!-- snapshot refreshed 2026-05-22 -->

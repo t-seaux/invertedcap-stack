@@ -51,20 +51,20 @@ Requires `SLACK_USER_TOKEN` in env with `files:read` scope (same token used by t
 
 ---
 
-## Step 0. Ack the thread
+## Step 0. Ack Tom's message with a reaction
 
 The Worker no longer posts a synchronous ack — that confirmation now comes from this skill, so it only fires when claude has actually started working on the task.
 
-Before doing anything else, post `Working on it...` to the originating thread:
+Before doing anything else, add a 👀 reaction to Tom's reply message (the one that triggered this job):
 
 ```bash
-/Users/tomseo/.claude/skills/claude-alerts-listener/post_close_loop.sh \
+/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
   "C0B06385BP1" \
-  "<thread_ts from args>" \
-  "Working on it..."
+  "<reply_ts from args>" \
+  eyes
 ```
 
-If the post fails, log to audit and continue — the close-loop reply at Step 4 is still required.
+This is quieter than a text "Working on it..." reply — no extra message in the thread, just a reaction visible on Tom's reply. If the reaction fails, log to audit and continue. The close-loop reply at Step 4 is still required.
 
 ---
 
