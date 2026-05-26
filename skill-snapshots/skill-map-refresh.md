@@ -81,8 +81,8 @@ Scan the skills directory to build a complete inventory.
      |---|---|
      | `deal-scanner-inbound` | `pipeline-agent` |
      | `pipeline-sent-detect` | `founder-outreach` |
-     | `pass-note-sent-detect` | `pass-note-drafter` |
-     | `draft-trash` | `draft-feedback` |
+     | `pass-note-sent` | `pass-note-drafter` |
+     | `draft-feedback` | `draft-feedback` |
      | `feedback-reply-detect` | `feedback-outreach` |
      | `feedback-outreach-sent-detect` | `feedback-outreach` |
      | `intro-outreach` | `intro-agent` |
