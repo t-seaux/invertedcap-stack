@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-05-27] (Week of 2026-05-26)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- investor-update — expanded content-type routing for board materials and additional material formats; updated freshness rules for sweep alert scoping
+- decision-retro — expanded dual-scanner pattern to capture invest, pass, and pre-founder decision retros; routes extracted insights into searchable feedback corpus
+- inbound-deal-detect — added forwarded-message routing (direct vs referrer-sourced); added material URL gate to prevent classifier false positives on deck links
+- intro-outreach-agent — expanded pre-write guard from 4 to 7 gates; added Portfolio Fundraise Forward scanner sub-routine for fundraise-context outreach
+**Total skills:** 27
+**Functions:** No changes
+
+---
+
 All notable changes to the Inverted Cap Stack platform are documented here.
 
 ## [2026-05-26] (Week of 2026-05-19)
