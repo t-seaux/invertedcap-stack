@@ -459,6 +459,18 @@ The update sections should stack chronologically — newest at the top, oldest a
 with the original analysis below all updates. This means a page that has been updated three times
 will read: Update 3 → Update 2 → Update 1 → Original Analysis.
 
+**Fire publish-progress alert (1 of 3) — once the Notion prepend succeeds.** The
+publish phase is silent for ~15 min between the audit and the final completion
+alert; these three pings make it legible.
+
+```bash
+COMPANY="<subject company name>"
+NOTION_URL="<existing diligence page URL>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+📝 **${COMPANY}** Update section prepended — [diligence page]($NOTION_URL). Building updated PDF next.
+EOF
+```
+
 When prepending the first update to a page that has never been updated before, also insert a
 section divider and header before the original first-pass content:
 
@@ -727,6 +739,16 @@ upload_resp = requests.post(DRIVE_URL, json={
 file_url = upload_resp.json()["url"]
 ```
 
+**Fire publish-progress alert (2 of 3).** Once `file_url` is in hand:
+
+```bash
+COMPANY="<subject company name>"
+PDF_URL="<file_url from upload response>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+📄 **${COMPANY}** Updated PDF uploaded to Drive — [PDF]($PDF_URL). Linking to Diligence Materials.
+EOF
+```
+
 If Tom attached supplementary materials (decks, plans, models) inline with the skill invocation,
 do NOT re-upload them — they are almost always already in the Diligence Materials property field
 courtesy of the `materials-handler` webhook that fires on inbound email/iMessage attachments.
@@ -774,6 +796,15 @@ patches and MCP is slower + less reliable on them.
    ```
 
    If Chrome is unavailable, skip the property field and rely on the page body link.
+
+**Fire publish-progress alert (3 of 3).** Once the property write is verified:
+
+```bash
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🔗 **${COMPANY}** Diligence Materials property updated. Sending completion alert.
+EOF
+```
 
 Act autonomously — do not ask for permission. Report what was done in the summary.
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-05-29] (Week of 2026-05-26)
+
+**Added:** finalize-diligence, draft-investment-memo, product-build-teardown, log-pass-note-guidance (Diligence Management — four skills previously tracked in canonical mapping now rendered on Platform Map and Quick Reference)
+**Removed:** None
+**Modified:**
+- first-pass-diligence — added memo text cache step for analog-grounding lint gate; added mandatory inner H1 anchor rule for Master Diligence Doc structure; added architectural overlay guardrail requiring analog characterizations to trace verbatim to source; added operational specificity and deictic completeness writing rules
+- finalize-diligence — added three intermediate publish-progress alerts during the publish phase (Final Assessment prepend, PDF upload, Diligence Materials property update)
+- update-diligence-priors — added three intermediate publish-progress alerts during the publish phase (Update section prepend, PDF upload, Materials link step)
+**Total skills:** 31
+**Functions:** Diligence Management now lists 12 skills (was 8). Four skills surfaced: finalize-diligence, draft-investment-memo, product-build-teardown, log-pass-note-guidance.
+
+---
+
 ## [2026-05-27] (Week of 2026-05-26)
 
 **Added:** None
@@ -505,3 +518,4 @@ Notes: First run with the `skill-snapshots/` diff baseline — snapshots seeded 
 
 ## Future Release Notes
 (Previous releases will be documented as they occur)
+

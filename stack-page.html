@@ -356,7 +356,7 @@
   <div class="responsive-inner" id="responsive-inner">
     <div class="page-wrap">
 
-      <div class="page-date">Updated 2026-05-27 (<a href="https://github.com/t-seaux/invertedcap-stack/blob/main/CHANGELOG.md" target="_blank">Changelog</a>)</div>
+      <div class="page-date">Updated 2026-05-29 (<a href="https://github.com/t-seaux/invertedcap-stack/blob/main/CHANGELOG.md" target="_blank">Changelog</a>)</div>
 
       <!-- —— Stack Map —— -->
       <div class="artifact-frame">
@@ -371,7 +371,7 @@
             <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk sm-sched">neg1-sourcing</span><span class="sm-sk">add-to-contacts</span></div></div>
             <div class="sm-fn-card" id="fn-intro"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Intro Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">intro-agent</span><span class="sm-sk">network-scan</span></div></div>
             <div class="sm-fn-card" id="fn-portfolio"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Portfolio Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">investor-update</span><span class="sm-sk">coinvestor-recommender</span></div></div>
-            <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched sm-composite">diligence-agent</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span></div></div>
+            <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched sm-composite">diligence-agent</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">product-build-teardown</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span><span class="sm-sk">draft-investment-memo</span><span class="sm-sk">finalize-diligence</span><span class="sm-sk">log-pass-note-guidance</span></div></div>
             <div class="sm-fn-card" id="fn-research"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Research Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">research-agent</span><span class="sm-sk">log-transcript-to-notion</span><span class="sm-sk">deal-digest</span><span class="sm-sk">log-investor-letter-to-notion</span><span class="sm-sk">add-to-companies</span><span class="sm-sk">company-scan</span></div></div>
           </div>
           <div class="sm-mid" id="mid">
@@ -480,6 +480,10 @@
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">pre-mortem</span></div><div class="qr-skill-line">Stress-tests a deal by imagining failure and working backward; mandatory LLM audit gate fires on factual claims before delivery.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">add-conversation-to-notion</span></div><div class="qr-skill-line">Archives the current Claude conversation as a Notes DB page.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">decision-retro</span></div><div class="qr-skill-line">Captures post-decision reasoning on invest, pass, and -1 decisions and routes insights into a searchable feedback corpus.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">product-build-teardown</span></div><div class="qr-skill-line">Produces a six-section product build analysis — anatomy, delivery, build cost, production path, moat read, and killshots — with a Notion page, PDF, and Slack alert.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">log-pass-note-guidance</span></div><div class="qr-skill-line">Logs Tom's pass note guidance to the Opportunity page body, where pass-note-drafter picks it up as authorial intent.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">draft-investment-memo</span></div><div class="qr-skill-line">Drafts the initial Google Doc investment memo by synthesizing diligence artifacts into Tom's voice against reference memo structure.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">finalize-diligence</span></div><div class="qr-skill-line">Synthesizes the full diligence record into a Final Assessment — Overview, Thesis, Diligence Journey, and Open Questions — prepended to the Master Diligence Doc with a rebuilt PDF.</div></div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>
@@ -629,4 +633,5 @@ document.addEventListener('transitionend', function(e) {
 
 </body>
 </html>
+
 

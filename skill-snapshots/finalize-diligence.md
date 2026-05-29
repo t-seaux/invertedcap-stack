@@ -519,6 +519,18 @@ If the page icon is not already set to `:claude-color:`, set it now via
 `notion-update-page` with `icon: ":claude-color:"`. If already set (likely — first-pass
 sets it on creation), skip.
 
+**Fire publish-progress alert (1 of 3) — once the Final Assessment is prepended
+and the icon is confirmed.** The publish phase is silent for ~15 min between
+the audit and the final completion alert; these three pings make it legible.
+
+```bash
+COMPANY="<subject company name>"
+NOTION_URL="<diligence page URL>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+📝 **${COMPANY}** Final Assessment prepended — [diligence page]($NOTION_URL). Building consolidated PDF next.
+EOF
+```
+
 ---
 
 ## Step 5: Pre-PDF Lint — MANDATORY GATE (Subagent B)
@@ -823,6 +835,17 @@ Upload the new PDF to the same company subfolder under Diligence root
 `update-diligence-priors` Step 5b. The `createFolder` call is idempotent and returns the
 existing subfolder if it's already there.
 
+**Fire publish-progress alert (2 of 3) — immediately after the upload returns
+`file_url`.**
+
+```bash
+COMPANY="<subject company name>"
+PDF_URL="<file_url from upload response>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+📄 **${COMPANY}** Final PDF uploaded to Drive — [vFinal PDF]($PDF_URL). Running retention sweep + linking next.
+EOF
+```
+
 ### Retention sweep — destructive, autonomous
 
 Per memory `feedback_diligence_pdf_retention`: the new `_vFinal.pdf` is a full
@@ -864,6 +887,16 @@ on text-only patches):
 3. **Scrub stale URLs** — any entry in the files-property pointing at a trashed Drive file must
    be removed. Any bullet in the page body still pointing at a trashed PDF must be patched to
    the new URL.
+
+**Fire publish-progress alert (3 of 3) — once the Diligence Materials write
+verifies and stale URLs are scrubbed.**
+
+```bash
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🔗 **${COMPANY}** Diligence Materials property updated + stale URLs scrubbed. Sending completion alert.
+EOF
+```
 
 Per memory `feedback_no_permission_for_user_initiated_analysis` and
 `feedback_first_pass_no_permission_prompts`: all writes (PATCH, POST, DELETE) execute
