@@ -9,6 +9,37 @@ Create a new opportunity in the Notion Opportunities database from varied source
 
 Read `references/schema.md` for the full database schema and field formatting rules before proceeding.
 
+## Invocation modes
+
+This skill has two entry points:
+
+1. **Manual mode** — Tom invokes via "add to crm", "-1 <LI URL>", or a pasted source (screenshot, forwarded email, LI URL, text). Run the full Workflow below starting at Step 1's source-type discrimination.
+
+2. **Webhook mode** — invoked by `inbound-deal-detect` via the claude-job-queue. The args dict contains `webhookMode: true` and the inbound classifier's pre-extracted fields:
+
+   ```
+   { webhookMode: true,
+     messageId, threadId, gmailMessageUrl,
+     classifierHints: { company, description, founder_first_name, founder_li_url,
+                        website, round_details, stage },
+     statusDirective,  // honor verbatim — do not re-infer
+     sourceDirective,  // "Direct" OR {email, name} for referrer
+     materialUrls,     // verbatim from webhook regex — process all
+     forwardedFromTom, forwardedFromReferrer,
+     referrerEmail, referrerName }
+   ```
+
+   In webhook mode:
+   - **Skip Step 1's source-type discrimination.** Use `mcp__claude_ai_Gmail__get_thread` with `threadId` to fetch the email (needed for the dedup signal harvesting in Protected Status Guard, which walks inner forwarded headers).
+   - **Use `classifierHints` as starting points** for Step 1's extraction. Enrichment (Step 2+) may override.
+   - **Honor `statusDirective` verbatim** — do not let Step 5 Status inference flip it.
+   - **Honor `sourceDirective` verbatim** — if `"Direct"`, use the canonical Direct People DB page; if `{email, name}`, resolve against People DB and populate `Source(s)`. Do NOT auto-create a People row if the referrer isn't found (per Tom's standing rule — surface the gap in the Slack alert instead).
+   - **`materialUrls` is authoritative** — every URL MUST be processed by Step 1B (read for thin-body enrichment) AND Step 6 (link via materials-handler). Do not second-guess what counts as a deck.
+   - **Skip Step 4's "Present Summary"** — no human is watching the run-log live. Proceed directly from enrichment to page creation.
+   - **Run the new Step 8 (Slack alert)** when done — that's the outcome signal Tom watches. Manual mode does not need Step 8 because Tom is in the conversation.
+
+   If the Protected Status Guard fires (terminal-status duplicate, prior pass, or live-pipeline duplicate), still run Step 8 with the appropriate alert variant (🔁/⛔/🛡️) — do not exit silently.
+
 ## Protected Status Guard
 
 Before creating ANY new opportunity, run the dedup check below. This is MANDATORY — do not skip it. Unattended callers (e.g. `inbound-deal-detect`) must run this guard the same way as manual invocations.
@@ -80,7 +111,7 @@ Determine the input type and extract all available data points:
 
 **ALWAYS read the full email thread** via `gmail_read_thread`, not just the single message. A forwarded pitch is often only the opening move — subsequent messages in the thread (and in any related threads) frequently contain: Tom's reply expressing interest, a second thread where the referrer makes the actual intro, the founder's acknowledgment, scheduling coordination via Blockit/Calendly, and the call confirmation. All of this changes how the opportunity should be classified (see Step 4). Also run a broad Gmail search on the company name to surface related threads (the initial forward and the follow-up intro are often separate threads with different subject lines — e.g. "Fwd: Company.ai" followed by "Connecting Tom <> Founder (Company)").
 
-**LinkedIn profile URL:** Use `WebFetch` on the URL. If it fails or returns limited data, use Claude in Chrome browser tools (navigate to URL, read page). Extract: name, headline, location, current company, about section. **When the input is a bare LI profile URL (no other context), apply these defaults: Stage → `Pre-Seed 💡`, Source → "Direct", Description → `TBD`.**
+**LinkedIn profile URL:** `WebFetch` always 401s on LinkedIn — skip it and go straight to Chrome osascript per `/Users/tomseo/.claude/skills/shared-references/chrome-read-page.md` (read `main.innerText`, never `outerHTML` — full-DOM dumps blow up context). Extract: name, headline, location, current company, about section. **When the input is a bare LI profile URL (no other context), apply these defaults: Stage → `Pre-Seed 💡`, Source → "Direct", Description → `TBD`.**
 
 **`-1` shorthand:** When the user writes `-1` followed by a LinkedIn URL or name, this is equivalent to "add to CRM" with a pre-company `-1` title format. Treat it identically to a bare LinkedIn profile URL input. For `-1` entries, when looking up email via ContactOut MCP (`contactout_enrich_person`) or browser sidebar: **prioritize personal email** (e.g. Gmail) over work email for the People DB `Email` field, since the person is not yet attached to a specific company from Tom's pipeline perspective. Always try the ContactOut MCP first before falling back to the browser sidebar.
 
@@ -152,7 +183,7 @@ Always enrich `HQ`, `Contact`, `Website`, `Description` **before creating the pa
 **Priority order — ContactOut is a paid API, only hit it if the cheaper sources can't answer:**
 
 1. **Source material** — email signatures, forwarded threads, pasted context often contain the founder's email, company website, and HQ verbatim. Check first.
-2. **Public LinkedIn page** — WebFetch (or Chrome if logged-in detail is needed) the founder's LI URL for headline, location, current-company name, and bio. Pulls HQ and a description without burning credits. **If no LI URL was provided in the source, web-search `"<founder name>" "<company>" linkedin` (or `"<founder name>" <distinctive context> linkedin` if the company is generic) to find it before falling back to ContactOut.** Disambiguate by description signals (role, ex-employers, school) when multiple matches exist.
+2. **Public LinkedIn page** — for the founder's LI URL, use Chrome osascript per `/Users/tomseo/.claude/skills/shared-references/chrome-read-page.md` (`main.innerText`, capped). WebFetch on LinkedIn always 401s, so don't bother trying it first. Pulls headline, location, current-company name, and bio without burning ContactOut credits. **If no LI URL was provided in the source, web-search `"<founder name>" "<company>" linkedin` (or `"<founder name>" <distinctive context> linkedin` if the company is generic) to find it before falling back to ContactOut.** Disambiguate by description signals (role, ex-employers, school) when multiple matches exist.
 3. **Company website** — WebFetch for HQ (footer/contact page) and description (hero/meta).
 4. **ContactOut fallback** — only if 1–3 can't resolve a needed field, call `contactout_enrich_linkedin_profile` with `profile_only=false`. It returns `email`/`personal_email`, `company.headquarter`, `company.website`, and full experience. Use `profile_only=true` if you only need profile data (no email credits).
 
@@ -344,6 +375,24 @@ Before declaring add-to-crm complete (manual reply summary, or unattended exit-0
 For unattended/webhook runs: log the verification result (`materials-verified: ✅` or `materials-verified: ⚠️ re-invoked materials-handler for <N> missing URLs`) in the run summary. Failing the verification gate is a soft fail — re-invoking materials-handler is the recovery path, not an error exit.
 
 Skip this gate only if there are zero expected URLs (no `materialUrls` arg AND no deck-host patterns in the source).
+
+## Step 8: Slack Alert (webhook mode only)
+
+Skip this step in manual mode — Tom is in the conversation and reads the reply summary directly.
+
+In webhook mode, post a single Slack alert via the `send-alert` skill (read `~/.claude/skills/send-alert/SKILL.md`). One alert per webhook job — never batch.
+
+**Header line:** `📥 NEW DEAL — YYYY-MM-DD HH:MM ET`
+
+**Body — one of:**
+
+- New entry created — `🆕 **<Company>** — "<email subject>" — <one-liner description>. <Notion page link>`
+- Duplicate (in pipeline, non-protected, stale states only: Qualified, Track, Pass Note Pending) — `🔁 **<Company>** — already in pipeline (<status>). <existing Notion page link>`
+  - **Exception: suppress this alert silently (exit 0, no Slack post) when the existing Opp's status is any active state: Outreach, Connected, Scheduled, Active, or Committed.** These are deals already in motion — the 🔁 is noise.
+- Hard-block (prior pass) — `⛔ **<Company>** — prior pass on file. <existing Notion page link>`
+- Protected status — `🛡️ **<Company>** — already <status> (protected). <existing Notion page link>`
+
+If the referrer (`sourceDirective` = `{email, name}`) was not found in the People DB, append a second line: `⚠️ Referrer not in People DB: <name> <email> — Source(s) left blank.`
 
 ## Examples
 

@@ -118,7 +118,7 @@ Set the page **icon** to `profile.profile_picture_url` from the ContactOut respo
 | **Work History** | JSON array of Notion page URLs for every company in the person's experience history, **including the primary company as the first entry** (so its logo appears at the top). The primary company also appears in the Company field — that's intentional. |
 | **Experience Summary** | Entries separated by a **blank line** (double line break), no bullets, with bold company-name prefix through the colon. **Consolidate multiple roles at the same company into a single entry** — if someone held two positions at "Corgi" and "Corgi (YC S24)", group them: `**Corgi:** Chief of Staff (10/2025–Present); Founding Growth (12/2024–10/2025): AI insurance`. Match company names fuzzy (ignore parenthetical suffixes like "(YC S24)"). For distinct companies, format as: `**Company Name:** Title (Start–End): summary text`. Bold runs from company name through the first colon (after the company name). Include all experience entries regardless of whether they have a summary — if an entry has no summary, just show the company, title, and dates. |
 | **Growth Tier / Timing Signal** | **Do not write these fields — they don't exist.** Growth and timing context goes in `Eval Summary` prose via CC Momentum + tenure overlap (e.g. "Joined Stripe in 2019 when ARR was ~$50M, Series E-era rapid scaling"). |
-| **Type** | **Manual mode** (Tom-initiated via "add X to -1 enrich/engine" or raw LinkedIn URL): default to `Cold ☎️` unless Tom's phrasing indicates a prior relationship ("reconnect with X", "follow up with X from [prior company]") — then use `Reconnect 👋`. **Task 6 mode** (pipeline-agent scheduled bulk enrichment with existing page IDs): do not write — neg1-sourcing set this at row creation. |
+| **Type** | **Manual mode** (Tom-initiated via "add X to -1 enrich/engine" or raw LinkedIn URL): default to `Cold 🧊` unless Tom's phrasing indicates a prior relationship ("reconnect with X", "follow up with X from [prior company]") — then use `Warm ☀️`. **Task 6 mode** (pipeline-agent scheduled bulk enrichment with existing page IDs): do not write — neg1-sourcing set this at row creation. |
 | **Last Enriched** | Today's date (ISO-8601). Set on the -1 Scanner row when enrichment completes — this is the person-level marker distinct from the Companies DB `Last Enriched` on each employer. Always populate on create AND on any re-enrichment pass. |
 
 ### Step 4.5: Research Online Presence
@@ -231,6 +231,58 @@ The -1 Scanner's `Status` field workflow:
 **`--score-only` mode**: does NOT chain (it's a re-evaluation, not a fresh outreach decision).
 
 The split: `neg1-enricher` produces the scored row. On manual invocation it also triggers `founder-outreach` as a terminal step. `founder-outreach` owns the Gmail draft itself.
+
+### Step 6.5: Post-Write Field Validation
+
+After all writes complete (Steps 4–6), re-fetch the -1 Scanner row via `notion-fetch` and audit every field below. For each gap, attempt an inline fix before reporting. This is a mandatory quality gate — not optional, not skippable.
+
+**Required fields — fail if empty or placeholder:**
+
+| Field | Pass condition | Auto-fix |
+|---|---|---|
+| Page icon | Non-null icon set | Re-attempt with `profile.profile_picture_url`; if still missing, flag |
+| Name | Non-empty string, not in `"{Company} – {role}"` placeholder format | Re-fetch from ContactOut and re-write |
+| LI | Non-empty URL | Flag — cannot auto-fix |
+| Type | Exactly `Warm ☀️` or `Cold 🧊` | Re-write with correct value |
+| Role | Non-empty string | Re-extract from ContactOut payload and re-write |
+| CurrentCo (CC) | ≥1 relation | Re-run Step 3 for primary employer and re-write |
+| Work History | ≥1 relation | Re-run Step 3 for experience array and re-write |
+| Claude Rec | Non-null select | Re-run Step 5 verdict derivation and re-write |
+| Eval Summary | Non-empty, ≥100 chars, contains "Primary Signal:" and "Other Qualities" and "Gaps." | Re-run Step 5 and re-write |
+| Eval Breakdown | Non-empty, ≥100 chars | Re-run Step 5 and re-write |
+| Working Description | Non-empty | Re-run Step 5 and re-write |
+| Experience Summary | Non-empty | Re-extract from ContactOut payload and re-write |
+| Last Enriched | Set to today's date | Write today's date |
+
+**Conditional fields — fail only if upstream data was available:**
+
+| Field | Pass condition |
+|---|---|
+| Email | Populated if `profile.personal_email` or `profile.work_email` was non-empty in the ContactOut response |
+| City | Populated if `profile.location` was non-empty |
+| Function | Populated if the role title maps to any of the defined categories |
+| School(s) | ≥1 relation if `profile.education` had non-study-abroad entries |
+| Field(s) of Study | Non-empty if School(s) is populated |
+| LI Profile Summary | Populated if `profile.summary` was non-empty |
+| Online Presence | ≥1 entry if Phase A or Phase B searches returned validated URLs |
+
+**Company and school icon check (run for every page in CurrentCo (CC), Work History, and School(s) relations):**
+
+For each company or school page in these three relations, call the Notion REST API to check whether the page has an icon set. For any page missing an icon:
+1. Derive the domain from its `URL` property on the Companies DB page.
+2. Verify `https://icons.duckduckgo.com/ip3/{domain}.ico` returns HTTP 200.
+3. If yes, PATCH the page icon via `PATCH /v1/pages/{page_id}` with `{"icon": {"type": "external", "external": {"url": "https://icons.duckduckgo.com/ip3/{domain}.ico"}}}`.
+4. If no (404/redirect), flag the page in the Step 7 report as "icon missing — DuckDuckGo returned no result."
+
+**Formatting checks:**
+
+- `Eval Summary` must follow the canonical structure: `**Primary Signal: [Name].** [paragraph]` → blank line → `**Other Qualities**` → bullet list → blank line → `**Gaps.** [paragraph]`. If malformed, re-write.
+- `Field(s) of Study` must use the normalized degree format: `"Field (Bachelor's)"`, not `"B.S."` / `"BS"` etc. If raw abbreviations detected, normalize and re-write.
+- `Experience Summary` entries must be separated by a blank line and use bold company-name prefix. If malformed, re-write.
+
+**Accumulate all auto-fixes and gaps.** Pass the list to Step 7 for inclusion in the report.
+
+---
 
 ### Step 7: Report Back
 

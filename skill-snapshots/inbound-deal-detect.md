@@ -93,7 +93,7 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
 - SaaS marketing, newsletters, product announcements, cold sales
 - Recruiting / job postings / hiring asks
 - LP communications / fund updates / allocator outreach
-- Other investment firms (VC funds, hedge funds, family offices) pitching coinvestment or fund intros — peer firms, not startups
+- **Hierarchy for investment-related entities**: (1) If the sender is **explicitly raising venture capital** — asking Tom to write an equity/investment check into their company or vehicle — that IS a deal regardless of entity type (VC firm, family office, fund, asset manager, anything). (2) Only if you cannot determine they are raising venture capital, apply these exclusions: other venture capital firms reaching out (co-invest pitches, deal flow sharing, fund intros); LP-type entities such as fund of funds, family offices, and endowments.
 
 **Field formatting:**
 - `round_details` — **strict format, two valid shapes only**: `"Raising $Xm"` / `"Raising $X-Ym"` for unfinalized rounds (no terms set), OR `"$Xm on $Ym post"` / `"$Xm on $Ym cap"` for rounds with terms set. Lowercase `m`/`k`. **Return empty string `""` if neither a dollar amount nor a cap/post is explicit in the source.** Never write timing-only or qualitative text like `"Kicking off seed this week"`, `"Raising soon"`, `"Active round"`, `"Closing this month"` — those are not round details and will be rejected by `add-to-crm`. If the source has a deck attached, the deck is part of the source — `add-to-crm`'s Step 1B reads decks for round disclosure before writing the field. Empty here is fine; the downstream skill will fill in from the deck if available.
@@ -108,50 +108,82 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
 - `is_deal: true` AND `confidence: medium`/`high` AND `company` is empty → log `no-company-extracted` and exit 0.
 - `is_deal: true` AND `confidence: medium`/`high` AND `company` populated → proceed to Step 4.
 
-### Step 4: Delegate to `add-to-crm`
+### Step 4: Enqueue `add-to-crm` as a follow-on job
 
-Read `~/.claude/skills/add-to-crm/SKILL.md` and run it with the email as input. The `add-to-crm` skill already handles:
+This skill runs on **Haiku** (per Tom's model tier framework — it's a classifier). The downstream `add-to-crm` work — Notion dedup queries, ContactOut/web enrichment, page creation with full property mapping, materials handling — is Sonnet-class. Splitting the two via the queue keeps each tier doing what it's good at and was the structural fix for the Evalion 2026-06-01 failure mode (Haiku narrated `(would execute)` instead of running add-to-crm inline).
 
-- Duplicate detection against the Opportunities DB (including the **Protected Status Guard** for terminal statuses — Active Portfolio, Portfolio: Follow-On, Exited, Committed)
-- Hard-block on prior `Pass *` statuses
-- ContactOut / web enrichment for HQ, website, contact email, logo
-- Page creation with full property mapping
-- Materials handler for any deck/memo attachments
+Do NOT read `add-to-crm/SKILL.md` or attempt to execute its steps inline. Instead, write a typed args JSON file and invoke the canonical helper `~/.claude/scripts/enqueue-addcrm.sh` — it wraps the args in the queue envelope, computes the idempotency key, and POSTs to `/enqueue`. The helper exists so Haiku doesn't have to template a mixed-shape JSON inline (bools, arrays, mixed-shape `sourceDirective`).
 
-Pass these inputs explicitly so `add-to-crm` doesn't have to re-classify:
+Steps:
 
-- The full email body (subject, sender, plaintext body)
-- The classifier's extracted fields as **hints** (company, description, founder name, founder LI URL, website, round_details, stage). These are starting points — `add-to-crm`'s enrichment step may override them with better data from ContactOut / company website.
-- **Explicit `status` directive**: `"Connected"` if Step 1B / 1C resolved Source = Direct (founder is the actual sender), `"Qualified"` if Source = <referrer> (intro offered but not made). `add-to-crm` MUST honor this directive — do not let downstream inference flip it back to `Connected` for a referrer-forward case.
-- **Explicit `source` directive**: either `"Direct"` (use the canonical Direct People DB page) OR `{ email: <senderEmail>, name: <senderName> }` for a referrer. `add-to-crm` resolves the referrer against the People DB and populates `Source(s)`. If the referrer is not in the People DB, leave `Source(s)` blank and surface the gap in the Slack alert — do NOT auto-create.
-- The Gmail message URL (`https://mail.google.com/mail/u/0/#inbox/{messageId}`) for the Source Email field, and the `messageId` itself so it can probe attachments via the Gmail Attachment Saver per the skill's Step 1B.
-- The Gmail `threadId` for the new `Source Thread ID` property on the Opp.
-- **Explicit `materialUrls` directive** (if non-empty): pass the array verbatim to `add-to-crm`. The skill treats this as the authoritative list of deck/material URLs that MUST be processed by Step 1B (read for thin-body enrichment) and linked via Step 6 (Diligence Materials property). The webhook ran the regex; the skill doesn't get to second-guess what counts as a deck URL.
+1. Write the args dict to `/tmp/addcrm-args-<messageId>.json`. The shape (use exact JSON types — booleans unquoted, arrays as arrays, `sourceDirective` either a string OR an object):
 
-**Unattended mode:** This skill is invoked by an automated webhook job — do **not** ask Tom for confirmation at any point. If `add-to-crm`'s "Step 4: Present extracted fields to user" would normally pause for confirmation, skip the pause and create the page directly with the classifier-extracted fields. If a duplicate is found in a protected terminal status, log `protected-status-skip` with the existing page ID and exit 0 — do **not** prompt.
+```json
+{
+  "webhookMode": true,
+  "messageId": "<messageId arg, verbatim>",
+  "threadId": "<threadId arg, verbatim>",
+  "gmailMessageUrl": "https://mail.google.com/mail/u/0/#inbox/<messageId>",
+  "senderEmail": "<senderEmail arg, verbatim — webhook already swapped for forward cases>",
+  "senderName": "<senderName arg, verbatim>",
+  "classifierHints": {
+    "company": "<from Step 2>",
+    "description": "<from Step 2>",
+    "founder_first_name": "<from Step 2>",
+    "founder_li_url": "<from Step 2>",
+    "website": "<from Step 2>",
+    "round_details": "<from Step 2>",
+    "stage": "<from Step 2>"
+  },
+  "statusDirective": "<Connected | Qualified | Outreach | Scheduled — per Step 1B/1C>",
+  "sourceDirective": "Direct",
+  "materialUrls": [],
+  "forwardedFromTom": false,
+  "forwardedFromReferrer": false
+}
+```
 
-### Step 5: Report to Slack
+For referrer cases (`forwardedFromReferrer: true` OR `forwardedFromTom: true` with inner-domain mismatch per Step 1B), set `sourceDirective` to an object instead of `"Direct"`:
 
-After `add-to-crm` returns (success or skip), post a single Slack alert via the `send-alert` skill (read `~/.claude/skills/send-alert/SKILL.md`).
+```json
+"sourceDirective": { "email": "<referrer email>", "name": "<referrer name>" }
+```
 
-**Alert format (one of):**
+And include `referrerEmail` / `referrerName` at the top level of the args dict (the webhook passes them as args when `forwardedFromReferrer: true`).
 
-- New entry created — `🆕 **<Company>** — "<subject>" — <one-liner description>. <Notion page link>`
-- Duplicate (in pipeline, not protected) — `🔁 **<Company>** — already in pipeline (<status>). <existing Notion page link>`
-  - **Exception: suppress this alert silently (exit 0, no Slack post) when the existing Opp's status is any active state: Outreach, Connected, Scheduled, Active, or Committed.** These are deals already in motion — the 🔁 is noise. Only post 🔁 for stale states (Qualified, Track, Pass Note Pending) where a resurface is worth knowing.
-- Hard-block (prior pass) — `⛔ **<Company>** — prior pass on file. <existing Notion page link>`
-- Protected status — `🛡️ **<Company>** — already <status> (protected). <existing Notion page link>`
+2. Invoke the helper:
 
-Header line: `📥 NEW DEAL — YYYY-MM-DD HH:MM ET`. One alert per webhook job — never batch.
+```bash
+~/.claude/scripts/enqueue-addcrm.sh /tmp/addcrm-args-<messageId>.json
+```
+
+The helper reads `$CLAUDE_JOB_QUEUE_SECRET` from env (injected by `processor.py:_skill_env()`) and POSTs the envelope to `https://claude-job-queue.tom-182.workers.dev/enqueue`. Idempotency key is computed automatically as `add-to-crm-<messageId>`.
+
+3. Check the result. The helper exits:
+   - **0** + response body `{"enqueued": true, ...}` → success, downstream `add-to-crm` job will run on its own tick.
+   - **0** + response body `{"enqueued": false, "reason": "dedup"}` → an `add-to-crm` job for this messageId was already enqueued (e.g. on a previous retry of this skill). That's fine — log `add-to-crm-already-enqueued` and exit 0 from this skill.
+   - **Non-zero** (2 or 3) → infrastructure error (missing secret, malformed args, HTTP non-200). **Exit non-zero from this skill** so the processor moves the job to `failed/` and posts a Slack failure alert. Do not silently swallow the enqueue failure.
+
+`add-to-crm` itself owns the Slack alert for created/deduped/blocked outcomes (its own Step 8). This skill does NOT post a Slack alert when it enqueues successfully — the alert comes from the follow-on job.
+
+### Step 5: Report to Slack (skip-paths only)
+
+This skill posts a Slack alert ONLY for paths where it does NOT enqueue `add-to-crm` (i.e., the Step 3 gate filtered the message out). Use the `send-alert` skill (read `~/.claude/skills/send-alert/SKILL.md`).
+
+For the gated paths, post:
+
+- `is_deal: false` — suppress silently (exit 0, no Slack post). The webhook's deterministic pre-filter + Haiku gate already filtered most non-deals; the second-pass classifier saying "not a deal" is mundane and noisy if alerted.
+- `is_deal: true, confidence: low` — suppress silently (exit 0).
+- `is_deal: true, no company extracted` — `⚠️ NEW DEAL CLASSIFIER — high-confidence positive but couldn't extract company name from "<subject>" — manual triage needed. <gmail message URL>`
+
+Successful-enqueue path: no Slack post here. `add-to-crm` will post the 🆕/🔁/⛔/🛡️ alert when it processes the follow-on job.
 
 ### Step 6: Exit
 
-Exit 0 on any successful path (created, skipped, deduped). Exit non-zero only on infrastructure errors (Gmail fetch failed, Notion API down, `add-to-crm` raised). The processor moves non-zero jobs to `failed/` and posts a Slack failure alert from the queue layer.
+Exit 0 on any successful path (enqueued, gated/skipped, dedup-rejected at queue layer). Exit non-zero only on infrastructure errors (Gmail fetch failed, `/enqueue` POST returned non-200, missing `CLAUDE_JOB_QUEUE_SECRET`). The processor moves non-zero jobs to `failed/` and posts a Slack failure alert from the queue layer.
 
 ## Notes
 
 - **Idempotency:** the webhook keys the job by `messageId` (`idempotencyKey: 'inbound-deal-detect-' + messageId`), so re-deliveries from Gmail Pub/Sub are deduped at the queue layer. The skill itself does not need its own dedup beyond `add-to-crm`'s existing duplicate check.
 - **Founder-sender exclusion is now this skill's job.** The webhook used to skip emails whose sender matched a portfolio founder, but the heuristics (Contact-field substring, People→Founder relation) misfired in both directions — referrers tripped the substring check, and Opps with no Founder relation leaked through. Removed 2026-05-06. The classifier's not-deal rubric ("Founder update on an existing portfolio company") now gates this entirely; rely on it instead of pre-screening on the sender.
 - **No People DB row creation** for the founder (per Tom's standing rule) — `add-to-crm` already honors this.
-
-<!-- snapshot refreshed 2026-05-22 -->

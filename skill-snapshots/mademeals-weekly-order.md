@@ -4,13 +4,13 @@ description: >
   Compute Tom's MadeMeals subscription rotation for the upcoming delivery,
   apply the swaps directly on mademeals.co via Playwright (the wc-autoship
   AngularJS plugin), and post the outcome to Slack. Runs automatically every
-  Sunday at 9 AM ET via launchd (`com.tomseo.scheduled.mademeals-weekly-order`).
+  Saturday at 9 AM ET via launchd (`com.tomseo.scheduled.mademeals-weekly-order`).
 
   Also triggers when Tom says "what's this week's mademeals order", "run
   mademeals rotation", "next week's mademeals", "show me this week's swaps",
   "mademeals pick", or any variant asking what to order this week. Manual
   triggers should pass `--dry-run` to apply.py so the live subscription is
-  not mutated outside the Sunday scheduled run.
+  not mutated outside the Saturday scheduled run.
 ---
 
 # MadeMeals Weekly Order
@@ -24,7 +24,7 @@ End-to-end automated: rotate.py computes the pick → apply.py swaps live items 
 ## Architecture
 
 ```
-Sunday 9 AM (launchd)
+Saturday 9 AM (launchd)
         │
         ▼
    run.sh
@@ -33,6 +33,9 @@ Sunday 9 AM (launchd)
         │
         ├─► apply.py              (Playwright; reads state.json desired; executes swaps on
         │                          live wc-autoship; verifies via re-fetch; prints outcome)
+        │
+        ├─► osascript             (on apply rc=0: check off the recurring "mademeals" reminder
+        │                          in Apple Reminders "Tasks" list — advances to next Saturday)
         │
         └─► send-alert/send.sh    (combined Slack alert: rotate diff + apply outcome)
 ```
@@ -80,7 +83,9 @@ All product IDs live in `rotate.py` constants — update there when the menu cha
 4. Infer each main slot's *role* from its current product (e.g., Salmon Cakes → "salmon"); ignore unmappable slots.
 5. For each role, compare current product to desired product (from `state.json["current_subscription"]`). On mismatch, drive that slot's `<select>` to the desired product ID.
 6. For add-ons: build desired add-on set = kids items + (dish #2 if a 2-dishes wildcard week). Remove any add-on not in the desired set; fill empties with anything desired that's missing.
-7. After all changes, reload page and re-fetch schedule. Report verify mismatches in the outcome.
+7. After all changes, reload page and re-fetch schedule. Run `verify()` to compare actual vs desired.
+8. **Retry loop**: if verify flags any mismatch (wc-autoship debounces select changes and silently drops some when chained), `reapply_mismatched()` re-issues only the failed slot changes, reload, re-verify. Up to `MAX_RETRY_ATTEMPTS` (3) attempts.
+9. Promote each action's status: `submitted` → `done` (verified committed) or `failed` (still mismatched after retries). The alert renders ✅ only for `done`, ❌ for `failed`.
 
 **Wildcard 2-dishes mechanics**:
 - Wildcard slot (whichever main slot holds a wildcard-pool item) gets dish #1.
@@ -100,7 +105,7 @@ All product IDs live in `rotate.py` constants — update there when the menu cha
 
 ## State (`state.json`)
 
-- `current_subscription` — what the next delivery should contain. rotate.py advances this each Sunday to the new pick; apply.py uses it as the desired state.
+- `current_subscription` — what the next delivery should contain. rotate.py advances this each Saturday to the new pick; apply.py uses it as the desired state.
 - `rotation_state.wildcard_cycle_position` — 0..3 pointer into the wildcard cycle.
 - `rotation_state.chicken_turkey_cycle_index` — monotonic counter; modulo 4 picks slot, every 6th is Thai Peanut.
 - `rotation_state.individual_dish_recent` — FIFO of last 4 individual dish IDs.
@@ -123,7 +128,7 @@ State is committed to disk by rotate.py after each non-dry-run invocation.
 
 ## Triggers
 
-**Scheduled (Sunday 9 AM):**
+**Scheduled (Saturday 9 AM):**
 - plist: `~/.claude/local-agents/plists/com.tomseo.scheduled.mademeals-weekly-order.plist`
 - runner: `~/.claude/scheduled-tasks/mademeals-weekly-order/run.sh`
 - Pipeline: rotate.py → apply.py → send-alert
@@ -140,7 +145,7 @@ State is committed to disk by rotate.py after each non-dry-run invocation.
 - **Session expired** — Playwright bounces to `/login`. apply.py exits with a session-expired alert. Re-run `python3 login.py` to refresh.
 - **Slot role unmappable** — current sub has a product not in any rotation pool category. That slot is reported as "skip" and not modified. Manual fix on autoship page if it's persistent.
 - **No empty add-on slot for dish #2** — happens if Tom has filled all add-on slots manually. Reported as "skip". Manual fix.
-- **Verify mismatch after apply** — apply did not converge to desired state. Listed in alert as "Verify mismatches"; Tom reviews the autoship page.
+- **Verify mismatch after apply** — wc-autoship dropped one or more swaps despite the DOM dispatch succeeding. apply.py re-issues just the failed slot changes up to 3 times. Anything still mismatched after the last retry is surfaced in the alert as ❌ on the matching action ("did not persist after retries") AND listed under "Verify mismatches". Tom reviews the autoship page only when both ❌ and the mismatch list appear.
 - **mademeals UI changes** — if `wc-autoship` updates breaks the select pattern, apply.py errors are surfaced in the Slack alert and the launchd job continues to fail until fixed. Re-run `inspect_autoship.py` to re-discover the page structure.
 
 ---

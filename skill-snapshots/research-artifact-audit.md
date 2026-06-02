@@ -55,9 +55,162 @@ If you omit a source the drafter actually used, the judge will flag false-positi
 untraced verdicts. If the bundle includes a source the drafter never drew on,
 no harm — the judge only checks claims, not coverage.
 
+### A.0 — Verbatim mandate (MANDATORY)
+
+**Every section housing reference-source content — call notes, backchannel
+notes, third-party docs, Drive PDFs, founder memos — must contain the full
+verbatim body of each cited source.** Pointer manifests, summaries, and
+"see Section X for what this contains" prose are forbidden. The audit judge
+compares draft claims against this bundle LITERALLY; if the cited source's
+body isn't here, every claim citing it will be flagged untraced — spuriously,
+since the draft is correct.
+
+For Notion-housed sources (call notes, meeting notes): fetch with
+`notion-fetch include_transcript: true` and concatenate the full body
+(Notion ID anchor, page URL, AI-summary block, transcript, structured
+fields). For Drive PDFs: extract the full text via pdftotext (Drive's
+`read_file_content` MCP tool sometimes returns truncated output — verify
+the byte count is plausible against the file size). For external web URLs:
+include them in the bundle if cited as inline evidence, with the page text
+extracted; otherwise the judge will flag them untraced.
+
+**Failure mode this prevents** (Factir 2026-05-23): Subagent A built a 18-line
+LINKED NOTES section listing `^N = Person Name` pointers with prose
+"contents are characterized in the Update block's prose." The audit flagged
+16 spurious untraced claims because the verbatim call bodies weren't in the
+bundle to trace against. Memory `feedback_finalize_diligence_bundle_verbatim_mandate`.
+
+### A.1 — Bundle completeness gate (MANDATORY, before audit)
+
+After Step A and BEFORE invoking the runner in Step B, run the deterministic
+guard:
+
+```bash
+python3 ~/.claude/skills/shared-references/bundle_completeness_check.py \
+    --draft  "$DRAFT" \
+    --bundle "$SOURCES" \
+    [--notes-section 'LINKED NOTES'] \
+    [--required-sections 'LINKED NOTES,DILIGENCE MATERIALS'] \
+    [--min-chars-per-note 500] \
+    [--footnotes-header 'Footnotes for this Section'] \
+    [--self-page-ids <hex32>,<hex32>]
+```
+
+**Hard gate.** Exit 0 = proceed to Step B. Exit 1 = bundle is missing
+verbatim content for at least one cited source. STOP. Re-fetch the missing
+notes/docs, rebuild the bundle, re-run the guard. Do NOT run the audit until
+the guard passes — the audit verdict on a broken bundle is structurally
+meaningless.
+
+The guard checks (canonical IDs B1-B4):
+
+- **B1** — Required bundle sections present (caller binds via
+  `--required-sections`; default: `LINKED NOTES,DILIGENCE MATERIALS`).
+- **B2** — Every Notion ID emitted as a clickable footnote URL in the draft
+  appears literally somewhere in the bundle. Self-page references (the
+  artifact citing its own page anchor) exempt via `--self-page-ids`.
+- **B3** — Notes section size floor: >= 500 chars per cited Notion note
+  (default; tunable). Pointer-manifest entries average <150 chars/note;
+  real verbatim bodies are thousands. Catches the manifest pattern even
+  if IDs happen to be present.
+- **B4** — Every footnote label has at least one 4+ letter distinctive
+  token appearing somewhere in the bundle. Catches Drive docs / external
+  sources cited but never extracted into the bundle.
+
+**Caller-specific bindings:**
+
+| Caller | --notes-section | --required-sections | --self-page-ids |
+|---|---|---|---|
+| `finalize-diligence` | `LINKED NOTES` | `LINKED NOTES,DILIGENCE MATERIALS,ORIGINAL FIRST-PASS MEMO,UPDATE BLOCKS` | the Master Diligence Doc page ID |
+| `first-pass-diligence` | `LINKED NOTES` | `LINKED NOTES,DILIGENCE MATERIALS` | (none) |
+| `update-diligence-priors` | `LINKED NOTES` | `LINKED NOTES,DILIGENCE MATERIALS,ORIGINAL FIRST-PASS MEMO` | the Master Diligence Doc page ID |
+| `pre-mortem` | `LINKED NOTES` | `LINKED NOTES,DILIGENCE MATERIALS,MASTER DILIGENCE DOC` | the Master Diligence Doc page ID |
+| `product-build-teardown` | `RESEARCH NOTES` | `RESEARCH NOTES,SCREENSHOTS,COMPETITOR REFERENCES` | (none) |
+| `draft-investment-memo` | `LINKED NOTES` | `LINKED NOTES,DILIGENCE MATERIALS,REFERENCE MEMOS` | the Master Diligence Doc page ID |
+
+If a caller's bundle uses different section names, override via
+`--notes-section` and `--required-sections`. The guard is structurally
+agnostic; only the flag values change per caller.
+
+### A.2 — Footnote URL accuracy (RECOMMENDED, runs in seconds)
+
+For drafts that emit clickable `^N [label](url)` footnotes pointing at
+Notion pages or Drive files, run the URL/title accuracy check to catch
+the "label says X, URL points at Y" failure mode (finalize-diligence
+2026-05-23 ^37: labeled "Product Build Teardown" but the Drive URL
+resolved to "Preseed plan notes.pdf"):
+
+```bash
+python3 ~/.claude/skills/shared-references/footnote_url_check.py \
+    --draft "$DRAFT" \
+    [--footnotes-header 'Footnotes for this Section'] \
+    [--self-page-ids <hex32>,<hex32>]
+```
+
+Exit 0 = no Notion URL mismatches detected. Drive URLs emit a
+"MANUALLY VERIFY" list with `(label, url)` pairs (script can't fetch
+Drive titles without OAuth — operator confirms by clicking each).
+Exit 1 = at least one Notion footnote's label and target page title
+share zero content tokens — almost certainly a wrong URL.
+
+Pass `--self-page-ids` for the same reason as A.1: self-references
+(footnote points at the artifact's own page anchor describing an
+in-page section) exempt the label/title overlap requirement.
+
+### A.3 — Round-terms freshness (finalize-diligence + update-priors)
+
+For artifacts that state the round headline in an Overview / opening
+paragraph (finalize-diligence Final Assessment, update-diligence-priors
+Update blocks), compare the draft's round figures against the Opp page's
+canonical `Round Details` property. Catches stale draft numbers
+(finalize-diligence 2026-05-23: draft said `$2.5M total` while the round
+closed at `$2.3M`; caught as a partial in the audit but should fire here
+earlier):
+
+```bash
+python3 ~/.claude/skills/shared-references/round_terms_freshness_check.py \
+    --draft "$DRAFT" \
+    --opp-page-id <Notion Opportunity page ID> \
+    [--draft-section Overview]
+```
+
+Exit 0 = all Opp round figures appear in the draft section (extra
+figures in draft like Inverted check size emit a soft warning but
+don't fail).
+Exit 1 = at least one Opp figure is missing from the draft — likely
+a stale draft.
+
+Skip this check for artifacts that don't reference round terms
+(pre-mortem, product-build-teardown).
+
 ---
 
 ## Step B — Run the audit + iterate
+
+### B.0 — Pre-audit cleanup (MANDATORY on every run)
+
+Before invoking the runner, unconditionally delete any stale audit artifacts
+left on disk from a prior run. This guarantees the audit re-runs from scratch
+on retries and prevents the skill from silently reusing yesterday's verdict
+when the current draft is freshly built.
+
+```bash
+rm -f "$AUDIT_JSON" "${AUDIT_JSON%.json}".iter*.json "${AUDIT_JSON%.json}".unchunked.json
+rm -f "${ITER_SNAPSHOT_PREFIX}"*.md
+rm -f "$NORMALIZED_DRAFT"
+```
+
+**Do not skip this even when the prior artifacts "look fresh".** Webhook
+retries (e.g. first-pass-diligence re-fired after a `claude --print` timeout)
+can leave perfectly-shaped audit JSON on disk that the iteration gate will
+happily honor without ever re-running the judge. Concrete prior incident:
+Kalos 2026-05-28 retry completed in 24 min because the skill consumed yesterday's
+iter1 audit (untraced=32, chunked) instead of running fresh — shipping a draft
+with residual misattributions the audit had already flagged. The cleanup
+makes the no-reuse rule structural rather than reliant on caller discipline.
+
+`$DRAFT` and `$SOURCES` are NOT cleaned here — they're freshly produced by
+the current run's Step A (or upstream draft step) before B is entered.
 
 ### B.1 — Invoke the runner
 
@@ -65,17 +218,38 @@ no harm — the judge only checks claims, not coverage.
 python3 "$AUDIT_RUNNER" \
   --draft   "$DRAFT" \
   --sources "$SOURCES" \
-  --output  "$AUDIT_JSON"
+  --output  "$AUDIT_JSON" \
+  [--chunk-size 0]    # force un-chunked when bundle <500KB (preferred — see below)
 ```
 
-Default model is `claude-sonnet-4-6`. Typical latency: 1–3 minutes per chunk.
+Default model is `claude-sonnet-4-6` (1M context). Typical latency: 3-12 minutes
+un-chunked; 1-3 minutes per chunk when chunked.
 
-**Source-bundle chunking — automatic above 80KB.** The runner auto-chunks the
-source bundle at section boundaries (`==== … ====`) when it exceeds 80KB,
-targeting ~50KB per chunk. Each chunk is judged independently against the full
-draft; results are merged with a claim marked `traced` if ANY chunk found a
-source for it (positive evidence trumps absence in any single chunk). To force a
-single-pass un-chunked audit (small bundles or debugging), pass `--chunk-size 0`.
+**Source-bundle chunking — auto-chunks above 350KB.** The runner auto-chunks at
+section boundaries (`==== … ====`) when sources exceed `AUTO_CHUNK_THRESHOLD`
+(350KB as of 2026-05-22; was 80KB historically — bumped after Sonnet 4.6's 1M
+context window). Each chunk is judged independently against the full draft;
+results are merged with a claim marked `traced` if ANY chunk found a source for
+it (positive evidence trumps absence in any single chunk).
+
+**Prefer un-chunked when bundles fit.** Sonnet 4.6's 1M context comfortably
+handles 400-500KB bundles in a single pass. Un-chunked is meaningfully more
+accurate than chunked for two reasons:
+
+1. **No cross-chunk merge gap.** When the FA cites content from one section and
+   the draft is in another, chunk-isolated judges can't see both at once. The
+   claim_text exact-match merge across chunks silently misses near-matches —
+   producing spurious untraced verdicts (Factir 2026-05-23: chunked v3 reported
+   6 untraced; un-chunked v4 against the same bundle reported 0 untraced + 1
+   phantom partial).
+2. **No claim duplication.** Chunked judges extract claims independently per
+   chunk, sometimes double-counting cross-section claims. Un-chunked dedupes
+   naturally (Factir v3 chunked = 52 claims; v4 un-chunked = 22 unique claims).
+
+The auto-chunk threshold remains for safety on >350KB bundles, but for typical
+diligence runs (50-400KB) pass `--chunk-size 0` explicitly to force a single
+un-chunked pass. Memory `feedback_audit_script_chunk_merge_gap` documents the
+failure mode.
 
 Snapshot the pre-audit draft to `<ITER_SNAPSHOT_PREFIX>0.md` before the first
 audit so the original is preserved.
@@ -94,6 +268,15 @@ else
 fi
 ```
 
+**`external_research` verdict is NOT an iteration trigger.** The judge prompt
+(see `first_pass_audit.prompt.md`) emits `external_research` for claims that
+are legitimately analyst context — public-company financial metrics, generic
+regulatory norms, pricing at named public competitors, Tom's prior personal
+history with named people. These are tracked in `summary.external_research`
+separately from `summary.untraced` and the gate ignores them. Surfaced in the
+human report under `=== EXTERNAL_RESEARCH (N) ===` so they're auditable
+without polluting the iteration loop.
+
 **You MUST run this check on disk after every audit and obey its verdict.** Do
 not reason about whether to iterate based on the audit's prose findings, the
 `partial` count, the source notes, or anything else. The gate is `untraced==0`
@@ -110,6 +293,34 @@ single deterministic pass at Step C below (no re-audit, no search). Do NOT
 edit the draft in this loop to upgrade `partial` → `traced`, do NOT re-run
 the audit hoping a partial resolves, and do NOT search for new sources in
 this loop on partials' behalf.
+
+### B.2.1 — Un-chunked re-verification (MANDATORY when chunked + untraced > 0)
+
+Before entering the iteration loop in B.3, if the audit was chunked AND
+`untraced > 0`, re-run the audit ONCE with `--chunk-size 0` (forces un-chunked
+single pass). The chunked verdict on cross-section claims is unreliable per the
+chunk-merge gap; un-chunked is ground truth.
+
+```bash
+if [ "$UNTRACED" -gt 0 ] && [ "$(wc -c < $SOURCES)" -gt 350000 ]; then
+  python3 "$AUDIT_RUNNER" \
+    --draft   "$DRAFT" \
+    --sources "$SOURCES" \
+    --output  "${AUDIT_JSON%.json}.unchunked.json" \
+    --chunk-size 0
+  # Use the un-chunked result as authoritative
+  AUDIT_JSON="${AUDIT_JSON%.json}.unchunked.json"
+  UNTRACED=$(python3 -c "import json; print(json.load(open('$AUDIT_JSON'))['summary']['untraced'])")
+fi
+```
+
+This consumes one extra audit run (~3-12 min) but eliminates the
+chunk-merge false-positive class entirely. Factir 2026-05-23 result:
+chunked v3 had 6 untraced; un-chunked v4 same bundle had 0 untraced.
+All 6 were cross-section traceability artifacts.
+
+If un-chunked STILL reports untraced > 0, those are real findings —
+proceed to B.3 iteration loop.
 
 ### B.3 — Iteration loop (only when the gate says "continue")
 

@@ -435,7 +435,91 @@ Query Company Updates DB scoped to `Update Type=Live` matches where `Company con
 
 **On Sonnet failure (per-call or cumulative):** if either Sonnet call returns malformed output, missing JSON keys, or fails outright, leave the existing entry untouched (Cases B/C skip the body update too) and log a warning. Do NOT write garbage. The daily sweep can re-run this step against the note tomorrow.
 
-**Step 6d — Pre-write format validation (MANDATORY before any Notion write in Cases A/B):**
+**Step 6d.0 — Pre-write grounding check (MANDATORY before format validators, runs first):**
+
+Before the format validators below, run the Layer 1 deterministic grounding check on the generated `Summary`. This guards against two failure modes that format validators miss:
+
+1. **Hallucinated / typo'd proper nouns** — Summary contains a name/company that doesn't appear in the source (e.g., LLM invented a person, or transcribed `Stipe` instead of `Stripe`).
+2. **Hallucinated figures** — Summary contains a `$Xm` / `$Xk` / `N%` value that doesn't appear anywhere in source.
+3. **Canonical-name typos** — Summary references the company under a near-variant of the canonical Opp name (Levenshtein ≤ 2). Catches `Tor`-vs-`Tuor` and similar — including the case where the typo also appears in the meeting-note body (Notion AI propagation).
+
+Write the source corpus (meeting-note body + transcript, already in memory from Step 1) to a temp file, then run:
+
+```bash
+# Write source to /tmp first (avoid arg-length limits on long bodies + transcripts)
+cat > /tmp/grounding-source.txt <<'SRC'
+{note_body}
+
+{transcript_text}
+SRC
+
+python3 ~/.claude/skills/shared-references/summary_grounding_check.py \
+    --summary "$generated_summary" \
+    --source-file /tmp/grounding-source.txt \
+    --opp-name "$canonical_opp_name" \
+    --json
+```
+
+Exit 0 = grounded → continue to format validators below.
+Exit 1 = grounding failure → JSON output enumerates `failed_proper_nouns`, `failed_figures`, `canonical_name_violations`.
+
+**On grounding failure under Sonnet output (normal flow):** log the violation, then re-prompt Sonnet ONCE with the failed tokens/figures appended as corrective context. Example corrective prompt addendum:
+
+```
+Your previous Summary failed grounding. The following were not found in the source materials:
+- Proper nouns: ['Decagon', 'Marco']
+- Figures: ['$5m']
+- Canonical name typos: 'Tor' was used; the canonical company name is 'Tuor'.
+
+Re-generate the Summary, using only proper nouns and figures that appear verbatim in the source, and the exact canonical company name.
+```
+
+If the re-prompt still fails, HALT the write and post to Slack with the violation list. Leave the existing entry untouched.
+
+**On grounding failure under Mode C / manual / debugging:** HALT immediately. Do not "fix it manually and proceed" — surface the violation to Tom with the failed values and the rule each violated.
+
+**Step 6d.0b — Pre-write semantic grounding check (Layer 2, runs only after Layer 1 passes):**
+
+Layer 1 is substring-only — it misses semantic misframing like:
+- Summary: "Raising $2m" / SOURCE: "Not in dire need of $2m round" → Layer 1 passes ($2m is in source), Layer 2 catches the negation.
+- Summary: "first design partner" / SOURCE: "tested integration" → Layer 1 passes (all proper nouns grounded), Layer 2 flags "first" as unaddressed.
+
+Run Sonnet-as-judge on each clause:
+
+```bash
+python3 ~/.claude/skills/shared-references/summary_claim_check.py \
+    --summary "$generated_summary" \
+    --source-file /tmp/grounding-source.txt \
+    --json
+```
+
+(Reuses the same `/tmp/grounding-source.txt` written for Step 6d.0 — no need to re-write it.)
+
+The judge segments the Summary on sentence / semicolon / em-dash boundaries and returns per-clause verdicts: `supported` / `contradicted` / `unaddressed`. Exit 0 = pass. Exit 1 = at least one clause is contradicted or unaddressed. Exit 2 = invocation error (Sonnet down, malformed JSON).
+
+**On Layer 2 failure (Sonnet flow):** re-prompt the Summary-generation Sonnet ONCE, appending the specific violations as corrective context:
+
+```
+Your previous Summary failed semantic grounding. The following clauses are problematic:
+- CONTRADICTED: "Raising $2m + angels" — SOURCE explicitly says "not in dire need of $2m round" and frames angel adds as "padding" for buffer, not an active raise.
+- UNADDRESSED: "1–2 convos/wk (May 21)" — SOURCE does not mention a weekly conversation cadence.
+
+Re-generate the Summary. For each problematic clause, either:
+- Use the framing the SOURCE actually uses (e.g., "topping up SAFE with angels" instead of "raising $2m"), OR
+- Drop the clause entirely if the SOURCE doesn't speak to it.
+
+Do not add new inferences not present in the SOURCE.
+```
+
+If the re-prompt still fails Layer 2, HALT the write and post to Slack with the violation list. Leave the existing entry untouched.
+
+**On Layer 2 failure under Mode C / manual / debugging:** HALT immediately, surface violations to Tom.
+
+**`--allow-unaddressed` flag:** the script supports an escape hatch where only `contradicted` clauses fail and `unaddressed` ones pass. Use this **only** for legitimate unit-normalization inferences (e.g., source says "400+ ACV" without unit; Summary says "$400k+ ACV" — the unit was added but the magnitude is right). Default to strict (no flag).
+
+**Cost:** ~$0.02 per Live entry write (one Sonnet call, ~2-5K input tokens). Layer 2 only runs when Layer 1 passes, so total cost per entry is bounded.
+
+**Step 6d.1 — Pre-write format validation (MANDATORY before any Notion write in Cases A/B):**
 
 Before calling `notion-create-pages` (Case A) or `notion-update-page` (Case B) with `Summary` + `Traction`, run the validator below against BOTH the Sonnet-generated values AND any hand-written values (Mode C / manual / debugging — same gate, no bypass). Case C skips this step because rolling fields stay frozen.
 

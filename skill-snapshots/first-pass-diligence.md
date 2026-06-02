@@ -262,6 +262,30 @@ as memo content. Any portfolio company NOT in this manifest has no memo readable
 upgrade decision-retro snippets or call-note prose into "memo" framing. Carry the manifest
 forward into Step 3; the Reference Documents section in Step 5 must reconcile against it.
 
+**Memo text cache — MANDATORY, enables the Step 4a analog-grounding lint check.** As you
+read each memo's full text, ALSO write it to disk so the lint can verify analog
+characterizations against the actual memo prose. Cache directory: `/tmp/firstpass_memos/`.
+Filename convention: `<Company Name>.md` exactly as the company appears in the manifest
+(spaces preserved). Example: `/tmp/firstpass_memos/Oun Homes.md`. Include the full memo
+text — body prose, framework sections, founder-evaluation prose. Frontmatter optional.
+
+```bash
+mkdir -p /tmp/firstpass_memos
+# For each memo fetched in this step:
+#   cat > "/tmp/firstpass_memos/<Company Name>.md" <<'EOF'
+#   <full memo text>
+#   EOF
+```
+
+Why this matters: without the cache, Step 4a's `find_ungrounded_analog_overlays` LLM
+check is skipped with a warning (Kalos first-pass 2026-05-28 shipped with the Oun-as-
+physical-operating-surface hallucination because no such check existed). With the cache,
+the lint runs an LLM judge per candidate analog overlay sentence against the analog's
+actual memo and fails the gate if the overlay is ungrounded. Caching adds ~1 second per
+memo, negligible against the rest of Step 1e's compute. **Skipping the cache means the
+analog-grounding gate is disabled for this run — call out explicitly in the publish
+summary if you skip it.**
+
 ### 1f. Load Feedback Patterns
 
 Read `/Users/tomseo/.claude/skills/first-pass-diligence/FEEDBACK_PATTERNS.md`. This file
@@ -321,6 +345,20 @@ research — they will populate the Sources section.
 
 ## Step 3: Draft the Analysis
 
+### MANDATORY — drafting runs on Opus tier
+
+Per memory `feedback_model_tier_framework`: Opus = no-rubric + final-artifact tasks.
+The first-pass analysis is a long-form synthesis artifact with no scoring rubric —
+Opus territory. The Layer-2 audit gate in Step 4b is Sonnet (rubric-based review); the
+drafting itself must be Opus.
+
+- If you're in an interactive Opus session, proceed inline.
+- If you delegate to a subagent for context-budget reasons, pass `model: "opus"` to the
+  Agent tool explicitly (`subagent_type: "general-purpose"` inherits parent model — if
+  the parent isn't Opus, the subagent degrades silently).
+- If you're stuck in a Sonnet session: tell Tom, ask him to re-invoke from an Opus
+  session. Don't silently ship Sonnet-quality first-pass content.
+
 Write the analysis in a professional, analytical voice. The tone should be factual and objective —
 not promotional, not dismissive. Each section should contain substantive paragraphs (not one-liners)
 that convey ideas with high fidelity. When you lack sufficient context to make an informed assessment
@@ -328,11 +366,24 @@ on a topic, say so explicitly rather than filling space with generic language.
 
 ### Section Order
 
+**MANDATORY first line of body:** the inner H1 anchor
+
+```
+# First-Pass Diligence — <Long Date>
+```
+
+(em dash, matches `pdf_header_check.py` P4 default pattern). This anchor is the
+structural divider that lets `update-diligence-priors` prepend Update sections
+above the first-pass content, and that `finalize-diligence` uses to find the start
+of the first-pass section. The PDF renderer uses it as a page-break trigger. Skipping
+it ships a doc that future updates cannot cleanly slot into. Concrete prior incident:
+Kalos first-pass 2026-05-28 shipped without it; Tom flagged it during review.
+
 Do NOT lead the body with a date stamp (`*April 27, 2026*` etc.). The Notion page title
-already carries the date (`[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY`),
+already carries the date (`[Claude] [Company Name] Master Diligence Doc — MM.DD.YYYY`),
 and the PDF subtitle does too. A leading body date is redundant and reads as a small
-production error. Start the body directly with the **Context** section, then proceed into
-Framework Mapping. Context has three subheaders — rendered as **bold text only, not
+production error. After the inner H1 anchor, start the body directly with the **Context**
+section, then proceed into Framework Mapping. Context has three subheaders — rendered as **bold text only, not
 underlined headings and not H-level headings**: Company Overview, Working Thesis, and
 Materials & Sources Reviewed.
 
@@ -476,6 +527,18 @@ a verbatim manifest-memo quote backing it up:
 - Behavioral or stylistic characterization of the analog founder ("X is a forward-deployed
   operator", "X's edge is unprompted structured thinking")
 - Implied causal stories about why the analog succeeded ("X's bet was that A would lead to B")
+- **Architectural overlays applied to the analog** ("Oun Homes owns the physical operating
+  surface", "Suppli applies the vertical-B2B-with-physical-anchor framework", "Rengo
+  monetizes the digital coordination layer"). Architectural labels — anything attaching
+  the analog to a structural pattern like physical-vs-digital, marketplace-vs-SaaS,
+  hardware-vs-API, distribution-vs-product — MUST trace verbatim or near-verbatim to the
+  analog's own memo / Opp Description / Founder Description. **Never pattern-match the
+  subject company's architecture onto an analog whose actual business model doesn't share
+  it.** Concrete prior incident: Kalos first-pass (2026-05-28) labeled Oun Homes as owning
+  the "physical operating surface" because Kalos has physical scan locations — but Oun is
+  a pure-software buyer-led operating system, not a physical-asset business. The doc
+  then contradicted itself within a few paragraphs by acknowledging Oun is software-only.
+  Internal contradictions like this are the smoking gun for framework hallucination.
 
 These are the specific failure modes the Kestrel first-pass (2026-05-13) exhibited — none of
 the analog biographical detail there was traceable to a source, and several claims were
@@ -724,8 +787,12 @@ opinionated — well-rounded mediocrity on moat is a negative read,
 not a wash.
 
 ***2.7 Killshots.*** Apply framework spec §6. Each killshot is a
-numbered sub-subsection (2.7.1, 2.7.2, …) with descriptive title,
-analytical paragraph, and bold-italic ***Failure mode:*** paragraph.
+`#### Killshot N — [Descriptive Title]` H4 sub-subsection (per
+`shared-references/label-hierarchy.md` — the H4 anchor keeps killshot
+children visually distinct from §2.7's inline bold-italic header and
+from the body-size `**Killshot N — Title.**` paragraph leaders that
+would otherwise collapse against each other). Each H4 is followed by
+an analytical paragraph and a bold-italic ***Failure mode:*** paragraph.
 End with a Killshot Summary table (Failure Mode | Key Evidence | Kill
 Shot?). When a killshot here is the same mechanism that will appear
 in §6 Risks, write it in full here (the product-architecture-anchored
@@ -1051,6 +1118,23 @@ data point cited in the analysis is linked to its source URL.
   everything else — market dynamics, competitive positioning, product analysis, team assessment,
   risk analysis — write in paragraphs. If you find yourself building a bulleted list of observations,
   convert it to prose.
+- **Operational specificity over jargon.** Vague mechanism claims — "scaling via API and hardware",
+  "monetization via the digital layer", "compounding through the data flywheel" — are placeholder
+  language masquerading as analysis. For every such phrase, spell out the concrete pieces: WHAT
+  API (is the subject company building it, or consuming someone else's)? WHAT hardware (whose, who
+  buys it, who installs it)? WHAT unit scales (locations? machines? scans? users? per what)? If
+  the underlying mechanics aren't clear from the source materials, drop the claim rather than
+  hand-wave. Kalos first-pass (2026-05-28): "scaling via API / hardware" appeared twice in the
+  Context section with no concrete grounding — Tom flagged both as opaque.
+- **Deictic completeness on quotes + references.** When quoting a founder verbatim, bracket-annotate
+  any ambiguous referent so the quote reads cleanly out-of-context. Example: *"Function can't show
+  you delta data sets [in core health metrics over time]"* — not just *"Function can't show you
+  delta data sets"*. Same rule for named people / brands / programs the reader hasn't been introduced
+  to in the same paragraph: bracket-annotate their role on first mention. *"Tony Orlando (largest US
+  DEXA-scanner distributor) has agreed to…"* — not *"Tony Orlando has agreed to…"*. If the role
+  isn't in source materials, find it before naming the person, or drop the reference. Kalos
+  first-pass (2026-05-28): "Function delta data sets" and "Tony Orlando's distribution channel"
+  both shipped with zero contextual scaffolding; Tom couldn't parse what was being claimed.
 
 ### Common Deviations — Do NOT Do These
 
@@ -1126,6 +1210,55 @@ If you catch yourself doing any of these, stop and correct:
     (c) multiple call events summed from calendar data. Never infer call length from transcript
     length or guess a round number. If the duration is not verifiable, write "one call" or
     "the May 13 call" — not a time figure.
+22. **Architectural overlays projected onto portfolio analogs** — labeling a portfolio company
+    with a structural pattern that fits the subject company but not the analog. See the
+    "Architectural overlays" bullet in the Analog claims rule above. Concrete prior incident:
+    Kalos first-pass (2026-05-28) called Oun Homes "the physical operating surface" because
+    Kalos has physical scan locations — Oun is pure software. Same doc claimed portfolio
+    companies "own the physical acquisition layer + digital monetization layer" framework
+    when NONE of Tom's portfolio companies own a physical acquisition layer. Test before
+    writing: would Tom recognize this characterization from the analog's actual business?
+    If you're hand-wave-extending a pattern, drop the analog.
+23. **Vague mechanism claims** — phrases like "scaling via API / hardware", "monetization via
+    the digital layer", "compounding through the data flywheel" without spelling out the
+    concrete mechanics (whose API, whose hardware, what scales per what). See the
+    "Operational specificity over jargon" bullet in Writing Guidance. Kalos first-pass
+    (2026-05-28) had two such phrases in the Context section with no underlying grounding.
+24. **Bare-name references without role context** — naming a person, brand, or program the
+    reader hasn't met without a parenthetical role description on first mention. *"Tony
+    Orlando's distribution channel"* leaves Tom guessing who Tony Orlando is. Required:
+    *"Tony Orlando (the largest US DEXA-scanner distributor)…"*. Same rule for verbatim
+    founder quotes — bracket-annotate ambiguous referents. See "Deictic completeness on
+    quotes + references" in Writing Guidance.
+25. **Source-blurb voice misattribution to Tom** — the source blurb / dealflow-referrer email
+    contains the REFERRER's voice and relationships, NOT Tom's. When a forwarded intro email
+    says "I've known X for 5+ years", that "I" is the referrer (Keith Bender, Bryce Johnson,
+    Chris Oh, etc.) — NOT Tom. Drafter must attribute correctly: *"per Keith Bender (the
+    source referrer), who has known Galen and Vinay for 5+ years…"* — NEVER *"Tom's
+    multi-year relationship with Galen and Vinay"* unless Tom independently confirmed the
+    relationship in his own call notes or DECISION_RETROS. Concrete prior incident: Kalos
+    first-pass 2026-05-28 attributed Keith Bender's 5+ year relationship with Galen + Vinay
+    to Tom; Tom does not actually know either of them. Pattern check before writing any
+    "Tom has known…" / "Tom's relationship-context…" / "per Tom…" sentence: does the cited
+    [Source Blurb] / [2] / etc. originate from Tom's own materials, or from a third-party
+    forwarded email? If the latter, re-attribute to the actual narrator.
+26. **Founder mislabeling of senior hires / acquihires / advisors** — only people who appear
+    in the Opp's `🏁 Founder(s)` relation field OR who are explicitly titled "Founder" or
+    "Cofounder" in primary source materials (Opp page body, deck team page) qualify as
+    founders. Heads of X (Head of AI, Head of Product, Head of GTM), acquihired senior
+    hires, advisors, and validators are NOT founders. Use their actual title. Concrete prior
+    incident: Kalos first-pass 2026-05-28 filed Vinay Kanumuri (Head of AI, Spotr acquihire)
+    and Galen Lewis (Head of Product, Spotr acquihire) under a "Other Founders" H3; Tom
+    flagged. The Spotr team came in via acquihire, NOT as cofounders. Verify against the
+    Opp's `🏁 Founder(s)` relation before writing any "founder" or "cofounder" label.
+27. **Internal drafting-taxonomy labels in section headers** — H2/H3 section titles must not
+    contain parenthetical category names from the drafter's organizing taxonomy. *"Other
+    Founders (rollup)"*, *"Team (composite)"*, *"Risks (kill-shot bucket)"* — the parenthetical
+    is the synthesizer's internal label for how the material was grouped, not a label the
+    reader needs. Drop the parenthetical: *"Other Founders"*, *"Team"*, *"Risks"*. Same class
+    as deviation #20 (internal Step references). Concrete prior incident: Kalos first-pass
+    2026-05-28 shipped *"### Other founders (rollup)"* with the drafter's "(rollup)" tag in
+    the rendered H3.
 20. **Internal step references in output** — writing "Step 1e memo", "Step 1e manifest",
     "the Step 1e manifest entry", or any reference to internal skill step numbers in the
     published analysis. These are drafting-process labels that should never appear in output.
@@ -1177,8 +1310,20 @@ Sources for each manifest field:
 ```bash
 python3 /Users/tomseo/.claude/skills/first-pass-diligence/first_pass_lint.py \
   --draft /tmp/firstpass_draft.md \
-  --manifest /tmp/firstpass_manifest.json
+  --manifest /tmp/firstpass_manifest.json \
+  --memo-text-dir /tmp/firstpass_memos
 ```
+
+`--memo-text-dir /tmp/firstpass_memos` is MANDATORY in the canonical flow —
+Step 1e populates that directory with per-company memo text files. The lint
+then runs an LLM-judge grounding check on every sentence that attaches a
+portfolio analog to an architectural overlay (e.g., "Oun Homes owns the
+physical operating surface"), verifying the overlay against the analog's own
+memo text. If Step 1e was skipped or the cache doesn't exist, the lint emits
+a single informational warning instead of running the check — surface that
+warning in the publish summary so Tom knows the gate was disabled. Filename
+conventions accepted by the lint: `<Company Name>.md`, `<Company Name>.txt`,
+`<company_lower_underscored>.md`, `<company_lower_underscored>.txt`.
 
 **Hard gate.** Exit code 0 = proceed to 4b. Exit code 1 = STOP. For each finding,
 either (a) fix the draft and re-run, or (b) verify the finding is a genuine false
@@ -1187,9 +1332,16 @@ publish summary you surface to Tom. Do NOT publish past a failing lint without
 explicit acknowledgement of each finding. "Lint failed but I shipped anyway" is the
 exact behavior this gate exists to prevent.
 
+Warnings/skipped notes (e.g., "memo-text-dir not provided") surface in the lint
+output but do NOT fail the gate — they're informational.
+
 The lint is a floor, not a ceiling — passing it doesn't mean the draft is correct,
 only that the documented failure classes are absent. The prose-level guardrails in
-Step 3 still apply.
+Step 3 still apply. Three checks added 2026-05-28 (Kalos first-pass): the
+analog-overlay grounding check above, `vague_mechanism_phrases` (catches "scaling
+via API / hardware" and friends), and `bare_name_references` (catches possessive
+person references without role context, e.g., "Tony Orlando's distribution
+channel").
 
 ### 4b. LLM Audit — MANDATORY SURFACE
 
@@ -1363,7 +1515,7 @@ Create a new page in the Notes database (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`)
 parent: { data_source_id: "e8afa155-b41a-4aa2-8e9d-3d4365a11dfb" }
 pages: [{
   properties: {
-    "Name": "[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY",
+    "Name": "[Claude] [Company Name] Master Diligence Doc — MM.DD.YYYY",
     "Category": "Diligence",
     "Opportunity": "[Opportunity page URL]"
   },
@@ -1372,6 +1524,19 @@ pages: [{
 ```
 
 Save the resulting Notion page URL — it will be referenced in the PDF and the Signal alert.
+
+**Fire publish-progress alert (1 of 3).** The publish phase is silent for 15-20
+min between the audit-start alert and the final completion alert. These
+three progress pings make the silent stretch legible to Tom and surface any
+stuck step quickly.
+
+```bash
+COMPANY="<subject company name>"
+NOTION_URL="<URL from the page just created>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+📝 **${COMPANY}** Notion page published — [first-pass]($NOTION_URL). Building PDF next.
+EOF
+```
 
 ### 4c. Set the Claude Logo Icon
 
@@ -1466,24 +1631,77 @@ canvas callbacks. Canvas callbacks execute on every page (or the first page), wh
 header to repeat. Page numbers should still use canvas callbacks (`onFirstPage` and
 `onLaterPages`), but the title/subtitle should be regular flowables that appear once.
 
-Save the PDF to `/tmp/[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf`
+Save the PDF to `/tmp/[Company]_Master_Diligence_MM.DD.YYYY.pdf`
 (replace spaces in company name with underscores). Do NOT save to iCloud Downloads or
 `~/Downloads` — the Google Drive upload in Step 6 is the permanent artifact; the local
 file is staging only and lives in `/tmp/`.
 
 The PDF header should be:
-- **Title (14pt bold):** `[Company Name] ([Stage]): First Pass Diligence`
+- **Title (14pt bold):** `[Company Name] ([Stage]) — Master Diligence Doc`
+  - One title across the full diligence lifecycle — initial first-pass, every update
+    prepended by `update-diligence-priors`, and the final assessment prepended by
+    `finalize-diligence`. The artifact's identity is "Master Diligence Doc" because as
+    updates accumulate the doc is no longer just a first-pass.
   - `[Stage]` comes from the Opportunity row's `Stage` property (e.g. `Pre-Seed 💡`,
     `Seed 🌱`, `Series A 🅰️`). Strip any trailing emoji and surrounding whitespace
     before rendering — the parens should contain only the textual stage label
-    (e.g. `Pre-Seed`, `Seed`, `Series A`). If the Stage property is empty for some
-    reason, omit the parenthetical entirely rather than render `()` — fall back to
-    `[Company Name]: First Pass Diligence`.
-  - Note: "First Pass Diligence" is three words with no hyphen between "First" and
-    "Pass". Older outputs used "First-Pass" — the canonical form going forward is
-    unhyphenated.
-- **Subtitle (9pt italic, dark gray):** `[Date] | Notion` (where "Notion" is a clickable
-  hyperlink to the Notion page URL)
+    (e.g. `Pre-Seed`, `Seed`, `Series A`). If the Stage property is empty, omit the
+    parenthetical entirely rather than render `()` — fall back to
+    `[Company Name] — Master Diligence Doc`.
+- **Subtitle (9pt italic, dark gray):** Canonical first-pass shape is exactly
+  `First-Pass: <Long Date> | Notion` — where "Notion" is a clickable hyperlink to
+  the Notion diligence page URL. Drop in the literal SUBTITLE assignment when
+  customizing the template:
+
+  ```python
+  NOTION_PAGE_URL = "https://www.notion.so/<diligence-page-id-no-dashes>"
+  SUBTITLE = f'First-Pass: May 28, 2026 | <a href="{NOTION_PAGE_URL}" color="#1A5FB4">Notion</a>'
+  ```
+
+  reportlab's Paragraph renderer accepts `<a href>` markup natively. The
+  `color="#1A5FB4"` makes the link visually distinguishable.
+
+  **Update-priors / finalize use a different shape** (managed by their own
+  skills): `Latest Update: <date> | First-Pass: <date> | Notion`. The
+  `pdf_header_check.py` gate (Step 5b below) accepts EITHER shape, so this
+  template works across all three flows by date.
+
+### Step 5a. Inner H1 Anchor — MANDATORY at top of body
+
+Before publishing to Notion AND before building the PDF, the markdown body MUST
+open with the inner H1 anchor:
+
+```
+# First-Pass Diligence — <Long Date>
+```
+
+(em dash, matches the `pdf_header_check` P4 pattern `^First-Pass Diligence — .+$`).
+
+This anchor is the structural divider that lets `update-diligence-priors` prepend
+Update sections above the first-pass content, and that `finalize-diligence` uses
+to find the start of the first-pass section. The PDF renderer also uses it as a
+page-break trigger. Skipping it means future updates can't cleanly slot in, and
+the PDF won't visually mark where first-pass content begins. Concrete prior
+incident: Kalos first-pass 2026-05-28 shipped without this anchor; Tom flagged it
+during review and required a rebuild.
+
+### Step 5b. PDF Header Check — MANDATORY GATE before Drive upload
+
+After the PDF builds successfully and before uploading to Drive, run:
+
+```bash
+python3 ~/.claude/skills/shared-references/pdf_header_check.py --pdf /tmp/<output>.pdf
+```
+
+The check enforces:
+- **P1** title shape `<Company> — Master Diligence Doc`
+- **P2** subtitle shape — accepts BOTH first-pass-only and latest-update shapes
+- **P3** no debug-pattern leaks on first page
+- **P4** inner H1 anchor `# First-Pass Diligence — <date>` present in body
+
+**Exit 0 = proceed to Step 6. Exit 1 = STOP. Do NOT upload to Drive.** Fix the
+build script (subtitle format, title em dash, missing H1 anchor) and rebuild.
+Shipping past this gate is the exact behavior the gate exists to prevent.
 
 ---
 
@@ -1528,7 +1746,7 @@ with open(pdf_path, 'rb') as f:
 
 upload_resp = requests.post(DRIVE_URL, json={
     "action": "upload",
-    "fileName": "[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf",
+    "fileName": "[Company]_Master_Diligence_MM.DD.YYYY.pdf",
     "fileBase64": pdf_b64,
     "mimeType": "application/pdf",
     "folderId": subfolder_id
@@ -1541,12 +1759,23 @@ file_url = upload_result["url"]  # Direct link — use this in Notion
 
 Act autonomously — do not ask for permission. Report what was done in the summary.
 
+**Fire publish-progress alert (2 of 3).** After the Drive upload succeeds and
+`file_url` is in hand, ping:
+
+```bash
+COMPANY="<subject company name>"
+PDF_URL="<file_url from upload response>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+📄 **${COMPANY}** PDF uploaded to Drive — [PDF]($PDF_URL). Linking to Diligence Materials.
+EOF
+```
+
 **Linking in Notion — two places:**
 
 1. **Page body** — append a single-line entry to the `## 📎 Diligence Materials` section,
    following the materials-handler convention:
    ```
-   - [**[Company]_First_Pass_Diligence_MM.DD.YYYY.pdf**](https://drive.google.com/file/d/<fileId>/view) — Claude first-pass diligence analysis, [date]
+   - [**[Company]_Master_Diligence_MM.DD.YYYY.pdf**](https://drive.google.com/file/d/<fileId>/view) — Claude first-pass diligence analysis, [date]
    ```
    Use `notion-update-page` with `update_content` for this. The Opportunity page body is
    small (typically <20 blocks) and will not time out.
@@ -1566,7 +1795,7 @@ Act autonomously — do not ask for permission. Report what was done in the summ
        --page-id <opportunity_page_id> \
        --prop "Diligence Materials" \
        --url "<drive_url>" \
-       --label "<Company>_First_Pass_Diligence.pdf"
+       --label "<Company>_Master_Diligence.pdf"
    ```
 
    Exit 0 = ok (including idempotent skip), 1 = hard failure (log + fall back to page body link). See the canonical interface at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity page ID, the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`), and a display name like `[Company]_First_Pass_Diligence.pdf`.
@@ -1580,6 +1809,16 @@ Act autonomously — do not ask for permission. Report what was done in the summ
    urls = {f.get("external",{}).get("url") for f in opp["properties"]["Diligence Materials"]["files"]}
    assert drive_url in urls, f"Property write did NOT take — URL {drive_url} not in {urls}"
    ```
+
+**Fire publish-progress alert (3 of 3).** After the Diligence Materials
+property write is verified, ping:
+
+```bash
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🔗 **${COMPANY}** Diligence Materials property updated. Sending completion alert.
+EOF
+```
 
 ### 6b. Send the alert
 

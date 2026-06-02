@@ -96,6 +96,8 @@ You are running the "Intro Agent — Qualified Scanner" for Tom Seo (tom@inverte
 
 IMPORTANT OVERRIDE: Do NOT send any messages to Tom — no iMessages (send_imessage), no Beeper messages (send_message), no notifications of any kind. You are being called from the run-all orchestrator, which handles all notifications centrally. Just return your results.
 
+MCP FALLBACK (CRITICAL): Notion (`mcp__claude_ai_Notion__*`) and Gmail (`mcp__claude_ai_Gmail__*`) MCP tools are often NOT available in Task-spawned sub-agent sessions. If a tool call returns "tool not found" or those tools aren't listed, do NOT abort the workflow with "MCP unavailable" — shell out via Bash to `claude --print "<focused task prompt>"` for that single operation. The spawned subprocess has fresh MCP access and will return the structured result on stdout for you to parse. Apply this fallback to ALL roster reads, Opportunity/People lookups, lifecycle field writes, and Gmail inbox/sent scans. Background: the 2026-05-27 run aborted with "Notion MCP unavailable" across all 3 sweep sub-agents — this fallback exists specifically to rescue that case.
+
 STEP 1: Use the Glob tool with pattern **/intro-agent/SKILL.md to find the canonical skill file. Read it with the Read tool.
 STEP 2: Execute the full workflow described in that skill file.
 STEP 3: Return structured data (one entry per person touched), plus totals:
@@ -118,6 +120,8 @@ Spawn a sub-agent with `model: "sonnet"`, `max_turns: 25`:
 You are running the "Intro Agent — Outreach Scanner" for Tom Seo (tom@invertedcap.com), an early-stage VC investor.
 
 IMPORTANT OVERRIDE: Do NOT send any messages to Tom — no iMessages (send_imessage), no Beeper messages (send_message), no notifications of any kind. You are being called from the run-all orchestrator, which handles all notifications centrally. Just return your results.
+
+MCP FALLBACK (CRITICAL): Notion (`mcp__claude_ai_Notion__*`) and Gmail (`mcp__claude_ai_Gmail__*`) MCP tools are often NOT available in Task-spawned sub-agent sessions. If a tool call returns "tool not found" or those tools aren't listed, do NOT abort the workflow with "MCP unavailable" — shell out via Bash to `claude --print "<focused task prompt>"` for that single operation. The spawned subprocess has fresh MCP access and will return the structured result on stdout for you to parse. Apply this fallback to ALL roster reads, Opportunity/People lookups, lifecycle field writes, and Gmail inbox/sent scans. Background: the 2026-05-27 run aborted with "Notion MCP unavailable" across all 3 sweep sub-agents — this fallback exists specifically to rescue that case.
 
 STEP 1: Use the Glob tool with pattern **/intro-outreach-agent/SKILL.md to find the canonical skill file. Read it with the Read tool.
 STEP 2: Execute the full workflow described in that skill file.
@@ -144,6 +148,8 @@ You are running the "Intro Agent — Draft Agent" for Tom Seo (tom@invertedcap.c
 
 IMPORTANT OVERRIDE: Do NOT send any messages to Tom — no iMessages (send_imessage), no Beeper messages (send_message), no notifications of any kind. You are being called from the run-all orchestrator, which handles all notifications centrally. Just return your results.
 
+MCP FALLBACK (CRITICAL): Notion (`mcp__claude_ai_Notion__*`) and Gmail (`mcp__claude_ai_Gmail__*`) MCP tools are often NOT available in Task-spawned sub-agent sessions. If a tool call returns "tool not found" or those tools aren't listed, do NOT abort the workflow with "MCP unavailable" — shell out via Bash to `claude --print "<focused task prompt>"` for that single operation. The spawned subprocess has fresh MCP access and will return the structured result on stdout for you to parse. Apply this fallback to ALL roster reads, Opportunity/People lookups, lifecycle field writes, Gmail inbox/sent scans, AND Gmail draft creation. Background: the 2026-05-27 run aborted with "Notion MCP unavailable" across all 3 sweep sub-agents — this fallback exists specifically to rescue that case.
+
 STEP 1: Use the Glob tool with pattern **/intro-draft-agent/SKILL.md to find the canonical skill file. Read it with the Read tool.
 STEP 2: Execute the full workflow described in that skill file.
 STEP 3: Return structured data (one entry per person touched), plus totals:
@@ -168,6 +174,8 @@ Spawn a sub-agent with `model: "sonnet"`, `max_turns: 25`:
 You are running the "Intro Agent — Resolution Scanner" for Tom Seo (tom@invertedcap.com), an early-stage VC investor.
 
 IMPORTANT OVERRIDE: Do NOT send any messages to Tom — no iMessages (send_imessage), no Beeper messages (send_message), no notifications of any kind. You are being called from the run-all orchestrator, which handles all notifications centrally. Just return your results.
+
+MCP FALLBACK (CRITICAL): Notion (`mcp__claude_ai_Notion__*`) and Gmail (`mcp__claude_ai_Gmail__*`) MCP tools are often NOT available in Task-spawned sub-agent sessions. If a tool call returns "tool not found" or those tools aren't listed, do NOT abort the workflow with "MCP unavailable" — shell out via Bash to `claude --print "<focused task prompt>"` for that single operation. The spawned subprocess has fresh MCP access and will return the structured result on stdout for you to parse. Apply this fallback to ALL roster reads, Opportunity/People lookups, lifecycle field writes, and Gmail inbox/sent scans. Background: the 2026-05-27 run aborted with "Notion MCP unavailable" across all 3 sweep sub-agents — this fallback exists specifically to rescue that case.
 
 STEP 1: Use the Glob tool with pattern **/intro-resolution-agent/SKILL.md to find the canonical skill file. Read it with the Read tool.
 STEP 2: Execute the full workflow described in that skill file.
@@ -204,6 +212,8 @@ You are running the "Pipeline Agent" for Tom Seo (tom@invertedcap.com), an early
 
 IMPORTANT OVERRIDE: Do NOT send any messages to Tom — no iMessages, no Beeper messages, no Slack alerts, no notifications of any kind. You are being called from the run-all orchestrator, which handles all notifications centrally. Just return your results.
 
+MCP FALLBACK (CRITICAL): Notion (`mcp__claude_ai_Notion__*`) and Gmail (`mcp__claude_ai_Gmail__*`) MCP tools are often NOT available in Task-spawned sub-agent sessions. If a tool call returns "tool not found" or those tools aren't listed, do NOT abort the workflow with "MCP unavailable" — shell out via Bash to `claude --print "<focused task prompt>"` for that single operation. The spawned subprocess has fresh MCP access and will return the structured result on stdout for you to parse. Apply this fallback to ALL Notion roster reads, Opportunity lookups, status writes, materials linking, and Gmail inbox/sent scans. Background: the 2026-05-27 intro-agent run aborted with "Notion MCP unavailable" across all 3 sweep sub-agents — this fallback exists specifically to rescue that case.
+
 STEP 1: Use the Glob tool with pattern **/pipeline-agent/SKILL.md to find the canonical skill file. Read it with the Read tool.
 STEP 2: Execute the full workflow described in that skill file (all 4 pipeline stages: Deal Scanner, Qualified Triage, Outreach Triage, Connected Triage).
 STEP 3: Return structured data organized by opportunity:
@@ -233,6 +243,8 @@ You are running the "Portfolio Agent" (investor-update skill, scheduled scan mod
 
 IMPORTANT OVERRIDE: Do NOT send any messages to Tom — no iMessages, no Beeper messages, no Slack alerts, no notifications of any kind. You are being called from the run-all orchestrator, which handles all notifications centrally. Just return your results.
 
+MCP FALLBACK (CRITICAL): Notion (`mcp__claude_ai_Notion__*`) and Gmail (`mcp__claude_ai_Gmail__*`) MCP tools are often NOT available in Task-spawned sub-agent sessions. If a tool call returns "tool not found" or those tools aren't listed, do NOT abort the workflow with "MCP unavailable" — shell out via Bash to `claude --print "<focused task prompt>"` for that single operation. The spawned subprocess has fresh MCP access and will return the structured result on stdout for you to parse. Apply this fallback to ALL Gmail inbox scans, Notion Opportunity lookups, Notion page creation, and Notion file-property writes. Background: the 2026-05-27 intro-agent run aborted with "Notion MCP unavailable" across all 3 sweep sub-agents — this fallback exists specifically to rescue that case.
+
 STEP 1: Use the Glob tool with pattern **/investor-update/SKILL.md to find the canonical skill file. Read it with the Read tool.
 STEP 2: Execute the full workflow described in that skill file (Gmail scan, PDF archiving, Notion page creation, PDF embedding).
 STEP 3: Return structured data organized by company, split into Portfolio vs Non-Portfolio:
@@ -257,6 +269,8 @@ Spawn with `model: "sonnet"`, `max_turns: 30`, `run_in_background: true`:
 You are running the "Diligence Agent" for Tom Seo (tom@invertedcap.com), an early-stage VC investor.
 
 IMPORTANT OVERRIDE: Do NOT send any messages to Tom — no iMessages, no Beeper messages, no Slack alerts, no notifications of any kind. You are being called from the run-all orchestrator, which handles all notifications centrally. Just return your results.
+
+MCP FALLBACK (CRITICAL): Notion (`mcp__claude_ai_Notion__*`) and Gmail (`mcp__claude_ai_Gmail__*`) MCP tools are often NOT available in Task-spawned sub-agent sessions. If a tool call returns "tool not found" or those tools aren't listed, do NOT abort the workflow with "MCP unavailable" — shell out via Bash to `claude --print "<focused task prompt>"` for that single operation. The spawned subprocess has fresh MCP access and will return the structured result on stdout for you to parse. Apply this fallback to ALL Notion roster reads (Pending Feedback, Pass Note Pending), Opportunity lookups, Gmail sent/inbox scans, and Gmail draft creation. Background: the 2026-05-27 intro-agent run aborted with "Notion MCP unavailable" across all 3 sweep sub-agents — this fallback exists specifically to rescue that case.
 
 STEP 1: Use the Glob tool with pattern **/diligence-agent/SKILL.md to find the canonical skill file. Read it with the Read tool.
 STEP 2: Execute the full workflow described in that skill file (Feedback Outreach Drafter → Feedback Outreach Scanner → Pass Note Drafter).

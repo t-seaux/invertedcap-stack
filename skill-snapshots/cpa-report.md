@@ -1,19 +1,42 @@
 ---
 name: cpa-report
-description: Generate a quarterly CPA report for Dash Fund entities (Dash Venture Fund and Dash Fund Management) from a Citi Transaction Dashboard CSV export. Produces a formatted Excel workbook with a Summary tab (income, expenses, distributions, and liquidation proceeds by period and entity), a Liquidation Events detail tab, per-entity transaction detail tabs (DVF and DFM), and a Raw Export tab. Trigger when Tom says "run CPA report", "generate CPA report", "quarterly CPA report", "CPA Excel", "build the CPA report", "run the Dash CPA report", or any variant asking to produce the quarterly fund report for his CPA. Also trigger when Tom uploads a Citi Transaction Dashboard CSV and asks to process it into a report. Always trigger inline — no confirmation needed before acting.
+description: Generate the quarterly CPA report for Dash Fund entities (Dash Venture Fund and Dash Fund Management) from per-account Citi CSV exports. Produces a formula-linked Excel workbook (Raw → Detail → Summary, with SUMIFS aggregations) — Summary tab shows income, expenses, distributions, and (when LP CSVs are supplied) liquidation proceeds, by period and entity, with a YTD column under each entity group. A 5-check deterministic verification pass runs before write; any failed check aborts. Output lands at the canonical `~/.../Dash Tax & Audit/` iCloud location and prior versions auto-archive. Trigger when Tom says "run CPA report", "generate CPA report", "quarterly CPA report", "CPA Excel", "build the CPA report", "run the Dash CPA report", or any variant asking to produce the quarterly fund report for his CPA. Also trigger when Tom uploads Citi per-account CSVs and asks to process them into a report. Always trigger inline — no confirmation needed before acting.
 ---
 
 # CPA Report Skill
 
-Generates the quarterly Dash Fund CPA report from a Citi Transaction Dashboard CSV export. The output is a single Excel workbook delivered to `/Users/tomseo/Downloads/`.
+Generates the quarterly Dash Fund CPA report from per-account Citi CSV exports. The output is a single Excel workbook with **live formula links** between Raw → Detail → Summary, delivered to the canonical location at `~/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Dash Tax & Audit/`. Prior versions are auto-archived to the `Archive/` subfolder on every run. A deterministic verification pass runs before the workbook is written; any failed check aborts the write.
 
 ---
 
 ## Inputs
 
-1. **Citi Transaction Dashboard CSV** — exported from Citi's "Transaction Dashboard All" view, covering the full year-to-date (or whatever period Tom provides). Tom will upload this file or reference it by path.
-2. **Liquidation event mappings** (optional) — Tom may specify which inbound wires map to which portfolio company (e.g. "Acquiom wire on 1/9 = Teal Technologies"). If not provided, use the keyword mapping table below and flag unknowns.
+1. **Per-account Citi CSVs** (canonical as of 2026-05-27) — one CSV per Citi account, each named `CCB_CHECKING_<account>_<DDMMYYYY>.csv` with columns `DATE, TRANSACTION TYPE, DESCRIPTION, AMOUNT (USD), BALANCE (USD)`. `AMOUNT > 0` = inbound, `AMOUNT < 0` = outbound. The account number is derived from the filename. Tom drops these into iCloud `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/` (mirrored at `/Users/tomseo/Downloads/`).
+   - For a full report: 5 CSVs (DVF MC, DFM MC, Fund I LP, Fund II LP, Fund II-A LP).
+   - For income/expense/distributions only (no liquidation events): the 2 MC CSVs suffice — pass `--skip-liquidation`.
+2. **Liquidation event mappings** (optional) — Tom may specify which inbound LP wires map to which portfolio company (e.g. "Acquiom wire on 1/9 = Teal Technologies"). If not provided, use the keyword mapping table below and flag unknowns.
 3. **New category mappings** (optional) — Tom may specify how to classify previously `Uncategorized` transactions. Add these to the mapping table for the current run.
+
+### Builder script
+
+`build_report.py` in this skill folder handles ingest + Excel generation. Invocation:
+
+```bash
+python3 build_report.py \
+  /path/to/CCB_CHECKING_6880014247_*.csv \
+  /path/to/CCB_CHECKING_6880010107_*.csv \
+  [/path/to/CCB_CHECKING_6880018539_*.csv ...] \
+  --year 2026 --through 2026-05-31 \
+  [--skip-liquidation]
+  # --out is optional; default → ~/.../Dash Tax & Audit/Dash CPA Report - <range> <year>.xlsx
+```
+
+The script:
+1. Parses each per-account CSV and classifies every in-scope txn.
+2. Runs the verification pass (5 deterministic checks against in-memory data). If any check fails, the script prints diagnostics and exits non-zero **without** writing the workbook.
+3. Builds the workbook with formula-linked Raw → Detail → Summary tabs.
+4. Archives any existing `Dash CPA Report - *.xlsx` in the canonical folder to `Archive/`.
+5. Writes the new workbook to the canonical folder.
 
 ---
 
@@ -53,35 +76,41 @@ Only render columns for periods that have actual transaction data. If the CSV co
 
 ## Transaction Classification
 
-### MC Account Logic
+### MC Account Logic (per-account CSV)
 
-For each row in the Citi CSV, determine whether the DVF MC (6880014247) or DFM MC (6880010107) is the `From Account Number` or `To Account Number`:
+The CSV's account identity comes from the filename. Each row's sign tells you direction:
 
-- **Incoming to MC** (`To Account Number` = MC acct) → **Income / Management Fees**
-- **Outgoing from MC** (`From Account Number` = MC acct) → classify by payee using the table below
+- **Inbound** (`AMOUNT > 0`):
+  - `DESCRIPTION` contains an **LP account number** (`6880018539`, `6880016664`, `6880018299`) → **Income / Management Fees**
+  - `DESCRIPTION` contains the **other MC account number** (or `Transfer to/from Ready Credit`) → **Internal Transfer** (excluded from Summary; still rendered in detail)
+  - `DESCRIPTION` is `RETURNED CHECK` → pair with the prior same-account outgoing of equal absolute amount; **both legs** are reclassified as **Internal Transfer / Wash – Returned Check** and excluded from Summary (per Tom 2026-05-27: "leave blank cause they net to 0")
+  - Else → Uncategorized
+- **Outbound** (`AMOUNT < 0`): apply the keyword mapping table below to `DESCRIPTION`.
 
-### Category Keyword Mapping
+Citi prefixes account numbers with `00` in descriptions (e.g. `006880018539 VIA CBusOL Re # 017477`). Match by substring, not `startswith`, so the prefix doesn't matter.
 
-| Payee pattern (in `To Account Name`) | Section | Category |
+### Category Keyword Mapping (matched against DESCRIPTION, case-insensitive)
+
+| Pattern | Section | Category |
 |---|---|---|
 | `Ryan Sells` | Distributions | Distribution - Ryan Sells |
-| `J.P. Morgan` or `Thomas Seo` | Distributions | Distribution - Tom Seo |
-| `NYC DEPT OF FINA` or `NYS DTF` or `Carta` | Expenses | Admin |
-| `FRANCHISE TAX BO` | *(exclude — $0 filings)* | — |
+| `J.P. Morgan` / `JP Morgan` / `Thomas Seo` | Distributions | Distribution - Tom Seo |
+| `NYC DEPT OF FINA` / `NYS DTF` / `Carta` | Expenses | Admin |
+| `FRANCHISE TAX BO` (with non-zero amount) | Expenses | Admin (CA franchise tax) |
+| `Discern` | Expenses | Admin |
+| `ALTAIR` | Expenses | Admin |
 | `Brex` | Expenses | T&E, Software |
 | `Frank` + `Rimerman` | Expenses | Professional Fees |
+| `Transfer to Ready Credit` / `Transfer from Ready Credit` | Internal Transfer | Internal Transfer (MC↔MC) |
 | *(no match)* | Uncategorized | Uncategorized |
-
-### NaN Account Name Resolution
-
-Citi sometimes leaves `From Account Name` blank for internal transfers, recording only the account number in the `Description` field. Resolve as follows:
-1. Check if `From Account Number` is in the account map above → use the label
-2. If not, scan the `Description` string for a known account number (e.g. `006880018539`) → use the label
-3. If still unresolved → use `(Unknown)`
 
 ### Zero-Dollar Transactions
 
-Exclude all rows where `Amount == 0` (these are filing-only ACH entries with no cash movement).
+Exclude all rows where `AMOUNT == 0` (filing-only ACH entries with no cash movement).
+
+### Internal Transfer Handling
+
+MC↔MC transfers (e.g. Ready Credit pushes) appear as an outbound in one account and an inbound in the other. Both legs are classified as `Internal Transfer` and **excluded from Summary subtotals** so they don't double-count. They still render in the per-entity detail tabs.
 
 ---
 
@@ -110,11 +139,23 @@ Fund II LP and Fund II-A LP proceeds are **combined** into a single `Fund II + I
 
 ## Output Workbook Structure
 
-File name: `Dash CPA Report - [PeriodRange] [YEAR].xlsx`
+### Canonical output location
+
+Default: `~/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Dash Tax & Audit/Dash CPA Report - <range> <year>.xlsx`
+
+This is iCloud-synced and is the single source of truth for the latest Dash CPA report. Any future run of the skill can refer to this file to see what was last produced.
+
+### Auto-archival
+
+On every run, **before** writing the new workbook, the script moves every existing `Dash CPA Report - *.xlsx` in the canonical folder into the `Archive/` subfolder. If a same-named archive file already exists, the moved file is suffixed with a `_YYYYMMDD_HHMMSS` timestamp so nothing is overwritten.
+
+### File name
+
+`Dash CPA Report - [PeriodRange] [YEAR].xlsx`
 
 Where `[PeriodRange]` is derived from the active periods in the data:
 - Single period: use the month range label — e.g. `Jan-Mar`, `Apr-May`, `Jun-Aug`, `Sep-Dec`
-- Multiple periods: combine first and last — e.g. `Jan-Aug`
+- Multiple periods: combine first and last — e.g. `Jan-May`, `Jan-Aug`
 
 Period-to-label mapping:
 | Period | File Label |
@@ -124,43 +165,63 @@ Period-to-label mapping:
 | 6/1–8/31 | Jun-Aug |
 | 9/1–12/31 | Sep-Dec |
 
-Examples: `Dash CPA Report - Jan-Mar 2026.xlsx`, `Dash CPA Report - Jan-Aug 2026.xlsx`
-Deliver to: `/Users/tomseo/Downloads/`
+Examples: `Dash CPA Report - Jan-Mar 2026.xlsx`, `Dash CPA Report - Jan-May 2026.xlsx`
 
 ### Tab order
-1. **Summary** — main view
-2. **Liquidation Events** — detail for all proceeds
-3. **DVF – Detail** — all DVF MC transactions
-4. **DFM – Detail** — all DFM MC transactions
-5. **Raw Export** — unmodified Citi CSV
+1. **Summary** — main view, SUMIFS-driven from Detail tabs
+2. **DVF – Detail** — all in-scope DVF MC transactions, live-linked to DVF Raw Export
+3. **DFM – Detail** — all in-scope DFM MC transactions, live-linked to DFM Raw Export
+4. **Liquidation Events** — *(only when LP CSVs are supplied — omitted under `--skip-liquidation`)*
+5. **DVF – Raw Export** — unmodified Citi DVF CSV (Date as Excel date, Amount/Balance as numbers)
+6. **DFM – Raw Export** — unmodified Citi DFM CSV (same)
+
+### Dynamic linking architecture
+
+```
+Raw Export  →  Detail  →  Summary
+ (data)        (refs)    (SUMIFS)
+```
+
+- **Raw Export** tabs hold the typed source data. `DATE` is parsed to a real Excel date so `MONTH(...)` works; `AMOUNT (USD)` and `BALANCE (USD)` are real numbers.
+- **Detail** tabs reference Raw Export cell-by-cell for Date / Description / Amount / Payment Method. The `Period` column is an Excel formula derived from the row's Date. `Section` and `Category` are static (Python-classified at build time, since Excel can't reasonably express keyword classification).
+- **Summary** tab uses `SUMIFS` against the Detail tabs filtered by Section, Category, and Period. YTD = `SUM(period cells)`. The Total (DVF+DFM) columns = `=DVFcell + DFMcell`. Section subtotals = `SUM(data rows above)`.
+
+Editing an amount or description in a Raw Export tab flows through to Detail and Summary automatically. Structural changes (adding or removing rows) still require re-running the script.
 
 ---
 
 ## Summary Tab Layout
 
-### Column Structure (no FY Total columns)
+### Column Structure (YTD column under each entity group)
 
 ```
-A          B              C(gap)  D                  E(gap)  F
-Label    | DVF [period] |       | DFM [period]      |       | DVF+DFM Total [period]
+A      | DVF P1..Pn | DVF YTD | gap | DFM P1..Pn | DFM YTD | gap | Total P1..Pn | Total YTD
 ```
 
 - Col A: 32 wide (labels)
-- Data cols (B, D, F): 16 wide each
-- Gap cols (C, E): 3 wide
+- Data + YTD cols: 16 wide each
+- Gap cols: 3 wide
 
-Add one data column per entity group for each active period. As periods accumulate through the year, new columns are appended — the gap/total structure shifts right accordingly.
+Each entity group contains one column per active period plus a trailing `YTD` column. The `DVF + DFM Total` group mirrors that layout (period cells + YTD). As periods accumulate through the year, new period columns are appended within each group; the YTD and gap structure shifts right accordingly.
+
+Formula references for value cells:
+- DVF period cell: `=SUMIFS('DVF – Detail'!D:D, 'DVF – Detail'!F:F, "<Section>", 'DVF – Detail'!G:G, "<Category>", 'DVF – Detail'!B:B, "<Period>")`
+- DVF YTD cell: `=SUM(<DVF period range>)`
+- DFM cells: same shape against `'DFM – Detail'`
+- Total period cell: `=<DVF period cell>+<DFM period cell>`
+- Total YTD cell: `=<DVF YTD cell>+<DFM YTD cell>`
+- Subtotal row cell: `=SUM(<data rows above>)` for that column
 
 ### Row Structure
 
 **Row 1** — Title bar: "Dash Fund — [YEAR] Income, Expenses & Distributions" (dark navy, white text, spans full width)
 
 **Row 2** — Entity headers (mid navy, white text, centered):
-- B:B merged → "Dash Venture Fund" (expands to cover all DVF period cols)
-- D:D merged → "Dash Fund Management" (expands to cover all DFM period cols)
-- F:F merged → "DVF + DFM Total" (expands to cover all total period cols)
+- Merged across the full DVF group (period cols + YTD) → "Dash Venture Fund"
+- Merged across the full DFM group (period cols + YTD) → "Dash Fund Management"
+- Merged across the full Total group (period cols + YTD) → "DVF + DFM Total"
 
-**Row 3** — Period column headers (dark navy, white text): period label under each entity group
+**Row 3** — Period column headers (dark navy, white text): each entity group has period labels followed by `YTD` as the final column
 
 **Rows 4+** — Sections in this order:
 
@@ -228,20 +289,29 @@ Columns: Date | Period | Portfolio Company | Received From | Fund | Amount
 
 Columns: Date | Period | Description | Amount | Payment Method | Section | Category
 
+- **Live-linked**: Date, Description, Amount, Payment Method cells are formula refs to the corresponding Raw Export row. Period is an Excel `IF/MONTH(...)` formula derived from the Date cell. Section and Category are static (Python-classified).
 - Sorted by date ascending
 - Alternating white/gray rows
 - Uncategorized rows: amber background, dark amber font, bold Category cell
 - Amount column: right-aligned, currency format
+- Date column: `yyyy-mm-dd` format
 - Column widths: Date=13, Period=12, Description=40, Amount=15, Method=16, Section=16, Category=28
+
+The Period formula written into each Detail row:
+```
+=IF(MONTH(A<r>)<=3,"1/1–3/31",IF(MONTH(A<r>)<=5,"4/1–5/31",IF(MONTH(A<r>)<=8,"6/1–8/31","9/1–12/31")))
+```
 
 ---
 
-## Raw Export Tab
+## DVF – Raw Export and DFM – Raw Export Tabs
 
-Paste the full unmodified Citi CSV as a formatted table:
+The unmodified per-account Citi CSV as a formatted table — these are the **source of truth** that Detail and Summary reference.
+
 - Dark header row (row 1 = title, row 2 = column headers in mid navy)
 - Alternating white/gray data rows, font size 9
 - Auto-width columns capped at 30
+- **Typed cells**: `DATE` is written as an Excel date (formatted `yyyy-mm-dd`); `AMOUNT (USD)` and `BALANCE (USD)` are written as numbers (formatted with the standard currency format). This makes the downstream `MONTH(...)` formula and `SUMIFS(amount)` aggregation work natively.
 
 ---
 
@@ -269,10 +339,29 @@ After generating the workbook, if any inbound LP wires were flagged as `⚠ UNKN
 
 ---
 
+## Verification
+
+Before writing the Excel, `build_report.py` runs 5 deterministic checks against in-memory data. **Any failed check aborts the write** (exit code 2). The checks are validated against the Python data, not the workbook — openpyxl can't evaluate formulas, so workbook-level recalc is delegated to Excel on open. Since the formulas in Detail and Summary are mechanically derived from the verified Python data, accuracy carries through.
+
+| # | Check | What it catches |
+|---|---|---|
+| 1 | **Citi running-balance tie-out** (full CSV) — newest balance − opening balance == Σ amounts | Any misread / dropped / duplicated row, since Citi's own running balance is the ground truth |
+| 2 | **Per-account in-scope reconciliation** — Σ raw txns in [year, through] == Σ classified txns | Any row lost between parsing and classification |
+| 3 | **No txn lost during aggregation** — Σ agg values + Σ Internal Transfer txns == Σ all classified | A classification bug that orphans a txn |
+| 4 | **Per-section/period sum** — agg cell == sum of matching txns | Aggregation arithmetic bug |
+| 5 | **Internal Transfers net to zero** — DVF + DFM combined Internal Transfer balance == $0.00 | Orphaned wash legs (RETURNED CHECK without a match; MC↔MC transfer without a counter-leg) |
+
+Tolerance: half-cent (`$0.005`) on every comparison to absorb floating-point noise.
+
+If a check fails, the script prints which check failed, the conflicting values, and exits without writing. The prior workbook in the canonical folder remains untouched until a clean run completes.
+
+---
+
 ## Style Rules
 
 - Font: Arial throughout
 - No gridlines on any sheet (`showGridLines = False`)
-- Zero formula errors — all values are Python-computed and written as literals; no Excel formulas needed
+- Summary uses Excel formulas (SUMIFS / SUM / cell math) so the workbook stays live-linked to Raw Export edits. Detail tab Date/Description/Amount/Method are also formula refs to Raw Export; Period is an Excel formula; Section/Category are static. Numbers are guaranteed accurate by the verification pass before write.
 - Negative numbers display with parentheses via the currency format
+- Show `None` (blank) instead of `$0.00` in Python-written cells; Excel-formula cells render their own zero behavior per the number format
 - Never show `nan` — resolve all blank account names before writing

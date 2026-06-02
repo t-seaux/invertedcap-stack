@@ -84,8 +84,9 @@ Queue grows over time (acceptable — small file). No pruning required.
 ### Step 1 — Scan + prompt (9am ET)
 
 1. Load `queue.json` (create if absent).
-2. Query Notion Opportunities DB for rows where Status ∈ {`Committed`, `Pass Note Pending`, `Pass (Met)`, `Pass (DNM)`}. Include follow-on rows (titles with `(FO)` / `(Series X FO)`) — they are NOT skipped; each FO is a separate Opp ID treated as a separate retro entry. For each row capture `Website`, `Description`, and `🏁 Founder(s)` alongside `id/name/url/status`. Resolve each Founder relation → People page for name + `LI` URL.
-3. For each Opp whose `id` is NOT in the queue:
+2. Query Notion Opportunities DB for rows where Status ∈ {`Committed`, `Pass Note Pending`, `Pass (Met)`, `Pass (DNM)`}. Include follow-on rows (titles with `(FO)` / `(Series X FO)`) — they are NOT skipped; each FO is a separate Opp ID treated as a separate retro entry. For each row capture `Close Date`, `Website`, `Description`, and `🏁 Founder(s)` alongside `id/name/url/status`. Resolve each Founder relation → People page for name + `LI` URL.
+2a. **Freshness gate.** Skip any Opp whose `Close Date` is more than 60 days before today (`Close Date < today - 60d`). The sweep is a reconciliation backstop for transitions the notion-webhook missed within the recent window — it is NOT a back-catalog mining tool. Stale historical passes (e.g., 2024-era closes Tom decided on long before this skill existed) must not surface as retro prompts. If `Close Date` is empty/null, also skip (defer to webhook for that Opp; manual `retro on X` always overrides). Webhook-triggered entries (`trigger_source: webhook:status-change`) bypass this gate entirely — they fire on actual transition events and are by definition fresh.
+3. For each Opp whose `id` is NOT in the queue (and passing the freshness gate above):
    - Compose GFM markdown prompt (`[text](url)` for links, `**text**` for bold). `md_to_blocks.py` converts to Slack Block Kit — do NOT hand-write Slack mrkdwn (`<url|text>` / `*text*`), it ships as literal text / renders italic. Per memory `feedback_scheduled_alert_structure.md`:
      ```
      🏢 <u>**{Opp Name} | [Notion]({Notion url})**</u>

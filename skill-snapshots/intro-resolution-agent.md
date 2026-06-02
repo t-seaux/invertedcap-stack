@@ -150,16 +150,58 @@ When invoked by `gmail-webhook/Code.js` (`intro-resolution-reply` handler) via t
 - `oppCandidateIds` (optional) — array of Opportunity page IDs the webhook found this person in (Outreach or Qualified). If `length === 1`, treat as the unambiguous target. If empty, skip.
 
 **Behavior in Mode B:**
-- **Skip Step 1 entirely** — the webhook already verified person + opp candidates. Use the pre-resolved IDs as the starting point.
-- If `oppCandidateIds.length > 1`, run the **thread-disambiguation** logic from Phase B (read the thread's earliest sent message, haystack-match its subject + body-head against the candidate opp names) to pick the target opp. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
-- **Skip Step 2 Phase A entirely** (no batch sent/inbox scans — we have the one message).
-- Run Phase B's classification logic on this single thread:
-  1. Read the full thread via `gmail_read_thread`
-  2. **Inline-intro check** (Pattern 1b) — if any of Tom's replies in the thread CC or address the founder, classify as **Made** regardless of the contact's reply tone
-  3. Otherwise run the full opt-in / decline / soft-deferral / hard-deferral / ambiguous LLM classification rubric from Step 2 Phase B
-- Apply the same Notion update logic the scheduled scan would (move person between source field and target — Made / Declined / kept in Outreach).
-- Skip Step 3+'s scheduled-scan reporting. Instead emit a single-line summary to the run log: `single-message resolution: <person> on <opp> — <classification> → <action>`. The webhook's downstream Slack alert (if any) is composed by the orchestrator OR by an explicit `send-alert` invocation here only if classification = **Made** or **Declined** (terminal states worth notifying); soft-deferral and ambiguous are silent.
-- Idempotency is handled at the queue layer (key = `intro-resolution-reply-{messageId}`); the skill itself does not need to re-check.
+
+In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` calls against the lifecycle relation fields. The atomic 4-field write is delegated to a JS endpoint (`gmail-webhook/intro-resolution-endpoint.js`) via the `~/.claude/scripts/intro-resolution-write.py` wrapper. The endpoint scrubs both upstream fields (Outreach + Qualified), adds the person to the target field, and re-fetches to return verified observed state. This eliminates split-state bugs from the LLM issuing partial / non-atomic writes.
+
+1. **Skip Step 1 entirely** — the webhook already verified person + opp candidates. Use the pre-resolved IDs as the starting point.
+2. If `oppCandidateIds.length > 1`, run the **thread-disambiguation** logic from Phase B (read the thread's earliest sent message, haystack-match its subject + body-head against the candidate opp names) to pick the target opp. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
+3. **Skip Step 2 Phase A entirely** (no batch sent/inbox scans — we have the one message).
+4. **Idempotency pre-check** — fetch the target Opp via `notion-fetch` and inspect all four lifecycle fields for `personId`:
+   - **Clean terminal state** (in Made or Declined, NOT in Outreach/Qualified) → exit NOOP. Log `webhook-idempotent-skip: already in <state>`. No classification, no write, no alert.
+   - **Split-state** (in Made or Declined AND in Outreach/Qualified) → SKIP classification of the new message. Set classifier verdict directly to the EXISTING terminal state (Made or Declined). The original resolution already classified; this is a cleanup write. Tag the alert as `[split-state cleanup]`.
+   - **Upstream only** (in Outreach or Qualified, not in either terminal field) → proceed to classify the new message normally.
+5. **Classify** (only when pre-check landed on Upstream only):
+   - Read the full thread via `gmail_read_thread`.
+   - **Inline-intro check** (Pattern 1b): if any of Tom's replies in the thread CC or address the founder, classify as **Made** regardless of the contact's reply tone.
+   - Otherwise run the full opt-in / decline / soft-deferral / hard-deferral / ambiguous LLM rubric from Step 2 Phase B.
+6. **Route the verdict**:
+   - **Made** → invoke the JS-backed write (Step 7).
+   - **Declined** (explicit decline or hard deferral) → invoke the JS-backed write (Step 7).
+   - **Soft-deferral / ambiguous** → no write, no alert. Log `single-message resolution: <person> on <opp> — <verdict> → kept in Outreach`. Exit 0.
+7. **Execute atomic write via the JS endpoint** (replaces direct `notion-update-page` calls in Mode B):
+   ```bash
+   ~/.claude/scripts/intro-resolution-write.py \
+       --opp-id <oppId> \
+       --person-id <personId> \
+       --target made|declined \
+       --message-id <messageId> \
+       --person-name "<Name>" \
+       --opp-name "<OppName>"
+   ```
+   The script POSTs to `gmail-webhook` which:
+   - Atomically writes all 4 relation fields (scrubs Outreach + Qualified, adds to target, leaves the other terminal field untouched).
+   - Re-fetches the Opp post-write and returns observed state.
+   - Returns a JSON response with `ok`, `wrote`, `wasAlreadyInTarget`, `splitStateDetected`, `observed` (the 4 bool flags), and `verifiedClean`.
+
+   Exit codes:
+   - 0 = wrote (or noop) AND `verifiedClean === true` (person in target, scrubbed from upstream)
+   - 1 = wrote but verification failed (split-state still present post-write)
+   - 2 = invocation/network error
+   - 3 = endpoint returned an error
+
+   Parse the JSON response and use the observed state to compose the alert.
+
+8. **Alert wording (MANDATORY — compose from `observed`, not intent)**:
+   - **Standard move** (`wrote === true`, `verifiedClean === true`, `wasAlreadyInTarget === false`, `splitStateDetected === false`):
+     `moved <source> → <target>` where source is "☎️ Outreach" or "👓 Qualified" (whichever the person was in pre-write).
+   - **Split-state cleanup** (`splitStateDetected === true`, `verifiedClean === true`):
+     `removed from <upstream> — already in <target>` (matches the existing 2:42 PM cleanup phrasing).
+   - **Clean terminal NOOP** (`wrote === false`, `wasAlreadyInTarget === true`, no split-state): emit no Slack alert. Already a no-op.
+   - **Verification failed** (`ok === true` but `verifiedClean === false`): post Slack with `⚠️ verification failed — person still in <upstream> after write` and include the raw `observed` flags. Do NOT use the word "moved".
+   - **Endpoint error** (`ok === false`): post Slack with `❌ endpoint error: <error>`. No state claims.
+   - **Wrapper exit 2** (no JSON parseable on stdout — network failure, missing secret, etc.): post Slack with `❌ intro-resolution-write.py invocation failed: <stderr>`. No state claims. Do NOT silently retry the LLM-driven write path — loud failure is the design (Tom can fix and re-run manually).
+9. Skip Step 3+'s scheduled-scan reporting. Emit a single-line run-log summary: `single-message resolution: <person> on <opp> — <verdict> → <action>` where `<action>` reflects observed state.
+10. Idempotency is also enforced at the JS gate (`handleIntroResolutionReply` skips re-enqueue when person is cleanly terminal for all candidate Opps) and at the queue layer (`intro-resolution-reply-{messageId}`).
 
 All classification rules (opt-in / decline / soft-deferral / hard-deferral / ambiguous handling, including the "ambiguous → keep in Outreach" default) live in Step 2 Phase B and apply identically here — do not restate them.
 
@@ -285,29 +327,38 @@ If any gate fails, surface the skip in the report (Needs Review section) and wri
 
 ### Step 3: Execute Moves
 
-For each resolved contact, update the Opportunity page:
+For each resolved contact, delegate the atomic 4-field write to the JS-backed endpoint via `~/.claude/scripts/intro-resolution-write.py`. **Do NOT issue `notion-update-page` calls against the lifecycle relation fields directly from this skill** — the wrapper handles pre-fetch, atomic write, post-write re-fetch, and verified observed state in one call. This applies uniformly to Mode A (scheduled sweep), Mode B (webhook), and Mode C (manual).
 
-1. Fetch the current state of ALL four relation fields on the Opportunity.
-2. Parse each field's JSON array.
-3. Remove the person's URL from **ALL upstream lifecycle fields** — both `👓 Intros (Qualified)` AND `☎️ Intros (Outreach)`. A person must exist in exactly one pipeline stage at any time. Even if you only detected them in Outreach, they may also be lingering in Qualified (or vice versa) due to prior agent runs or timing gaps. Always scrub both upstream fields to prevent split-state bugs.
-4. Add the person's URL to the appropriate target:
-   - `✉️ Intros (Made)` if opted in and intro was sent (standalone or inline)
-   - `🚫 Intros (Declined / NR)` if declined or no response
-5. Write ALL four relation fields back in a SINGLE `notion-update-page` call — including both upstream fields even if the person wasn't in one of them. Writing all four atomically is the safest approach; omitting a field leaves it untouched, which risks stale data if anything else modified it between your fetch and your write.
+For each move:
 
-```
-Tool: notion-update-page
-page_id: <opportunity_page_id>
-command: update_properties
-properties:
-  "👓 Intros (Qualified)":     "[\"url1\",\"url2\"]"              ← person REMOVED (scrub always)
-  "☎️ Intros (Outreach)":      "[\"urlA\",\"urlB\"]"              ← person REMOVED (scrub always)
-  "✉️ Intros (Made)":          "[\"urlX\",\"urlY\",\"<person>\"]" ← person ADDED (if made)
-  OR
-  "🚫 Intros (Declined / NR)": "[\"urlZ\",\"<person>\"]"          ← person ADDED (if declined)
+```bash
+~/.claude/scripts/intro-resolution-write.py \
+    --opp-id <opportunity_page_id> \
+    --person-id <person_page_id> \
+    --target made|declined \
+    --message-id <gmail-msg-id-or-manual-tag> \
+    --person-name "<Name>" \
+    --opp-name "<OppName>"
 ```
 
-Always write both upstream fields with the person removed. If the person was not present in a given upstream field, that field's array simply stays the same (minus nothing) — write it back anyway to confirm the intended final state.
+`--message-id` is used for audit logging. For Mode A (sweep), pass the Gmail message ID of the signal message that triggered the move (the reply or double-opt-in email). For Mode C (manual), pass a tag like `manual-YYYY-MM-DD` or the Gmail/iMessage ID Tom referenced.
+
+The wrapper exits with one of four codes:
+- `0` — wrote (or noop) AND `verifiedClean === true` (person in target field, scrubbed from both upstream fields, no split-state). Standard success.
+- `1` — wrote, but post-write re-fetch shows split-state still present. Treat as a failure: do NOT claim "moved" in the report; flag in Needs Review.
+- `2` — invocation/network error (no JSON parseable on stdout). Flag in Needs Review with the stderr message.
+- `3` — endpoint returned `ok: false` (auth fail, validation error, etc.). Flag in Needs Review.
+
+Stdout returns a JSON response: `{ ok, wrote, wasAlreadyInTarget, splitStateDetected, observed: { inQualified, inOutreach, inMade, inDeclined }, verifiedClean, error }`. Parse `observed` and use it to compose the Step 4 report. Never compose the report from intended state — always from `observed`.
+
+**Failure handling in batch mode (Mode A):** if a single move returns exit 1/2/3, log it and continue with the remaining moves. Do not abort the entire sweep. The failed move shows up in Needs Review with the raw response.
+
+**Verdicts that do NOT invoke the wrapper** (no write, person stays in current upstream field):
+- Soft-deferral (specific near-term re-engagement path expressed)
+- Ambiguous classification
+- Opt-in detected but no double-opt-in email sent yet (Made is gated on the intro actually being made — standalone or inline)
+
+For these, skip the wrapper and report in Step 4 under the appropriate "Kept in Outreach" / "Still in Qualified" section.
 
 ### Step 4: Report
 
@@ -333,37 +384,11 @@ Provide a clear summary, distinguishing between moves from Outreach and moves fr
 - **Jordan Wu** → Gamma Inc (outreach detected + opt-in, but no double-opt-in email yet — Outreach/Draft agents will handle)
 ```
 
-## CRITICAL: JSON Array Format for Relation Fields
-
-> **WARNING**: Relation fields MUST be set as JSON array strings. This is the ONLY format that works.
-
-**Correct**:
-```
-"✉️ Intros (Made)": "[\"https://www.notion.so/page1\",\"https://www.notion.so/page2\"]"
-```
-
-**WRONG** (all of these fail with "Invalid page URL" validation error):
-```
-"✉️ Intros (Made)": "https://www.notion.so/page1, https://www.notion.so/page2"     ← FAILS
-"✉️ Intros (Made)": "https://www.notion.so/page1\nhttps://www.notion.so/page2"     ← FAILS
-"✉️ Intros (Made)": "https://www.notion.so/page1; https://www.notion.so/page2"     ← FAILS
-```
-
-**DANGER**: A single URL string (not in array brackets) will DESTRUCTIVELY REPLACE the entire relation, wiping all other entries. ALWAYS use the JSON array format, even for a single entry:
-```
-"✉️ Intros (Made)": "[\"https://www.notion.so/single-page\"]"
-```
-
-To clear a relation completely:
-```
-"☎️ Intros (Outreach)": "[]"
-```
-
 ## Edge Cases
 
-1. **Person is in both Outreach AND Made/Declined already**: Check all four lifecycle fields before writing. If the person is already in the target field, skip the move and report it as a no-op.
+1. **Person already in target field (split-state or clean terminal)**: Handled by the endpoint. The wrapper's response surfaces `wasAlreadyInTarget` and `splitStateDetected`; the skill consumes those flags to compose the report (e.g. `removed from Outreach — already in Declined/NR` for split-state cleanup, no Slack alert for clean terminal).
 
-2. **Person is NOT in Outreach or Qualified**: If someone has been manually moved or removed, do not create duplicate entries. Verify current state before any write.
+2. **Person is NOT in Outreach or Qualified**: For Mode A (sweep), Step 1's roster build excludes them. For Mode B (webhook), the JS gate (`handleIntroResolutionReply`) returns `not-in-pipeline` before enqueue. For Mode C (manual), surface the mismatch in Needs Review before invoking the wrapper.
 
 3. **Ambiguous response**: If the email/text response is unclear (not clearly opt-in or decline), do NOT make a move. Flag it for Tom's review.
 
@@ -373,7 +398,7 @@ To clear a relation completely:
 
 6. **Founder email matching**: When checking for double-opt-in emails, match against BOTH the `Contact` field on the Opportunity AND emails of people in the `🏁 Founder(s)` relation.
 
-7. **Preserving other entries**: When updating a relation field, ALWAYS include all existing entries that should remain. Never write just the new entry — that destroys the existing data.
+7. **Preserving other entries**: Handled by the endpoint. It always fetches all 4 fields, removes only the target `personId` from upstream arrays, and never destructively replaces. No skill-side concern.
 
 8. **Person in Qualified with full-cycle completion**: If someone in Qualified has progressed through outreach → opt-in → double-opt-in (standalone or inline) all between scans, move them directly from Qualified to Made. Don't place them in Outreach first — that intermediate state was already passed.
 

@@ -186,36 +186,176 @@ Always use the direct file URL from the upload response, not the generic Diligen
 
 For data room URLs (`/view/s/{slug}`):
 
-**Step 1: Extract document URLs using Chrome**
+The Dropbox-redesigned data room viewer is a React SPA backed by GraphQL at `https://docsend.com/presentation/graphql`. Production React is compiled without DevTools hooks — `__reactFiber` keys are NOT present on rendered nodes (the old fiber-walk approach returns `null` for every row). The doc list lives in the GraphQL response, not the DOM.
 
-1. Navigate to the data room URL in Chrome (use `tabs_context_mcp` → `navigate`).
-2. Wait for the page to load, then use `read_page` to confirm the document list is visible.
-3. Extract document slugs from React's internal state using `javascript_tool`:
+**The user's existing authorized Chrome session is the auth source.** Email-verified data rooms (a server-side flag Harsh-style founders enable) cannot be bypassed from a fresh Playwright context — the verification link goes to email. Operate inside Tom's already-loaded Chrome tab.
+
+### Step 1: Get the folder slug (spaceLayout query)
+
+Run this fetch from the page context (cookies attach automatically via `credentials: 'include'`). The folder slug returned (`url` field) is what every subsequent query needs.
 
 ```javascript
-const rows = Array.from(document.querySelectorAll('[class*="Table-row--selectable"]'));
-const fiberKey = Object.keys(rows[0]).find(k => k.startsWith('__reactFiber'));
-
-function extractItem(el) {
-  let fiber = el[fiberKey];
-  let depth = 0;
-  while (fiber && depth < 30) {
-    const props = fiber.memoizedProps || {};
-    if (props.item && props.item.url && props.item.name) {
-      return { name: props.item.name, url: props.item.url };
-    }
-    fiber = fiber.return;
-    depth++;
-  }
-  return null;
-}
-
-JSON.stringify(rows.map(r => extractItem(r)), null, 2);
+fetch('https://docsend.com/presentation/graphql', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  credentials: 'include',
+  body: JSON.stringify({
+    query: `query spaceLayout($linkUrl: String!, $timezoneOffset: Int!, $folderUrl: String, $wldn: String, $accessedFromEmailVerification: Boolean!) {
+      spaceFolder(linkUrl: $linkUrl, timezoneOffset: $timezoneOffset, folderUrl: $folderUrl, wldn: $wldn, accessedFromEmailVerification: $accessedFromEmailVerification) {
+        authorizedData { data { url childFolderIds databaseId href } }
+      }
+    }`,
+    variables: {accessedFromEmailVerification: false, linkUrl: '<SPACE_SLUG>', timezoneOffset: -240, wldn: null},
+    operationName: 'spaceLayout'
+  })
+}).then(r => r.json())
 ```
 
-4. Construct full document URLs: `https://docsend.com/view/{space_slug}/d/{doc_slug}`
+Extract `data.spaceFolder.authorizedData.data.url` — that's the folder slug (e.g. `nskt9ub53m7ujgaf`). Multi-folder data rooms expose `childFolderIds`; iterate them as needed.
 
-**Step 2: Convert each document** using the Python approach from Step 1, processing each URL sequentially. Upload all to the same company subfolder.
+### Step 2: Get the doc list (spaceFolder.contents.nodes)
+
+```javascript
+fetch('https://docsend.com/presentation/graphql', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  credentials: 'include',
+  body: JSON.stringify({
+    query: `query getDocs {
+      spaceFolder(linkUrl: "<SPACE_SLUG>", folderUrl: "<FOLDER_SLUG>", timezoneOffset: -240, accessedFromEmailVerification: false, wldn: null) {
+        authorizedData { data { contents { nodes { __typename ... on SpaceDocument { id name url href } } } } }
+      }
+    }`,
+    operationName: 'getDocs'
+  })
+}).then(r => r.json())
+```
+
+Each node has `name`, `url` (doc slug), and `href` (e.g. `https://docsend.com/view/u7h9vv5xxxutrafi/d/c2t75ksznqiihuac`).
+
+**URL shape caveat:** Doc hrefs use `/view/{space}/d/{doc}` — the `s/` is dropped from the data-room URL when descending into a child doc. The original docsend-to-pdf regex `/view/[^/]+/page_data` won't match because `[^/]+` can't span `/d/`.
+
+**Field probing:** GraphQL introspection is disabled (`__type` queries return "Field doesn't exist on type 'Query'"). To discover new field names, intentionally query a wrong name — the error response includes suggestions ("Did you mean `X`?"). That's how `contents` (typed `FolderContentConnection` with `nodes`/`edges`/`totalCount`) was discovered for SpaceFolder, and `name`/`url`/`href` for SpaceDocument. `pages`, `images`, `pageCount`, `documentId`, `fileUrl`, `downloadUrl` do NOT exist on SpaceDocument — pages still live in the per-doc HTML.
+
+### Step 3: Extract each doc's page-image URLs
+
+For each doc `href`, fetch the doc HTML in the page context (preserves auth cookies), then extract `page_data` URLs with this updated regex:
+
+```javascript
+const r = await fetch(href, { credentials: 'include' });
+const html = await r.text();
+const pageUrls = Array.from(new Set(
+  Array.from(html.matchAll(/https:\/\/docsend\.com\/view\/[^"'\s]+\/page_data\/\d+/g)).map(m => m[0])
+)).sort((a, b) => parseInt(a.split('/').pop(), 10) - parseInt(b.split('/').pop(), 10));
+```
+
+Then fetch each `page_data` URL with `Accept: application/json` to get `{imageUrl}` (a pre-signed CloudFront URL).
+
+### Step 4: Download images + compile to PDF (Python)
+
+CloudFront image URLs are pre-signed and DO NOT require docsend cookies — download directly from Python `requests`. Expiry on signed URLs is ~40-60 minutes from extraction, so process each doc end-to-end (extract → download → PDF → upload) rather than batching all extractions first.
+
+Use the same `Pillow` PDF-compile path as Step 1's single-doc flow.
+
+### Step 5: Driving Tom's existing Chrome tab from Python
+
+The skill assumes Tom's Chrome tab already passed the email-verification gate (he viewed the data room earlier). Run JS in his active tab via `osascript`:
+
+```python
+def run_js(js):
+    def as_string(s):
+        return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
+    script = 'tell application "Google Chrome"\n  execute active tab of window 1 javascript ' + as_string(js) + '\nend tell'
+    return subprocess.run(['osascript', '-e', script], capture_output=True, text=True, timeout=60).stdout.strip()
+```
+
+Async fetches can't be awaited directly through `osascript`. Pattern: kick the promise, write the result to `window._x`, then poll `window._x` from Python until it flips from `'pending'`.
+
+**What does NOT work:**
+- **Programmatic clicks** on `[class*="Table-row--selectable"]` rows — no React onClick reachable (no fiber). `.click()`, `MouseEvent` dispatch, and even `cliclick` real-mouse clicks at the row's screen coords all no-op. The row has no anchor tag, no internal href; the navigation handler is a private React listener.
+- **Old form-based email gate bypass** (the `link_auth_form[email]` POST in Step 1). Current data rooms use a meta CSRF token (`<meta name="csrf-token">`) and a GraphQL `authorize` mutation. Reproducing it from Python `requests` returns 404 against the new endpoint.
+- **Reload-then-hook fetch interceptor.** Reloading wipes the hook before the page's own queries fire. Hook fetch on an already-loaded page and trigger your own queries — don't try to passively observe the page's initial load.
+- **`notion.site` fallback for Notion-hosted artifacts in a data room.** If the data room links a Notion page on the founder's workspace (`notion.so/{workspace}/...`), the `.notion.site` subdomain returns 404 unless the page is published-to-web. Render it through Tom's logged-in Chrome session instead (see the legacy data-room PDF flow that extracted `.notion-page-content` outerHTML and Chrome-headless'd it).
+
+**Worked precedent:** Kalos data room (`u7h9vv5xxxutrafi`), 2026-05-27. 8 docs → 9 PDFs uploaded to `Diligence/Kalos/`. See `/tmp/kalos_dataroom_pipeline.py` for the end-to-end orchestrator scaffold.
+
+### Step 6: Companion Notion pages linked from the data room
+
+Founders increasingly link a Notion FAQ / Deep Dive / Q&A page from the DocSend chip list (e.g. Kalos `https://www.notion.so/kaloscareers/FAQs-Inverted-...`). These aren't DocSend artifacts but ride alongside — handle them in the same materials run.
+
+**Render path — order of fallbacks:**
+
+1. **Notion MCP `notion-fetch`** with the URL. Returns 404 if Tom's integration is not granted access to the founder's workspace (the common case for guest-shared pages). Skip to (2).
+2. **`<workspace>.notion.site/<slug>`** subdomain. Works ONLY if the founder has Published-to-Web enabled. Returns 404 ("This page couldn't be found") otherwise. Detect by `pdftotext`-ing the result and searching for the not-found copy.
+3. **Tom's authenticated Chrome tab.** Open the URL in a new tab in Tom's existing Chrome (`tell window 1 to make new tab with properties {URL:...}`). Wait ~6s for the Notion SPA to render. Expand all `[aria-expanded="false"]` toggles (typical FAQ pages collapse content). Extract the `.notion-page-content` `outerHTML`.
+
+**Image fidelity caveat — CORS-anonymous + canvas trick:**
+
+Notion serves images via authenticated `/image/attachment%3A{uuid}` URLs that:
+- Resolve correctly inside the page DOM (img tags load fine).
+- Return **`Failed to fetch`** when called via `fetch(src, {credentials: 'include'})` (CORS-blocked redirect to S3).
+- Taint the canvas if drawn from a default-loaded img (`SecurityError: Tainted canvases may not be exported`).
+
+The fix is to **re-load each image with `crossOrigin = 'anonymous'`** — Notion's image endpoint DOES serve CORS headers when explicitly requested, and the canvas is then exportable:
+
+```javascript
+async function inlineImg(src) {
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.crossOrigin = 'anonymous';
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = src;
+  });
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  c.getContext('2d').drawImage(img, 0, 0);
+  return c.toDataURL('image/jpeg', 0.92);  // JPEG keeps screenshots small; fall back to png on alpha
+}
+```
+
+Then substitute each `<img src>` in the extracted HTML — match by attachment UUID (`/image/attachment%3A([0-9a-f-]+)`), since the HTML attribute is relative (`/image/...&amp;id=...`) while the runtime `img.src` is absolute. URL-as-key substitution misses every time.
+
+**Re-render flow:** wrap the (image-inlined) outerHTML in the standard letter-format Chrome-headless template (same CSS reset as the email-body-to-PDF path in `materials-handler` Step 3D), then `chrome --headless --print-to-pdf`. Upload to the same `Diligence/{Company}/` subfolder. Same-filename re-uploads auto-trash the old Drive file (per `drive-upload.md` line 39), but the new fileId is fresh — see "Re-uploading on top of an existing chip" below.
+
+### Re-uploading on top of an existing chip
+
+When you re-upload a fixed PDF with the same filename to the same Drive folder, the Apps Script trashes the old file but mints a fresh `fileId`/`url` for the new one. The Notion chip still points to the trashed URL.
+
+**`notion_files_property.py --label "<same name>" --url <new url>` will SKIP** — the helper's canonical-filename dedup (`_canonical_label`) matches the existing chip's name and returns `{skipped: true, message: "Filename collision (canonical match)"}`. This is the intended behavior to prevent duplicate chips, but it leaves the broken chip in place.
+
+**Fix — direct PATCH to rewrite the existing chip's URL** (no chip-count change):
+
+```python
+from notion_files_property import _load_token, _notion_request
+token = _load_token()
+page = _notion_request("GET", f"/pages/{page_id}", token)
+files = page['properties']['Diligence Materials']['files']
+updated = []
+for f in files:
+    if f.get('name') == NEW_FILENAME and f.get('external'):
+        updated.append({"name": NEW_FILENAME, "external": {"url": new_url}})
+    else:
+        updated.append({"name": f.get('name', ''), "external": {"url": f['external']['url']}} if f.get('external') else f)
+_notion_request("PATCH", f"/pages/{page_id}", token, body={"properties": {"Diligence Materials": {"files": updated}}})
+```
+
+### Efficiency checklist — avoid prior session's dead-ends
+
+The 2026-05-27 Kalos run burned cycles on attack vectors that never work. Skip these:
+
+1. **No `__reactFiber` walk on data room rows.** Production React strips the fiber key. `Object.keys(row).filter(k => k.startsWith('__'))` returns `[]`. Don't bother probing.
+2. **No programmatic click on `[class*="Table-row--selectable"]` rows.** `.click()`, `MouseEvent` dispatch, double-click, and even `cliclick` on screen-coords ALL no-op. Rows have no anchor/href and the onClick handler is private React state. Use GraphQL directly.
+3. **No form-based email-gate bypass.** Old `link_auth_form[email]` POST returns 404. Current auth is GraphQL `authorize` mutation against `/presentation/graphql` — and email-verified rooms can't be bypassed at all from a fresh Playwright session (verification link goes to email). Operate inside Tom's already-authed Chrome.
+4. **No reload-then-hook.** Page reload wipes the fetch hook before initial queries fire. Hook on an already-loaded page, then trigger your own queries.
+5. **No `.notion.site` shortcut without verification.** Returns 404 if the page isn't Published-to-Web. `pdftotext` the rendered PDF and grep for "This page couldn't be found" before assuming success.
+6. **No Playwright headless on Notion guest-shared pages.** No cookies, no content. Drive Tom's existing Chrome tab instead.
+7. **GraphQL field discovery via error-message introspection.** `__type` is disabled, but error suggestions ("Did you mean `X`?") reveal valid fields. Probe wrong names intentionally — that's how `contents` was found.
+8. **Process docs end-to-end, one at a time.** CloudFront signed URLs in DocSend page_data responses expire in ~40-60 min. Don't extract all 8 doc lists then download — extract → download → PDF → upload per doc.
+
+### Permissions
+
+This skill — and `materials-handler` calling it — runs entirely without permission prompts. Drive uploads, folder creates, Notion property PATCHes, Chrome MCP / osascript drives, even same-name re-uploads (which auto-trash the prior file): all execute autonomously when Tom invokes the materials flow. The single exception is explicit deletes via `drive_rename.py --trash` — those still gate on `--confirm` (see `feedback_always_confirm_before_delete.md`). Anything short of explicit trash is in-scope.
 
 ## Integration with Other Skills
 

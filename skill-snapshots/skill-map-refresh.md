@@ -49,10 +49,14 @@ Scan the skills directory to build a complete inventory.
      | `intro-agent` | `intro-agent` (absorbs former sub-skills `intro-outreach-agent`, `intro-draft-agent`, `intro-resolution-agent`, `log-intro`; see Function mapping below) |
      | `intro-agent-enricher` | `intro-agent` (queue processor for `intro-agent/processor.py`; rolls up into parent) |
      | `portfolio-agent` | `investor-update` |
+     | `investor-update` | `investor-update` |
      | `admin-agent` | `note-classifier` |
      | `office-cleaning-expense` | `office-cleaning-expense` |
      | `whole-foods-weekly-order` | `whole-foods-weekly-order` |
      | `mademeals-weekly-order` | `mademeals-weekly-order` |
+     | `mademeals-daily-check` | `mademeals-weekly-order` |
+     | `coop-finances-prompt` | `coop-finances` |
+     | `meeting-note-processor-sweep` | `meeting-note-processor` |
      | `skill-map-refresh` | `skill-map-refresh` |
      | `draft-feedback-processor` | `draft-feedback` |
      | `decision-retro-scan` | `decision-retro` |
@@ -77,14 +81,17 @@ Scan the skills directory to build a complete inventory.
      |---|---|
      | `deal-scanner-inbound` | `pipeline-agent` |
      | `pipeline-sent-detect` | `founder-outreach` |
-     | `pass-note-sent-detect` | `pass-note-drafter` |
-     | `draft-trash` | `draft-feedback` |
+     | `pass-note-sent` | `pass-note-drafter` |
+     | `draft-feedback` | `draft-feedback` |
      | `feedback-reply-detect` | `feedback-outreach` |
+     | `feedback-outreach-sent-detect` | `feedback-outreach` |
      | `intro-outreach` | `intro-agent` |
      | `intro-made` | `intro-agent` |
      | `intro-resolution-reply` | `intro-agent` |
      | `intro-agent-inbound` | `intro-agent` |
+     | `intro-connected-detect` | `pipeline-agent` |
      | `investor-update-inbound` | `investor-update` |
+     | `materials-detect-inbound` | `materials-handler` |
      | `outreach-detector` | `pipeline-agent` |
      | `outreach-decliner` | `pipeline-agent` |
 
@@ -94,7 +101,7 @@ Scan the skills directory to build a complete inventory.
 
      | Skill | Badge | Rationale |
      |---|---|---|
-     | `pipeline-agent` | Event | Top-of-funnel detection now webhook-driven via `deal-scanner-inbound`; remaining cron sweeps (Qualified Triage, stagnation alerts, Connected Triage) are residual fallbacks |
+     | `pipeline-agent` | Event | Top-of-funnel detection now webhook-driven via `inbound-deal-detect`; remaining cron sweeps (Qualified Triage, stagnation alerts, Connected Triage) are residual fallbacks |
      | `intro-agent` | Event | Inbound/outbound detection now webhook-driven end-to-end |
      | `investor-update` | Event | Webhook-driven ingestion; scheduled skill retained as fallback during validation |
      | `feedback-outreach` | Event | End-to-end get-feedback-on-an-Opp chain (drafter + reply detection); webhook drives reply tracking, scheduled scan retained as fallback |
@@ -112,7 +119,7 @@ Scan the skills directory to build a complete inventory.
 | Pipeline Management | `pipeline-agent`, `add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback` |
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan` |
 | Portfolio Management | `investor-update`, `coinvestor-recommender` |
-| Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `add-conversation-to-notion`, `decision-retro` |
+| Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence` |
 | Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)
@@ -122,7 +129,7 @@ These functions are tracked internally for completeness but do NOT appear in ANY
 | Function | Skills | Why hidden |
 |---|---|---|
 | Fund Ops | `mmf-to-lp-calc`, `cpa-report` | Operational fund accounting -- not part of the deal/research workflow |
-| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `nightly-backup`, `design-language`, `writing-style`, `office-cleaning-expense`, `whole-foods-weekly-order`, `mademeals-weekly-order`, `meeting-note-processor` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense`, `whole-foods-weekly-order`, and `mademeals-weekly-order` are LaunchAgent-driven personal-life automations (expense logging, grocery orders, meal orders). `nightly-backup` is the 3am ET LaunchAgent (`com.invertedcap.nightly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to 5 backup repos + monthly SA-key rotation; lives in `~/.claude/local-agents/nightly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. |
+| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `nightly-backup`, `design-language`, `writing-style`, `office-cleaning-expense`, `whole-foods-weekly-order`, `mademeals-weekly-order`, `meeting-note-processor`, `coop-finances`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense`, `whole-foods-weekly-order`, and `mademeals-weekly-order` are LaunchAgent-driven personal-life automations (expense logging, grocery orders, meal orders). `nightly-backup` is the 3am ET LaunchAgent (`com.invertedcap.nightly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to 5 backup repos + monthly SA-key rotation; lives in `~/.claude/local-agents/nightly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. |
 
 #### Excluded duplicates
 
@@ -133,6 +140,15 @@ These skills exist in the directory but are intentional duplicates of skills alr
 | `feedback-outreach-drafter-manual` | `feedback-outreach-drafter` | Identical implementation; consolidated into the canonical skill |
 | `feedback-outreach-drafter-ad-hoc` | `feedback-outreach-drafter` | Identical implementation; consolidated into the canonical skill |
 | `backchannel-drafter` | `feedback-outreach-drafter` | Same skill under a different name; "backchannel" trigger phrases merged into canonical skill |
+
+#### Excluded — not a user-facing skill
+
+These directories exist under `~/.claude/skills/` but are not user-facing skills — they're infrastructure tests or shared reference files. Excluded from all outputs (visuals, counts, changelog) AND suppressed from the Step 0.5 pending-categorization sweep so they don't generate daily noise.
+
+| Directory | Reason |
+|---|---|
+| `claude-job-queue-smoke-test` | Infrastructure smoke test invoked only by processor.py; description self-identifies as "Not user-facing. Never trigger manually." |
+| `shared-references` | Not a skill — directory of reference files (`companies-enrichment-spec.md`, `round-details-format.md`, etc.) consumed by other skills via explicit reads |
 
 > **New skill handling**: If a newly discovered skill doesn't fit an existing function, flag it in the summary output for Tom to manually assign. Do NOT create new functions without Tom's approval.
 
@@ -147,7 +163,43 @@ These skills exist in the directory but are intentional duplicates of skills alr
    - For each modified skill, summarize the change in 1-2 short phrases. Examples of what to capture: new or removed trigger phrases, new sub-steps or workflow stages, changed cadence or scheduling behavior, new outputs/destinations, expanded scope, tightened guardrails, bug-fix-driven behavior changes. **Do NOT** paste raw diff hunks — write a human-readable summary.
    - After the diff pass completes, overwrite the snapshot files with the current SKILL.md contents so the next run diffs against this run's state.
 
-If there are zero changes (no Added, Removed, or Modified), report "No skill changes detected — visuals are current" and stop. Do not regenerate or push anything. (Snapshots are still refreshed only when a push happens, so the next run continues to diff against the last published state.)
+If there are zero changes (no Added, Removed, or Modified), report "No skill changes detected — visuals are current" and stop the regenerate/push flow. Do not regenerate or push anything. (Snapshots are still refreshed only when a push happens, so the next run continues to diff against the last published state.) **However**: a zero-change run does NOT skip Step 0.5 below — pending categorization items must still be surfaced in the Step 7 alert even on no-op days, otherwise uncategorized skills silently fall off Tom's radar after their first run.
+
+---
+
+## Step 0.5: Pending Categorization Sweep (runs every day, regardless of diff)
+
+Snapshot-diff detection only flags a skill the first time it appears in the directory. If Tom doesn't categorize it that day, the snapshot gets refreshed on the next push and the skill stops showing up as "Added" forever — but it's still uncategorized. This step closes that gap by re-scanning the canonical mappings against the live state on every run.
+
+Build three pending sets from the current run's inventory:
+
+1. **Pending skills** — every skill name from the `Glob` inventory in Step 0 that is NOT present in any of:
+   - The visible Function mapping (Step 0.4 table: Pipeline / Intro / Portfolio / Diligence / Research Management)
+   - The Hidden Categories table (Fund Ops, Admin)
+   - The Excluded Duplicates table
+   - The Excluded — not a user-facing skill table
+   - Any composite's `Composite breakdown` sub-skill list (Step 2)
+
+2. **Pending LaunchAgents** — every active LaunchAgent matching `com.tomseo.scheduled.*` from `launchctl list` that is NOT in the Scheduled mapping table AND NOT in the Excluded LaunchAgents table.
+
+3. **Pending webhook handlers** — every handler name registered in the `gmail-webhook` Apps Script `handlers` array (read via `gh` from the `t-seaux/gmail-webhook` repo or the local clone at `~/code/gmail-webhook/`) that is NOT in the Step 0.3 Webhook handler table.
+
+For each pending item, also capture:
+- Where it was discovered (file path / LaunchAgent label / handler name)
+- The earliest run date it was first seen pending — stored in `skill-snapshots/_pending.json` in the GitHub repo as `{ "<item>": "YYYY-MM-DD", ... }`. On first detection, record today's date; on subsequent runs, preserve the original date so the alert can show "pending since X". Remove entries from `_pending.json` when the item becomes categorized.
+
+**Recomputation discipline (mandatory)**: Every run MUST recompute the three pending sets from scratch against the CURRENT mapping tables in this SKILL.md, then reconcile with the existing `_pending.json`:
+
+1. Compute the fresh pending set (live `launchctl list` minus Scheduled mapping minus Excluded LaunchAgents; analogous for skills + webhook handlers).
+2. For each item in the fresh set: if already in `_pending.json`, preserve the original date; if new, record today's date.
+3. For each item in existing `_pending.json` that is NOT in the fresh set: DELETE it. Do not carry forward.
+4. Write back the reconciled `_pending.json` (only push if it changed vs. the GitHub copy, per the Idempotency rule below).
+
+Carry-forward without re-validation is a bug: an item that has since been added to the Scheduled mapping (lines 44–66) or Excluded LaunchAgents table (lines 70–76) must drop out of the next alert. Do not include any item in the Step 7 "Pending items" alert unless it is in the freshly-computed set for the current run.
+
+**Surfacing rule**: All pending items MUST appear in the Step 7 alert on every run where any pending set is non-empty, even if the regenerate/push flow was skipped by the no-change gate. The alert is the only daily signal — silence here means Tom never categorizes them.
+
+**Idempotency**: This step writes/reads `_pending.json` but does NOT push it unless other changes also trigger a push. To avoid the situation where pending items "disappear" because no push happens, persist `_pending.json` to GitHub on EVERY run where the pending set changes (additions or removals), even when no other Step 6 push would fire. Use a separate single-file `mcp__github__create_or_update_file` call for this case — keep the push minimal so no-op days stay cheap.
 
 ---
 
@@ -328,6 +380,7 @@ Each sub-row renders its own fused mode pill (most sub-rows light only one cell 
 | `pipeline-agent` | `materials-handler` | M | Downloads + Drive + Notion-links a deck, memo, or term sheet. |
 | `pipeline-agent` | `outreach-detector` | W | Tom-sent message to anyone in an Opp's contact graph → flips Qualified to Outreach. |
 | `pipeline-agent` | `outreach-decliner` | W | Tom-sent message declining an intro/investment offer → flips Qualified to Pass (DNM). |
+| `pipeline-agent` | `inbound-deal-detect` | W | Webhook-invoked deep classifier for inbound cold emails; delegates to add-to-crm on positive. |
 | `intro-agent` | `intro-agent-inbound` | W | Inbound intro-request email → creates Qualified entry on matching Opportunity. |
 | `intro-agent` | `log-intro` | M | "Intro X to Y" — manually creates a qualified intro target. |
 | `intro-agent` | `intro-outreach (webhook)` | W | Tom-sent email to a Qualified contact → promotes to Outreach stage. |

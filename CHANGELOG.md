@@ -2,6 +2,23 @@
 
 All notable changes to the Inverted Cap Stack platform are documented here.
 
+## [2026-06-02] (Week of 2026-06-02)
+
+**Added:** draft-investment-memo, finalize-diligence
+**Removed:** None
+**Modified:**
+- add-to-crm -- added webhook mode with classifierHints / statusDirective / sourceDirective passthrough from upstream classifier; LinkedIn enrichment switched to Chrome osascript (WebFetch 401s on LinkedIn); added Step 8 Slack alert for webhook-mode completions
+- decision-retro -- added freshness gate: skip Opps with Close Date more than 60 days before today during scheduled sweep; webhook-triggered entries bypass the gate and always process
+- first-pass-diligence -- mandatory Opus tier for drafting; requires inner H1 anchor at start of body for structural continuity; added memo text cache for analog-grounding lint gate; killshots use H4 sub-headers; added operational-specificity lint rules
+- inbound-deal-detect -- any entity explicitly raising venture capital now classified as a deal regardless of entity type; delegates to add-to-crm via enqueue-addcrm.sh follow-on job instead of inline execution
+- intro-resolution-agent -- Mode B switched to atomic JS-backed write endpoint (intro-resolution-write.py) for 4-field lifecycle moves; added idempotency pre-check before classification; alert wording composed from observed post-write state
+- neg1-enricher -- Type options renamed: Warm ☀️ (was Reconnect 👋) and Cold 🧊 (was Cold ☎️); added mandatory Step 6.5 post-write field validation that re-fetches and audits every required property after all writes complete
+- neg1-sourcing -- Type options renamed to match neg1-enricher (Warm ☀️ / Cold 🧊); added Step 1.5 ContactOut verification for cold candidates before Notion write; updated script path; Slack alert format uses GFM links with LinkedIn handle as link label for cold rows
+- pre-mortem -- added LLM audit gate (Step 2.5) via research-artifact-audit; scope covers factual claims only; failure-scenario speculation excluded
+- update-diligence-priors -- mandatory Opus tier for drafting; added LLM audit gate (Step 4.5) on new Update block before delivery; prior subheads use H4 headers; multi-child priors (Killshots, Risks) use H4 parent with bold-inline paragraph leaders for children
+**Total skills:** 28
+**Functions:** Diligence Management +2 (draft-investment-memo, finalize-diligence)
+
 ## [2026-05-22] (Week of 2026-05-19)
 
 **Added:** None

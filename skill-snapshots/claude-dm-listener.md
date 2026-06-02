@@ -5,11 +5,15 @@ description: "Processes direct messages sent to the `claude` Slack bot. Tom DMs 
 
 # Claude DM Listener
 
-When Tom sends a direct message to the `claude` Slack bot, treat the message as a command and execute it. This is the headless equivalent of asking Claude Code to do something — full skill access, broad authority, do whatever Tom asked for, post a reply when done.
+When Tom sends a direct message to the `claude` Slack bot OR posts a top-level message in `#claude-alerts`, treat the message as a command and execute it. This is the headless equivalent of asking Claude Code to do something — full skill access, broad authority, do whatever Tom asked for, post a reply when done.
 
 Post a `Working on it...` reply as your very first action (Step 0 below) so Tom sees confirmation that this skill — not just the Worker — has picked up the job. Then do the work and post the result.
 
-**Webhook-only.** No sweep mode, no manual mode. Invoked exclusively by the claude-job-queue processor dispatching jobs from `slack-retro-webhook` on `message.im` events.
+**Webhook-only.** No sweep mode, no manual mode. Invoked by the claude-job-queue processor dispatching jobs from `slack-retro-webhook` on two paths:
+- `message.im` events (Tom DM'd the bot) — `channel_id` starts with `D`
+- Top-level posts in `#claude-alerts` (channel `C0B06385BP1`) — `channel_id == "C0B06385BP1"`, no `thread_ts` set
+
+For both, post replies threaded under Tom's command using `reply_ts` as the `thread_ts`. The reply will appear as a threaded response in DMs OR as a thread under his top-level alert post.
 
 ---
 
@@ -20,13 +24,30 @@ Post a `Working on it...` reply as your very first action (Step 0 below) so Tom 
   "mode": "webhook",
   "channel_id": "D0XXXXXXXXX",
   "thread_ts": null,
-  "reply_ts": "<ts of Tom's DM>",
+  "reply_ts": "<ts of Tom's message>",
   "user": "<Tom's Slack user ID>",
-  "text": "<Tom's DM text>"
+  "text": "<Tom's message text>",
+  "files": [
+    {
+      "id": "F...",
+      "name": "filename.csv",
+      "mimetype": "text/csv",
+      "url_private": "https://files.slack.com/...",
+      "url_private_download": "https://files.slack.com/.../download/..."
+    }
+  ]
 }
 ```
 
-`thread_ts` is `null` for DMs (no parent context like alert-replies have). Reply by passing `reply_ts` as the `thread_ts` to `post_reply.sh` so your responses thread under Tom's command.
+`thread_ts` is `null` (no parent context). Reply by passing `reply_ts` as the `thread_ts` to `post_reply.sh` so your responses thread under Tom's command.
+
+`files` is `[]` when no attachment, populated when Tom drops a file. Download via:
+
+```bash
+curl -sSL -H "Authorization: Bearer $SLACK_USER_TOKEN" "<url_private>" -o /tmp/<name>
+```
+
+`SLACK_USER_TOKEN` is injected by the processor (`_skill_env()` in processor.py) from `~/.claude/.slack-bot-token.enc`. The token has `files:read` scope.
 
 ---
 
@@ -38,20 +59,20 @@ Post a `Working on it...` reply as your very first action (Step 0 below) so Tom 
 
 ---
 
-## Step 0. Ack the DM
+## Step 0. Ack Tom's message with a reaction
 
 The Worker no longer posts a synchronous ack — that confirmation now comes from this skill, so it only fires when claude has actually started working on the task.
 
-Before doing anything else, post `Working on it...` threaded under Tom's command:
+Before doing anything else, add a 👀 reaction to Tom's message:
 
 ```bash
-/Users/tomseo/.claude/skills/claude-dm-listener/post_reply.sh \
+/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
   "<channel_id from args>" \
-  "Working on it..." \
-  "<reply_ts from args>"
+  "<reply_ts from args>" \
+  eyes
 ```
 
-If the post fails, log to audit and continue — the result reply at Step 3 is still required.
+This is quieter than a text "Working on it..." reply — no extra message in the channel/DM, just a reaction visible on Tom's original message. If the reaction fails, log to audit and continue. The result reply at Step 3 is still required.
 
 ---
 
@@ -59,7 +80,7 @@ If the post fails, log to audit and continue — the result reply at Step 3 is s
 
 The args `text` field is Tom's command. It can be anything:
 
-| Example DM | What to do |
+| Example command | What to do |
 |---|---|
 | `draft a pass note for Acme` | Read `pass-note-drafter/SKILL.md` and execute its manual mode for Acme |
 | `add https://linkedin.com/in/jane to -1 sourcing` | Read `neg1-scanner/SKILL.md` and run it on the URL |
@@ -67,6 +88,8 @@ The args `text` field is Tom's command. It can be anything:
 | `run the diligence agent` | Read `diligence-agent/SKILL.md` and execute its sweep mode |
 | `remember that I prefer X` | Save a memory entry per `auto memory` rules in CLAUDE.md |
 | `what skills do I have for outreach?` | Grep skills directory, reply with a list |
+| `ingest co-op financials` / `update coop financials` + CSV file attached | Read `coop-finances/SKILL.md` Sub-flow A in the "Special branch: Coop finances ingest / classify" section of `claude-alerts-listener/SKILL.md`. Download the CSV (and any reserve attachment) via the bot token, invoke `python3 ~/.claude/skills/coop-finances/update_pl.py --csv /tmp/<name>` (add `--reserve-csv` if a reserve file is also attached), capture stdout JSON, format flagged-summary reply per that branch's spec. |
+| `CHECK <N> = <Category>` / `VENDOR <substring> = <Category>` (no files) | Coop-finances classification confirmation. Append to `~/.claude/skills/coop-finances/references/CHECK_LEDGER.md` or `VENDOR_CLASSIFICATIONS.md` per the same Sub-flow B spec in `claude-alerts-listener/SKILL.md`. |
 
 Treat yourself as a routing layer: identify the right skill (or direct action) and execute it. You have Read access to every skill's SKILL.md — use that to learn what's available.
 

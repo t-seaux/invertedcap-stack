@@ -13,15 +13,14 @@ Runs every Monday at 08:00 ET. Produces 2 reconnect + 3 cold outreach candidates
 
 ---
 
-## ⚠️ One-Time Setup (run once before first scheduled execution)
+## Type field reference
 
-The -1 Scanner database requires one new select property added manually in Notion before this skill can write to it:
+The `Type` select in -1 Scanner uses these existing options (do not rename or add new ones — neg1-enricher and downstream skills key off these exact strings):
 
-| Property | Type | Options |
+| Option | Color | Meaning |
 |---|---|---|
-| **Type** | Select | Reconnect 👋 (purple), Cold ☎️ (orange) |
-
-Add it in Notion → -1 Scanner → ... → Edit database → + New property.
+| **Warm ☀️** | orange | In-network reconnect — Tom has worked with or knows this person |
+| **Cold 🧊** | blue | Cold outreach — no prior relationship |
 
 Growth Tier and Timing Signal are intentionally NOT separate fields — that context is folded into the Eval Summary prose by neg1-enricher via CC Momentum + tenure overlap.
 
@@ -30,7 +29,7 @@ Growth Tier and Timing Signal are intentionally NOT separate fields — that con
 ## Step 1 — Run the sourcing script
 
 ```bash
-/opt/homebrew/bin/python3 /Users/tomseo/.claude/scheduled-tasks/neg1-sourcing/neg1_sourcing.py run
+/opt/homebrew/bin/python3 /Users/tomseo/.claude/skills/neg1-sourcing/neg1_sourcing.py run
 ```
 
 Captures stdout as JSON: `{run_date, reconnect: [...], cold: [...]}`.
@@ -49,11 +48,27 @@ Each candidate object:
   "growth_tier":        "Scaled",           // Scaled | Emerging | Promising
   "timing_signal":      "Early",            // Early | Rising | Late | Unknown
   "arr_m":              300.0,              // null if unknown
-  "source":             "Reconnect"         // Reconnect | Cold Outreach
+  "type":               "Warm ☀️"           // Warm ☀️ | Cold 🧊
 }
 ```
 
 If the script exits non-zero or returns 0 candidates total, skip to Step 4 (Slack alert) and report the failure.
+
+---
+
+## Step 1.5 — Verify cold candidates via ContactOut
+
+**Reconnect candidates are skipped** — they come from the LinkedIn network cache (real people Tom knows) and don't need verification.
+
+For each **cold candidate**, call `contactout_enrich_linkedin_profile` with `profile_only: true` before writing anything to Notion. This is a cheap probe (no email credit consumed) that confirms the LinkedIn URL resolves to a real person who currently works at the target company.
+
+**Verification criteria — both must pass:**
+1. **Profile exists**: the response returns a non-empty `full_name`. An empty/null name or an API error means the slug is a ghost → discard.
+2. **Company match**: the person's current employer (first `experience` entry with `is_current: true`, or the most recent entry) fuzzy-matches the candidate's `company` field. Use case-insensitive substring match — `"Morgan Stanley"` should not match `"Replit"`. If no current employer is present in the response, treat as mismatch → discard.
+
+**On discard**: remove the candidate from the cold list and log: `[REJECTED] {url} — {reason}` (reason: "ghost URL" or "employer mismatch: expected {company}, got {actual_employer}"). Do not replace with a substitute — if fewer than 3 cold candidates survive, proceed with however many passed.
+
+**Process cold candidates sequentially** — don't batch the ContactOut calls in parallel to avoid rate limits.
 
 ---
 
@@ -75,14 +90,14 @@ For each candidate, create a new row in the -1 Scanner database (`32c00bef-f4aa-
 
 | -1 Scanner field | Value | Notes |
 |---|---|---|
-| Name | `{name}` if available, else `(cold) {company} – {role}` | title property |
+| Name | `{name}` if available, else `{company} – {role}` (cold rows have `name=""` until enrichment resolves it; **never** prefix with `(cold)` — Tom reads the title at a glance and the Type field already encodes warm/cold) | title property |
 | Status | `Pending Enrichment` | select |
 | LI | `linkedin_url` | url |
 | Role | `role` | rich_text |
 | Function | `function` | select — Engineering / Product / GTM |
 | City | `city` if non-empty | single select |
 | CurrentCo (CC) | relation to `company_notion_url` | omit if digest:// |
-| Type | `type` | select — Reconnect 👋 / Cold ☎️ |
+| Type | `type` | select — Warm ☀️ / Cold 🧊 |
 | Email | `email` if non-empty | email |
 
 **Do not populate:** Growth Tier, Timing Signal, Claude Rec, Eval Summary, Online Presence, Work History, School(s), Experience Summary, LI Profile Summary, or any other field — neg1-enricher handles evaluation; growth/timing context flows in via CC Momentum.
@@ -97,28 +112,36 @@ Write each row individually. If a row fails, log the error and continue to the n
 
 ## Step 4 — Slack digest
 
-Invoke the `send-alert` skill with the following message. Replace placeholders with actuals.
+Invoke the `send-alert` skill with the following message. Bodies are GFM markdown (see `send-alert/SKILL.md`) — `**bold**` becomes bold, `[label](url)` becomes a clickable link, `*single asterisks*` would render as italic so avoid them.
 
-Format:
+**Format:**
 ```
-📡 *neg1 sourcing — {run_date}*
+📡 **neg1 sourcing — {run_date}**
 
-*Reconnect (2)*
-• {name} — {role} @ {company} [{growth_tier} · {timing_signal}]
-• {name} — {role} @ {company} [{growth_tier} · {timing_signal}]
+**Warm (2)**
+• [{name}]({linkedin_url}) — {role} @ {company} [{growth_tier} · {timing_signal}]
+• [{name}]({linkedin_url}) — {role} @ {company} [{growth_tier} · {timing_signal}]
 
-*Cold Outreach (3)*
-• {linkedin_url} — {role} @ {company} [{growth_tier}]
-• {linkedin_url} — {role} @ {company} [{growth_tier}]
-• {linkedin_url} — {role} @ {company} [{growth_tier}]
+**Cold (3)**
+• [{handle}]({linkedin_url}) — {role} @ {company} [{growth_tier}]
+• [{handle}]({linkedin_url}) — {role} @ {company} [{growth_tier}]
+• [{handle}]({linkedin_url}) — {role} @ {company} [{growth_tier}]
 
 Rows written to -1 Scanner → Pending Enrichment. neg1-enricher picks up tonight.
 ```
+
+**Link-label rules:**
+- Warm rows: use the candidate's `name` as the link label (always populated for in-network reconnects).
+- Cold rows: use the LinkedIn handle as the link label — the path segment after `/in/` (e.g. `https://www.linkedin.com/in/jaswanthmadha` → `jaswanthmadha`). `name` is empty until neg1-enricher resolves it via ContactOut.
+
+**Section labels mirror the Notion `Type` options exactly** — `Warm` (not "Reconnect"), `Cold` (not "Cold Outreach"). Calibrated labeling everywhere.
 
 If some rows failed to write, append:
 ```
 ⚠️ {N} row(s) failed — see audit log.
 ```
+
+Do **not** append a "Type options pending" warning — Warm ☀️ / Cold 🧊 are the canonical options; if a row fails to write with one of those values, treat it as a real failure and bump the failed counter.
 
 ---
 

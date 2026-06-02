@@ -51,20 +51,20 @@ Requires `SLACK_USER_TOKEN` in env with `files:read` scope (same token used by t
 
 ---
 
-## Step 0. Ack the thread
+## Step 0. Ack Tom's message with a reaction
 
 The Worker no longer posts a synchronous ack — that confirmation now comes from this skill, so it only fires when claude has actually started working on the task.
 
-Before doing anything else, post `Working on it...` to the originating thread:
+Before doing anything else, add a 👀 reaction to Tom's reply message (the one that triggered this job):
 
 ```bash
-/Users/tomseo/.claude/skills/claude-alerts-listener/post_close_loop.sh \
+/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
   "C0B06385BP1" \
-  "<thread_ts from args>" \
-  "Working on it..."
+  "<reply_ts from args>" \
+  eyes
 ```
 
-If the post fails, log to audit and continue — the close-loop reply at Step 4 is still required.
+This is quieter than a text "Working on it..." reply — no extra message in the thread, just a reaction visible on Tom's reply. If the reaction fails, log to audit and continue. The close-loop reply at Step 4 is still required.
 
 ---
 
@@ -209,6 +209,46 @@ Or if also flagging promotion candidacy:
 
 After handling, skip Step 3 (generic taxonomy) and proceed to Step 4 (close-loop) and
 Step 5 (audit log, intent tag: `first-pass-feedback`).
+
+---
+
+### Special branch: Three-way intro confirmation
+
+Check this **before** the generic taxonomy and the NEW DEAL branch. If the parent alert starts with `❓ Three-way intro signal from` (`gmail-webhook/slack-alerts.js → sendUnclassifiedIntroAlert`) or `📩 Three-way intro from` (`sendUnmatchedIntroAlert`), AND Tom's reply confirms an intro context, flip the resolved Opp's Status → **Connected** without asking.
+
+**Why this branch exists:** Tom flagged on 2026-05-28 that asking "what status would you like to move it to?" after a confirmed intro is unnecessary friction (memory: `feedback_intro_confirmed_status_connected.md`). Confirmed three-way intro = `Connected`. Period. **Never** post a "what status?" clarifying question on these alerts — even if the Opp is already at Outreach, Track, or any non-terminal status. The only acceptable clarifying question is on Opp resolution ("which Opp did you mean?"), never on status semantics.
+
+**Confirmation triggers — Tom's reply matches any of these patterns (case-insensitive):**
+
+- `added emails? to (this )?opp`
+- `(just )?intro'?d us`
+- `<name> intro'?d us`
+- `connect(ed)?` (bare word)
+- `confirmed?` + (intro context implied by parent alert)
+- `this is <CompanyName>` / `it's <CompanyName>`
+- `update status` + any of the above in the same reply or thread
+
+If Tom's reply is genuinely ambiguous (e.g. "ignore this" or "wrong opp"), fall through to the generic taxonomy — don't force a Connected flip.
+
+**Resolution path for the target Opp** (try in order, stop on first hit):
+
+1. **By sender email in Contact alias list.** Parse `sourceEmail` from the alert: regex `from\s+([\w.+-]+@[\w.-]+)` against the first line. Query Notion Opportunities DB for an Opp whose `Contact` property contains `sourceEmail` (`mcp__claude_ai_Notion__notion-query-database-view` with a `contains` filter — Contact is a `; `-separated alias list per memory `feedback_upgrade_opp_contact_to_custom_domain_asap.md`).
+2. **By founder email in Contact alias list.** If the alert includes a `Likely founder: <email>` line, repeat the search with that email.
+3. **By company name from Tom's reply.** If Tom named a company (`this is Acme` / `Acme intro'd us`), search by Opp name.
+4. **By prior thread context.** If Tom's earlier replies in the thread reference an Opp by name or URL, use that.
+
+If exactly one Opp matches → that's the target. If multiple match → post a clarifying question naming the candidates and exit. If zero match → post `⚠️ couldn't resolve Opp from intro confirmation — <one-line reason>` and exit.
+
+**Action once Opp is resolved:**
+
+1. Flip Status → `Connected` via `mcp__claude_ai_Notion__notion-update-page` on the Status property only. Do not touch other fields.
+2. Close-loop reply (Step 4 format):
+   ```
+   ✅ done — <OppName> Status → Connected
+   ```
+3. Audit intent tag: `intro-confirmation`.
+
+After handling, skip Step 3 (generic taxonomy) and proceed to Step 5 (audit log).
 
 ---
 

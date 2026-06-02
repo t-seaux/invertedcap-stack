@@ -152,6 +152,16 @@ Work through these questions for each new data point:
 
 ## Step 4: Write the Update Section
 
+### MANDATORY — drafting runs on Opus tier
+
+Per memory `feedback_model_tier_framework`: Opus = no-rubric + final-artifact tasks.
+Each Update is appended to the Master Diligence Doc as a final artifact and reads at
+the same standard as the original first-pass — Opus territory.
+
+- If interactive Opus session: proceed inline.
+- If delegating to a subagent: pass `model: "opus"` to the Agent tool explicitly.
+- If stuck in Sonnet: stop, surface to Tom, don't ship a Sonnet update.
+
 Compose the update section. The writing should be analytical and direct — same voice and standards
 as the original first-pass diligence. Each update is a self-contained section that a reader can
 understand without re-reading the full original analysis, though it references specific sections
@@ -195,7 +205,7 @@ Within each bullet, **bold the label text before the em dash**. For example:
 [Analytical prose organized by the priors that are affected. Use subsections if multiple
 distinct priors are impacted. For each affected prior:]
 
-**[Prior / Section Reference] — [Reinforced | Challenged | Revised | New Consideration]**
+#### [Prior / Section Reference] — [Reinforced | Challenged | Revised | New Consideration]
 
 [2-3 paragraphs of analytical prose explaining what the new evidence says, how it maps to
 the original assessment, and what it means for the investment thesis. Ground every claim
@@ -204,8 +214,39 @@ in specific evidence from the new materials.]
 [If information-dense, include a supporting table — e.g., comparing original assumptions
 to updated data points, before/after metrics, or a revised competitive landscape.]
 
+**Every prior subhead uses `#### Title Case Header`.** Per
+`shared-references/label-hierarchy.md`: the prior subhead is always an H4 — never an
+inline-bold paragraph leader. Title Case throughout. Drop the trailing period that
+paragraph-leader labels usually carry. This applies whether the prior has one child
+paragraph or many, and whether it's a multi-child collection (Killshots, Risks) or a
+single-prior reinforcement.
+
+**Multi-child priors (Killshots, Risks, multi-signal founder eval changes).** When the
+prior being updated is a *collection* that contains 2+ labeled children (introducing
+two new killshots, revising three risk subsections), the parent gets the `####` header
+as above; each labeled child stays as a `**Label.**` bold-inline paragraph leader.
+Example:
+
+```markdown
+#### Killshots — Product-Anchored Failure Modes — New Consideration
+
+**Killshot 1 — Foundation-Model Commoditization Cuts the Extraction Differentiation.**
+[analytical paragraph — what about the product makes this real…]
+
+***Failure mode:*** [bold-italic paragraph — the precise mechanism…]
+
+**Killshot 2 — Incumbent Customs Broker Ships Landed Cost as a Feature.**
+[analytical paragraph…]
+
+***Failure mode:*** [bold-italic paragraph…]
+```
+
 ### Revised Open Questions
+
+#### Resolved or Sharpened by This Update
 - [Any open questions that have been answered, marked as resolved]
+
+#### Newly Raised
 - [Any new open questions that emerged from the new information]
 
 ### Net Assessment
@@ -231,25 +272,211 @@ convicted in the thesis? Be specific about what moved and what didn't.]
 
 ---
 
+## Step 4.5: LLM Audit Gate — MANDATORY
+
+Per memory `feedback_research_artifact_self_audit`, long-form diligence artifacts get the
+research-artifact-audit discipline before delivery. An Update block is squarely in scope —
+it's analytical prose anchored on new call notes, references, materials, and feedback, with
+inline `[N]` / `^N` citations to those sources.
+
+The audit mechanics (HARD EXIT GATE, un-chunked re-verification, iteration loop, Step 3.5
+partial normalization, exit codes, the never-use-the-bypass-alert prohibition) are defined
+ONCE in `~/.claude/skills/research-artifact-audit/SKILL.md`. **Read that file in full
+before continuing this step** so the A.0 verbatim mandate, A.1 bundle completeness gate,
+and B.2.1 un-chunked re-verification all inherit correctly.
+
+**Scope:** the audit fires on JUST the new Update block — NOT the full consolidated doc.
+The original first-pass and every prior Update have already been audited by their own runs
+(first-pass-diligence Step 4b; this skill's Step 4.5 on prior runs). Re-auditing them is
+wasted judge time and burns iteration budget on already-cleared content.
+
+### Update-priors-specific wiring — apply these bindings when following research-artifact-audit/SKILL.md
+
+| Binding (per research-artifact-audit) | Value (update-diligence-priors) |
+|---|---|
+| `DRAFT` | `/tmp/<company>_update_block_only.md` |
+| `SOURCES` | `/tmp/<company>_update_sources.md` |
+| `AUDIT_JSON` | `/tmp/<company>_update_audit.json` |
+| `JUDGE_PROMPT` | `/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.prompt.md` |
+| `AUDIT_RUNNER` | `/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py` |
+| `MAX_ITER` | `3` |
+| `WEB_RESEARCH_CAP` | `6` |
+| `ITER_SNAPSHOT_PREFIX` | `/tmp/<company>_update_draft.iter` |
+| `NORMALIZED_DRAFT` | `/tmp/<company>_update_draft.normalized.md` |
+
+The canonical first-pass judge prompt is appropriate here — no scope exclusions are needed
+for the Update block (every section is in scope: New Information Processed is a citation
+list, Prior Assessment is analytical prose anchored on cited sources, Revised Open
+Questions and Net Assessment reference specific evidence from the new materials).
+
+### Update-priors-specific source bundle structure (Step A in research-artifact-audit)
+
+Write `/tmp/<company>_update_sources.md` with this layout. The A.0 verbatim mandate from
+research-artifact-audit applies in full — every section must contain the full verbatim
+body of each cited source, NOT pointer manifests or summaries.
+
+```markdown
+==== ORIGINAL FIRST-PASS MEMO ====
+
+<full verbatim text of the # First-Pass Diligence — … block as it currently stands on
+the Master Diligence Doc page. Needed for cross-reference / prior-anchor verification —
+the Update's Prior Assessment cites specific first-pass priors by section name.>
+
+==== PRIOR UPDATE BLOCKS ====
+
+<every prior ## Update — … block on the page in chronological order, separated by ---
+delimiters; full verbatim text. Needed for "is this claim already covered" verification —
+the Update should not re-cite material already processed by an earlier update.>
+
+==== NEW LINKED NOTES ====
+
+--- Note: <title> (<date>) ---
+<full verbatim body of every new call/note cited in this update, including the Notion ID
+anchor, the page URL, the full transcript (always fetch with include_transcript: true
+for call/meeting notes per Step 2's mandate), the AI-summary block, and structured
+fields. NOT a pointer manifest. NOT a summary. The audit judge compares draft claims
+against this section LITERALLY.>
+
+==== NEW DILIGENCE MATERIALS ====
+
+--- Material: <name> ---
+<full extracted text from every new Drive PDF / Google Doc / DocSend / Notion attachment
+cited in this update — pdftotext / google_drive_fetch output, not a pointer or summary.>
+
+==== OPPORTUNITY PAGE ====
+
+<current Notion Opp page properties + full verbatim page body, for round-terms /
+status / property-change verification.>
+```
+
+### Source bundle completeness check — MANDATORY GATE before audit
+
+The bundle completeness gate is canonical in `research-artifact-audit` Step A.1 — read
+that for the full spec. The update-diligence-priors binding is:
+
+```bash
+python3 ~/.claude/skills/shared-references/bundle_completeness_check.py \
+    --draft  /tmp/<company>_update_block_only.md \
+    --bundle /tmp/<company>_update_sources.md \
+    --notes-section 'NEW LINKED NOTES' \
+    --required-sections 'NEW LINKED NOTES,NEW DILIGENCE MATERIALS,ORIGINAL FIRST-PASS MEMO' \
+    --self-page-ids <Master Diligence Doc page ID, 32hex no hyphens>
+```
+
+The `--self-page-ids` argument is REQUIRED — Update blocks frequently cite prior Update
+sections or the first-pass section via the page's own URL (e.g., footnote `^N` pointing
+at `https://notion.so/<page_id>` for "Update #2 on this page" or "the original Market
+section"). Without exempting the self-page-id, B2 will false-positive on those
+self-references. Look up the Master Diligence Doc page ID from Step 1's notion-search
+result.
+
+Exit 0 = proceed to audit. Exit 1 = bundle is missing verbatim content. STOP, rebuild,
+re-run. The audit verdict on a broken bundle is structurally meaningless.
+
+### Draft to audit
+
+Build `/tmp/<company>_update_block_only.md` containing JUST the new Update block markdown
+(starting from the `---` divider above `## Update — …` and running through the trailing
+`---` divider before the prior content). Do NOT include the first-pass or prior updates
+in the draft — those are in the source bundle as ground truth.
+
+### Run the audit + iterate
+
+Follow research-artifact-audit Steps B-D in full — invoke the runner, check the HARD EXIT
+GATE, run B.2.1 un-chunked re-verification if chunked + untraced > 0, iterate per B.3,
+normalize partials per Step C, surface remaining findings per Step D.
+
+The final published Update markdown is `$NORMALIZED_DRAFT` when Step C ran (partials >
+0); otherwise `$DRAFT`. Select the source-of-truth file deterministically before Step 5's
+prepend so partials Step C just resolved aren't re-introduced:
+
+```bash
+if [ -f /tmp/<company>_update_draft.normalized.md ]; then
+  FINAL_UPDATE_MD=/tmp/<company>_update_draft.normalized.md
+else
+  FINAL_UPDATE_MD=/tmp/<company>_update_block_only.md
+fi
+echo "prepending from: $FINAL_UPDATE_MD"
+```
+
+### Audit-result surface in Step 6 Slack alert
+
+Append `⚠️ Audit: <N> untraced after <K> iterations, <M> partials normalized` as a
+fourth line of the Step 6 Signal alert when there are residual untraced findings OR any
+partials were normalized. If the audit ends with 0 untraced and 0 partial cleanly, no
+`⚠️` line — the alert stays at the standard three lines. The substance (residual untraced
+claims with judge notes; normalized partials as before→after diffs) is required by
+research-artifact-audit Step D; this only specifies the Slack format.
+
+---
+
 ## Step 5: Prepend to the Notion Page
 
-Use `notion-update-page` with the `update_content` command to insert the new update section at
-the top of the page, immediately after the page title and before the first existing section
-(which will be either a previous update section or the "Framework Mapping" header).
+### Tooling choice — MCP vs REST API
 
-Find the first `---` or `## Framework Mapping` or `## Update —` in the existing content and
-insert the new update section before it.
+Two transports are available; use them per their strengths:
+
+- **MCP `notion-update-page`** — required for the initial markdown→blocks conversion
+  (it knows how to render `<table>` markup, embeds, callouts, etc. into Notion blocks).
+  Use it for the *initial prepend* of the new update content because that content can
+  contain tables.
+- **REST API direct** (PATCH/DELETE via `urllib`) — faster and more reliable for
+  pure-text operations: title updates, property writes, deleting existing blocks,
+  patching a single block's `rich_text`, listing children. Use it for everything in
+  this step EXCEPT the new-content prepend.
+
+Why: MCP `update_content` and `insert_content` both time out client-side on
+multi-KB payloads (observed repeatedly in production — including the Factir
+2026-05-21 consolidation run where two `update_content` calls timed out before
+a third `insert_content` finally completed server-side). The REST API is
+single-shot 200s on the same operations. Caught after Factir 2026-05-21 —
+prior runs that relied on MCP for everything would often appear stuck.
+
+REST API token resolution (mirrors `~/.claude/scripts/notion_files_property.py`):
+
+```python
+import os, json, subprocess
+from urllib.request import Request, urlopen
+
+env = {**os.environ, 'SOPS_AGE_KEY_FILE': os.path.expanduser('~/.config/sops/age/keys.txt')}
+token = subprocess.check_output(
+    ['sops', '-d', os.path.expanduser('~/code/notion-backup/.notion-token.enc.txt')],
+    env=env,
+).decode().strip()
+HDR = {'Authorization': f'Bearer {token}',
+       'Notion-Version': '2025-09-03',
+       'Content-Type': 'application/json'}
+```
+
+### 5.1 Prepend the new update content (MCP)
+
+Use `notion-update-page` with the `insert_content` command and `position: {"type":"start"}`
+to insert the new update section at the top of the page. The content goes immediately
+after the page title and above the first existing section (typically the previous update's
+leading `---` or the "Framework Mapping" header on a never-updated page).
 
 The update sections should stack chronologically — newest at the top, oldest at the bottom,
 with the original analysis below all updates. This means a page that has been updated three times
 will read: Update 3 → Update 2 → Update 1 → Original Analysis.
+
+**Fire publish-progress alert (1 of 3) — once the Notion prepend succeeds.** The
+publish phase is silent for ~15 min between the audit and the final completion
+alert; these three pings make it legible.
+
+```bash
+COMPANY="<subject company name>"
+NOTION_URL="<existing diligence page URL>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+📝 **${COMPANY}** Update section prepended — [diligence page]($NOTION_URL). Building updated PDF next.
+EOF
+```
 
 When prepending the first update to a page that has never been updated before, also insert a
 section divider and header before the original first-pass content:
 
 ```markdown
 ---
-# Original First-Pass Memo — [Original Publication Date]
+# First-Pass Diligence — [Original Publication Date]
 ---
 ```
 
@@ -257,13 +484,80 @@ This goes immediately before `## Framework Mapping — Inverted Lens` (or whatev
 of the original analysis is). On subsequent updates, this header already exists and should not
 be duplicated.
 
-After prepending the update, update the page title to reflect the most recent update date.
-Use `notion-update-page` with `update_properties` to set the title to:
-`[Claude] [Company Name] First-Pass Diligence — MM.DD.YYYY Update`
+**Legacy `# Original First-Pass Memo — …` anchor.** Pages created before the 2026-05-22
+rename use `# Original First-Pass Memo — …` instead of `# First-Pass Diligence — …`. When
+operating on such a page (no `# First-Pass Diligence — …` anchor present but
+`# Original First-Pass Memo — …` is), rename the existing anchor in place as part of this
+prepend step (PATCH the `heading_1` block's rich_text) so all output going forward uses the
+canonical `# First-Pass Diligence — …` form. The PDF page-break trigger handles both for
+backward compat, but the Notion page should converge.
 
-This replaces whatever date suffix was previously in the title (either the original first-pass
-date or a prior update date). The title should always reflect the most recent update — do not
-stack multiple date suffixes. Strip the old date portion entirely and replace with the new one.
+**MCP timeout handling — MANDATORY.** MCP `insert_content` frequently returns
+`notionhq_client_request_timeout` on payloads > ~10KB even when the write
+succeeds server-side. Do NOT retry the same MCP call after a timeout; instead:
+
+1. Wait ~5–10 seconds for Notion to propagate.
+2. Verify via REST API by listing the page's first few children:
+   ```python
+   resp = json.loads(urlopen(Request(
+       f'https://api.notion.com/v1/blocks/{PAGE_ID}/children?page_size=5',
+       headers=HDR)).read())
+   first_h2 = next((b for b in resp['results']
+                    if b.get('type') == 'heading_2'), None)
+   ```
+   If the first H2's text matches the new update header, the write succeeded.
+3. Only retry MCP if verification confirms the content is NOT there.
+
+### 5.2 Consolidating / replacing an existing update (REST API)
+
+When this run *replaces* an already-published update (rather than adding a fresh
+one) — e.g., the user asks you to roll an earlier same-day update into the new
+one, or to redo a flawed published update — use the REST API to delete the old
+update's blocks after the new prepend has landed. MCP `update_content` with a
+large `old_str` matching the entire old block will time out without applying.
+
+```python
+# 1. List all top-level blocks (paginated, page_size=100)
+all_blocks = []
+cursor = None
+while True:
+    url = f'https://api.notion.com/v1/blocks/{PAGE_ID}/children?page_size=100'
+    if cursor: url += f'&start_cursor={cursor}'
+    r = json.loads(urlopen(Request(url, headers=HDR)).read())
+    all_blocks.extend(r['results'])
+    if not r.get('has_more'): break
+    cursor = r['next_cursor']
+
+# 2. Identify the OLD update's block range by walking from the heading_2
+#    matching "Update — <old date>" forward until the next "Update —",
+#    "First-Pass Diligence —", or (legacy) "Original First-Pass Memo —"
+#    header. Include any trailing dividers that bracket the block.
+
+# 3. DELETE each block. Notion's per-block DELETE endpoint:
+from urllib.request import Request
+import time
+for b in to_delete:
+    urlopen(Request(f'https://api.notion.com/v1/blocks/{b["id"]}',
+                    headers=HDR, method='DELETE'))
+    time.sleep(0.15)  # be gentle on rate limit
+```
+
+### 5.3 Update the page title (REST API)
+
+After prepending the update, update the page title to reflect the most recent update date.
+The title should always reflect the most recent update — do not stack multiple date
+suffixes. Strip the old date portion entirely and replace with the new one.
+
+New title format: `[Claude] [Company Name] Master Diligence Doc — MM.DD.YYYY Update`
+
+```python
+new_title = '[Claude] <Company> Master Diligence Doc — <MM.DD.YYYY> Update'
+payload = {'properties': {'Name': {'title': [
+    {'type': 'text', 'text': {'content': new_title}}]}}}
+urlopen(Request(f'https://api.notion.com/v1/pages/{PAGE_ID}',
+                headers=HDR, method='PATCH',
+                data=json.dumps(payload).encode()))
+```
 
 ---
 
@@ -273,7 +567,7 @@ After the Notion prepend in Step 5 but BEFORE PDF build in Step 5b, run the
 deterministic shape-rule lint over the FULL updated markdown (new update
 prepended to original). This catches structural failures — malformed update
 headers, missing "New Information Processed" sub-sections, empty NIP lists,
-missing `---` page-break sentinel before the Original First-Pass Memo — that
+missing `---` page-break sentinel before the inner First-Pass Diligence anchor — that
 would otherwise leak into the PDF and the Slack alert.
 
 Write the rebuilt full markdown to a tmp path (e.g.,
@@ -296,7 +590,8 @@ The lint covers (first wave shipped 2026-05-15):
   (`-` vs `—`), missing year/comma/space.
 - **U2** — each `## Update — ...` block contains `### New Information Processed`.
 - **U3** — each NIP section has ≥1 bolded bullet (`- **<label>** — <description>`).
-- **U4** — `---` page-break sentinel directly above `# Original First-Pass Memo —`.
+- **U4** — `---` page-break sentinel directly above `# First-Pass Diligence —` (new) or
+  `# Original First-Pass Memo —` (legacy pages not yet re-rendered).
 
 See `update_priors_lint.py --self-test` for the full fixture set.
 
@@ -311,26 +606,28 @@ first-pass PDF. Do NOT overwrite or modify the original.
 ### Filename convention
 
 ```
-[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf
+[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf
 ```
 
 Where `MM.DD.YYYY` is today's date (the update date) and `N` is the update number
 (2 for Update #2, 3 for Update #3, etc.). The original first-pass date is dropped
 entirely from the filename — the update date is the only date in the name. Example:
-`Tuor_First_Pass_Diligence_04.02.2026_v2.pdf`
+`Tuor_Master_Diligence_04.02.2026_v2.pdf`
 
 **Retention rule — keep only the latest version.** Each new update's PDF
 *contains* all prior updates plus the original first-pass (it's a full
 consolidated snapshot). Once the new `_v[N].pdf` is uploaded and the Notion
 links are swapped, **trash every prior diligence-snapshot PDF for this company
 in the same Drive subfolder** (any file matching
-`[Company]_First_Pass_Diligence_*.pdf` except the new one). Use rclone:
+`[Company]_Master_Diligence_*.pdf` OR the legacy
+`[Company]_First_Pass_Diligence_*.pdf` patterns, except the new one). Use rclone:
 
 ```bash
-# List the Factir subfolder
+# List the company subfolder
 rclone lsf "gdrive:Diligence/[Company]"
-# Trash old snapshots (any _v<N-1>.pdf, _Update.pdf, _v5.pdf, etc.)
-rclone deletefile "gdrive:Diligence/[Company]/[Company]_First_Pass_Diligence_<OLD_NAME>.pdf" --drive-use-trash
+# Trash old snapshots (any _v<N-1>.pdf, _Update.pdf, _v5.pdf, legacy
+# _First_Pass_Diligence_*.pdf, etc.)
+rclone deletefile "gdrive:Diligence/[Company]/<OLD_NAME>.pdf" --drive-use-trash
 ```
 
 Do **NOT** trash the source materials in the same folder (founder memo, deck,
@@ -356,12 +653,14 @@ The PDF should contain:
    - **Every `## Update — ...` section after the first** (so Update #2 starts on its own
      page, Update #3 starts on its own page, etc. — the very first / topmost Update is
      the natural top of the doc, no break needed there).
-   - **The `# Original First-Pass Memo — ...` heading** (always — the original memo
-     starts on a fresh page after all the prepended updates).
+   - **The `# First-Pass Diligence — ...` heading** (always — the inner first-pass content
+     starts on a fresh page after all the prepended updates). Legacy
+     `# Original First-Pass Memo — ...` anchor also triggers the page break for backward
+     compat with pages not yet re-rendered.
    The canonical PDF templates at `~/.claude/skills/shared-references/pdf_builder_template.py`
    and `pdf_builder_from_md_template.py` implement this automatically in `parse_content()`
    — just use them. See `long-form-pdf-spec.md` §"Page Breaks Between Sections" for details.
-3. **An H1 header** — `Original First-Pass Memo — [Original Publication Date]` rendered as
+3. **An H1 header** — `First-Pass Diligence — [Original Publication Date]` rendered as
    an underlined H1, marking the start of the original analysis.
 4. **The full original first-pass analysis** — everything from Framework Mapping through Sources,
    rendered in the same format as the original PDF.
@@ -371,7 +670,7 @@ full diligence picture from the PDF alone without referencing the Notion page.
 
 ### PDF header
 
-- **Title (14pt bold):** `[Company Name] — First-Pass Diligence`
+- **Title (14pt bold):** `[Company Name] — Master Diligence Doc`
 - **Subtitle (9pt italic, dark gray):** `Latest Update: [Update Date] | Initially Published: [Original First-Pass Date] | Notion`
   (where "Notion" is a clickable hyperlink to the Notion page URL). Both dates should be present
   so the reader knows when the original analysis was written and when the most recent update was applied.
@@ -404,7 +703,7 @@ that converts markdown formatting to reportlab XML before being wrapped in `Para
 This ensures no stray asterisks appear in the rendered PDF.
 
 Save the PDF to:
-`/sessions/loving-modest-fermat/Users/tomseo/Downloads/[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf`
+`/sessions/loving-modest-fermat/Users/tomseo/Downloads/[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf`
 
 ### Upload and link in Notion
 
@@ -432,12 +731,22 @@ with open(pdf_path, 'rb') as f:
 
 upload_resp = requests.post(DRIVE_URL, json={
     "action": "upload",
-    "fileName": "[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf",
+    "fileName": "[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf",
     "fileBase64": pdf_b64,
     "mimeType": "application/pdf",
     "folderId": subfolder_id
 }, allow_redirects=True, timeout=120)
 file_url = upload_resp.json()["url"]
+```
+
+**Fire publish-progress alert (2 of 3).** Once `file_url` is in hand:
+
+```bash
+COMPANY="<subject company name>"
+PDF_URL="<file_url from upload response>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+📄 **${COMPANY}** Updated PDF uploaded to Drive — [PDF]($PDF_URL). Linking to Diligence Materials.
+EOF
 ```
 
 If Tom attached supplementary materials (decks, plans, models) inline with the skill invocation,
@@ -446,17 +755,37 @@ courtesy of the `materials-handler` webhook that fires on inbound email/iMessage
 Reference the existing Drive URLs from the property field in the update section's "New Information
 Processed" list. The only file this skill should upload is the regenerated update PDF itself.
 
-After upload, link the updated PDF in two places on the Notion opportunity page:
+After upload, link the updated PDF in two places on the Notion opportunity page.
+**Both writes go through the REST API**, not MCP — they are pure-text block/property
+patches and MCP is slower + less reliable on them.
 
-1. **Page body** — append to the `## 📎 Diligence Materials` section:
+1. **Page body** — the `## 📎 Diligence Materials` section already contains a
+   bulleted link to the prior `_v[N-1].pdf` snapshot. PATCH the existing bullet's
+   `rich_text` in place instead of appending a new bullet (per the retention rule
+   above — only one diligence-snapshot link should be linked anywhere). REST API:
+   ```python
+   # Find the bullet block by listing the Opp page children and matching
+   # "Master_Diligence" (or legacy "First_Pass_Diligence") in its rich_text.
+   # Then PATCH:
+   patch = {'bulleted_list_item': {'rich_text': [
+       {'type':'text',
+        'text':{'content': '<v[N] filename>', 'link':{'url': '<drive_url>'}},
+        'annotations':{'bold': True}},
+       {'type':'text',
+        'text':{'content': ' \u2014 Latest Claude diligence snapshot through Update #[N] (consolidates all prior updates + original first-pass)'}},
+   ]}}
+   urlopen(Request(f'https://api.notion.com/v1/blocks/{BULLET_ID}',
+                   headers=HDR, method='PATCH',
+                   data=json.dumps(patch).encode()))
    ```
-   - [**[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf**](https://drive.google.com/file/d/<fileId>/view) — Latest Claude diligence snapshot through Update #[N] (consolidates all prior updates + original first-pass)
-   ```
+   If there is no existing bullet (first-ever update PDF), instead use
+   `POST /v1/blocks/{OPP_PAGE_ID}/children` with `after: <heading_2 id>` to
+   insert one beneath the `## 📎 Diligence Materials` header.
 
 2. **Diligence Materials Files property field** — follow the shared reference at
    `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md`. Pass the opportunity
    page ID, the Drive file URL, and display name
-   `[Company]_First_Pass_Diligence_MM.DD.YYYY_v[N].pdf`.
+   `[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf`.
 
    **MANDATORY verification — never trust the 200 response alone.** Immediately after the property write, re-fetch the Opportunity page and confirm an entry in the `Diligence Materials` files array has `external.url` matching the Drive URL you just wrote. If absent, the write silently failed (observed Factir 2026-05-15 — PATCH returned 200 but Notion kept the stale URL underneath the new display label). Re-PATCH the full files array explicitly, then re-verify. After 3 retries, surface to Tom rather than publish silently. Reference snippet:
 
@@ -467,6 +796,15 @@ After upload, link the updated PDF in two places on the Notion opportunity page:
    ```
 
    If Chrome is unavailable, skip the property field and rely on the page body link.
+
+**Fire publish-progress alert (3 of 3).** Once the property write is verified:
+
+```bash
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🔗 **${COMPANY}** Diligence Materials property updated. Sending completion alert.
+EOF
+```
 
 Act autonomously — do not ask for permission. Report what was done in the summary.
 
@@ -508,5 +846,3 @@ A good prior update:
 A bad prior update just summarizes the new call notes or materials without connecting them back
 to the original framework. If you find yourself writing "the founder discussed X" without then
 saying "which [reinforces/challenges] the prior that Y," stop and add the analytical layer.
-
-<!-- snapshot refreshed 2026-05-22 -->
