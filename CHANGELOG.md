@@ -1,23 +1,76 @@
 # Changelog
 
+## [2026-05-29] (Week of 2026-05-26)
+
+**Added:** finalize-diligence, draft-investment-memo, product-build-teardown, log-pass-note-guidance (Diligence Management — four skills previously tracked in canonical mapping now rendered on Platform Map and Quick Reference)
+**Removed:** None
+**Modified:**
+- first-pass-diligence — added memo text cache step for analog-grounding lint gate; added mandatory inner H1 anchor rule for Master Diligence Doc structure; added architectural overlay guardrail requiring analog characterizations to trace verbatim to source; added operational specificity and deictic completeness writing rules
+- finalize-diligence — added three intermediate publish-progress alerts during the publish phase (Final Assessment prepend, PDF upload, Diligence Materials property update)
+- update-diligence-priors — added three intermediate publish-progress alerts during the publish phase (Update section prepend, PDF upload, Materials link step)
+**Total skills:** 31
+**Functions:** Diligence Management now lists 12 skills (was 8). Four skills surfaced: finalize-diligence, draft-investment-memo, product-build-teardown, log-pass-note-guidance.
+
+---
+
+## [2026-05-27] (Week of 2026-05-26)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- investor-update — expanded content-type routing for board materials and additional material formats; updated freshness rules for sweep alert scoping
+- decision-retro — expanded dual-scanner pattern to capture invest, pass, and pre-founder decision retros; routes extracted insights into searchable feedback corpus
+- inbound-deal-detect — added forwarded-message routing (direct vs referrer-sourced); added material URL gate to prevent classifier false positives on deck links
+- intro-outreach-agent — expanded pre-write guard from 4 to 7 gates; added Portfolio Fundraise Forward scanner sub-routine for fundraise-context outreach
+**Total skills:** 27
+**Functions:** No changes
+
+---
+
 All notable changes to the Inverted Cap Stack platform are documented here.
 
 ## [2026-06-02] (Week of 2026-06-02)
 
-**Added:** draft-investment-memo, finalize-diligence
+**Added:** None
 **Removed:** None
 **Modified:**
 - add-to-crm -- added webhook mode with classifierHints / statusDirective / sourceDirective passthrough from upstream classifier; LinkedIn enrichment switched to Chrome osascript (WebFetch 401s on LinkedIn); added Step 8 Slack alert for webhook-mode completions
 - decision-retro -- added freshness gate: skip Opps with Close Date more than 60 days before today during scheduled sweep; webhook-triggered entries bypass the gate and always process
-- first-pass-diligence -- mandatory Opus tier for drafting; requires inner H1 anchor at start of body for structural continuity; added memo text cache for analog-grounding lint gate; killshots use H4 sub-headers; added operational-specificity lint rules
-- inbound-deal-detect -- any entity explicitly raising venture capital now classified as a deal regardless of entity type; delegates to add-to-crm via enqueue-addcrm.sh follow-on job instead of inline execution
+- first-pass-diligence -- added operational specificity and deictic completeness writing rules
+- inbound-deal-detect -- delegates to add-to-crm via enqueue-addcrm.sh follow-on job instead of inline execution
 - intro-resolution-agent -- Mode B switched to atomic JS-backed write endpoint (intro-resolution-write.py) for 4-field lifecycle moves; added idempotency pre-check before classification; alert wording composed from observed post-write state
-- neg1-enricher -- Type options renamed: Warm ☀️ (was Reconnect 👋) and Cold 🧊 (was Cold ☎️); added mandatory Step 6.5 post-write field validation that re-fetches and audits every required property after all writes complete
-- neg1-sourcing -- Type options renamed to match neg1-enricher (Warm ☀️ / Cold 🧊); added Step 1.5 ContactOut verification for cold candidates before Notion write; updated script path; Slack alert format uses GFM links with LinkedIn handle as link label for cold rows
-- pre-mortem -- added LLM audit gate (Step 2.5) via research-artifact-audit; scope covers factual claims only; failure-scenario speculation excluded
-- update-diligence-priors -- mandatory Opus tier for drafting; added LLM audit gate (Step 4.5) on new Update block before delivery; prior subheads use H4 headers; multi-child priors (Killshots, Risks) use H4 parent with bold-inline paragraph leaders for children
-**Total skills:** 28
-**Functions:** Diligence Management +2 (draft-investment-memo, finalize-diligence)
+- neg1-enricher -- Type options renamed: Warm ☀️ (was Reconnect 👋) and Cold 🧊 (was Cold ☎️); added mandatory Step 6.5 post-write field validation
+- neg1-sourcing -- Type options renamed to match neg1-enricher (Warm ☀️ / Cold 🧊); added Step 1.5 ContactOut verification gate for cold candidates; Slack alert uses GFM links
+- pre-mortem -- failure-scenario speculation formally excluded from audit scope
+- update-diligence-priors -- multi-child priors (Killshots, Risks) use H4 parent with bold-inline paragraph leaders for children
+**Total skills:** 31
+**Functions:** No changes
+
+---
+
+## [2026-05-26] (Week of 2026-05-19)
+
+**Added:** neg1-sourcing (Pipeline Management — added to Platform Map and Quick Reference as a standalone skill)
+**Removed:** None
+**Modified:**
+- neg1-sourcing — script path corrected from scheduled-tasks directory to skills directory; no behavioral change
+**Total skills:** 27
+**Functions:** No changes
+
+---
+
+## [2026-05-25] (Week of 2026-05-19)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- first-pass-diligence — artifact renamed from "First-Pass Diligence" to "Master Diligence Doc" throughout (Notion page title, PDF filename, PDF header); killshot subsections reformatted to H4 headers; added mandatory Opus-tier drafting rule
+- pre-mortem — added mandatory LLM audit gate (Step 2.5) with research-artifact-audit wiring; factual claims in failure-mode analysis must trace to source bundle before delivery
+- update-diligence-priors — added mandatory Opus-tier drafting rule; prior subheads reformatted to H4 headers; added mandatory LLM audit gate (Step 4.5) scoped to the new Update block only
+**Total skills:** 26
+**Functions:** No changes
+
+---
 
 ## [2026-05-22] (Week of 2026-05-19)
 
@@ -483,3 +536,4 @@ Notes: First run with the `skill-snapshots/` diff baseline — snapshots seeded 
 
 ## Future Release Notes
 (Previous releases will be documented as they occur)
+
