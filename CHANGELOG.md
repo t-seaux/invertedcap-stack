@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-06-03] (Week of 2026-06-02)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- finalize-diligence -- added PDF format guard gate (Gate 3) between PDF build and Drive upload; re-extracts the rendered PDF with PyMuPDF and validates typography, citation format, heading structure, and page dimensions against a measured reference profile; catches formatting regressions (wrong heading sizes, colored hyperlinks, citations rendered as literal body text) that the header check gate misses
+**Total skills:** 31
+**Functions:** No changes
+
+---
+
 ## [2026-05-29] (Week of 2026-05-26)
 
 **Added:** finalize-diligence, draft-investment-memo, product-build-teardown, log-pass-note-guidance (Diligence Management — four skills previously tracked in canonical mapping now rendered on Platform Map and Quick Reference)

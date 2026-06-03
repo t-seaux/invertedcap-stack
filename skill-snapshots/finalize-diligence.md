@@ -826,6 +826,30 @@ Both gates use defaults aligned with the canonical Master Diligence Doc shape
 First-Pass: .+ \| Notion$`). For other artifact families, pass
 `--title-pattern` / `--subtitle-pattern` overrides.
 
+**Gate 3 — PDF format guard** (runs after PDF build, before Drive upload):
+
+```bash
+python3 ~/.claude/skills/shared-references/pdf_format_guard.py \
+    --pdf ~/Library/Mobile\ Documents/com~apple~CloudDocs/Downloads/<Company>_Master_Diligence_<MM.DD.YYYY>_vFinal.pdf \
+    --company "<Company>"
+```
+
+Re-extracts the rendered PDF with PyMuPDF and asserts every text-span's
+`(font, size, color)` signature against the MEASURED Factir reference profile
+(`templates/master-diligence-doc/reference_profile.json`). Catches what the
+header check can't: a heading rendered at the wrong size, a body paragraph
+that lost its font, a blue/colored hyperlink (spec is black-only), a wrong
+page size, and — critically — a `[N]`/`[N,M]` citation rendered as literal
+body text instead of a superscript (the Upskill 2026-05-20 regression).
+Checks F1-F10 (adds F8 table-cell fill + stroke colors, F9 heading underlines,
+F10 centered page numbers on top of the typography/anchor checks; paragraph
+spacing + indents are deliberately not gated — they false-positive in a rendered
+PDF); exit 0 = publishable, exit 1 = STOP, do not upload. The profile
+is MEASURED from the approved Factir vFinal PDF, not hand-typed, so the gate's
+expectation cannot drift from the real reference. Regenerate the profile only
+when Tom re-approves a changed reference artifact (see
+`templates/master-diligence-doc/reference.json` → `profiler.regenerate`).
+
 ---
 
 ## Step 8: Upload + Replace in Notion + Retention Sweep (Subagent C)
