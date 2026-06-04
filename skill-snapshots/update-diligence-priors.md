@@ -705,6 +705,35 @@ This ensures no stray asterisks appear in the rendered PDF.
 Save the PDF to:
 `/sessions/loving-modest-fermat/Users/tomseo/Downloads/[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf`
 
+### PDF Format Guard — MANDATORY GATE before Drive upload
+
+After the PDF builds and BEFORE upload, verify its typography against the
+MEASURED Factir reference profile:
+
+```bash
+python3 ~/.claude/skills/shared-references/pdf_format_guard.py \
+    --pdf /tmp/<output>.pdf --company "<Company>"
+```
+
+Re-extracts the rendered PDF with PyMuPDF and asserts every text-span's
+`(font, size, color)` signature against
+`templates/master-diligence-doc/reference_profile.json`. Checks F1-F10:
+US-Letter geometry, text-color allowlist (black + #333333 only — catches a
+blue/colored hyperlink), every span signature known to the reference (catches a
+wrong-size heading or a body paragraph that lost its font), the 14pt-bold title,
+the #333333 subtitle, the 13pt-bold `First-Pass Diligence — <date>` inner anchor
+(always present in an update snapshot, since the first-pass content is stacked
+below the updates), NO `[N]`/`[N,M]` citation rendered at body size (the
+superscript regression), table-cell fill + grid/underline stroke colors within
+the reference set (catches a colored table background), heading underlines on
+the levels the reference always underlines, and centered page numbers. The
+profile is MEASURED from the approved Factir vFinal PDF, not hand-typed, so the
+gate can't drift from the real reference. (Paragraph spacing + indents are
+deliberately NOT gated — multi-valued in a rendered PDF, would false-positive.)
+
+**Exit 0 = proceed to upload. Exit 1 = STOP. Do NOT upload to Drive.** Fix the
+builder and rebuild.
+
 ### Upload and link in Notion
 
 Upload the updated PDF to the same company subfolder in Google Drive used by the original

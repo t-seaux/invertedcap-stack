@@ -1,5 +1,21 @@
 # Changelog
 
+
+## [2026-06-04] (Week of 2026-06-02)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- intro-agent -- added Pattern 4 (Founder Greenlight): when Tom proposes intro candidates to a portfolio founder and the founder approves a subset, greenlit names are written to Qualified; includes Step 1.5 thread-pair reconciliation and a third Gmail sent query to catch outbound proposals lacking intro keyword
+- intro-outreach-agent -- added Gate 8 peer-ask suppression: classifies Tom's outbound intent as intro-offer vs peer-ask; suppresses false Outreach writes when Tom is asking peers for deal opinions rather than facilitating a connection
+- log-investor-letter-to-notion -- added Step 1.5 Drive upload for provided PDFs so source links point at canonical artifacts; added hard guard preventing self-referential source links
+- first-pass-diligence -- added Step 5c PDF Format Guard: re-extracts rendered PDF with PyMuPDF and verifies typography (font/size/color) against measured reference profile before Drive upload; catches heading size regressions, colored hyperlinks, and superscript citation bugs (F1-F10 checks)
+- update-diligence-priors -- added PDF Format Guard gate (same F1-F10 checks as first-pass-diligence) before Drive upload; mandatory stop on typography failure
+**Total skills:** 31
+**Functions:** No changes
+
+---
+
 ## [2026-06-03] (Week of 2026-06-02)
 
 **Added:** None

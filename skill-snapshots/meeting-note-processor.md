@@ -70,7 +70,7 @@ For each candidate, fetch the linked Opportunity. Drop the candidate unless ALL 
 
 - Opportunity Status ∈ {`Committed`, `Active Portfolio`, `Portfolio: Follow-On`, `Exited`}
 - `note.Created >= Opp.Close Date` (post-investment only — pre-close calls are diligence, not portfolio updates)
-- Title does NOT match any exclusion pattern (Claude/Reference/Feedback/Backchannel/Pre-Memo/Pre-Mortem/follow-up/Intro/Demo/Deep Research/DDQ/Onboarding/Deck)
+- Title does NOT match any exclusion pattern (Claude/Reference/Feedback/Backchannel/Pre-Memo/Pre-Mortem/follow-up/Intro/Demo/Deep Research/DDQ/Onboarding/Deck/Pass Notes)
 - Opp Name doesn't end with a follow-on parenthetical suffix (`(Series A)`, `(Seed FO)`, etc.) — if it does, swap to the parent investment Opp before continuing
 
 ### Step 3: Idempotency check — has this note already been processed?
@@ -393,6 +393,7 @@ If `Category = Portfolio` AND `Opportunity` is set, this step rolls the call int
   - contains `Intro` (Tom intro'ing third parties for/about a portfolio company)
   - contains `Demo` (incl. `Loom Demo`) — product demo videos / sessions
   - contains `Deep Research` / `DDQ` / `Onboarding` / `Deck` — research, diligence, or administrative artifacts
+  - contains `Pass Notes` — compilations of investor pass notes from other VCs (artifact / record-keeping, not a portfolio meeting and not a company update from the founder)
 
 **Step 6a — Compute the target group:**
 - `target_opp` = the linked Opportunity (page ID + page URL + Name)

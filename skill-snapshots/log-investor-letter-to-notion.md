@@ -47,6 +47,45 @@ If the URL is behind a paywall, returns a login wall, or is otherwise inaccessib
 
 **If an uploaded PDF or document file is provided**, extract text using `pdfplumber` or `python-docx` as appropriate (see the `pdf-reading` and `file-reading` skills for extraction patterns). Save the extracted text to `/home/claude/letter_text.txt`.
 
+**Hold onto the local file path** — Step 1.5 uploads it to Drive so the Notion source link can point at the canonical PDF instead of being omitted or (worse) self-referential.
+
+---
+
+## Step 1.5: Upload Source File to Drive (when a file is provided)
+
+**When the user provides a PDF or document file** (path in conversation, not a URL or pasted text), upload it to the **Non-Inverted Letters** Drive folder so the source link in Step 5 points at a real artifact.
+
+- Target folder: `LP Letters / Non-Inverted Letters` — folder ID `1f4GM9uQRtH-hhQeLIPki92es_CvstcHn`
+- Use the `drive-save` upload pattern (`shared-references/drive-upload.md`):
+
+```python
+import requests, base64
+
+DRIVE_URL = "https://script.google.com/macros/s/AKfycbzRPkebxLe-VoJq1UDxUOR8bujyG0T8_rskdmF66lcUYD_JeMh8ODZ6cpeayU61_h8z/exec"
+
+filename = f"{firm} - {letter_subtitle}.pdf"  # e.g. "SCGE Quarterly Review - Q4 2025 Letter.pdf"
+
+with open(local_path, "rb") as f:
+    b64 = base64.b64encode(f.read()).decode()
+
+resp = requests.post(DRIVE_URL, json={
+    "action": "upload",
+    "fileName": filename,
+    "fileBase64": b64,
+    "mimeType": "application/pdf",
+    "folderId": "1f4GM9uQRtH-hhQeLIPki92es_CvstcHn",
+}, allow_redirects=True, timeout=120).json()
+
+drive_url = resp["url"]  # use as Source URL in Step 5
+```
+
+**Source URL precedence for Step 5:**
+1. Uploaded Drive URL (Step 1.5 result) — preferred when a file was provided
+2. Original public URL provided by the user (when no file, only a URL)
+3. None — render Source as plain bold text, no hyperlink (see Step 5 guard)
+
+**If only pasted text was provided** (no file, no URL), skip this step — there is nothing to upload.
+
 ---
 
 ## Step 2: Extract Metadata
@@ -116,6 +155,8 @@ Structure the page body in this exact order:
 ```
 
 Keep the metadata block tight — three lines maximum. Firm and author are captured in the title and Source link label; do not add separate `Firm:` or `Author:` lines. The Source label should be descriptive enough to identify the letter at a glance (e.g. "Sixth Street Specialty Lending Stakeholder Letter"). If no source URL is available, render the source as plain bold text with no hyperlink.
+
+**HARD GUARD — no self-referential source link.** The Source URL must be EITHER (a) the Drive URL returned by Step 1.5, OR (b) the original public URL the user provided. It must NEVER be the Notion page's own URL (`notion.so/<this_page_id>`) — that yields a circular reference. If neither (a) nor (b) is available, render Source as plain bold text with no hyperlink. Before writing the page, sanity-check that the resolved source URL does not contain the substring `notion.so` or `notion.site` — if it does, strip the link.
 
 ---
 

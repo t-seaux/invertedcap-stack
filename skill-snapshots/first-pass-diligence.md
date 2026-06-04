@@ -1699,9 +1699,40 @@ The check enforces:
 - **P3** no debug-pattern leaks on first page
 - **P4** inner H1 anchor `# First-Pass Diligence — <date>` present in body
 
-**Exit 0 = proceed to Step 6. Exit 1 = STOP. Do NOT upload to Drive.** Fix the
+**Exit 0 = proceed to Step 5c. Exit 1 = STOP. Do NOT upload to Drive.** Fix the
 build script (subtitle format, title em dash, missing H1 anchor) and rebuild.
 Shipping past this gate is the exact behavior the gate exists to prevent.
+
+### Step 5c. PDF Format Guard — MANDATORY GATE before Drive upload
+
+The header check verifies the title/subtitle/anchor *text*. This gate verifies
+the *typography* — every text-span's `(font, size, color)` against the MEASURED
+Factir reference profile. Run it after the PDF builds, before upload:
+
+```bash
+python3 ~/.claude/skills/shared-references/pdf_format_guard.py \
+    --pdf /tmp/<output>.pdf --company "<Company>"
+```
+
+Checks F1-F10: F1 US-Letter page geometry; F2 text-color allowlist (black +
+#333333 subtitle only — catches a blue/colored hyperlink or heading); F3 every
+span signature matches one the reference uses (catches an un-bolded title, a
+heading at the wrong size, a body paragraph that lost its font); F4 14pt-bold
+title; F5 #333333 subtitle shape; F6 13pt-bold `First-Pass Diligence — <date>`
+anchor; F7 NO `[N]`/`[N,M]` citation rendered at body size (the
+superscript-regression bug); F8 table-cell fill + grid/underline stroke colors
+within the reference set (catches a colored table background); F9 heading
+underlines present on the levels the reference always underlines; F10 page
+numbers centered. The profile is MEASURED from the approved Factir vFinal PDF
+(`templates/master-diligence-doc/reference_profile.json`), not hand-typed, so
+the gate's expectation cannot drift from the real reference. (Paragraph spacing
++ indents are deliberately NOT gated — multi-valued in a rendered PDF, would
+false-positive.)
+
+**Exit 0 = proceed to Step 6. Exit 1 = STOP. Do NOT upload to Drive.** Fix the
+builder and rebuild. Regenerate the profile only when Tom re-approves a changed
+reference artifact (see `templates/master-diligence-doc/reference.json` →
+`profiler.regenerate`).
 
 ---
 

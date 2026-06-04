@@ -103,7 +103,7 @@ The Agent View is a consolidated Notion database view that returns Opportunities
 
 Use `notion-query-database-view` with the filtered view URL to get all Opportunities in active pipeline stages in a single call. This is useful in Step 3 (Resolve the Opportunity) and Step 5 (Update the Qualified field) — you can check existing intros and avoid duplicates more efficiently than searching the full Opportunities collection.
 
-## Three Detection Patterns
+## Four Detection Patterns
 
 ### Pattern 1: Forwardable Email (Batch Intros)
 A founder sends a clean email listing multiple people they want intros to. This is often a follow-up after a meeting or call where Tom committed to several introductions.
@@ -141,6 +141,29 @@ Tom explicitly tells you to log an intro. This is the most straightforward patte
 
 **Extraction:** Parse the person name and the target Opportunity from Tom's instruction.
 
+### Pattern 4: Founder Greenlight on Tom-Proposed Candidates
+
+Tom proposes a list of intro candidates to a portfolio founder in an outbound email; the founder replies approving a subset (or all) of them. The greenlit names → `👓 Intros (Qualified)`. This is the inverse of Pattern 1: Tom is initiating the batch, founder is approving rather than requesting.
+
+**Characteristics of Tom's outbound proposal:**
+- Outbound from `tom@invertedcap.com` to a known portfolio founder (resolvable to an Opportunity via `Contact` email or `🏁 Founder(s)` relation)
+- Contains a structured list of candidates — typically ≥2 names, each with company/role and a `linkedin.com/in/…` URL
+- Framing language: "Some I had in mind", "cool if I reach out to", "candidates for your round", "people I think would be a fit", or a bare list of names with LinkedIn URLs
+- May omit the "intro" keyword entirely — selection by structural shape (list + LinkedIn URLs), not vocabulary
+
+**Characteristics of the founder's reply:**
+- Inbound from the founder's address, in-thread reply to Tom's proposal
+- Per-name verdicts: "yes please on all three", "Early Light and Luge look like strong fits", "and yes on Long Run", "skip Phil, but the others look great", or a bulleted yes/no list
+- Soft pass / "ask for more context" replies (e.g. "let me know if you have additional context on fit") are NOT greenlights — flag for Tom, do not write to Qualified
+
+**Example:** Tom emails Jess (Uprise) on 2026-06-02 with 4 investor candidates: Dave Ambrose, Scott Garber, Wilson Patton, Karim Gillani. Jess replies 2026-06-03: "Early Light and Luge look like strong fits…and yes on Long Run" + asks for more context on Bungalow. → Write Scott, Karim, Wilson to Uprise's Qualified; flag Dave for Tom (no write).
+
+**Extraction:**
+1. Parse Tom's outbound for the candidate list — name + LinkedIn URL per row.
+2. Parse founder's reply for per-name verdicts. Map verdict tokens: explicit "yes" / "strong fit" / "go ahead" / "looks great" → greenlight. Explicit "no" / "skip" / "not a fit" → decline (no write). "Need more context" / "tell me more" / "not sure" → flag for Tom, no write.
+3. The Opportunity is identified by the founder's email/name (Pattern 1 resolution logic). Same Step 3–5 workflow as other patterns.
+4. If the founder's reply mentions names NOT in Tom's prior outbound list, those are founder-initiated additions — treat as Pattern 1 (still write to Qualified, but flag as "founder-added, not on Tom's list").
+
 ## Anti-Pattern: Inbound Offer to Intro TOM (NOT an Intro Event)
 
 When someone in Tom's network offers to introduce **Tom himself** to a company, this is NOT an intro management event. It is an inbound deal sourcing signal that belongs to `add-to-crm`, not here. Do NOT write to ANY intro lifecycle field.
@@ -161,14 +184,26 @@ When someone in Tom's network offers to introduce **Tom himself** to a company, 
 
 **Scheduled mode** — scan two sources for the past 24 hours:
 
-1. **Gmail**: Run **two separate queries** — inbox and sent — both with `newer_than:1d`:
+1. **Gmail**: Run **three separate queries** — inbox, sent (keyword), and sent (structural) — all with `newer_than:1d`:
    - **Inbox**: `newer_than:1d (intro OR introduce OR introduction OR connect) in:inbox` — catches founders requesting intros and replies to outreach
-   - **Sent**: `newer_than:1d (intro OR introduce OR connect) in:sent` — catches double-opt-in intro emails Tom sent (e.g., "Aadik (POV Ventures) / Hardik (Tuor)"), and outreach offers Tom sent to investors. **Critical: completed intros live in sent mail and will NOT appear in inbox unless the recipient replied.**
+   - **Sent (keyword)**: `newer_than:1d (intro OR introduce OR connect) in:sent` — catches double-opt-in intro emails Tom sent (e.g., "Aadik (POV Ventures) / Hardik (Tuor)"), and outreach offers Tom sent to investors. **Critical: completed intros live in sent mail and will NOT appear in inbox unless the recipient replied.**
+   - **Sent (structural)**: `newer_than:1d "linkedin.com/in" in:sent` — catches Pattern 4 outbound proposals where Tom lists candidates with LinkedIn URLs but doesn't use any "intro" keyword (e.g., "Some I had in mind" + a list of names with `linkedin.com/in/…` URLs). Filter results to threads where ≥2 distinct `linkedin.com/in/` URLs appear in the body AND the recipient resolves to a portfolio founder via Opp `Contact` / `🏁 Founder(s)`.
    - Also scan emails from known portfolio company founder email addresses/domains
 
 2. **iMessage**: Check recent messages using `get_unread_imessages` and `read_imessages` for known founder contacts. Look for the same intro-related language.
 
 **Manual mode** — parse the user's message, forwarded email, screenshot, or pasted text for intro requests.
+
+### Step 1.5: Thread-Pair Reconciliation (Pattern 4)
+
+For every inbound message surfaced by the inbox query AND every outbound proposal surfaced by the sent (structural) query, fetch the full thread and check for the Pattern 4 pair:
+
+- An outbound from `tom@invertedcap.com` containing a structured candidate list (≥2 `linkedin.com/in/` URLs, or ≥2 bulleted names with company/role), AND
+- An inbound reply from the same thread's portfolio-founder recipient with per-name verdicts.
+
+If both legs are present, route the thread through Pattern 4 extraction (above) before applying the standard Pattern 1/2/3 logic. If only the outbound leg is present (no reply yet), do not write to Qualified — Tom may still revise the list before the founder replies. If only the inbound leg surfaced via the keyword query, walk backward in the thread to find Tom's outbound proposal; the prior message is usually within the same thread.
+
+This step exists because the original 2026-06-02/03 Uprise miss had Tom's outbound proposal lacking any "intro" token, so the keyword-only sweep failed to pair the legs. Always look at the thread, not the message in isolation.
 
 ### Step 2: Extract Structured Data
 
