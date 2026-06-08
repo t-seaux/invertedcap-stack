@@ -79,6 +79,45 @@ contradicts this skill's "transcripts are primary" rule downstream (Step "Founde
 explicitly cites specific transcript moments). If the page is not a meeting note (no
 `<meeting-notes>` widget), the param is a harmless no-op. Default ON, no exceptions.
 
+**MANDATORY — speaker-label every fetched transcript before drafting.** Notion's transcript
+feature stores turns as raw paragraph blocks with NO speaker metadata (verified 2026-06-06
+by walking the REST tree). This is a real problem: without labels, the drafter can't
+reliably tell whether an analogy was raised by the founder or by Tom, and misattributing
+Tom's reframings to the founder inflates the founder-evaluation signal (see
+deviation #28 in Common Deviations and memory
+`feedback_transcript_speaker_attribution_to_tom`). Run the relabel pass on every call
+note transcript:
+
+```bash
+mkdir -p /tmp/firstpass_raw_transcripts /tmp/firstpass_labeled_transcripts
+
+# 1. Extract the raw transcript text (one turn per line) into a per-call file.
+#    Strip the <transcript>...</transcript> wrapper from the MCP fetch output.
+
+# 2. Relabel each transcript via Haiku.
+python3 ~/.claude/skills/first-pass-diligence/relabel_transcript.py \
+    --transcript /tmp/firstpass_raw_transcripts/<call_slug>.md \
+    --attendees 'TOM (investor at Inverted Capital, asks investor-style questions and raises analogies);\
+SONIA (founder + CEO of [Company], [healthcare/fintech/etc background], owns market positioning);\
+MANISH (founder + CTO of [Company], ex-Google, owns engineering architecture)' \
+    --subject '[meeting subject line — date, company, deal stage, who attended]' \
+    --output /tmp/firstpass_labeled_transcripts/<call_slug>.md
+```
+
+Cost: ~$0.03–$0.05 per 75KB transcript at Haiku 4.5. Latency: ~20–30 seconds serialized
+per transcript (parallelize across transcripts to bound wall-clock at the slowest single
+call). The labeled output is `[TOM]:` / `[SONIA]:` / `[MANISH]:` / `[UNKNOWN]:` prefixed
+per turn. UNKNOWN is reserved for genuinely ambiguous backchannel turns ("yeah", "right")
+where Haiku couldn't infer — these are non-blocking in the downstream attribution lint.
+
+Build attendee descriptors with enough role context to let the labeler distinguish
+voices from content cues (investor-vocabulary vs founder-vocabulary, engineering-deep
+vs market-deep). The descriptors are the only knob the model has for disambiguation —
+generic descriptors produce worse labels.
+
+The labeled transcripts are consumed by `first_pass_lint.py --labeled-transcripts-dir`
+in Step 4a to enforce deterministic attribution.
+
 ### 1c. Fetch Diligence Materials
 
 The Diligence Materials field may contain five types of sources. Identify each by its URL
@@ -1259,6 +1298,29 @@ If you catch yourself doing any of these, stop and correct:
     as deviation #20 (internal Step references). Concrete prior incident: Kalos first-pass
     2026-05-28 shipped *"### Other founders (rollup)"* with the drafter's "(rollup)" tag in
     the rendered H3.
+28. **Transcript speaker misattribution — Tom's voice attributed to the founder.** Inverse
+    of deviation #25. When Tom raises a framework, analogy, push-back, reframing, or
+    industry parallel in a call transcript and the founder agrees (or extends the point),
+    the framework/analogy belongs to *Tom*, not the founder. Drafter must attribute
+    correctly: *"Tom raised the Brex analogy on the June 2 call; Sonia agreed it captured
+    the framing"* — NOT *"Sonia's Brex analogy"* or *"the Brex framing she described
+    without prompting"*. Concrete prior incident: Alongside Medical first-pass 2026-06-06
+    attributed the Brex-default-expense-policy analogy to Sonia and characterized it as
+    her unprompted intellectual-honesty signal; in fact Tom introduced the analogy after
+    Manish described the baseline-plus-gold content layer, and Sonia agreed it was
+    "exactly the same thing." This misattribution inflates the founder-evaluation signal
+    and is dangerous because the next reader (Tom himself, or a future drafter reading
+    the doc) treats the analogy as founder-originated.
+
+    **Mandatory pre-submit check.** Before final delivery, scan every sentence in the
+    draft that contains a portfolio/industry analogy, framework name, or strategic
+    reframing attributed to a founder, and verify against the transcript who *introduced*
+    the framing vs. who *agreed with* it. The introducer owns the attribution. Tom-as-
+    questioner is a high-frequency analogy-introducer in his transcripts; default toward
+    Tom-introduction unless the transcript clearly shows the founder bringing it first.
+    Also note: when Tom asks a sharp diagnostic question and the founder gives a clean
+    answer, the *answer* belongs to the founder; the *question framing* belongs to Tom —
+    these are separate attribution claims and the drafter must handle them separately.
 20. **Internal step references in output** — writing "Step 1e memo", "Step 1e manifest",
     "the Step 1e manifest entry", or any reference to internal skill step numbers in the
     published analysis. These are drafting-process labels that should never appear in output.
@@ -1311,8 +1373,25 @@ Sources for each manifest field:
 python3 /Users/tomseo/.claude/skills/first-pass-diligence/first_pass_lint.py \
   --draft /tmp/firstpass_draft.md \
   --manifest /tmp/firstpass_manifest.json \
-  --memo-text-dir /tmp/firstpass_memos
+  --memo-text-dir /tmp/firstpass_memos \
+  --labeled-transcripts-dir /tmp/firstpass_labeled_transcripts
 ```
+
+`--labeled-transcripts-dir` is MANDATORY in the canonical flow — it points to the
+directory of speaker-labeled transcripts produced by `relabel_transcript.py` in
+Step 1b. With it, the lint runs the deterministic `attribution_mismatches` check:
+for every draft sentence attributing an analogy / framework / strategic reframing
+to a named person, it locates the keyword's first occurrence in the labeled
+transcripts and fails if the speaker who introduced the keyword is not the
+attributed person. UNKNOWN turns (Haiku couldn't infer) are non-blocking — they
+just can't confirm OR deny attribution. Keywords whose first mention is in
+non-transcript material (deck, memo) are also non-blocking — attribution to the
+founder is acceptable on founder-authored material. If the flag is omitted, the
+attribution check emits a single informational warning instead of running —
+surface that warning in the publish summary so Tom knows the gate was disabled.
+Concrete prior incident: Alongside Medical first-pass 2026-06-06 attributed the
+Brex-default-expense-policy analogy to Sonia when Tom actually introduced it on
+the June 2 call; the attribution check exists to catch this class deterministically.
 
 `--memo-text-dir /tmp/firstpass_memos` is MANDATORY in the canonical flow —
 Step 1e populates that directory with per-company memo text files. The lint

@@ -105,6 +105,26 @@ threads, backchannel notes, research artifacts). No exceptions, no "only if need
 ON. This same rule applies in `first-pass-diligence` Step 1b; we mirror it here so an update
 run never operates on thinner data than the original analysis.
 
+**MANDATORY — speaker-label every NEW transcript before drafting.** Notion's transcript
+feature stores turns without speaker metadata. To enforce deterministic attribution against
+the labeled transcript, run `relabel_transcript.py` on each new call note transcript:
+
+```bash
+mkdir -p /tmp/firstpass_labeled_transcripts
+python3 ~/.claude/skills/first-pass-diligence/relabel_transcript.py \
+    --transcript /tmp/firstpass_raw_transcripts/<call_slug>.md \
+    --attendees 'TOM (investor at Inverted Capital);<FOUNDER1> (role);<FOUNDER2> (role)' \
+    --subject '<meeting subject>' \
+    --output /tmp/firstpass_labeled_transcripts/<call_slug>.md
+```
+
+Only NEW transcripts (added since the prior update) need to be labeled — previously
+labeled transcripts in `/tmp/firstpass_labeled_transcripts/` are cached and reused.
+Cost per new transcript: ~$0.03–$0.05 at Haiku 4.5; latency ~20–30 sec serialized.
+The labeled transcripts feed the deterministic attribution-mismatch check in Step 4
+lint and prevent the class of error where Tom's reframings end up attributed to the
+founder. See memory `feedback_transcript_speaker_attribution_to_tom`.
+
 If the current conversation contains information Tom has shared directly (e.g., "I just learned
 that..." or forwarded content), treat that as new information too.
 
@@ -269,6 +289,21 @@ convicted in the thesis? Be specific about what moved and what didn't.]
   useful than "This is encouraging."
 - **Don't repeat the original analysis.** The update section should be additive — new information
   and its implications only. Don't restate what the original analysis already covered.
+- **Speaker attribution in transcripts must trace to the actual speaker.** When Tom raises
+  a framework, analogy, push-back, or industry parallel in a call transcript and the founder
+  agrees (or extends the point), the framework/analogy belongs to *Tom*, not the founder.
+  Misattributing Tom's reframings to the founder inflates the founder-evaluation signal and
+  misleads the next reader (often Tom himself reviewing the updated doc) who treats the
+  framing as founder-originated. Mandatory pre-submit check: for every sentence in the
+  update attributing an analogy, framework, or strategic reframing to a named person,
+  verify against the transcript who *introduced* the framing vs. who *agreed with* it —
+  the introducer owns the attribution. Tom-as-questioner is a high-frequency analogy-
+  introducer in his transcripts; default toward Tom-introduction unless the transcript
+  clearly shows the founder bringing it first. Memory:
+  `feedback_transcript_speaker_attribution_to_tom`. Concrete prior incident: Alongside
+  Medical first-pass 2026-06-06 attributed the Brex-default-expense-policy analogy to
+  Sonia ("Sonia's Brex analogy", "she described it without prompting") when Tom
+  introduced the analogy and Sonia simply agreed.
 
 ---
 

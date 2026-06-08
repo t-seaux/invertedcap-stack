@@ -165,7 +165,13 @@ drafting miss. Memory `feedback_finalize_diligence_notion_link_map` applies in f
    field, page body.
 3. **Every linked Note** — `✍️ Notes` relation on the Opp. Pass `include_transcript: true` on
    every call note / meeting note fetch (per memory feedback: summarize call/note from full
-   transcript, not summary block).
+   transcript, not summary block). **Speaker-label every transcript** via
+   `~/.claude/skills/first-pass-diligence/relabel_transcript.py` and cache to
+   `/tmp/firstpass_labeled_transcripts/` (already-labeled transcripts from prior runs are
+   reused). The Final Assessment lint check `attribution_mismatches` in Step 5 reads from
+   this directory to verify deterministic speaker attribution — without labeled transcripts,
+   the check is skipped with a warning. See memory
+   `feedback_transcript_speaker_attribution_to_tom` for the failure mode this catches.
 4. **Every Diligence Material** — Drive PDFs, Google Docs, Notion attachments, DocSend links.
    Use the type-specific access methods from `first-pass-diligence` Step 1c.
 5. **Investment memo manifest** — read every memo in the canonical Drive folder
@@ -380,6 +386,21 @@ expectations. Memory `feedback_be_opinionated_thought_partner` reinforces it.
 - **Quantitative claims must be inline-cited.** Per memory
   `feedback_quant_claim_citation_discipline`: founder docs > Inverted internal refs > external
   public > Claude estimate. Tag every cell.
+- **Speaker attribution in transcripts must trace to the actual speaker.** When Tom raises
+  a framework, analogy, push-back, or industry parallel in a call transcript and the founder
+  agrees (or extends the point), the framework/analogy belongs to *Tom*, not the founder.
+  Misattributing Tom's reframings to the founder inflates the founder-evaluation signal and
+  misleads the next reader (often Tom himself) who treats the framing as founder-originated.
+  Mandatory pre-submit check: for every sentence in the draft attributing an analogy,
+  framework, or strategic reframing to a named person, verify against the transcript who
+  *introduced* the framing vs. who *agreed with* it — the introducer owns the attribution.
+  Tom-as-questioner is a high-frequency analogy-introducer in his transcripts; default
+  toward Tom-introduction unless the transcript clearly shows the founder bringing it
+  first. Memory: `feedback_transcript_speaker_attribution_to_tom`.
+  Concrete prior incident: Alongside Medical first-pass 2026-06-06 attributed the
+  Brex-default-expense-policy analogy to Sonia ("Sonia's Brex analogy", "she described it
+  without prompting") when in fact Tom introduced the analogy after Manish described the
+  underlying baseline-plus-gold content layer, and Sonia simply agreed.
 
 ### What this block must NOT do
 

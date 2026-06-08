@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [2026-06-08] (Week of 2026-06-08)
+
+**Added:** diligence-qa (Diligence Management — was mapped on 2026-06-04 but missing from HTML; added to Platform Map and Quick Reference this run)
+**Removed:** None
+**Modified:**
+- finalize-diligence -- added mandatory transcript speaker-labeling via relabel_transcript.py; added speaker attribution guardrail to Final Assessment (prevents investor reframings from being misattributed to founders in the synthesis block)
+- first-pass-diligence -- added mandatory transcript speaker-labeling step; made --labeled-transcripts-dir flag required in first_pass_lint.py for deterministic attribution checks; added Common Deviation #28 documenting the speaker misattribution failure mode
+- update-diligence-priors -- added mandatory speaker-labeling for new transcripts; added speaker attribution guardrail consistent with finalize-diligence and first-pass-diligence
+**Total skills:** 32
+**Functions:** Diligence Management +1 (diligence-qa)
+
+---
+
 ## [2026-06-04] (Week of 2026-06-02)
 
 **Added:** None
