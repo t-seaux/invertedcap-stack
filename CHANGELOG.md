@@ -1,6 +1,17 @@
 # Changelog
 
 
+## [2026-06-09] (Week of 2026-06-09)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- investor-update -- added dual-PDF mandate for Case A (email body saved as canonical update PDF alongside attachment with descriptive suffix); changed Notion body link from company Drive folder to email-body PDF file; switched dedup logic from title search to Source Email exact match
+**Total skills:** 32
+**Functions:** No changes
+
+---
+
 ## [2026-06-08] (Week of 2026-06-08)
 
 **Added:** diligence-qa (Diligence Management — was mapped on 2026-06-04 but missing from HTML; added to Platform Map and Quick Reference this run)

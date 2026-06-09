@@ -209,7 +209,7 @@ Save a PDF copy of every investor update to the company's subfolder within the *
 - Parent folder ID: `1-gsWvaUWOI5WYjKUA7OwQtoywcBJ3sP2` (Investor Updates)
 - Each portfolio company has its own subfolder within this parent: `Investor Updates / [Company Name] / [filename].pdf`
 - If a subfolder for the company does not exist, create one using the Drive Manager Apps Script's `createFolder` action with `parentFolderId: "1-gsWvaUWOI5WYjKUA7OwQtoywcBJ3sP2"` and the company name as `folderName`.
-- The `createFolder` action returns the subfolder's `folderId` and `url`. Use this URL (not the parent folder URL) when constructing the Notion page body link.
+- The `createFolder` action returns the subfolder's `folderId` and `url`. The `folderId` is used as the target for Step 3 uploads (attachment + email-body PDF). The folder URL itself is NOT linked from the Notion page body — the body's top-line link points at the email-body PDF file, not the parent folder (see "Page body content structure" below).
 - If the subfolder already exists, the Apps Script returns the existing folder without creating a duplicate.
 
 Evaluate the email content to determine which case applies, checked in this order.
@@ -217,6 +217,10 @@ Evaluate the email content to determine which case applies, checked in this orde
 > **⚠️ ALWAYS probe for attachments first.** Run the Gmail Attachment Saver on the target message unconditionally *before* considering Case B / C / D / E — even when the email body shows a Google Doc/Slides link or appears to be pure prose. Tom frequently forwards investor updates with the PDF attached (and texts himself board deck PDFs alongside the Slides share notification). The `plaintextBody` returned by the Gmail MCP hides attachments behind the `￼` (object-replacement) placeholder glyph, so the only reliable signal is probing the message with the Attachment Saver. Jumping straight to Case B/D when you see a Google Doc/Slides link duplicates work Tom already did and is a regression. If the saver returns a PDF, use Case A and stop. Only fall through to Case B / Case C / Case D / Case E if the saver returns zero files.
 
 ### Case A: PDF attachment exists
+
+**⚠️ DUAL-PDF MANDATE.** Case A produces TWO PDFs in Drive (and TWO Artifacts entries on the Notion page), not one: the saved attachment AND a rendered PDF of the email body itself. The email body is the canonical update narrative — Tom reads the email-body PDF first; the attachment (deck, financials, etc.) is supplementary. Skipping the email-body render leaves the entry's Artifacts pointing only at the supplement and forces Tom back to Gmail to read the actual update.
+
+**Step A-1: Save the attachment.**
 
 - In scheduled mode: Use the Gmail Attachment Saver Apps Script to save the attachment directly to the Investor Updates folder on Drive. Read the reference at `/Users/tomseo/.claude/skills/shared-references/gmail-attachment-saver.md` for the endpoint URL and API details.
   ```python
@@ -236,8 +240,14 @@ Evaluate the email content to determine which case applies, checked in this orde
           saved_filename = f["fileName"]
           drive_url = f["url"]
   ```
-  After saving, if the file needs renaming to `[Company] - [Mon] [YYYY] Update.pdf`, note the original filename in the Notion page body. The Apps Script saves with the original attachment filename.
-- In manual mode: locate uploaded PDFs in the uploads directory, then upload to the Investor Updates folder on Drive via the **Drive Upload Apps Script**. Read the reference at `/Users/tomseo/.claude/skills/shared-references/drive-upload.md` for the endpoint URL and Python usage. The endpoint accepts base64-encoded file content and saves directly to Drive — no Zapier or tmpfiles.org intermediary needed.
+  After saving, rename the attachment to a descriptive suffix that reflects what it actually is — `[Company] - [Mon] [YYYY] Update - Deck.pdf`, `... - Financials.pdf`, `... - Board Deck.pdf`, etc. The unsuffixed `[Company] - [Mon] [YYYY] Update.pdf` filename is reserved for the email-body PDF (Step A-2). Use `~/.claude/scripts/drive_rename.py --file-id <ID> --new-name "<name>"`.
+- In manual mode: locate uploaded PDFs in the uploads directory, then upload to the Investor Updates folder on Drive via the **Drive Upload Apps Script**. Read the reference at `/Users/tomseo/.claude/skills/shared-references/drive-upload.md` for the endpoint URL and Python usage. Apply the same `... - Deck.pdf` / `... - Financials.pdf` suffix convention.
+
+**Step A-2: Render the email body to PDF and upload alongside the attachment.**
+
+Run the Case C weasyprint render path (below) against the email body — even when the body is short, even when "all the substance" appears to be in the attachment. Name the output `[Company] - [Mon] [YYYY] Update.pdf` (the canonical, unsuffixed update filename) and upload to the same company subfolder under Investor Updates via the Drive Upload Apps Script.
+
+**Both URLs go into Artifacts at Step 4.5** — the email-body PDF first (it's the canonical update), the attachment(s) after.
 
 ### Case B: Email contains a Google Doc or Sheet link
 
@@ -393,7 +403,7 @@ Create a new page in the **Company Updates** database (`collection://bf491fb9-21
 | `Period` | The period(s) the update covers (not necessarily when sent). Format: `Mmm YYYY` for monthly; `YYYY` for annual. See extraction rules below. **This is a multi-select field** — pass as a JSON array of strings (e.g., `'["Feb 2026", "Mar 2026"]'`). For single-month updates, pass a one-element array (e.g., `'["Feb 2026"]'`). For multi-month or quarterly updates, include each month as a separate value. **For board materials**: use the meeting month — `["May 2026"]` for a May 2026 board meeting. If an option does not yet exist in Notion, it will be created automatically. |
 | `Traction` | Revenue or ARR figure for the corresponding period. See formatting rules below. **Read every attachment to extract Traction.** Whenever an attachment is present (deck, financial sheet, memo, etc.), open it and pull the canonical aggregate metric from the artifact — do NOT default to `N/A` just because the email body doesn't restate the figure. Founders routinely put the headline number in the attachment, not the body. Use `mcp__claude_ai_Google_Drive__get_file_metadata` (content snippet) or `download_file_content` for Drive files; fetch Gmail attachments inline. Use `N/A` only if the artifact genuinely discloses no aggregate company-level metric (rare). |
 | `Summary` | 1-2 sentence shorthand summary. **Read every attachment.** Whenever the email or message has an attached artifact (deck PDF, financial sheet, memo, doc, slide export — board or otherwise), open it and incorporate its substance into the Summary. Never write "detail in deck", "see attached", "see PDF", or any other placeholder phrase that defers to the artifact instead of summarizing it. The email body alone is rarely the full picture — founders put the substantive numbers and narrative in the attached document. Use `mcp__claude_ai_Google_Drive__get_file_metadata` (content snippet) or `download_file_content` for Drive files; fetch attachments inline for Gmail attachments. Apply the same shorthand rules below. Example: `Closed largest deal ever — IMA Financial ($975k ARR / $1.95m TCV); ARR $5.0m (Apr) up from $2.1m Dec — 2.4x in 4mo, 34x YoY; 16/100 Top 100 brokers customers + 18 in pipeline; NDR 105% / GDR 95%; 100+ mo runway on $18.7m cash.` |
-| `Artifacts` | Files & Media property — populated AFTER page creation via the headless helper (see Step 4.5 below). The structured Artifacts field is the canonical "what files belong to this entry" list; the body's Drive folder link stays for navigation context. |
+| `Artifacts` | Files & Media property — populated AFTER page creation via the headless helper (see Step 4.5 below). The structured Artifacts field is the canonical "what files belong to this entry" list. The body's top-line file link points to the same email-body PDF that's the first Artifacts chip. |
 
 #### Period extraction
 
@@ -477,15 +487,17 @@ Examples:
 The page body must follow this exact layout:
 
 ```
-📁 [[Company Name] - Investor Updates](https://drive.google.com/drive/folders/[COMPANY_SUBFOLDER_ID])
+📄 [[Company] - [Mon] [YYYY] Update.pdf](https://drive.google.com/file/d/[EMAIL_BODY_PDF_FILE_ID]/view)
 [Full email body, preserving structure. Use ## for section headers,
 bullet points for lists, **bold** for emphasis. Maintain the original
 formatting as closely as possible.]
 ```
 
 Key formatting rules:
-- A clickable Google Drive folder link sits at the very top of the page body, prefixed with the 📁 (folder) emoji. The link text is `[Company Name] - Investor Updates` and the URL points to the company's subfolder within the Investor Updates folder. Example: `📁 [Quiet AI - Investor Updates](https://drive.google.com/drive/folders/1iXGMyXKs0mHEUZ2ez9_SI_4FxJZlUAT5)`. This renders as a clickable link in Notion that opens the company's Drive folder where all their update PDFs are stored.
-- **No divider** between the folder link and the email body. The email content starts immediately on the next line.
+- A clickable link to **this entry's email-body PDF file** (the canonical `[Company] - [Mon] [YYYY] Update.pdf` produced in Step A-2 / Case C) sits at the very top of the page body, prefixed with the 📄 (document) emoji. Link text = the PDF filename, URL = the file's Drive view URL. Example: `📄 [Quiet AI - Jan 2026 Update.pdf](https://drive.google.com/file/d/1abc.../view)`. This renders as a clickable link in Notion that opens the specific update PDF — one click from the entry to the artifact Tom reads.
+- **The body link is ALWAYS the email-body PDF — never the attachment / deck / financial-plan / press-release / any other artifact.** This is non-negotiable. When the email body is short or near-empty (e.g., a forwarded message that's mostly signature, or a Slides-share notification that carries no founder prose), STILL render an email-body PDF in Step A-2 / Case C — even if minimal — and link THAT in the body. The attachment / deck / etc. lives in the Artifacts files-property (chips), NOT in the body's top-line link. A header-only email-body PDF is acceptable; an attachment in the body-link slot is not.
+- The parent-folder Drive URL is NOT linked from the body. It's reachable via the body PDF's Drive viewer (Drive shows the parent breadcrumb on every file).
+- **No divider** between the file link and the email body. The email content starts immediately on the next line.
 - **Do NOT include a From/To/Date metadata block.** This information is already captured in the page properties (Source Email link, Update Date). Including it in the body is redundant.
 - **Do NOT insert empty lines or blank paragraphs between content blocks.** Notion renders these as visible empty space.
 - **Bullet points must be flat single-dash bullets** (`- item`), never double-dash (`- - item`). When the email has nested lists, flatten sub-items into the parent bullet or use indented sub-bullets with proper Notion markdown (tab + `-`).
@@ -508,36 +520,72 @@ pages: [{
     "Traction": "[extracted Traction or N/A or $0.0m — see Traction extraction rules]",
     "Summary": "[1-2 sentence shorthand summary — see Summary rules]"
   },
-  content: "📁 [[Company Name] - Investor Updates](https://drive.google.com/drive/folders/[COMPANY_SUBFOLDER_ID])\n[formatted email body]"
+  content: "📄 [[Company] - [Mon] [YYYY] Update.pdf](https://drive.google.com/file/d/[EMAIL_BODY_PDF_FILE_ID]/view)\n[formatted email body]"
 }]
 ```
 
-The content begins with a clickable folder link (`📁 [Company Name - Investor Updates]` as link text, company subfolder URL), followed immediately by the full email body. No divider, no From/To/Date metadata.
+The content begins with a clickable link to this entry's email-body PDF file (`📄 [Title.pdf](file_url)`), followed immediately by the full email body. No divider, no From/To/Date metadata.
 
 The dual relation automatically links the update back to the Opportunity — the `🗄️ Investor Updates` field on the Opportunity page will show this new entry.
 
 ### Deduplication
 
-Before creating a new page, check if an update from the same company for the same month already exists:
+Before creating a new page, dedup by **Source Email exact match** — the Gmail thread URL embeds the message ID, which is the canonical identity of an inbound update. A title-only / semantic search is not sufficient: same-minute Notion-search has indexing latency, and titles can collide on the same month even when the underlying messages differ.
 
-1. Use `notion-search` with the intended page title (e.g., "Soap Payments - Feb 2026 Update") scoped to the Company Updates database
-2. If an exact or near-exact match exists, skip creation and report "Update already logged" for that company
+1. Query the Company Updates data source (`bf491fb9-214f-456e-921b-5194b8187f2a`) for any page whose `Source Email` equals the URL you're about to write (`https://mail.google.com/mail/u/0/#inbox/<message_id>`):
+   ```python
+   import json, os, subprocess, urllib.request
+   from pathlib import Path
+   env = os.environ.copy()
+   env["SOPS_AGE_KEY_FILE"] = str(Path.home() / ".config/sops/age/keys.txt")
+   tok = subprocess.run(
+       ["sops", "-d", "--input-type", "binary", "--output-type", "binary",
+        str(Path.home() / "code/notion-backup/.notion-token.enc.txt")],
+       capture_output=True, text=True, check=True, env=env).stdout.strip()
+   body = json.dumps({
+       "filter": {"property": "Source Email", "url": {"equals": source_email_url}},
+       "page_size": 5,
+   }).encode()
+   req = urllib.request.Request(
+       "https://api.notion.com/v1/data_sources/bf491fb9-214f-456e-921b-5194b8187f2a/query",
+       data=body, method="POST",
+       headers={"Authorization": f"Bearer {tok}", "Notion-Version": "2025-09-03",
+                "Content-Type": "application/json"})
+   with urllib.request.urlopen(req, timeout=30) as r:
+       hits = json.loads(r.read()).get("results", [])
+   if hits:
+       # already logged — skip creation, surface existing page ID for the alert
+       return hits[0]["id"]
+   ```
+2. If a hit exists, skip page creation and report "Update already logged (Source Email match)" — do NOT re-upload the PDF, do NOT re-render anything.
+3. As a belt-and-suspenders fallback (only when `Source Email` is `N/A` — i.e., iMessage / manual / Mode C origin), apply a secondary title+Period exact match against the data source to catch hand-uploaded duplicates.
+
+This applies uniformly to Mode A (sweep), Mode B (webhook), and Mode C (manual). The Source Email dedup is the single canonical guard against duplicate Company Updates entries.
 
 ## Step 4.5: Populate Artifacts field with the specific PDF Drive URL
 
-After the page is created, attach the saved PDF (Step 3) to the entry's `Artifacts` Files & Media property using the headless helper. This makes `Artifacts` the canonical structured artifact list — the body's Drive folder link stays for navigation context, but the per-entry file is in the property field.
+After the page is created, attach the saved PDF(s) from Step 3 to the entry's `Artifacts` Files & Media property using the public-API helper. This makes `Artifacts` the canonical structured artifact list. The body's top-line file link (Step 4) points to the SAME email-body PDF that becomes the first Artifacts chip — one canonical URL, two clickable places.
+
+**For Case A (attachment present):** add BOTH the email-body PDF AND the attachment(s). Add the email-body PDF first so its chip renders left-most — it's the canonical update. The attachment chips follow with descriptive suffixes (`... - Deck.pdf`, etc.).
 
 ```bash
-python3 ~/.claude/local-agents/notion-internal/add_link_to_files_property.py \
+# Case A: email body PDF first, then attachment(s)
+python3 ~/.claude/scripts/notion_files_property.py \
   --page-id <new_entry_id> \
   --prop "Artifacts" \
-  --url "<drive_pdf_view_url>" \
-  --label "<filename, e.g. Quiet AI - Dec 2025 Update.pdf>"
+  --url "<drive_url_for_email_body_pdf>" \
+  --label "<Company> - <Mon> <YYYY> Update.pdf"
+
+python3 ~/.claude/scripts/notion_files_property.py \
+  --page-id <new_entry_id> \
+  --prop "Artifacts" \
+  --url "<drive_url_for_attachment_pdf>" \
+  --label "<Company> - <Mon> <YYYY> Update - Deck.pdf"
 ```
 
-Per pinned memory `feedback_notion_files_property_headless_default.md`, the headless helper is the canonical path for Files-property writes — Notion's public API can't write Files properties for arbitrary external URLs. The helper is idempotent (skips if URL already present) and uses `token_v2` from `~/.claude/local-agents/notion-internal/token_v2`. On `TOKEN_EXPIRED` (exit code 2), surface the error in Step 5's Slack alert so Tom can refresh the cookie.
+For Case C (no attachment), only the email-body PDF goes in.
 
-If the email had multiple PDF attachments (rare but possible — e.g., letter + accompanying deck), call the helper once per file. The Artifacts property becomes the full list of files belonging to this update entry.
+The helper is idempotent (skips if URL or canonical-filename already present) and uses the public Notion API via a SOPS-decrypted token at `~/code/notion-backup/.notion-token.enc.txt` (auto-resolves the age key from `~/.config/sops/age/keys.txt`). No env setup required by callers.
 
 If the original source was a Google Doc / Sheet (Case B in Step 3) AND a PDF was generated from it, link BOTH the original Google Doc/Sheet URL and the generated PDF URL — preserving the original artifact alongside the archive copy mirrors the Signal7 Financial Plan precedent (PDF + original Sheet both in Artifacts).
 
