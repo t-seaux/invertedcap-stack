@@ -215,9 +215,10 @@ Read 2–3 of them in full. You've already internalized the style guide below, b
 
 Before drafting, read the pass-note stylebook:
 
+- `~/.claude/skills/writing-style/pass-note/ANCHOR_EXAMPLES.md` — **read this FIRST and IN FULL, every run.** A small, curated set of Tom's gold-standard pass notes, each annotated with the specific dimensions to emulate (concision, clarity, the concern-with-an-off-ramp tonal move). When calibrating voice, structure, and tone, these anchors **outrank** the rolling `VOICE_EXAMPLES.md` and license compression of the canonical scaffold (e.g., a tighter feedback-framing line). Concision is a feature — emulate the *move*, then execute it fresh for the company at hand.
 - `~/.claude/skills/writing-style/pass-note/STYLE.md` — canonical voice + scaffold + anti-patterns. Read in full.
 - `~/.claude/skills/writing-style/pass-note/EDIT_PATTERNS.md` — two sections: **Canonical Principles** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted pass notes — apply as priors). Read both sections in full. (Re-introduce a recency/frequency cap on Recent Edits if the file ever grows large enough that drafts start coming out derivative or over-fit.)
-- `~/.claude/skills/writing-style/pass-note/VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth.
+- `~/.claude/skills/writing-style/pass-note/VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth, but the curated `ANCHOR_EXAMPLES.md` above takes precedence when they disagree.
 
 Both files are auto-maintained by the `draft-feedback` pipeline (FRAMEWORK_PRD.md §13). Patterns are observations, not commands.
 
