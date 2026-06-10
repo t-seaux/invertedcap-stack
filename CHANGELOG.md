@@ -1,6 +1,17 @@
 # Changelog
 
 
+## [2026-06-10] (Week of 2026-06-09)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- pass-note-drafter -- added curated anchor examples as highest-priority voice calibration source; positioned as first read in Step 5 stylebook sequence, outranking rolling voice examples when they disagree
+**Total skills:** 32
+**Functions:** No changes
+
+---
+
 ## [2026-06-09] (Week of 2026-06-09)
 
 **Added:** None
