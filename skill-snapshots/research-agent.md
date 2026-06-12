@@ -136,6 +136,7 @@ These are institutional research voices that publish substantive, publicly acces
 | J.P. Morgan Private Bank — Michael Cembalest | "Eye on the Market" notes (frequent, data-rich, publicly available at privatebank.jpmorgan.com/nam/en/o/eotm/). Search: `"Eye on the Market" OR "Michael Cembalest"`. Also check the EOTM landing page directly via WebFetch. |
 | Goldman Sachs — "Top of Mind" | Thematic deep-dives (irregular, publicly available when published). Search: `Goldman Sachs "Top of Mind"` |
 | Morgan Stanley — Global Investment Committee | Published outlooks and strategy notes. Search: `Morgan Stanley "Global Investment Committee" letter OR outlook` |
+| Citadel Securities — Global Macro Strategy | Thematic macro/markets pieces in the "Global Macro Strategy" series at citadelsecurities.com/news-and-insights/global-macro-strategy/. Direct landing page check is highest-signal: WebFetch `https://www.citadelsecurities.com/news-and-insights/?series=global-macro-strategy`. If WebFetch 403s (Citadel may block bots), fall back to `site:citadelsecurities.com "global macro strategy"` via WebSearch. |
 
 ### CEO / Leadership Letters
 

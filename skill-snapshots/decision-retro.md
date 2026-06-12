@@ -85,8 +85,14 @@ Queue grows over time (acceptable — small file). No pruning required.
 
 1. Load `queue.json` (create if absent).
 2. Query Notion Opportunities DB for rows where Status ∈ {`Committed`, `Pass Note Pending`, `Pass (Met)`, `Pass (DNM)`}. Include follow-on rows (titles with `(FO)` / `(Series X FO)`) — they are NOT skipped; each FO is a separate Opp ID treated as a separate retro entry. For each row capture `Close Date`, `Website`, `Description`, and `🏁 Founder(s)` alongside `id/name/url/status`. Resolve each Founder relation → People page for name + `LI` URL.
-2a. **Freshness gate.** Skip any Opp whose `Close Date` is more than 60 days before today (`Close Date < today - 60d`). The sweep is a reconciliation backstop for transitions the notion-webhook missed within the recent window — it is NOT a back-catalog mining tool. Stale historical passes (e.g., 2024-era closes Tom decided on long before this skill existed) must not surface as retro prompts. If `Close Date` is empty/null, also skip (defer to webhook for that Opp; manual `retro on X` always overrides). Webhook-triggered entries (`trigger_source: webhook:status-change`) bypass this gate entirely — they fire on actual transition events and are by definition fresh.
-3. For each Opp whose `id` is NOT in the queue (and passing the freshness gate above):
+2a. **Freshness gate (code-enforced).** All new queue entries — sweep AND webhook — MUST be appended via `queue_append.py`, never by hand-editing `queue.json`. The script enforces the gate at write time:
+   - Sweep callers (no `--trigger-source`): reject any Opp with `Close Date` empty/null OR more than 60 days before today (the sweep is a reconciliation backstop for recent transitions the notion-webhook missed, NOT a back-catalog mining tool — stale historical passes must not surface as retro prompts).
+   - Webhook callers (`--trigger-source webhook:status-change` or similar): bypass the gate — they fire on actual transition events and are by definition fresh.
+   - Manual `retro on X` invocations: bypass via `--trigger-source manual`.
+   - Duplicates (opp_id already in queue with non-terminal status): rejected.
+   - Usage: `python3 ~/.claude/skills/decision-retro/queue_append.py --opp-id <id> --opp-name <name> --opp-url <url> --decision <status> --close-date <YYYY-MM-DD> [--trigger-source <src>] [--thread-ts <ts>]`. Exit 0 = appended (proceed); exit 1 = skipped (don't post to Slack); stdout JSON explains the action.
+   - Background: Scout (`30c00bef`, Close Date 2026-03-10, 93d old) leaked through on 2026-06-11 because the gate was prose-only. The script makes the bypass impossible.
+3. For each Opp whose `id` is NOT in the queue (the dedup + gate run inside `queue_append.py` at Step 3d below — don't second-guess them here):
    - Compose GFM markdown prompt (`[text](url)` for links, `**text**` for bold). `md_to_blocks.py` converts to Slack Block Kit — do NOT hand-write Slack mrkdwn (`<url|text>` / `*text*`), it ships as literal text / renders italic. Per memory `feedback_scheduled_alert_structure.md`:
      ```
      🏢 <u>**{Opp Name} | [Notion]({Notion url})**</u>
@@ -99,9 +105,10 @@ Queue grows over time (acceptable — small file). No pruning required.
      - `md_to_blocks.py` treats `<u>` and `**` as recursive wrappers, so bold + underline + inner link compose correctly.
      - The fingerprint sits immediately under the Status line (no blank line), wrapped in backticks for inline-code-styled rendering. **No blank lines anywhere in the body** — blank lines emit a `\n\n` spacer.
      - **Never include a "Reply in this thread…" line** — the channel description already says this
-   - POST via `send-alert/md_to_blocks.py` with `WEBHOOK_URL=$(cat ~/.claude/skills/decision-retro/.webhook_url)`.
-   - Immediately call `mcp__claude_ai_Slack__slack_read_channel` on `#decision-retros` (limit 10) and find the message by grepping for the `[opp:<short-opp-id>]` fingerprint. Capture `ts`.
-   - Append entry to `queue.json` with `status="prompted"`, `thread_ts=ts`, `prompted_at=now()`.
+   3a. POST via `send-alert/md_to_blocks.py` with `WEBHOOK_URL=$(cat ~/.claude/skills/decision-retro/.webhook_url)`.
+   3b. Immediately call `mcp__claude_ai_Slack__slack_read_channel` on `#decision-retros` (limit 10) and find the message by grepping for the `[opp:<short-opp-id>]` fingerprint. Capture `ts`.
+   3c. **DO NOT hand-edit `queue.json`.** Call `queue_append.py` with the fields above. The script enforces the freshness gate + dedup at write time; the gate is the only thing standing between sweep runs and back-catalog leakage like the Scout 2026-06-11 incident.
+   3d. If `queue_append.py` exits 1 (skipped / duplicate), the prompt should NOT have been posted in the first place — abort, log the skip reason, and **do NOT post to Slack**. Reorder if needed so the gate runs before the Slack post on subsequent runs.
 
 ### Step 2 — Listen + extract + log (6pm ET)
 

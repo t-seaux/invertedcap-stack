@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-06-12] (Week of 2026-06-09)
+
+**Added:** batch-add-to-crm (discovered — pending function assignment, not yet on Platform Map)
+**Removed:** None
+**Modified:**
+- decision-retro -- freshness gate now code-enforced via queue_append.py; sweep callers reject stale opps at the script level; webhook and manual triggers bypass gate
+- inbound-deal-detect -- classifier restructured to support multi-company pitch emails; output schema changed from single-company object to array; single-company pitch remains the default
+- research-agent -- added one firm to Tier 1 curated list (minor update, no behavioral change)
+**Total skills:** 32
+**Functions:** No changes
+
+---
+
 
 ## [2026-06-10] (Week of 2026-06-09)
 

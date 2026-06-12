@@ -72,15 +72,38 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
   "is_deal": true | false,
   "confidence": "high" | "medium" | "low",
   "reason_if_not_deal": "string",
-  "company": "string",
-  "description": "string",
-  "founder_first_name": "string",
-  "founder_li_url": "string",
-  "website": "string",
-  "round_details": "string",
-  "stage": "string"
+  "companies": [
+    {
+      "name": "string",
+      "description": "string",
+      "founder_first_name": "string",
+      "founder_li_url": "string",
+      "website": "string",
+      "round_details": "string",
+      "stage": "string",
+      "material_urls": ["string", ...]
+    }
+  ]
 }
 ```
+
+**`companies` is always an array.** A single-company pitch (the common case) returns a one-element array. A multi-company digest (e.g. David Talpalar's "A Few Interesting Ones" — one email pitching 4 distinct startups) returns one element per company. The sender of a multi-company digest is the Source/referrer for ALL of them (no founder can write a digest about 4 separate startups); Step 4 applies that convention without needing to be told.
+
+**Default to single-company.** Most inbound emails pitch ONE company. Only return `companies.length >= 2` when the body **explicitly enumerates distinct companies with separate identities** — each one has its own name, separate website OR separate founder, and separate fundraising context (round size, stage, or distinct pitch sentence). Signals that indicate multi-company digest:
+- Multiple distinct company URLs (different domains, not subpaths of one)
+- Multiple distinct founder names attached to different products
+- The sender frames the email as a list ("a few interesting ones", "wanted to flag these companies", "three startups in your space", a bulleted list of companies)
+- Each company has its own 1–3 sentence blurb in the body
+
+Signals that are NOT multi-company (return single-element array):
+- A founder mentioning their previous company in their own pitch ("ex-CTO of Stripe, now building Acme")
+- A founder mentioning competitors ("we're like Plaid for X")
+- An investor mentioning their portfolio in passing ("similar to my investment in Mercury")
+- A single founder pitching a multi-product platform
+
+When in doubt, return one company. False fan-out creates ghost Opps Tom has to clean up — false collapse just means he uses `batch-add-to-crm` manually.
+
+**`material_urls` partitioning:** the args dict's top-level `materialUrls` arrives flat from the webhook (every deck/memo URL extracted from the body). When emitting `companies`, partition that list per-company — assign each URL to the company it visually clusters with in the body (e.g. a `simpleproduct.dev/share/...` memo URL belongs to the Simple Product entry, not Lucius). URLs whose target company is ambiguous go in the FIRST listed company's bucket — Tom will reassign manually if wrong. Companies with no associated URL get an empty array.
 
 **A "new deal" is:**
 - A founder pitching their startup for investment
@@ -95,7 +118,7 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
 - LP communications / fund updates / allocator outreach
 - **Hierarchy for investment-related entities**: (1) If the sender is **explicitly raising venture capital** — asking Tom to write an equity/investment check into their company or vehicle — that IS a deal regardless of entity type (VC firm, family office, fund, asset manager, anything). (2) Only if you cannot determine they are raising venture capital, apply these exclusions: other venture capital firms reaching out (co-invest pitches, deal flow sharing, fund intros); LP-type entities such as fund of funds, family offices, and endowments.
 
-**Field formatting:**
+**Field formatting (apply per-company within the `companies` array):**
 - `round_details` — **strict format, two valid shapes only**: `"Raising $Xm"` / `"Raising $X-Ym"` for unfinalized rounds (no terms set), OR `"$Xm on $Ym post"` / `"$Xm on $Ym cap"` for rounds with terms set. Lowercase `m`/`k`. **Return empty string `""` if neither a dollar amount nor a cap/post is explicit in the source.** Never write timing-only or qualitative text like `"Kicking off seed this week"`, `"Raising soon"`, `"Active round"`, `"Closing this month"` — those are not round details and will be rejected by `add-to-crm`. If the source has a deck attached, the deck is part of the source — `add-to-crm`'s Step 1B reads decks for round disclosure before writing the field. Empty here is fine; the downstream skill will fill in from the deck if available.
 - `stage` — one of `Pre-Seed`, `Seed`, `Seed+`, `Series A`, `Series B`, `Growth`, `Angel` — infer from round size or explicit mention.
 - Use empty strings for fields you cannot extract.
@@ -105,18 +128,29 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
 
 - `is_deal: false` → log `not-deal` with the reason and exit 0.
 - `is_deal: true` AND `confidence: low` → log `low-confidence-skip` and exit 0. (Tom would rather miss a deal than create a noisy entry.)
-- `is_deal: true` AND `confidence: medium`/`high` AND `company` is empty → log `no-company-extracted` and exit 0.
-- `is_deal: true` AND `confidence: medium`/`high` AND `company` populated → proceed to Step 4.
+- `is_deal: true` AND `confidence: medium`/`high` AND `companies` is empty OR every entry's `name` is empty → log `no-company-extracted` and exit 0.
+- `is_deal: true` AND `confidence: medium`/`high` AND at least one `companies[].name` populated → proceed to Step 4. Drop any per-company entry whose `name` is empty before looping.
 
-### Step 4: Enqueue `add-to-crm` as a follow-on job
+### Step 4: Enqueue one `add-to-crm` job per company
 
 This skill runs on **Haiku** (per Tom's model tier framework — it's a classifier). The downstream `add-to-crm` work — Notion dedup queries, ContactOut/web enrichment, page creation with full property mapping, materials handling — is Sonnet-class. Splitting the two via the queue keeps each tier doing what it's good at and was the structural fix for the Evalion 2026-06-01 failure mode (Haiku narrated `(would execute)` instead of running add-to-crm inline).
 
-Do NOT read `add-to-crm/SKILL.md` or attempt to execute its steps inline. Instead, write a typed args JSON file and invoke the canonical helper `~/.claude/scripts/enqueue-addcrm.sh` — it wraps the args in the queue envelope, computes the idempotency key, and POSTs to `/enqueue`. The helper exists so Haiku doesn't have to template a mixed-shape JSON inline (bools, arrays, mixed-shape `sourceDirective`).
+Do NOT read `add-to-crm/SKILL.md` or attempt to execute its steps inline. Instead, write a typed args JSON file per company and invoke the canonical helper `~/.claude/scripts/enqueue-addcrm.sh` — it wraps the args in the queue envelope, computes the idempotency key (using the optional `idempotencySuffix` field for fan-out disambiguation), and POSTs to `/enqueue`. The helper exists so Haiku doesn't have to template a mixed-shape JSON inline (bools, arrays, mixed-shape `sourceDirective`).
 
-Steps:
+#### Source attribution for multi-company digests
 
-1. Write the args dict to `/tmp/addcrm-args-<messageId>.json`. The shape (use exact JSON types — booleans unquoted, arrays as arrays, `sourceDirective` either a string OR an object):
+Before the loop, decide the `sourceDirective` shape. The rule applied per-company:
+
+- **Single-company email** (`companies.length === 1`) AND not a forward → `"Direct"` (sender = the founder).
+- **Multi-company digest** (`companies.length >= 2`) → `{ email: senderEmail, name: senderName }`. The sender of a digest is by definition a referrer: no founder writes a digest pitching 4 separate startups. Apply this even when `forwardedFromTom`/`forwardedFromReferrer` are false — the multi-company shape itself is the signal.
+- **Forwarded email** (any company count, `forwardedFromTom` true with inner-domain mismatch per Step 1B, OR `forwardedFromReferrer` true) → `{ email: referrerEmail, name: referrerName }` for every per-company job. Step 1B/1C source resolution overrides the multi-company rule above.
+- **Self-forward, inner-domain matches pitched company** (Step 1B), single-company → `"Direct"`, Status default = `Connected`. (Multi-company self-forwards where the inner sender matches one of the companies — exceedingly rare — still use the digest rule above; mark that one company `"Direct"` if you can and the rest `{ email: senderEmail, ... }`.)
+
+#### Loop
+
+For each company in `companies[]` (use the array index `i`, zero-based):
+
+1. Write `/tmp/addcrm-args-<messageId>-<i>.json` with the shape below. Use exact JSON types — booleans unquoted, arrays as arrays, `sourceDirective` either a string OR an object:
 
 ```json
 {
@@ -127,44 +161,45 @@ Steps:
   "senderEmail": "<senderEmail arg, verbatim — webhook already swapped for forward cases>",
   "senderName": "<senderName arg, verbatim>",
   "classifierHints": {
-    "company": "<from Step 2>",
-    "description": "<from Step 2>",
-    "founder_first_name": "<from Step 2>",
-    "founder_li_url": "<from Step 2>",
-    "website": "<from Step 2>",
-    "round_details": "<from Step 2>",
-    "stage": "<from Step 2>"
+    "company": "<companies[i].name>",
+    "description": "<companies[i].description>",
+    "founder_first_name": "<companies[i].founder_first_name>",
+    "founder_li_url": "<companies[i].founder_li_url>",
+    "website": "<companies[i].website>",
+    "round_details": "<companies[i].round_details>",
+    "stage": "<companies[i].stage>"
   },
-  "statusDirective": "<Connected | Qualified | Outreach | Scheduled — per Step 1B/1C>",
-  "sourceDirective": "Direct",
-  "materialUrls": [],
+  "statusDirective": "<Connected | Qualified | Outreach | Scheduled — per Step 1B/1C; default Qualified for multi-company digests>",
+  "sourceDirective": "Direct" | { "email": "...", "name": "..." },
+  "materialUrls": ["<companies[i].material_urls — per-company slice>"],
   "forwardedFromTom": false,
-  "forwardedFromReferrer": false
+  "forwardedFromReferrer": false,
+  "idempotencySuffix": "",
+  "batchContext": null
 }
 ```
 
-For referrer cases (`forwardedFromReferrer: true` OR `forwardedFromTom: true` with inner-domain mismatch per Step 1B), set `sourceDirective` to an object instead of `"Direct"`:
+  - For `companies.length === 1`: omit `idempotencySuffix` (or set it to `""`) and omit `batchContext` (or set it to `null`). Behavior matches the pre-fan-out single-company path exactly.
+  - For `companies.length >= 2`: set `idempotencySuffix` to `"-<i>"` (e.g. `"-0"`, `"-1"`, ...) so each enqueued job dedups independently at the queue layer (`add-to-crm-<messageId>-0`, `add-to-crm-<messageId>-1`, ...). Set `batchContext` to `{ "total": <companies.length>, "index": <i> }` so `add-to-crm` can surface "(2 of 4 from David Talpalar digest)" in its Slack alert.
 
-```json
-"sourceDirective": { "email": "<referrer email>", "name": "<referrer name>" }
-```
-
-And include `referrerEmail` / `referrerName` at the top level of the args dict (the webhook passes them as args when `forwardedFromReferrer: true`).
+  For referrer cases (forwarded-from-Tom-with-inner-mismatch, forwarded-from-referrer), include `referrerEmail` / `referrerName` at the top level — the webhook passed them as args.
 
 2. Invoke the helper:
 
 ```bash
-~/.claude/scripts/enqueue-addcrm.sh /tmp/addcrm-args-<messageId>.json
+~/.claude/scripts/enqueue-addcrm.sh /tmp/addcrm-args-<messageId>-<i>.json
 ```
 
-The helper reads `$CLAUDE_JOB_QUEUE_SECRET` from env (injected by `processor.py:_skill_env()`) and POSTs the envelope to `https://claude-job-queue.tom-182.workers.dev/enqueue`. Idempotency key is computed automatically as `add-to-crm-<messageId>`.
+The helper reads `$CLAUDE_JOB_QUEUE_SECRET` from env (injected by `processor.py:_skill_env()`) and POSTs the envelope to `https://claude-job-queue.tom-182.workers.dev/enqueue`. Idempotency key is computed automatically as `add-to-crm-<messageId><idempotencySuffix>`.
 
 3. Check the result. The helper exits:
-   - **0** + response body `{"enqueued": true, ...}` → success, downstream `add-to-crm` job will run on its own tick.
-   - **0** + response body `{"enqueued": false, "reason": "dedup"}` → an `add-to-crm` job for this messageId was already enqueued (e.g. on a previous retry of this skill). That's fine — log `add-to-crm-already-enqueued` and exit 0 from this skill.
-   - **Non-zero** (2 or 3) → infrastructure error (missing secret, malformed args, HTTP non-200). **Exit non-zero from this skill** so the processor moves the job to `failed/` and posts a Slack failure alert. Do not silently swallow the enqueue failure.
+   - **0** + response body `{"enqueued": true, ...}` → success, this company's downstream `add-to-crm` job will run on its own tick.
+   - **0** + response body `{"enqueued": false, "reason": "dedup"}` → an `add-to-crm` job for this `messageId<suffix>` was already enqueued (e.g. on a previous retry of this skill). That's fine — log `add-to-crm-already-enqueued company=<name> i=<i>` and continue the loop.
+   - **Non-zero** (2 or 3) → infrastructure error (missing secret, malformed args, HTTP non-200). **Continue the loop for remaining companies, but exit non-zero from this skill at the end** so the processor moves the job to `failed/` and posts a Slack failure alert. Partial fan-out (some enqueued, some failed) is acceptable — the queue's dedup means a retry of this skill won't double-enqueue the successful ones.
 
-`add-to-crm` itself owns the Slack alert for created/deduped/blocked outcomes (its own Step 8). This skill does NOT post a Slack alert when it enqueues successfully — the alert comes from the follow-on job.
+4. After the loop, log a single summary line: `fan-out-complete companies=<N> enqueued=<E> already=<A> failed=<F>`.
+
+`add-to-crm` itself owns the Slack alert for created/deduped/blocked outcomes (its own Step 8). This skill does NOT post a Slack alert when it enqueues successfully — the alerts come from the follow-on jobs (one per company). For multi-company digests, `add-to-crm` reads `batchContext` and tags its alert with the batch position so Tom can correlate the N Slack messages back to the digest email.
 
 ### Step 5: Report to Slack (skip-paths only)
 
@@ -184,6 +219,7 @@ Exit 0 on any successful path (enqueued, gated/skipped, dedup-rejected at queue 
 
 ## Notes
 
-- **Idempotency:** the webhook keys the job by `messageId` (`idempotencyKey: 'inbound-deal-detect-' + messageId`), so re-deliveries from Gmail Pub/Sub are deduped at the queue layer. The skill itself does not need its own dedup beyond `add-to-crm`'s existing duplicate check.
+- **Idempotency (this skill):** the webhook keys the job by `messageId` (`idempotencyKey: 'inbound-deal-detect-' + messageId`), so Gmail Pub/Sub re-deliveries are deduped at the queue layer. The skill itself does not need its own dedup beyond `add-to-crm`'s existing duplicate check.
+- **Idempotency (fan-out):** each per-company `add-to-crm` job is keyed `add-to-crm-<messageId><idempotencySuffix>` — single-company emails use bare `add-to-crm-<messageId>` (backward compat with pre-fan-out runs), multi-company digests use `add-to-crm-<messageId>-0`, `-1`, ... If this skill retries (e.g. partial fan-out failed mid-loop), already-enqueued companies dedup at the queue and the loop continues for the rest without double-enqueuing the successes.
 - **Founder-sender exclusion is now this skill's job.** The webhook used to skip emails whose sender matched a portfolio founder, but the heuristics (Contact-field substring, People→Founder relation) misfired in both directions — referrers tripped the substring check, and Opps with no Founder relation leaked through. Removed 2026-05-06. The classifier's not-deal rubric ("Founder update on an existing portfolio company") now gates this entirely; rely on it instead of pre-screening on the sender.
 - **No People DB row creation** for the founder (per Tom's standing rule) — `add-to-crm` already honors this.
