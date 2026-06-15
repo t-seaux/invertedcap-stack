@@ -103,6 +103,8 @@ The Agent View is a consolidated Notion database view that returns Opportunities
 
 Use `notion-query-database-view` with the filtered view URL to get all Opportunities in active pipeline stages in a single call. This is useful in Step 3 (Resolve the Opportunity) and Step 5 (Update the Qualified field) — you can check existing intros and avoid duplicates more efficiently than searching the full Opportunities collection.
 
+**Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth.
+
 ## Four Detection Patterns
 
 ### Pattern 1: Forwardable Email (Batch Intros)
@@ -204,6 +206,8 @@ For every inbound message surfaced by the inbox query AND every outbound proposa
 If both legs are present, route the thread through Pattern 4 extraction (above) before applying the standard Pattern 1/2/3 logic. If only the outbound leg is present (no reply yet), do not write to Qualified — Tom may still revise the list before the founder replies. If only the inbound leg surfaced via the keyword query, walk backward in the thread to find Tom's outbound proposal; the prior message is usually within the same thread.
 
 This step exists because the original 2026-06-02/03 Uprise miss had Tom's outbound proposal lacking any "intro" token, so the keyword-only sweep failed to pair the legs. Always look at the thread, not the message in isolation.
+
+**Single-thread provenance — applies to ALL detection patterns (1–4), not just Pattern 4.** Every candidate (person, Opp) pair must be evidenced within a single coherent thread/message before any extraction or write. Cross-thread or same-day co-occurrence is NEVER sufficient — do not stitch a person from one email with an Opp/founder from a different email merely because both surfaced in the same 24h scan window. Walking backward/forward within one thread (as above) is fine; combining separate threads is not. Canonical miss (2026-05): Erik Ronning (Rengo, unrelated 15:45 thread) and Chris Freeberg (Altis, 23:04 intro to Chris Oh) were stitched into a fabricated Rengo→Chris intro from same-day co-occurrence. See `shared-references/intro-lifecycle-contract.md` (Single-Thread Provenance).
 
 ### Step 2: Extract Structured Data
 
