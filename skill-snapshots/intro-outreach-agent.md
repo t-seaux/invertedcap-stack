@@ -29,6 +29,8 @@ Your return payload should include, for each person you touched: their name, tar
 
 The intro lifecycle has a critical gap between "Tom committed to making an intro" (Qualified) and "Tom actually reached out to the person" (Outreach). Without tracking this transition, Tom can't tell which intros he's actually acted on versus which are still sitting in his queue. This workflow closes that gap by automatically detecting outreach and updating the pipeline.
 
+**Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth.
+
 ## The Intro Lifecycle
 
 ```
