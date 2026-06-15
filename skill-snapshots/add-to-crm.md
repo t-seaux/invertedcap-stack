@@ -117,6 +117,8 @@ Determine the input type and extract all available data points:
 
 **Pasted text:** Parse directly for all relevant data points.
 
+**Founder-background vs pitched-company conflation rule:** when the source describes a founder's background ("ex-CTO of Stripe, now building Acme"), the Opportunity is the company being pitched NOW (Acme). Prior employers, exited companies, and "ex-X" credentials belong in the Description / page-body Team background — NEVER as the Opp title, Website, or company identity. If the email leads with the pedigree and buries the new company name, dig for the new company; do not log the prior employer as the deal.
+
 Target fields to extract (leave blank if not found):
 - Company name
 - Founder name(s) and LinkedIn URL(s)
@@ -297,7 +299,7 @@ See `references/schema.md` for the canonical page body structure. Key sections: 
 
 **IMPORTANT:** If DocSend materials were converted to PDF and uploaded to Drive as part of this flow, the Diligence Materials section must link ONLY to the Drive PDFs — never to the original `docsend.com/view/...` URLs. DocSend links are transient input; the Drive PDFs are the permanent artifact. This also applies to other sections (e.g. Round) — do not reference DocSend as the source of materials anywhere in the page body.
 
-**URL fidelity — never fabricate URLs in the page body.** Any URL written into the page body (deck links, demo URLs, GitHub repos, founder LinkedIn, company website, social profiles, third-party deck-sharing platforms, etc.) MUST appear as a literal substring of the source material (email body, screenshot OCR, deck text, pasted text). Before writing a link, verify the URL is present in the source — `grep -F "<url>" <source>` mentally. If the URL is not literally in the source, omit the link entirely and reference the artifact by name instead (e.g., `**Deck**: see attached` rather than `[Deck](https://docsend.com/view/<fabricated>)`). This rule overrides "be helpful by filling in plausible URLs" — a missing link is recoverable; a wrong link wastes Tom's time and corrupts the audit trail. Applies equally to: the Diligence Materials body section, the Source Context section, the Team section's founder LI links (if the LI URL wasn't in source, leave the founder name unlinked), and any inline references elsewhere on the page.
+**URL fidelity — never fabricate URLs in the page body.** Any URL written into the page body (deck links, demo URLs, GitHub repos, founder LinkedIn, company website, social profiles, third-party deck-sharing platforms, etc.) MUST appear as a literal substring of the source material (email body, screenshot OCR, deck text, pasted text, or a tool result such as a ContactOut response). Never reconstruct or guess a URL from memory or pattern (e.g. inferring `linkedin.com/in/firstlast` from a name) — omit instead. Before writing a link, verify the URL is present in the source — `grep -F "<url>" <source>` mentally. If the URL is not literally in the source, omit the link entirely and reference the artifact by name instead (e.g., `**Deck**: see attached` rather than `[Deck](https://docsend.com/view/<fabricated>)`). This rule overrides "be helpful by filling in plausible URLs" — a missing link is recoverable; a wrong link wastes Tom's time and corrupts the audit trail. Applies equally to: the Diligence Materials body section, the Source Context section, the Team section's founder LI links (if the LI URL wasn't in source, leave the founder name unlinked), and any inline references elsewhere on the page.
 
 **Source Context**
 [Raw source material: full email text, transcribed screenshot text, DM content, etc. Include Gmail deep link if from email.]
@@ -370,7 +372,7 @@ Before declaring add-to-crm complete (manual reply summary, or unattended exit-0
 3. **For each URL in the expected set, assert that either:**
    - (a) the URL appears as a chip in the Diligence Materials property field, OR
    - (b) the URL was re-hosted in Tom's Drive (per Step 3B/3C of materials-handler) and the resulting Drive file URL appears as a chip.
-4. **If any expected URL is missing from the property field → Step 6 was not completed.** Re-invoke `materials-handler` with the missing URLs and the new page ID. Do not exit until the property is populated.
+4. **If any expected URL is missing from the property field → Step 6 was not completed.** Re-invoke `materials-handler` with the missing URLs and the new page ID. After the re-invocation completes, **re-poll the Opp page once more** (re-fetch and re-read the Diligence Materials property) to confirm the missing URLs actually landed. If any URL is STILL missing after the re-invocation, do not finish silently: include a `⚠️ Manual upload needed: <URL list>` line in the Step 8 Slack alert (webhook mode) or the reply summary (manual mode) so Tom can intervene.
 
 For unattended/webhook runs: log the verification result (`materials-verified: ✅` or `materials-verified: ⚠️ re-invoked materials-handler for <N> missing URLs`) in the run summary. Failing the verification gate is a soft fail — re-invoking materials-handler is the recovery path, not an error exit.
 
