@@ -41,7 +41,7 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 - Skip Step 2 (Gmail search) — the message set is `threadId`'s messages.
 - Run Step 2.5 (idempotency gate) to filter to the unlabeled subset.
 - Run Steps 3 + 4 normally on the delta set, scoped to the thread.
-- Apply the `claude/materials-processed` label per Step 2.5 after writes succeed.
+- Apply the outcome label (`claude/materials-processed` on full success, `claude/materials-failed` on any fatal per-item failure) per Step 2.5 after processing.
 - Replace Step 5 with the Slack alert format below.
 
 **Slack alert (Mode B only) — fires only on success with ≥1 new artifact:**
@@ -66,7 +66,7 @@ Posted via the `send-alert` skill. Format (GFM — `send-alert` converts to Slac
 - **Diligence Materials and Deal Docs items are each individually linked** via `[label](url)`:
   - Drive-uploaded files → `[{filename}]({driveFileUrl})` (use the `url` returned by Drive Upload Apps Script — `https://drive.google.com/file/d/{fileId}/view`).
   - Link-only / interactive demos → `[{label}]({externalUrl})` (Figma, Loom, demo URLs, etc.).
-  - For demo chips with credentials, the label is the full chip name including credentials (`Inlets Demo (login: demo@inlets.ai; pw: Password124!)`) — Slack renders the parens fine inside the link text.
+  - For demo chips with credentials, the **Notion chip label** carries the full credentials (`Inlets Demo (login: demo@inlets.ai; pw: Password124!)`), but **any Slack alert text redacts the password**: render the chip in the alert as `Inlets Demo (login: demo@inlets.ai; pw: ***)`. The full credential lives ONLY in the Notion chip label — never in Slack.
 - **Omit a bullet entirely** if no artifacts landed in that field on this run. (E.g. a delta with only a term sheet shows ONLY the `Deal Docs` bullet.)
 - **Follow-up runs** (subsequent messages in an already-processed thread) use the exact same format — bullets only show what's new in this run, not the cumulative state.
 - Skip the alert entirely on no-op runs (delta set was empty, or processing failed for every artifact).
@@ -78,7 +78,7 @@ Posted via the `send-alert` skill. Format (GFM — `send-alert` converts to Slac
 **📎 Materials: [Inlets](https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002) ([Email](https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41))**
 
 - **Page Body:** Company Blurb
-- **Diligence Materials:** [Inlets - One-Pager (2026)](https://drive.google.com/file/d/.../view), [Inlets - Oncology Case Study](https://drive.google.com/file/d/.../view), [Inlets Demo (login: demo@inlets.ai; pw: Password124!)](https://app.inlets.ai/)
+- **Diligence Materials:** [Inlets - One-Pager (2026)](https://drive.google.com/file/d/.../view), [Inlets - Oncology Case Study](https://drive.google.com/file/d/.../view), [Inlets Demo (login: demo@inlets.ai; pw: ***)](https://app.inlets.ai/)
 ```
 
 **Demo chip label format reminder:** `[Company] Demo (login: <email>; pw: <password>)` — see Step 3F.
@@ -208,14 +208,19 @@ The chip-add helper (`notion_files_property.py`) takes `--prop "Deal Docs"` or `
 
 **Before processing each message in the working set:**
 
-1. Read its labels. If it carries `claude/materials-processed`, drop it from the working set — already handled. (Mode B: the trigger message itself is exempt only when the webhook just fired *because* of new content on that message — in practice the trigger is unlabeled by construction; do not bypass the check.)
+1. Read its labels. If it carries `claude/materials-processed`, drop it from the working set — already handled. A message carrying only `claude/materials-failed` (see below) STAYS in the working set — it's the retry surface; `notion_files_property.py`'s URL-idempotency prevents duplicating the chips that already landed on the prior attempt. (Mode B: the trigger message itself is exempt only when the webhook just fired *because* of new content on that message — in practice the trigger is unlabeled by construction; do not bypass the check.)
 2. After processing, keep only the messages that lack the label — the "delta set."
 3. If the delta set is empty, exit cleanly: no Notion writes, no Drive uploads, no Slack alert. Log the skip with reason `already-processed`.
 
-**After writes succeed for a message** (chips written to Notion + page-body update + Step 4.5/4.6 if applicable), apply the label to that specific message:
+**After processing completes for a message** (chips written to Notion + page-body update + Step 4.5/4.6 if applicable), apply ONE outcome label to that specific message:
+
+- **`claude/materials-processed`** — ONLY when ALL of the message's items landed: every chip written successfully, or covered by an explicit fallback notation (e.g. a logged Gmail deep-link fallback per Step 3A's error handling). Full success = processed.
+- **`claude/materials-failed`** — when ANY item fatally failed (upload failed after retry, chip write exited 1, conversion broke with no fallback recorded). The failed label keeps the message visible for a retry run without re-processing the successes (chip idempotency covers those). On a later fully-successful retry, apply `claude/materials-processed`; the processed label is what the Step 2.5 read-gate keys on, so a lingering `materials-failed` label is harmless history.
 
 ```bash
 /Users/tomseo/.claude/scripts/gmail-label.py --label claude/materials-processed <messageId> [<messageId> ...]
+# or, on any fatal per-item failure:
+/Users/tomseo/.claude/scripts/gmail-label.py --label claude/materials-failed <messageId> [<messageId> ...]
 ```
 
 The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `gmail.modify` scope (the Gmail MCP does not). Multiple message IDs in one call are fine; the label is created if it doesn't exist. Label only after writes complete — labeling before writes risks marking a message processed when the run actually failed.
@@ -223,7 +228,7 @@ The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `g
 **Mode-specific notes:**
 - **Mode B (webhook):** working set = all messages in the inbound `threadId`. Apply this gate as the first thing after Step 0 / Status Guard.
 - **Mode C (manual / delegated):** working set = Step 2's Gmail search hits, deduped by messageId. Apply this gate immediately after Step 2, before any Drive uploads or processing.
-- **Partial-success runs:** if some chips landed for a message and others failed, still label the message — re-running won't recover the failed chips anyway, and leaving it unlabeled risks duplicating the chips that succeeded.
+- **Partial-success runs:** if some chips landed for a message and others fatally failed, apply `claude/materials-failed` (NOT `materials-processed`) — the message stays visible for retry, and the chip-write idempotency in `notion_files_property.py` protects the chips that already succeeded from duplication on the retry.
 
 ## Step 3: Process Materials
 
@@ -313,6 +318,7 @@ Use this path when the source email includes a live product demo — typically a
 5. **Multiple credential pairs** — if the founder provides separate logins for different roles (admin/viewer/etc.), create one chip per pair with role appended: `Inlets Demo - Admin (login: ...; pw: ...)`.
 6. **Demo URL with no credentials** (public sandbox / unauth'd app) — fall back to Step 3E. Label: `[Company] - Product Demo`.
 7. **Detection signal** — look for an `app.*` / `demo.*` / `staging.*` URL in proximity to lines starting `Login:`, `Username:`, `User:`, `Email:`, `Password:`, `PW:`, `Pass:` (case-insensitive). Skip the path entirely if no credentials are present — that's a Step 3E case.
+8. **Slack redaction** — when a demo chip is referenced in ANY Slack alert text, redact the password as `pw: ***` (login email may stay). The full credential appears only in the Notion chip label.
 
 ## Step 4: Update the Notion Opportunity Page
 
@@ -467,9 +473,9 @@ If the deck also states a clearer **Stage** than what's currently on the Opp (e.
 
 Note in the Step 5 summary: extracted (with the value written) / no-match (deck mined, nothing explicit) / skipped (Round Details already populated, or no readable materials).
 
-## Step 4.7: Apply `claude/materials-processed` Label
+## Step 4.7: Apply the Outcome Label (`claude/materials-processed` / `claude/materials-failed`)
 
-After all writes for a message succeed (chips on the property, page body, Contact/Round Details updates if applicable), apply the `claude/materials-processed` Gmail label per the rules in Step 2.5. This closes the idempotency loop in **all modes** — Mode B, Mode C manual, and delegated invocations from `pipeline-agent` / `add-to-crm`. Without this step, a follow-up run against the same Opp re-finds the same email in Gmail search and re-processes it, creating duplicate Drive uploads and duplicate chips (the canonical-filename dedup in `notion_files_property.py` catches the chip duplication, but the wasted Drive uploads remain).
+After processing for a message completes, apply the outcome label per the rules in Step 2.5: `claude/materials-processed` only when ALL items landed (chips on the property, page body, Contact/Round Details updates if applicable — or explicit logged fallback notations), `claude/materials-failed` when any item fatally failed so the message stays retry-visible. This closes the idempotency loop in **all modes** — Mode B, Mode C manual, and delegated invocations from `pipeline-agent` / `add-to-crm`. Without this step, a follow-up run against the same Opp re-finds the same email in Gmail search and re-processes it, creating duplicate Drive uploads and duplicate chips (the canonical-filename dedup in `notion_files_property.py` catches the chip duplication, but the wasted Drive uploads remain).
 
 ## Step 5: Report Summary
 
