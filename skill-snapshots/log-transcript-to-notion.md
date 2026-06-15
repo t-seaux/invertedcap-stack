@@ -166,6 +166,8 @@ Use `**Frameworks**` as a bolded text label (not a Markdown header `##`). Under 
 - Follow with 2-4 sentences explaining the framework in the speaker's own logic
 - Ground it with a specific example or quote from the transcript (paraphrased or briefly quoted) to anchor it to the actual content — do not write frameworks in the abstract
 
+**Traceability check (MANDATORY after generating frameworks)**: for each framework, verify it is directly stated or clearly paraphrased in the transcript — search the transcript for the framework's key terms and its supporting quote/example. If a framework can't be traced, re-generate it once with the constraint "frameworks must match actual transcript content — only extract models the speaker explicitly articulates." Drop any framework that still can't be traced. Never publish a framework the speaker didn't actually articulate, however well it fits the topic.
+
 ---
 
 ### Transcript Section
