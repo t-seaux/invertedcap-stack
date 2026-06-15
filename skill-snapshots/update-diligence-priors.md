@@ -325,6 +325,24 @@ The original first-pass and every prior Update have already been audited by thei
 (first-pass-diligence Step 4b; this skill's Step 4.5 on prior runs). Re-auditing them is
 wasted judge time and burns iteration budget on already-cleared content.
 
+### Speaker-attribution script gate — MANDATORY before the audit
+
+Code-enforcement of the Step 4 Guidance rule that Tom's reframings belong to Tom (the
+prose rule stays in force). Run the verifier on the new Update block against each labeled
+transcript from Step 2:
+
+```bash
+for T in /tmp/firstpass_labeled_transcripts/*.md; do
+  python3 ~/.claude/scripts/verify_speaker_attribution.py \
+      --draft /tmp/<company>_update_block_only.md --transcript "$T"
+done
+```
+
+Exit 0 = clean. Exit 1 = the JSON output's `{"flagged": [...]}` lists claims whose speaker
+attribution contradicts the transcript — re-attribute each to Tom (when Tom introduced the
+framing and the founder agreed) or reword to drop the attribution, BEFORE the audit runs
+and before any Notion prepend.
+
 ### Update-priors-specific wiring — apply these bindings when following research-artifact-audit/SKILL.md
 
 | Binding (per research-artifact-audit) | Value (update-diligence-priors) |
