@@ -1393,6 +1393,25 @@ Concrete prior incident: Alongside Medical first-pass 2026-06-06 attributed the
 Brex-default-expense-policy analogy to Sonia when Tom actually introduced it on
 the June 2 call; the attribution check exists to catch this class deterministically.
 
+**Speaker-attribution script gate — MANDATORY (same hard-gate semantics as the
+lint).** After the lint passes, run the deterministic speaker-attribution
+verifier on the draft against EACH labeled call transcript:
+
+```bash
+for T in /tmp/firstpass_labeled_transcripts/*.md; do
+  python3 ~/.claude/scripts/verify_speaker_attribution.py \
+      --draft /tmp/firstpass_draft.md --transcript "$T"
+done
+```
+
+Exit 0 = clean. Exit 1 = the JSON output's `{"flagged": [...]}` lists claims
+whose speaker attribution contradicts the transcript. Every flagged claim MUST
+be resolved before publish: re-attribute to Tom (when Tom introduced the
+framing and the founder agreed) or reword to drop the attribution entirely.
+This is code-enforcement of deviation #28's prose rule; the prose rule stays
+in force for attributions sourced from non-transcript material the script
+can't see.
+
 `--memo-text-dir /tmp/firstpass_memos` is MANDATORY in the canonical flow —
 Step 1e populates that directory with per-company memo text files. The lint
 then runs an LLM-judge grounding check on every sentence that attaches a
