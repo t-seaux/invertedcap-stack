@@ -27,6 +27,8 @@ When run via run-all or the Intro Agent orchestrator, this sub-agent does NOT se
 
 The bottleneck in Tom's intro pipeline is the gap between "contact said yes" and "Tom actually sends the intro email." Tom may have 5 opt-in replies sitting in his inbox but hasn't had time to compose the intro emails. By auto-drafting these emails, you eliminate the composition friction — Tom just reviews and hits send. This dramatically reduces the time intros sit in Outreach after a positive response.
 
+**Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth.
+
 ## Where this fits in the Intro Lifecycle
 
 ```
@@ -186,7 +188,10 @@ Query: "in:inbox newer_than:1d from:<person_email>"
 Read the email content and classify:
 - **Opt-in**: "sounds great", "happy to connect", "I'd love to", "sure", "yes", "go ahead", "please introduce us", "looking forward to it", "let's do it", "I'm in"
 - **Not opt-in**: decline language, questions, ambiguous responses → skip (the Resolution Scanner handles declines)
-- **Deferral (NOT opt-in)**: "timing is rough", "happy to connect closer to [future date]", "not now but maybe later", "circle back in a few months", "a bit too early", "let's revisit in Q3" → skip. Deferrals are treated as passes and the Resolution Scanner will move them to Declined/NR. Do NOT create a draft for deferrals.
+- **Deferral (NOT opt-in — split soft vs hard per `shared-references/intro-lifecycle-contract.md`)**: never create a draft for a deferral, but the two kinds route differently:
+  - **Hard deferral** (indefinite timing, no commitment, no clear re-engagement path: "not now but maybe later", "circle back in a few months" with nothing specific, "timing is rough" full stop) → skip; the Resolution Scanner will move them to Declined/NR.
+  - **Soft deferral** (expressed interest + specific near-term re-engagement path: "happy to connect closer to [specific date]", "ping me after [specific event]", "let's revisit in Q3") → no draft yet; the person STAYS in ☎️ Outreach. List them in the run report under "Soft deferrals (no draft — recheck on a later scan)" so the opt-in is rechecked on a later scan.
+  - Only a clear, present-tense opt-in produces a draft.
 
 **Verify no draft/sent email exists yet:**
 
@@ -248,6 +253,9 @@ Provide a clear summary:
 ### Skipped (draft or sent email already exists):
 - **Dan Li** → Quiet AI — intro email already sent
 
+### Soft deferrals (no draft — recheck on a later scan):
+- **Chris Park** → Beta Co — replied "ping me after our Series A closes"; stays in Outreach
+
 ### No opt-in detected:
 - **Alex Chen** → Widget Inc — no reply found
 ```
@@ -262,7 +270,7 @@ Provide a clear summary:
 
 4. **Person in Outreach for multiple Opportunities**: Create separate drafts for each Opportunity. Each intro is independent.
 
-5. **Opt-in is ambiguous or a deferral**: If the reply is unclear ("maybe", "let me think about it", "tell me more") or is a deferral ("timing is rough", "happy to connect later", "not now but maybe in a few months"), do NOT create a draft. Only draft for clear, present-tense opt-ins. Deferrals are classified as passes and handled by the Resolution Scanner.
+5. **Opt-in is ambiguous or a deferral**: If the reply is unclear ("maybe", "let me think about it", "tell me more"), do NOT create a draft — only draft for clear, present-tense opt-ins. Deferrals also get no draft, but split per `shared-references/intro-lifecycle-contract.md`: **hard** deferrals (indefinite timing, no commitment) are left for the Resolution Scanner to move to Declined/NR; **soft** deferrals (expressed interest + specific near-term re-engagement path) stay in Outreach and are noted in the run report for recheck on a later scan.
 
 6. **Draft already exists for this exact intro**: Check existing drafts before creating. If a draft with a matching subject already exists, skip and report as "draft already queued."
 
