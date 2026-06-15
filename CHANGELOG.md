@@ -1,4 +1,36 @@
 # Changelog
+## [2026-06-15] (Week of 2026-06-15)
+
+**Added:** batch-add-to-crm (Pipeline Management — was in mapping since 2026-06-12, now surfaced to Platform Map and Quick Reference)
+**Removed:** None
+**Modified:**
+- add-conversation-to-notion -- added traceability check requiring extracted frameworks to anchor to specific conversation turns
+- add-to-crm -- added founder-background vs. pitched-company conflation guardrail; tightened URL fidelity rule to include tool-result sources; added materials re-poll step on missing URLs
+- batch-add-to-crm -- added founder-background vs. pitched-company conflation guardrail
+- diligence-qa -- added coverage-minimum validation script gate at JSON emission, before doc build
+- finalize-diligence -- moved shape-rule lint to run before Notion write; added speaker-attribution script gate; refined Standing Open Questions audit to use forward_looking verdict
+- first-pass-diligence -- added speaker-attribution script gate (code-enforcement of speaker attribution rules)
+- inbound-deal-detect -- added update-vs-pitch detection (founder updates skip add-to-crm); added material_urls_ambiguous flag; added medium-confidence evidence gate
+- intro-agent -- added canonical lifecycle contract reference; added single-thread provenance rule preventing cross-thread candidate-Opp pairings
+- intro-draft-agent -- added lifecycle contract reference; split deferral handling: soft deferrals stay in Outreach for recheck; hard deferrals route to resolution scanner
+- intro-note-processor -- added lifecycle contract reference; added boundary examples for intro commitment extraction
+- intro-outreach-agent -- added lifecycle contract reference
+- intro-resolution-agent -- added lifecycle contract reference
+- investor-update -- added pre-write grounding gate (deterministic + semantic layers) validating all metrics against source before Notion write
+- log-intro -- added lifecycle contract reference
+- log-transcript-to-notion -- added traceability check requiring extracted frameworks to anchor to actual transcript content
+- materials-handler -- added outcome label for failed runs; clarified processed vs. failed label logic; added credential redaction for demo chip passwords in Slack alerts
+- neg1-enricher -- made 4-round online presence search sequential and mandatory; added URL verification post-write; clarified Intentionality handling in Eval Summary
+- pipeline-agent -- removed Chrome environment gate; simplified materials delegation (full flow via public Notion API in all cases)
+- pre-mortem -- added specificity gate requiring failure modes to anchor to company-specific diligence facts; capped re-prompts at MAX_ITER=2
+- product-build-teardown -- added calibration-cite resolution verification script; enhanced killshot requirements to include named competitor evidence
+- research-agent -- added cadence annotation for curated firms; deny-listed firms now logged in a digest footer for auditability
+- update-diligence-priors -- added speaker-attribution script gate before audit
+**Total skills:** 32
+**Functions:** Pipeline Management — batch-add-to-crm surfaced to Platform Map and Quick Reference
+
+---
+
 
 ## [2026-06-12] (Week of 2026-06-09)
 
