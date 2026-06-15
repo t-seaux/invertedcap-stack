@@ -296,14 +296,11 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
 
 **Goal**: Scan Gmail for materials (decks, memos, blurbs, one-pagers, term sheets) related to companies in the Agent View. Delegate to the `materials-handler` skill for the full download → Drive upload → Notion linking flow. The materials-handler skill now works in all environments (Gmail attachments are saved via the Apps Script endpoint — no Chrome dependency).
 
-**Environment gate**: At the start of this sub-agent, check whether `Claude_in_Chrome` tools are accessible. Chrome is only needed for the Notion Diligence Materials property field — attachment downloading works in all environments via the Apps Script endpoint.
-
-- **Chrome available** → delegate to `materials-handler` (full flow including Notion property field)
-- **Chrome unavailable** → delegate to `materials-handler` (full flow minus Notion property field)
+**No environment gate.** The Diligence Materials property field is written via the public Notion Files API (`~/.claude/scripts/notion_files_property.py`) — no Chrome dependency anywhere in the flow. Always delegate the full flow to `materials-handler`.
 
 ### Path A: Full Flow (All Environments)
 
-For each company with materials detected in Gmail, read the `materials-handler` skill at `/Users/tomseo/.claude/skills/materials-handler/SKILL.md` and follow its instructions. Pass each company's name, Notion page ID, and the Gmail message IDs found in the search. The materials-handler skill handles: downloading attachments via the Apps Script endpoint, converting DocSend links, uploading to the G Drive Diligence folder, and linking everything in the Notion page body (and Diligence Materials property field when Chrome is available).
+For each company with materials detected in Gmail, read the `materials-handler` skill at `/Users/tomseo/.claude/skills/materials-handler/SKILL.md` and follow its instructions. Pass each company's name, Notion page ID, and the Gmail message IDs found in the search. The materials-handler skill handles: downloading attachments via the Apps Script endpoint, converting DocSend links, uploading to the G Drive Diligence folder, and linking everything in the Notion page body and Diligence Materials property field.
 
 Still follow the scanning and efficiency rules below (Steps 1–2) to identify which companies have materials before delegating.
 
@@ -321,9 +318,9 @@ Still follow the scanning and efficiency rules below (Steps 1–2) to identify w
 2. For each company, run **one** targeted Gmail search combining the company name or founder name with `has:attachment newer_than:1d`. Example: `"LEDGR" has:attachment newer_than:1d`. Use `maxResults: 5` per search. **Cap at 15 companies** — if the view contains more, process the 15 with the most recent Notion activity and note the remainder were skipped.
 3. For each Gmail search hit, call `gmail_read_message` on the messageId to confirm the email contains relevant materials (deck, memo, model, term sheet, side letter, one-pager, blurb — not SaaS marketing or newsletters). Note the messageId, subject, sender, date, and attachment filenames. Also note any DocSend links, Google Drive share links, or other material URLs in the email body.
 
-4. **If Path A (Chrome available)**: For each company with confirmed materials, invoke the `materials-handler` skill with: company name, Notion page ID, list of confirmed Gmail message IDs, and any material URLs found in email bodies. The skill handles the rest.
+4. **Path A (default)**: For each company with confirmed materials, invoke the `materials-handler` skill with: company name, Notion page ID, list of confirmed Gmail message IDs, and any material URLs found in email bodies. The skill handles the rest.
 
-   **If Path B (no Chrome / lightweight)**: For each confirmed match, update the Notion opportunity page via `notion-update-page` with `command: "update_content"`. Append a section to the page content:
+   **Path B (fallback — only if materials-handler / the Apps Script endpoint fails)**: For each confirmed match, update the Notion opportunity page via `notion-update-page` with `command: "update_content"`. Append a section to the page content:
    ```
    ## 📎 Diligence Materials
 
@@ -464,11 +461,10 @@ After all seven sub-agents complete, compile summaries:
 - **No match in pipeline**: [count of signals with no Notion match]
 
 ### Materials Scanner
-- **Mode**: Full flow (Chrome available) / Lightweight (no Chrome)
 - **Companies scanned**: [count]
 - **Materials found**: [count] — [company: attachment description]
-  - **Uploaded to Drive**: [names, or "N/A — lightweight mode"]
-  - **Gmail deep links only**: [names, or "N/A — Apps Script succeeded"]
+  - **Uploaded to Drive**: [names]
+  - **Gmail deep links only (fallback)**: [names, or "N/A — Apps Script succeeded"]
 - **No materials**: [count] — [names]
 - **Skipped (cap)**: [count]
 
