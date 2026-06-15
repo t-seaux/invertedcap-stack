@@ -179,12 +179,13 @@ When Tom reviews a digest and gives feedback like "the only ones worth keeping a
 1. **Add keepers not yet on Tier 1** — if Tom names a firm worth keeping that isn't already in the Tier 1 curated list, add it to the appropriate section (or create a new one if needed).
 2. **Remove Tier 1 firms Tom rejects** — if a Tier 1 firm appears in his trim list, delete that row from Tier 1.
 3. **Append rejected Tier 2 firms to the deny-list below** — never replace, only append.
+4. **Annotate publishing cadence as it's learned** — when a scan confirms a Tier 1 firm's publishing pattern (e.g. quarterly letter typically lands in the first two weeks after quarter-end; annual letter in Jan–Mar), append a short cadence note to that firm's Tier 1 row. Never guess a cadence — only record it after observing an actual publication or when Tom states it. Cadence notes explain "no new letter from X" results: if a firm is outside its window, that's expected; if it's well inside its window with no hit, try the firm's own site/landing page directly before concluding nothing was published.
 
 Confirm the edits back to him with a one-liner — don't just say "noted."
 
 ### Tier 2 Deny-List (Do Not Surface)
 
-Tom has reviewed and rejected these firms — they are **not interesting** for his research scan and must be filtered out of Tier 2 / discovery output. If a search result matches any name below, drop it silently (do not include in the digest, do not flag as a "promotion candidate"). Tom curates this list iteratively — when he flags additional firms as not interesting, append them here.
+Tom has reviewed and rejected these firms — they are **not interesting** for his research scan and must be filtered out of Tier 2 / discovery output. If a search result matches any name below, exclude it from the digest body and never flag it as a "promotion candidate" — but list the matched names in a one-line `Skipped (deny-list): [firm, firm]` footer at the bottom of the digest. The footer keeps the filter auditable and gives Tom a cheap reconsideration path ("actually, add Crescat back") without polluting the digest itself. Tom curates this list iteratively — when he flags additional firms as not interesting, append them here; if he names a deny-listed firm as worth keeping again, remove it from this list and restore it to Tier 2 eligibility (or Tier 1 if he says so).
 
 - Ariel Investments (all funds — Ariel Fund, Ariel Focus Fund, Ariel Small Cap Value Fund, etc.)
 - Aristotle Capital Management (all funds — Aristotle Core Equity Fund, etc.)
