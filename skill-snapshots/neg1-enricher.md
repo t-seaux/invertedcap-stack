@@ -130,12 +130,12 @@ Populate the `Online Presence` Files property with every discoverable URL for th
 - `profile.twitter[]` → Twitter/X URLs
 - Any URL found in `profile.summary` matching a personal-domain pattern (`*.com`, `*.io`, `*.dev`, `*.xyz`, `*.me`) that isn't a company domain
 
-**Phase B — Web search fallback.** For each platform below NOT already found via ContactOut, run the full 4-round search pass per memory `feedback_online_presence_look_harder.md`. Time-box: 5–8 minutes across all searches. The 4 rounds are mandatory by default — do NOT stop after Round 1 unless you've validated every candidate account.
+**Phase B — Web search fallback.** For each platform below NOT already found via ContactOut, run the full 4-round search pass per memory `feedback_online_presence_look_harder.md`. Time-box: 5–8 minutes across all searches. All 4 rounds are mandatory by default — execute the checklist below IN ORDER, completing each round before moving to the next. Do NOT stop after Round 1 unless you've validated every candidate account.
 
-- **Round 1 (baseline)**: site-specific queries (`"{Name}" site:x.com`, etc.)
-- **Round 2 (disambiguate via bio facts)**: combine name with unique identifiers (employer + school + city + specific product). Cross-check every Round 1 candidate against known bio facts — discard any account whose location/employer/year doesn't match.
-- **Round 3 (handle variants)**: try non-obvious patterns (middle initial, underscore, number suffix, locale suffix).
-- **Round 4 (verification)**: for any candidate, WebFetch the bio and require at least 2 fact matches before keeping.
+1. **Round 1 (baseline)**: run the site-specific queries from the source table (`"{Name}" site:x.com`, `"{Name}" site:github.com`, etc.). Collect obvious handle-match candidates.
+2. **Round 2 (disambiguate via bio facts)**: combine name with unique identifiers (employer + school + city + specific product). Cross-check EVERY Round 1 candidate against known bio facts — discard any account whose location/employer/year doesn't match.
+3. **Round 3 (name/handle variants)**: try non-obvious patterns (middle initial, underscore, number suffix, locale suffix, first-initial + last-name).
+4. **Round 4 (verification of candidate links)**: for every surviving candidate, WebFetch the bio/description and require at least 2 fact matches (e.g. location + employer, or employer + year) before keeping. Unverified candidates are excluded.
 
 Absence of social accounts IS signal — don't fabricate accounts, but don't stop at Round 1 misses either.
 
@@ -210,7 +210,7 @@ Apply the framework in two phases:
   - All signals Low → `Pass ❌`
 - `Working Description` (2-3 sentence TL;DR, anchored on the peak signal).
 - `Eval Breakdown` (per-signal rationale with evidence URLs from Phase 2 research).
-- `Eval Summary` — use the canonical structure from memory `feedback_eval_summary_format.md`: **Primary Signal: [Name].** paragraph → **Other Qualities** bullets (• **Signal Name (Rating).** sentence.) → **Gaps.** paragraph.
+- `Eval Summary` — use the canonical structure from memory `feedback_eval_summary_format.md`: **Primary Signal: [Name].** paragraph → **Other Qualities** bullets (• **Signal Name (Rating).** sentence.) → **Gaps.** paragraph. When Intentionality is unobservable from public data or rated Low, say so explicitly in one clause (e.g. "Intentionality unobservable from public sources" in Gaps) — informational only, never a veto; the no-Intentionality-gate scoring rule is unchanged.
 
 Write all four fields back to the -1 Scanner row via `notion-update-page`. Do not touch Status here.
 
@@ -279,6 +279,14 @@ For each company or school page in these three relations, call the Notion REST A
 - `Eval Summary` must follow the canonical structure: `**Primary Signal: [Name].** [paragraph]` → blank line → `**Other Qualities**` → bullet list → blank line → `**Gaps.** [paragraph]`. If malformed, re-write.
 - `Field(s) of Study` must use the normalized degree format: `"Field (Bachelor's)"`, not `"B.S."` / `"BS"` etc. If raw abbreviations detected, normalize and re-write.
 - `Experience Summary` entries must be separated by a blank line and use bold company-name prefix. If malformed, re-write.
+
+**Online Presence URL verification (post-write):**
+
+After the row's writes complete, verify every URL in the `Online Presence` Files property is live: issue an HTTP HEAD (fall back to GET if HEAD is rejected) for each. Treatment:
+
+- **2xx/3xx** → OK.
+- **`linkedin.com` URLs returning 999 or 403** → treat as OK (LinkedIn auth-walls automated requests; this is not a dead link).
+- **404 or connection-dead** → remove that entry from the `Online Presence` property (re-write the Files property without the dead entry via the public API) and report the removed URL in the Step 7 run summary as `Online Presence: removed dead link <url> (404)`.
 
 **Accumulate all auto-fixes and gaps.** Pass the list to Step 7 for inclusion in the report.
 
