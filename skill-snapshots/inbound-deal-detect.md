@@ -70,6 +70,7 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
 ```json
 {
   "is_deal": true | false,
+  "is_update_not_pitch": true | false,
   "confidence": "high" | "medium" | "low",
   "reason_if_not_deal": "string",
   "companies": [
@@ -81,7 +82,8 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
       "website": "string",
       "round_details": "string",
       "stage": "string",
-      "material_urls": ["string", ...]
+      "material_urls": ["string", ...],
+      "material_urls_ambiguous": true | false
     }
   ]
 }
@@ -103,7 +105,9 @@ Signals that are NOT multi-company (return single-element array):
 
 When in doubt, return one company. False fan-out creates ghost Opps Tom has to clean up — false collapse just means he uses `batch-add-to-crm` manually.
 
-**`material_urls` partitioning:** the args dict's top-level `materialUrls` arrives flat from the webhook (every deck/memo URL extracted from the body). When emitting `companies`, partition that list per-company — assign each URL to the company it visually clusters with in the body (e.g. a `simpleproduct.dev/share/...` memo URL belongs to the Simple Product entry, not Lucius). URLs whose target company is ambiguous go in the FIRST listed company's bucket — Tom will reassign manually if wrong. Companies with no associated URL get an empty array.
+**`material_urls` partitioning:** the args dict's top-level `materialUrls` arrives flat from the webhook (every deck/memo URL extracted from the body). When emitting `companies`, partition that list per-company — assign each URL to the company it visually clusters with in the body (e.g. a `simpleproduct.dev/share/...` memo URL belongs to the Simple Product entry, not Lucius). URLs whose target company is ambiguous go in the FIRST listed company's bucket — Tom will reassign manually if wrong — AND set `material_urls_ambiguous: true` on that company's entry (default `false`). Step 4 copies the flag into that company's `classifierHints` so downstream `add-to-crm` surfaces the ambiguity in its Slack alert. Companies with no associated URL get an empty array.
+
+**Update-vs-pitch sub-question (answer BEFORE setting `is_deal`):** Is this a founder UPDATE (progress report, intro ask, feedback request) or a NEW PITCH (seeking investment)? Only a NEW PITCH classifies as a deal. If the email is an update, set `is_update_not_pitch: true` and `is_deal: false` — Step 3 logs the skip and never enqueues. Set `is_update_not_pitch: false` otherwise.
 
 **A "new deal" is:**
 - A founder pitching their startup for investment
@@ -127,7 +131,9 @@ When in doubt, return one company. False fan-out creates ghost Opps Tom has to c
 ### Step 3: Gate on classification
 
 - `is_deal: false` → log `not-deal` with the reason and exit 0.
+- `is_update_not_pitch: true` → log `update-not-pitch-skip` and exit 0, regardless of confidence. Founder updates route through `investor-update`, never through add-to-crm.
 - `is_deal: true` AND `confidence: low` → log `low-confidence-skip` and exit 0. (Tom would rather miss a deal than create a noisy entry.)
+- `is_deal: true` AND `confidence: medium` → secondary evidence gate: a medium-confidence verdict proceeds only if at least TWO of these three signals are present in the extraction: (1) a named founder AND company name, (2) an explicit round amount (`round_details` non-empty), (3) a founder LinkedIn URL (`founder_li_url` non-empty). For multi-company emails, apply per-company and drop entries that fail. If no company clears the gate, downgrade to skip — log `medium-confidence-evidence-skip` listing which of the three signals were missing — and exit 0.
 - `is_deal: true` AND `confidence: medium`/`high` AND `companies` is empty OR every entry's `name` is empty → log `no-company-extracted` and exit 0.
 - `is_deal: true` AND `confidence: medium`/`high` AND at least one `companies[].name` populated → proceed to Step 4. Drop any per-company entry whose `name` is empty before looping.
 
@@ -167,7 +173,8 @@ For each company in `companies[]` (use the array index `i`, zero-based):
     "founder_li_url": "<companies[i].founder_li_url>",
     "website": "<companies[i].website>",
     "round_details": "<companies[i].round_details>",
-    "stage": "<companies[i].stage>"
+    "stage": "<companies[i].stage>",
+    "material_urls_ambiguous": <companies[i].material_urls_ambiguous — true only when an ambiguous URL was bucketed here>
   },
   "statusDirective": "<Connected | Qualified | Outreach | Scheduled — per Step 1B/1C; default Qualified for multi-company digests>",
   "sourceDirective": "Direct" | { "email": "...", "name": "..." },
