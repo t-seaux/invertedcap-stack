@@ -556,8 +556,13 @@ EOF
 
 ## Step 5: Pre-PDF Lint — MANDATORY GATE (Subagent B)
 
-After the Notion prepend but BEFORE PDF build, run the deterministic shape-rule lint over the
-FULL updated markdown (new Final Assessment + every Update + the inner First-Pass Diligence section).
+BEFORE the Notion prepend (Step 4) and BEFORE PDF build, run the deterministic shape-rule
+lint over the FULL updated markdown (new Final Assessment + every Update + the inner
+First-Pass Diligence section). Build the full markdown locally — the new FA draft prepended
+to the existing page content (the same local consolidated snapshot Step 7's PDF build uses)
+— do NOT wait for the prepend to land. Lint failures must be caught while the Notion page
+is still untouched; this also matches the subagent ordering (Subagent B verifies before
+Subagent C₂ publishes anything).
 
 Write the rebuilt full markdown to `/tmp/<company>_finalized_full.md` and run:
 
@@ -622,8 +627,11 @@ first-pass audit expects. Sections to include:
 [Current Notion Opp page properties + full verbatim page body]
 
 ==== LINKED NOTES ====
-[For EVERY Notion note in the Opp's ✍️ Notes relation that the Final Assessment cites
-in any footnote: emit the note's full verbatim body, including the Notion ID anchor
+[For EVERY Notion note in the Opp's ✍️ Notes relation that the NEW Final Assessment
+block cites in any footnote — and ONLY those. Notes cited solely in prior Update blocks
+(or only in the original first-pass) are EXCLUDED: they were audited verbatim by their
+own runs, and bundling them here only inflates the bundle toward the chunking threshold.
+For each in-scope note, emit the note's full verbatim body, including the Notion ID anchor
 ("Notion ID: <32hex>"), the page URL, the full call transcript if present (always
 fetch with include_transcript: true for call/meeting notes), the AI-summary block,
 and any structured fields. NOT a pointer manifest. NOT a summary. NOT "see Update #3
@@ -670,6 +678,24 @@ Look up the Master Diligence Doc page ID from Step 1's notion-search result.
 Exit 0 = proceed to audit. Exit 1 = bundle is missing verbatim content. STOP,
 rebuild, re-run. The audit verdict on a broken bundle is structurally
 meaningless.
+
+### Speaker-attribution script gate — MANDATORY (Subagent B)
+
+Code-enforcement of the Step 3 voice-rule that Tom's reframings belong to Tom (the prose
+rule stays in force). Run the verifier on the Final Assessment draft against each labeled
+transcript cached in Step 2.3 (`/tmp/firstpass_labeled_transcripts/`):
+
+```bash
+for T in /tmp/firstpass_labeled_transcripts/*.md; do
+  python3 ~/.claude/scripts/verify_speaker_attribution.py \
+      --draft /tmp/<company>_final_assessment_only.md --transcript "$T"
+done
+```
+
+Exit 0 = clean. Exit 1 = the JSON output's `{"flagged": [...]}` lists claims whose
+speaker attribution contradicts the transcript — every flagged claim must be
+re-attributed (to Tom, when Tom introduced the framing and the founder agreed) or
+reworded before publish.
 
 ### Draft to audit
 
@@ -726,8 +752,10 @@ first-pass but with these specific scope rules for the Final Assessment surface:
 - **Diligence Journey** is MIXED — factual claims about who said what / what a Note
   contains / what an Update found ARE in scope; commentary on how that evidence
   shaped the thesis is excluded (it's interpretation, not assertion).
-- **Standing Open Questions** are EXCLUDED (forward-looking risks, not factual
-  claims).
+- **Standing Open Questions** are AUDITED with the `forward_looking` verdict —
+  genuine forward-looking questions pass (not iteration triggers; tallied in
+  `summary.forward_looking`); declarative factual assertions embedded in the
+  section are adjudicated normally.
 
 ---
 
