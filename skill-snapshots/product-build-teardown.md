@@ -312,7 +312,11 @@ Questions***.
 
 **2. Delivery Mechanism** — apply framework spec §2. Name primary
 delivery archetype, call out secondary surfaces, assess distribution
-implications. End with ***Open Questions***.
+implications. When citing a competitor's integration or feature counts
+as a baseline, anchor comparable maturity explicitly — note whether the
+competitor is peer-stage or much more mature (years in market, funding
+stage), so the count reads as a trajectory marker rather than an
+apples-to-apples gap. End with ***Open Questions***.
 
 **3. Build Cost & Time to v1** — apply framework spec §3. Both
 dollars and calendar time get explicit treatment — neither is the
@@ -340,7 +344,10 @@ descriptive title, analytical paragraph, and bold-italic
 (Failure Mode | Key Evidence | Kill Shot?). Standalone teardown
 has no separate §6 Risks counterpart (unlike first-pass-diligence),
 so no cross-reference applies — each killshot is fully self-contained
-here.
+here. Each killshot must additionally note whether a named competitor
+has already solved or executed that killshot mechanism (with the
+evidence cited); "no known competitor has executed this" is an
+acceptable explicit finding — silence is not.
 
 ---
 
@@ -384,6 +391,26 @@ python3 /Users/tomseo/.claude/skills/first-pass-diligence/first_pass_lint.py \
 Build the manifest with the same shape as first-pass-diligence Step 4a
 (see `first-pass-diligence/SKILL.md` for the manifest schema). Exit 0
 proceeds; exit 1 stops and requires fix-and-rerun.
+
+**Calibration-cite resolution check (deterministic, same hard gate).**
+Every `(per calibration §N)` citation in the draft must resolve to an
+actual section of the calibration reference (its sections are `## N. Title`
+headings):
+
+```bash
+CAL=/Users/tomseo/.claude/skills/shared-references/product-build-cost-calibration.md
+FAIL=0
+for N in $(grep -oE 'per calibration §[0-9]+' /tmp/teardown_draft.md | grep -oE '[0-9]+' | sort -un); do
+  grep -qE "^## ${N}\." "$CAL" || { echo "UNRESOLVED CITE: calibration §${N}"; FAIL=1; }
+done
+[ "$FAIL" = "0" ] && echo "calibration cites: all resolve"
+```
+
+Any unresolved cite = fix before publish (re-point to the right section, or
+apply the Step 1h closest-row / flag-the-gap rule). Named-section cites
+(`per calibration's Engineering FTE rates`) resolve trivially and are the
+preferred form per the calibration file's "How to cite" section. The audit's
+bundle-level verification remains as backstop.
 
 ---
 
