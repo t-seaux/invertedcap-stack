@@ -30,6 +30,8 @@ The intro lifecycle stalls if outreach responses aren't tracked. Tom may have se
 
 Critically, Tom often moves faster than the scan cycle. By the time this agent runs, someone sitting in Qualified may have already been reached out to, replied positively, AND received the double-opt-in intro email — all between scans. If you only look at the Outreach roster, you'll miss these people entirely. That's why this agent scans BOTH Qualified and Outreach rosters.
 
+**Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth.
+
 ## The Intro Lifecycle
 
 ```
