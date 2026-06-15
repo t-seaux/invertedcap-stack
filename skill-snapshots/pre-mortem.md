@@ -261,6 +261,10 @@ A good pre-mortem has the following properties:
 
 A bad pre-mortem reads like a generic VC risk section. If you find yourself writing "execution risk" or "market timing risk" without grounding those in specific evidence from this company's diligence record, stop and go back to the materials.
 
+**Specificity gate (enforced, not aspirational).** Each failure mode's evidence must be specific to THIS company's conditions — named facts from the diligence record: this team's composition, this product's architecture, this round's terms, this customer set's behavior. Category-generic risk prose with generic citations FAILS the gate even when every citation technically traces. On a violation, re-prompt the drafter ONCE with the failing failure modes named and the specific diligence-record facts they should anchor on.
+
+**Semantic-grounding re-prompts are capped at MAX_ITER = 2.** Quality-bar / specificity re-prompts (re-drafting a failure mode because it is generic or ungrounded) get at most two rounds total. After the second re-prompt, STOP re-drafting. Surface every unresolved violation in the run report / final summary to Tom flagged as **"Audit caveat"** — never silently publish past unresolved violations, and NEVER write an escape-hatch caveat line into the published artifact itself. Caveats live in the run report only; the published pre-mortem stays clean. (This cap governs quality-bar re-prompts only — the Step 2.5 LLM audit gate keeps its own MAX_ITER = 3 per research-artifact-audit.)
+
 
 ---
 
