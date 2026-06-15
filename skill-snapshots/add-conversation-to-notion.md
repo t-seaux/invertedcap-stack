@@ -80,6 +80,8 @@ Use `**Frameworks**` as a bolded text label (not a Markdown header `##`). Scan t
 - Follow with 2–4 sentences explaining the framework as it was developed or applied in this specific conversation
 - Ground it with a concrete reference to the conversation content — paraphrase the relevant turn or reasoning rather than writing frameworks in the abstract
 
+**Traceability check (MANDATORY after generating frameworks)**: for each framework, verify it traces to actual conversation turns — the reasoning it describes must have been argued or developed in the thread, not inferred from the topic. If a framework can't be anchored to specific turns, re-generate it once with the constraint "only extract frameworks actually developed in this conversation." Drop any framework that still can't be traced.
+
 The goal is to make the Frameworks section a standalone, scannable summary of the intellectual content of the thread — the kind of section Tom can re-read weeks later without needing to re-read the full transcript to reconstruct what was actually being argued.
 
 ---
