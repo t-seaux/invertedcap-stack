@@ -32,6 +32,8 @@ skill handles scheduled inbox scanning; this skill handles explicit real-time co
 
 ---
 
+**Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth.
+
 ## Execution Workflow
 
 ### Step 1: Check for an Existing Opportunity
