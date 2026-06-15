@@ -502,6 +502,15 @@ Key formatting rules:
 - **Do NOT insert empty lines or blank paragraphs between content blocks.** Notion renders these as visible empty space.
 - **Bullet points must be flat single-dash bullets** (`- item`), never double-dash (`- - item`). When the email has nested lists, flatten sub-items into the parent bullet or use indented sub-bullets with proper Notion markdown (tab + `-`).
 
+### Pre-write grounding gate (MANDATORY — before creating the page)
+
+Before any Notion write, run the two-layer grounding check (see `~/.claude/skills/shared-references/grounding-check.md`) on the generated `Summary` and `Traction` values against the source email body + attachments text:
+
+1. **Layer 1 (deterministic)**: every proper noun, figure (`$Xm` / `$Xk` / `N%` / counts), and date in Summary/Traction must appear in the source. Use `python3 ~/.claude/skills/shared-references/summary_grounding_check.py --summary "$text" --source-file /tmp/iu-grounding-source.txt --opp-name "$company" --json` (write the email body + extracted attachment text to the source file first).
+2. **Layer 2 (semantic)**: re-read each Summary clause against the source — no clause may assert something the source contradicts or doesn't address (e.g. "raising $2m" when the founder said they're only topping up a SAFE).
+
+On failure: fix and re-check ONCE. If a clause still can't be grounded, drop it from the Summary and note the drop in the Slack alert (`⚠️ dropped ungrounded clause: "..."`). Never publish an ungrounded metric.
+
 ### Creating the page
 
 Use `notion-create-pages` with:
