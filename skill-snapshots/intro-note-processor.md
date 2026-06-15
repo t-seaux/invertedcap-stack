@@ -25,6 +25,8 @@ This is the bridge between "Tom said on a call: I'll intro you to Lauren" and "t
 
 ---
 
+**Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth.
+
 ## The Notion Data Model
 
 - **Notes DB:** `collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`
@@ -125,6 +127,12 @@ For each intro commitment, return JSON with:
 - context: the verbatim sentence(s) from the note grounding this intro
 - explicit: true if a specific name was named, false if generic ("someone who
   knows the SMB GTM playbook")
+
+Boundary examples:
+- "someone with growth marketing chops would be valuable" → SKIP (generic role,
+  no named person)
+- "I'll intro you to Sarah — she scaled growth at Stripe" → CAPTURE (named
+  person + commitment)
 
 Skip generic statements like "happy to help with intros down the road" with no
 specific person or type. Return empty array if no commitments found.
