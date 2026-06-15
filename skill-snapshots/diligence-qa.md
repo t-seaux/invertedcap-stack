@@ -222,6 +222,28 @@ The drafter MUST honor:
 Save the draft to `/tmp/qa_factir.[Company].json` (the builder reads this path
 via `--content`).
 
+**Coverage minimum — validate HERE, at JSON emission (fail fast).** Before any
+Drive/doc work, run the deterministic count check on the saved JSON:
+
+```bash
+python3 - "$COMPANY" <<'EOF'
+import json, sys
+sys.path.insert(0, "/Users/tomseo/.claude/skills/diligence-qa")
+import canonical_spec as spec
+data = json.load(open(f"/tmp/qa_factir.{sys.argv[1]}.json"))
+fails = {s: len(data.get(s, [])) for s in spec.SECTION_ORDER
+         if len(data.get(s, [])) < spec.COVERAGE_MINIMUM_QUESTIONS}
+if fails:
+    sys.exit(f"coverage minimum FAIL {fails} — extend the section(s) per Step 2 "
+             f"before building the doc")
+print("coverage minimum: PASS")
+EOF
+```
+
+A failing section gets extended (back to Step 2 for more open threads) BEFORE
+the builder runs — do not build the doc and let the format guard catch it.
+The Step 6 format-guard G9 check stays in force as the post-build backstop.
+
 ---
 
 ## Step 5: Resolve subfolder, copy template, build the body
