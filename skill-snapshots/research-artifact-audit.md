@@ -183,6 +183,31 @@ a stale draft.
 Skip this check for artifacts that don't reference round terms
 (pre-mortem, product-build-teardown).
 
+### A.4 — Claims-to-verify pre-extraction (MANDATORY — proactive phantom-claim prevention)
+
+Before invoking the runner, extract from `$DRAFT` every factual sentence that
+carries an inline citation (`[N]`, `[N,M]`, `^N`, or `(per calibration §N)`
+style cites) **verbatim** — character-for-character, no paraphrase, no merging
+or splitting — and append the list to the END of `$SOURCES` as its own section:
+
+```markdown
+==== CLAIMS TO VERIFY (VERBATIM FROM DRAFT) ====
+
+- <verbatim cited sentence 1>
+- <verbatim cited sentence 2>
+```
+
+The judge prompt binds on this section: it anchors `claim_text` extraction on
+these sentences, so the judge only adjudicates claims actually present in the
+draft instead of fabricating its own framings (the phantom-extraction failure
+mode — upskill 2026-05-19, 3/3 partials were phantom `claim_text` the draft
+never contained). The list is a floor and an anchor, not a ceiling — the judge
+may still extract additional uncited entity-anchored claims per its inclusion
+criteria.
+
+This is prevention. The Step C phantom-claim_text grep below stays in force as
+belt-and-suspenders detection — do NOT remove or skip it because A.4 ran.
+
 ---
 
 ## Step B — Run the audit + iterate
@@ -212,6 +237,27 @@ makes the no-reuse rule structural rather than reliant on caller discipline.
 `$DRAFT` and `$SOURCES` are NOT cleaned here — they're freshly produced by
 the current run's Step A (or upstream draft step) before B is entered.
 
+### B.2.0 — Chunking decision gate (MANDATORY — decide BEFORE the B.1 invocation)
+
+Check the bundle size on disk and force un-chunked mode for any bundle under
+the runner's auto-chunk threshold (350KB):
+
+```bash
+BUNDLE_BYTES=$(wc -c < "$SOURCES")
+if [ "$BUNDLE_BYTES" -lt 350000 ]; then
+  CHUNK_FLAG="--chunk-size 0"   # under AUTO_CHUNK_THRESHOLD — force un-chunked from the start
+else
+  CHUNK_FLAG=""                 # >=350KB — let the runner auto-chunk
+fi
+echo "chunking gate: bundle=${BUNDLE_BYTES}c chunk_flag='${CHUNK_FLAG}'"
+```
+
+Pass `$CHUNK_FLAG` in the B.1 invocation. Under the threshold there is no
+reason to ever run chunked — un-chunked is strictly more accurate (see the
+chunking notes under B.1). The post-hoc un-chunked re-verification in B.2.1
+stays in force as the backstop for >350KB bundles that auto-chunked and
+reported untraced > 0.
+
 ### B.1 — Invoke the runner
 
 ```bash
@@ -219,7 +265,7 @@ python3 "$AUDIT_RUNNER" \
   --draft   "$DRAFT" \
   --sources "$SOURCES" \
   --output  "$AUDIT_JSON" \
-  [--chunk-size 0]    # force un-chunked when bundle <500KB (preferred — see below)
+  $CHUNK_FLAG    # bound by the B.2.0 chunking decision gate (forces --chunk-size 0 under 350KB)
 ```
 
 Default model is `claude-sonnet-4-6` (1M context). Typical latency: 3-12 minutes
@@ -276,6 +322,14 @@ history with named people. These are tracked in `summary.external_research`
 separately from `summary.untraced` and the gate ignores them. Surfaced in the
 human report under `=== EXTERNAL_RESEARCH (N) ===` so they're auditable
 without polluting the iteration loop.
+
+**`forward_looking` verdict is likewise NOT an iteration trigger.** Open
+Questions sections are audited, not skipped: genuine forward-looking
+diligence questions receive the `forward_looking` verdict and pass, while
+declarative factual assertions embedded inside an Open Questions section
+(e.g., "Competitor X already ships this feature") are adjudicated with the
+normal traced / partial / untraced verdicts. `summary.forward_looking` is
+tracked separately and ignored by the gate.
 
 **You MUST run this check on disk after every audit and obey its verdict.** Do
 not reason about whether to iterate based on the audit's prose findings, the
@@ -466,6 +520,10 @@ After the loop terminates and Step C has run, the caller's publish summary
 - Every normalized partial as a before → after diff (Step C output) so Tom
   can spot-check the rewrite. Unnormalized partials should not exist in the
   published draft — Step C is mandatory when `audit.summary.partial > 0`.
+- Every `external_research` claim whose judge confidence is below 0.9,
+  flagged as `borderline — check manually`. (The judge emits a numeric
+  0.0–1.0 `confidence` on external_research verdicts; sub-0.9 surfaces in
+  the run report only — it does NOT block the gate or trigger iteration.)
 
 Caller-specific surface formats (Slack rich-text shape, page-summary block,
 etc.) are the caller's responsibility — but the substance above is required.

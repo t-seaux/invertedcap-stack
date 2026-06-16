@@ -1,26 +1,15 @@
 ---
 name: add-to-companies
 description: >-
-  Add a company to Tom's Notion Companies database and run the full enrichment
-  pipeline. Dedups by domain/name, creates the row if new, then populates every
-  field per the canonical spec at `shared-references/companies-enrichment-spec.md` —
-  identity (Name, Category, URL, Overview, HQ, Founded Year),
-  Total Funding, Momentum (rounds + Deal Digest mentions), Employee Count,
-  Headcount, HC Commentary — using Exa+LLM extraction + Sales Nav headcount
-  scrape + Deal Digest cache as sources. Also sets the page icon. Part of
-  Research Management — this is how the company knowledge base gets built up.
-  Trigger phrases: "add [company] to companies", "add this company", "log this
-  company", "enrich [company]", "create a Companies entry for [X]", "add
-  [domain] to companies", "add [LinkedIn company URL]", or any variant
-  indicating Tom wants a company logged and enriched in the Companies DB. Also
-  trigger on a bare `linkedin.com/company/...` URL or a bare company domain
-  with add/log intent. Distinct from `neg1-enricher` (person-level; invokes
-  THIS skill as a subroutine per employer/school) and `add-to-crm`
-  (Opportunities pipeline). Skill does NOT create People entries, Opportunities
-  entries, or any non-Companies artifact. ALWAYS runs the full Steps A–E
-  enrichment pipeline on every direct invocation — no minimal/partial variant.
-  Only skip is the credit-saving rule: if `Last Enriched` is already populated,
-  return the existing row without re-enriching.
+  Add a company to Tom's Notion Companies DB and run the full enrichment pipeline. Dedups by domain/name,
+  creates the row if new, then populates every field per shared-references/companies-enrichment-spec.md —
+  identity (Name, Category, URL, Overview, HQ, Founded Year), Total Funding, Momentum, Employee Count,
+  Headcount, HC Commentary — via Exa+LLM, Sales Nav headcount scrape, and Deal Digest cache; sets the page icon.
+  Always runs the full pipeline; only skip is the credit-saving rule (return existing row if Last Enriched is
+  populated). Trigger phrases: "add [company] to companies", "add this company", "log this company", "enrich
+  [company]", "create a Companies entry for [X]", "add [domain] to companies", "add [LinkedIn company URL]", a
+  bare linkedin.com/company/... URL, or a bare company domain with add/log intent. Distinct from neg1-enricher
+  (person-level; calls this as a subroutine) and add-to-crm (Opportunities). Creates only Companies rows.
 ---
 
 # Add to Companies

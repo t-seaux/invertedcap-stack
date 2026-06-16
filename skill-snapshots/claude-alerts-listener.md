@@ -307,6 +307,39 @@ Check this **before** the generic taxonomy below. If the parent alert header con
 
 ---
 
+### Special branch: SOI mark confirm
+
+Check this **before** the generic taxonomy. If the parent alert header starts with `📈 Priced round —`
+or `💸 Exit —` (drafted by the `soi-portfolio-event` skill), Tom is confirming or adjusting a proposed
+SOI mark/distribution. Route here.
+
+1. **Parse the parent alert** for the company and the proposed values:
+   - Priced round: `ownership` (FD %, e.g. `6.2%`), `post-money` ($), and the derived `fair value` ($).
+   - Exit: `cash distributed` ($) and `residual NAV` ($).
+2. **Parse Tom's reply:**
+   - `confirm` (or "yes", "lgtm", "ship it") → apply the proposed values verbatim.
+   - An adjustment → override the named field(s), then RE-DERIVE: for a priced round
+     `fair value = ownership × post-money`. Examples: `ownership 6.0%`, `post-money 38m`,
+     `fair value 2.4m`, `distribution 1.2m`, `residual 0`. Parse `m`/`mm` = millions, `k` = thousands,
+     `%` = decimal.
+   - Anything ambiguous / a question → reply asking for clarification, do NOT write.
+3. **Apply** with the engine (always `--dry-run` first, confirm the diff is what Tom asked), then rebuild:
+   ```bash
+   # priced mark
+   python3 ~/.claude/scripts/soi/refresh_inputs.py mark --company "<C>" --ownership <decimal> --fmv <int>
+   # exit / distribution
+   python3 ~/.claude/scripts/soi/refresh_inputs.py distribution --company "<C>" --amount <int> --residual-fmv <int>
+   cd ~/.claude/scripts/soi && bash run.sh
+   ```
+4. **Close-loop reply** in-thread: the applied values, the company's new MOIC, and the new fund DPI/TVPI
+   (from `refresh_inputs.py show`). Deliver the rebuilt `~/Inverted_Capital_I_SOI.html` path. Skip Step 3
+   (generic taxonomy). Audit intent: `soi-mark-confirm`.
+
+Never write portfolio facts to Notion here — only `fund_inputs.json` via the engine. Marks are valuation
+judgments: if the cap-table read in the parent looks off, flag it rather than applying silently.
+
+---
+
 ### Generic taxonomy
 
 Decide what change is being requested. The taxonomy is open-ended — examples:

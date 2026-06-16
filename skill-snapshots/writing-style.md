@@ -1,14 +1,15 @@
 ---
 name: writing-style
 description: >-
-  Umbrella router for Tom's writing-style stylebooks. The actual canonical voice + structural rules live in `writing-style/<type>/STYLE.md` per writing type — this file is the entry point that picks the right sub-stylebook based on what Tom is writing.
-
-  Three stylebooks today:
-  - **pass-note** — pass note emails to founders Tom has decided not to invest in. Read by `pass-note-drafter`.
-  - **outreach** — cold founder outreach. Read by `founder-outreach`.
-  - **letters-and-memos** — long-form analytical prose: LP letters, investment memos, pre-mortems, first-pass-diligence prose, investor update prose. Read by `pre-mortem`, `first-pass-diligence`, `investor-update`, and any ad-hoc long-form drafting.
-
-  Trigger whenever Tom asks to "draft," "write," "clean up," "edit," "polish," or "refine" any prose — and infer the writing type from context. Also triggers on "log to writing style," "log this letter," "log this memo," "log this checkpoint," "log this to letters-and-memos," "save this as a voice example," or any variant indicating Tom wants the current draft logged into the appropriate VOICE_EXAMPLES.md.
+  Umbrella router for Tom's writing-style stylebooks — the canonical voice + structural rules live in
+  writing-style/<type>/STYLE.md; this entry point picks the right sub-stylebook. Three stylebooks: pass-note
+  (founder pass notes; read by pass-note-drafter); outreach (cold founder outreach; read by founder-outreach);
+  letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose, investor-update
+  prose; read by pre-mortem, first-pass-diligence, investor-update, and ad-hoc long-form). Trigger whenever Tom
+  asks to "draft", "write", "clean up", "edit", "polish", or "refine" any prose — infer the type from context.
+  Also on "log to writing style", "log this letter", "log this memo", "log this checkpoint", "log this to
+  letters-and-memos", "save this as a voice example", or any variant to log a draft into the right
+  VOICE_EXAMPLES.md.
 ---
 
 # Writing Style — Umbrella Router

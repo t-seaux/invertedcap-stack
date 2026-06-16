@@ -12,6 +12,8 @@ Generates the quarterly Dash Fund CPA report from per-account Citi CSV exports. 
 ## Inputs
 
 1. **Per-account Citi CSVs** (canonical as of 2026-05-27) — one CSV per Citi account, each named `CCB_CHECKING_<account>_<DDMMYYYY>.csv` with columns `DATE, TRANSACTION TYPE, DESCRIPTION, AMOUNT (USD), BALANCE (USD)`. `AMOUNT > 0` = inbound, `AMOUNT < 0` = outbound. The account number is derived from the filename. Tom drops these into iCloud `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/` (mirrored at `/Users/tomseo/Downloads/`).
+
+   **Schema gate**: the classification heuristics below assume exactly this header set and column semantics (newest-first rows, running `BALANCE (USD)` per row, signed `AMOUNT (USD)`). If a dropped CSV's header doesn't match — Citi renames a column, swaps field order, or splits debit/credit — STOP and flag the mismatch to Tom instead of classifying against wrong columns. Do not adapt silently.
    - For a full report: 5 CSVs (DVF MC, DFM MC, Fund I LP, Fund II LP, Fund II-A LP).
    - For income/expense/distributions only (no liquidation events): the 2 MC CSVs suffice — pass `--skip-liquidation`.
 2. **Liquidation event mappings** (optional) — Tom may specify which inbound LP wires map to which portfolio company (e.g. "Acquiom wire on 1/9 = Teal Technologies"). If not provided, use the keyword mapping table below and flag unknowns.
@@ -354,6 +356,15 @@ Before writing the Excel, `build_report.py` runs 5 deterministic checks against 
 Tolerance: half-cent (`$0.005`) on every comparison to absorb floating-point noise.
 
 If a check fails, the script prints which check failed, the conflicting values, and exits without writing. The prior workbook in the canonical folder remains untouched until a clean run completes.
+
+### Golden-copy spot check (post-write)
+
+After the workbook is written, run one independent spot check that validates the formula layer itself (the 5 checks validate Python data; this validates that the written SUMIFS will resolve to the same numbers):
+
+1. Pick one populated Summary section (e.g. Total Expenses for the first active period).
+2. Compute its subtotal in Python directly from the classified txns.
+3. Reopen the written workbook with openpyxl and re-derive the SUMIFS inputs: read the Detail tab's static `Section`/`Category` columns plus the linked Raw Export `Amount` values for the matching rows, and sum them. (openpyxl can't evaluate formulas, so this reconstructs what Excel will compute from the same cells the SUMIFS references.)
+4. The two figures must match within $0.005. Mismatch → report `⚠ GOLDEN-COPY CHECK FAILED: [section/period] Python=$X vs workbook-derived=$Y` to Tom and treat the workbook as suspect; do not present the run as clean.
 
 ---
 

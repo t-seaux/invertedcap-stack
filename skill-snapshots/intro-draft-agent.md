@@ -1,18 +1,13 @@
 ---
 name: intro-draft-agent
-description: >
-  Draft double-opt-in intro emails when a contact in Intros (Outreach) has opted in.
-  Operates in two modes:
-  (1) Scheduled scan — proactively scans Tom's Gmail inbox from the past 24 hours for
-  positive replies from people currently in ☎️ Intros (Outreach). If an opt-in reply is
-  detected and Tom has NOT yet sent a double-opt-in intro email, creates a Gmail draft
-  with the intro email ready for Tom to review and send.
-  (2) Manual trigger — auto-detects when Tom says things like "draft the intro for X",
-  "X opted in, draft the email", "prepare the intro email for X", "X is interested —
-  draft it", or similar phrases indicating a draft should be created.
-  Trigger phrases include: "draft intro", "draft the email", "prepare intro", "write the
-  intro", "opted in draft", "create intro email", "draft double opt in", "queue the intro",
-  or any message indicating Tom wants an intro email drafted for someone who has opted in.
+description: >-
+  Draft double-opt-in intro emails when a contact in Intros (Outreach) has opted in. Three modes: (1) Scheduled
+  scan — scans Gmail (past 24h) for positive replies from people in Intros (Outreach); if opted in and no intro
+  yet sent, creates a Gmail draft. (2) Manual — "draft the intro for X", "X opted in, draft the email", "prepare
+  the intro email for X", "X is interested — draft it". (3) Targeted/webhook — invoked with {messageId,
+  personId, oppId, threadId, senderEmail} by intro-resolution-agent on an opt-in reply; drafts directly for that
+  person+opp, no inbox scan, via claude-job-queue. Trigger phrases: "draft intro", "draft the email", "prepare
+  intro", "write the intro", "opted in draft", "create intro email", "draft double opt in", "queue the intro".
 ---
 
 # Intro Agent — Draft Sub-Workflow
@@ -148,7 +143,33 @@ Tom explicitly tells you to draft the intro:
 
 When detected: Draft the intro email using the information provided + Notion data.
 
+### Pattern 3: Targeted Invocation (Enqueued by intro-resolution-agent)
+
+Not detected — explicitly dispatched. When an inbound reply classifies as a clear opt-in but Tom has not yet made the intro, `intro-resolution-agent` (Mode B) enqueues this skill via `~/.claude/scripts/enqueue-intro-draft.sh` with structured args:
+
+```
+{ "messageId": "...", "personId": "<Notion People page id>",
+  "oppId": "<Notion Opportunity page id>", "threadId": "...", "senderEmail": "..." }
+```
+
+This is the event-driven auto-draft path: a draft appears in Gmail within ~a minute of the opt-in, instead of waiting for the next scheduled scan. Run **Mode B** below.
+
 ## Execution Workflow
+
+### Mode B: Targeted (Enqueued) — single person + opp
+
+When invoked with `personId` + `oppId` args (Pattern 3), **skip Step 1 (roster build) and Step 2's inbox scan entirely** — the opt-in is already confirmed by the resolution agent. Instead:
+
+1. **Fetch the specific opp + person.** `notion-fetch` the Opportunity (`oppId`) and the person (`personId`). From the opp, get `Name`, `🏁 Founder(s)` (fetch each founder for name + email; fall back to the `Contact` field for founder emails), and the current `☎️ Intros (Outreach)` / `✉️ Intros (Made)` relations.
+2. **Idempotency guards (MANDATORY — draft only if all pass):**
+   - The person must still be in `☎️ Intros (Outreach)` for this opp. If they're already in `✉️ Made` (Tom made the intro between enqueue and now) → skip, log `already-made`. 
+   - Run Step 2's **full pre-create guards in order**: (1) the **deleted-draft contract** — if the opt-in thread (`threadId` from args) carries the `Intro Drafted` label, SKIP unconditionally even if no draft currently exists (Tom deleted it → never recreate); (2) already-sent check; (3) already-present-draft check. Any hit → skip, log the matching reason. This is what makes a spurious/duplicate enqueue — or a re-fire after Tom deleted the draft — safe.
+3. **Compose and create the draft** exactly per **Step 3** below (same subject/body/recipients format).
+4. **Report** a one-line summary: `intro-draft (targeted): <person> → <founder(s)> (<company>) — draft created | skipped (<reason>)`. No Slack alert of its own (consistent with the other modes).
+
+The founder-email / target-email edge cases in the **Edge Cases** section apply identically — if a required email is missing, do NOT create the draft; flag it.
+
+### Step 1: Build Outreach Roster
 
 ### Step 1: Build Outreach Roster
 
@@ -193,21 +214,11 @@ Read the email content and classify:
   - **Soft deferral** (expressed interest + specific near-term re-engagement path: "happy to connect closer to [specific date]", "ping me after [specific event]", "let's revisit in Q3") → no draft yet; the person STAYS in ☎️ Outreach. List them in the run report under "Soft deferrals (no draft — recheck on a later scan)" so the opt-in is rechecked on a later scan.
   - Only a clear, present-tense opt-in produces a draft.
 
-**Verify no draft/sent email exists yet:**
+**Pre-create guards — run in order, ANY hit → SKIP (do not create):**
 
-Before creating a draft, check that Tom hasn't already sent or drafted the intro:
-```
-Tool: gmail_search_messages
-Query: "in:sent subject:(<founder_first_name> (<company>)) to:<person_email>"
-```
-
-If a sent email matching the subject pattern already exists, skip — the intro was already sent.
-
-Also check existing drafts:
-```
-Tool: gmail_list_drafts
-```
-Scan draft subjects for a matching pattern. If a draft already exists for this intro, skip it.
+1. **Deleted-draft contract (MANDATORY — check FIRST).** Check whether the contact's opt-in / outreach reply thread carries the `Intro Drafted` Gmail label (this skill applies it in Step 3 whenever it creates a draft). **If the thread is labeled `Intro Drafted`, SKIP unconditionally — even if no draft currently exists in the drafts folder.** A draft that was created once and is now gone means **Tom deleted it deliberately, and a deleted auto-draft must never be recreated.** Tom may instead make the intro inline in the original thread, or write his own draft from scratch — either way the auto-drafter stays hands-off once it has drafted once. (Detect via `list_labels` → check the thread's `labelIds`, or `search_threads "label:\"Intro Drafted\""`.) Log `skip-previously-drafted (label present; draft kept, deleted, or superseded by Tom)`.
+2. **Already sent.** `gmail_search_messages "in:sent subject:(<founder_first_name> (<company>)) to:<person_email>"` — if a matching sent intro exists, the intro was already made; skip.
+3. **Draft already present.** `gmail_list_drafts` — if a matching intro draft already exists, skip (don't duplicate).
 
 **Manual mode:** Skip scanning — Tom has confirmed the opt-in. Proceed directly to Step 3.
 
@@ -221,10 +232,9 @@ For each opt-in where no existing draft/sent email is found:
    - Get the target person's first name and company
    - Format: `[Founder(s)] ([Company]) / [Target first name] ([Target company])`
 
-2. **Determine the body:**
-   - Count total people (founders + targets)
-   - If exactly 2: "You both have context so [founder first name(s)] - will let you take it from here!\n\nTom"
-   - If 3+: "You all have context so [founder first name(s)] - will let you take it from here!\n\nTom"
+2. **Determine the body** — "both" vs "all" is decided by the TOTAL number of people being connected (everyone on the intro besides Tom = founder(s) + target(s)). Tom's rule, verbatim: *"when I'm making an intro to one person it's **you both** have context; but if I'm introing someone to multiple it's **you all** have context."* "both" is grammatically valid only for exactly two people.
+   - **Exactly 2 people** (one person introduced to one person — the common case): `You both have context so [founder first name(s)] - will let you take it from here!\n\nTom`
+   - **3 or more people** (introduced to multiple, or 2+ founders): `You all have context so [founder first name(s)] - will let you take it from here!\n\nTom`
 
 3. **Determine recipients:**
    - All founder emails + the opt-in person's email
@@ -237,6 +247,8 @@ For each opt-in where no existing draft/sent email is found:
    subject: "<formatted subject>"
    body: "<formatted body>"
    ```
+
+5. **Mark the thread so a deleted draft is never recreated (MANDATORY).** Apply the `Intro Drafted` Gmail label to the contact's **opt-in / outreach reply thread** (the `threadId` of their reply — NOT the new draft, which Tom may delete). Create the label first if it doesn't exist (`list_labels` → `create_label "Intro Drafted"`), then `label_thread`. This durable marker is exactly what the Step 2 deleted-draft guard reads on the next run: once set, this intro is drafted-once-forever — the auto-drafter will not redraft it even after Tom deletes the draft.
 
 ### Step 4: Report
 

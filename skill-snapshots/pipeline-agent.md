@@ -1,19 +1,14 @@
 ---
 name: pipeline-agent
-description: >
-  Scan Tom's Gmail inbox and iMessages for new deal opportunities, then triage existing
-  pipeline opportunities across 4 stages: Deal Scanner → Qualified Triage → Outreach Triage
-  → Connected Triage. Also scans Gmail for materials (decks, memos, term sheets) related to
-  active pipeline companies and links them via Gmail deep links. Operates in two modes:
-  (1) Scheduled sweep — reconciliation pass that catches what the per-event webhook handlers
-  (deal-scanner-inbound, pipeline-sent-detect, calendar-scheduled-detect) missed. Scans Tom's
-  Gmail inbox, sent mail, iMessages, and Google Calendar from the past 24 hours.
-  (2) Manual trigger — auto-detects when Tom says things like "scan my pipeline", "check for
-  new deals", "triage my deals", "pipeline scan", "run pipeline", "any new deals?", or any
-  message indicating Tom wants his deal pipeline reviewed.
-  Trigger phrases include: "pipeline", "deal scan", "triage", "new deals", "check my deals",
-  "run pipeline agent", "deal opportunities", "pipeline check", or any message referencing
-  deal pipeline management.
+description: >-
+  Scan Tom's Gmail inbox and iMessages for new deal opportunities, then triage existing pipeline Opps across 4
+  stages: Deal Scanner, Qualified, Outreach, Connected. Also scans Gmail for materials (decks, memos, term
+  sheets) tied to active pipeline companies and links them via deep links. Two modes: (1) Scheduled sweep —
+  reconciliation pass (past 24h Gmail inbox + sent, iMessages, Calendar) catching what the per-event webhooks
+  (deal-scanner-inbound, pipeline-sent-detect, calendar-scheduled-detect) missed. (2) Manual — "scan my
+  pipeline", "check for new deals", "triage my deals", "pipeline scan", "run pipeline", "any new deals?".
+  Trigger phrases: "pipeline", "deal scan", "triage", "new deals", "check my deals", "run pipeline agent", "deal
+  opportunities", "pipeline check".
 ---
 
 # Pipeline Agent

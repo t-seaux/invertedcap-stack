@@ -361,6 +361,7 @@ Read the canonical format spec at `~/.claude/skills/shared-references/round-deta
 - Look for funding signals: dollar amounts, "raising", "round", "post", "cap", "SAFE", "priced", "lead", "valuation"
 - Apply the format rules (lowercase `m`/`k`, `Raising $Xm` for unfinalized, `$Xm on $Ym post` or `$Xm on $Ym cap` for finalized)
 - If nothing extractable → leave empty, log `no-round-details-signal`
+- **Context co-occurrence cross-check**: before writing, verify each extracted figure appears in the transcript WITH fundraising context in the same passage — the dollar amount must co-occur with "raising" / "round" / "post" / "cap" / "SAFE" / "valuation" within a few sentences. A bare figure-match anywhere in the transcript is NOT sufficient (e.g. "$1.2m" in a customer-ARR discussion must not become Round Details). If the figure only appears in a non-fundraising context, leave Round Details empty and log `figure-without-fundraising-context`.
 
 **5e. Also extract Stage** if confidently inferrable from the same content (per the Stage table in the format spec). Only write Stage if currently empty on the Opp.
 
@@ -497,6 +498,20 @@ python3 ~/.claude/skills/shared-references/summary_claim_check.py \
 (Reuses the same `/tmp/grounding-source.txt` written for Step 6d.0 — no need to re-write it.)
 
 The judge segments the Summary on sentence / semicolon / em-dash boundaries and returns per-clause verdicts: `supported` / `contradicted` / `unaddressed`. Exit 0 = pass. Exit 1 = at least one clause is contradicted or unaddressed. Exit 2 = invocation error (Sonnet down, malformed JSON).
+
+**Step 6d.0c — Speaker-attribution check (runs after Layer 2 passes):**
+
+Layers 1–2 verify content grounding but not WHO said it — a claim can be fully grounded in the transcript yet credited to the founder when Tom actually raised it (framework/analogy misattribution inflates founder-eval signal; see the Alongside Brex-analogy miss). Run:
+
+```bash
+# Summary text to a temp file, then check against the same grounding source
+printf '%s' "$generated_summary" > /tmp/mnp-summary.md
+python3 ~/.claude/scripts/verify_speaker_attribution.py \
+    --draft /tmp/mnp-summary.md \
+    --transcript /tmp/grounding-source.txt
+```
+
+Exit 0 = clean. Exit 1 = JSON lists flagged claims (`found_under` shows the actual speaker). For each flagged claim: re-attribute it to Tom (or neutral framing — "discussed on the call") or drop the attribution entirely before the write. Do not publish a founder-attributed claim that the transcript shows under Tom's speaker label.
 
 **On Layer 2 failure (Sonnet flow):** re-prompt the Summary-generation Sonnet ONCE, appending the specific violations as corrective context:
 

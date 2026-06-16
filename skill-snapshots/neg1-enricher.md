@@ -1,29 +1,16 @@
 ---
 name: neg1-enricher
 description: >-
-  Enrichment + evaluation primitive for pre-founder (-1) candidates. Takes a LinkedIn URL,
-  builds a fully-enriched -1 Scanner row in Notion (ContactOut person + per-employer Company
-  Search, online presence research, Companies DB relations), then applies Tom's signal
-  framework rubric to evaluate the candidate and write the verdict (Eval Breakdown +
-  Working Description + Claude Rec + Eval Summary). Signal-level High/Medium/Low ratings,
-  pure spike-based MAX, no Intentionality gate. One-shot company enrichment (Company
-  Search per distinct employer, skipped if Last Enriched is already populated — credit-
-  saving). Supports a `--score-only` mode that re-runs rubric application against existing
-  row data without re-fetching ContactOut (used for rubric drift checks per PRD §6.7).
-  Manual trigger only. Scheduled enrichment of unenriched rows is handled by pipeline-agent
-  Task 6, which invokes THIS skill as its primitive. Trigger phrases: "-1 scan [URL]", "-1
-  scanner", "add to scanner", "add to -1 scanner", "add to sourcing", "source these", "scan
-  these profiles", "enrich these LI URLs", "add these to -1", "scanner", "enrich [LI URL]",
-  "score [name]", "score the new -1 entries", "run founder scoring", "score this profile",
-  "rescore [name]", "re-score [name]", "score-only", or any variant involving LinkedIn URLs
-  paired with sourcing/enrichment/scoring intent. Also trigger when the user pastes a batch
-  of LinkedIn URLs without further context — the default action for a bare list of LinkedIn
-  URLs is to run this skill. Distinct from "add to contacts" (People DB) and "add to crm"
-  (Opportunities pipeline). On MANUAL invocation this skill auto-chains into
-  `founder-outreach` after scoring, regardless of Claude Rec verdict — Tom wants the draft
-  sitting ready for review alongside the score. Batch invocation by pipeline-agent Task 6
-  does NOT chain (that's scheduled bulk enrichment — drafting stays manual). Part of
-  pipeline management.
+  Enrichment + evaluation primitive for pre-founder (-1) candidates. Takes a LinkedIn URL, builds a
+  fully-enriched -1 Scanner row in Notion (ContactOut + per-employer Company Search, online-presence research,
+  Companies DB relations), then applies Tom's signal-framework rubric and writes the verdict (Eval Breakdown,
+  Working Description, Claude Rec, Eval Summary). Supports `--score-only` (re-score without re-fetching
+  ContactOut). Manual trigger only; scheduled bulk enrichment is pipeline-agent Task 6, which calls this skill.
+  On MANUAL runs auto-chains into founder-outreach (draft ready regardless of verdict); batch runs do not chain.
+  Trigger phrases: "-1 scan [URL]", "-1 scanner", "add to scanner", "add to -1 scanner", "add to sourcing",
+  "source these", "scan these profiles", "enrich these LI URLs", "score [name]", "rescore [name]", "score-only",
+  or any LinkedIn URL(s) paired with sourcing/enrichment/scoring intent — including a bare list of LinkedIn
+  URLs. Distinct from add-to-contacts (People DB) and add-to-crm (Opportunities).
 ---
 
 # -1 Enricher

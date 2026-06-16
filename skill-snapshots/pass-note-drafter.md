@@ -1,19 +1,14 @@
 ---
 name: pass-note-drafter
-description: >
-  Draft investor pass note emails for opportunities Tom has decided to pass on. Two modes:
-  (A) Sweep — daily evening reconciliation pass orchestrated by diligence-agent that scans
-  the Opportunities DB for Status = "Pass Note Pending", catches what the pass-note-sent
-  webhook handler missed, and drafts for each. (B) Webhook — invoked per single Opp via the
-  notion-webhook claude-job-queue when an Opp's Status flips to Pass Note Pending; processes
-  just that one page. Both modes share Steps 2–7; Mode B simply skips Step 1's queue query.
-  Reads diligence materials and call notes, drafts in Tom's voice as a saved Gmail draft
-  (never sends), updates Notion to "Pass (Met)" only for Opps where a pass note was already
-  sent (sent-check path), and archives sent pass notes to the Notes DB.
-
-  Trigger phrases: "pass note", "draft pass note", "pass note pending", "write pass notes",
-  "draft my passes", "run pass note drafter", "any pass notes to draft", "check pass note queue",
-  "I decided to pass on X — draft the note", "mark X as pass note pending and draft".
+description: >-
+  Draft investor pass note emails for Opps Tom has decided to pass on. Two modes: (A) Sweep — daily evening
+  reconciliation by diligence-agent over Status = "Pass Note Pending", catching what the pass-note-sent webhook
+  missed. (B) Webhook — one Opp via notion-webhook claude-job-queue when Status flips to Pass Note Pending.
+  Reads diligence materials + call notes, drafts in Tom's voice as a saved Gmail draft (never sends), flips
+  Notion to "Pass (Met)" only where a pass note was already sent, and archives sent notes to the Notes DB.
+  Trigger phrases: "pass note", "draft pass note", "pass note pending", "write pass notes", "draft my passes",
+  "run pass note drafter", "any pass notes to draft", "check pass note queue", "I decided to pass on X — draft
+  the note", "mark X as pass note pending and draft".
 ---
 
 # Pass Note Drafter

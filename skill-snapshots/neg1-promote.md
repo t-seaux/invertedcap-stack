@@ -1,25 +1,16 @@
 ---
 name: neg1-promote
 description: >-
-  Promote an existing `-1 (FounderName)` Opportunity row to a named company when the
-  founder reveals the actual company name in a follow-up (post-meeting email, Slack
-  reply to a "no matching Opp" alert, or direct chat instruction). Renames the Opp,
-  merges any new content from the triggering source (cofounders, deck, additional
-  founder emails, post-meeting context) into the existing row, and dedups emails into
-  the Contact alias list. Does NOT create a new Opp — this skill is the merge path
-  that fires when `add-to-crm`'s dedup logic detects an existing -1 row, or when Tom
-  explicitly directs the rename in chat or in a Slack thread reply. Idempotent —
-  safe to re-run. Trigger phrases: "this is -1 [FounderName], rename to [Company]",
-  "this is -1 [FounderName]. Roll everything into that opp and rename to [Company]",
-  "promote -1 [FounderName] to [Company]", "rename -1 [FounderName] to [Company]",
-  "roll [thread/intro/email] into [FounderName]'s -1 opp and rename to [Company]",
-  or any variant where Tom names an existing -1 row and an actual company name to
-  promote it to. Two invocation modes: Mode B (Listener) — called by
-  `claude-alerts-listener` when the parent alert is a "no matching Opp" intro-agent
-  alert and Tom's reply matches the promote pattern. Mode C (Manual) — direct
-  invocation in chat. Strictly refuses to create a People DB row for any newly-named
-  cofounder (per memory `feedback_no_people_entry_without_permission.md`); surfaces
-  them in the Opp body and flags them to Tom. Part of pipeline management.
+  Promote an existing `-1 (FounderName)` Opportunity to a named company when the founder reveals the real
+  company name (post-meeting email, Slack reply to a "no matching Opp" alert, or chat instruction). Renames the
+  Opp, merges new content (cofounders, deck, additional emails, post-meeting context) into the existing row, and
+  dedups emails into the Contact alias list. Does NOT create a new Opp — this is the merge path when add-to-crm
+  dedup hits an existing -1 row or Tom directs the rename. Idempotent. Trigger phrases: "this is -1
+  [FounderName], rename to [Company]", "promote -1 [FounderName] to [Company]", "rename -1 [FounderName] to
+  [Company]", "roll [thread/intro/email] into [FounderName]'s -1 opp and rename to [Company]", or any variant
+  naming an existing -1 row + a company to promote it to. Modes: B (Listener, via claude-alerts-listener on a
+  "no matching Opp" reply) and C (Manual). Never creates a People DB row for a new cofounder — surfaces them to
+  Tom.
 ---
 
 # -1 Promote

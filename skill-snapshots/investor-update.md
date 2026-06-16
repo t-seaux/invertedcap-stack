@@ -1,6 +1,16 @@
 ---
 name: investor-update
-description: "Process investor update emails AND board materials (board meetings/decks/updates) from PORTFOLIO COMPANIES (startups Tom has invested in) and attach them to the corresponding Notion Opportunities database entry. Board materials count as formal comms outreach and route through this skill — they live in the same `Update Type = Formal` track as regular investor updates, but use a distinct title naming convention (`Board Meeting` instead of `Update`). There is NO separate `Board` Update Type; board materials are Formal entries with a different title pattern. This is NOT the same as 'investor letters' — see disambiguation below. This skill operates in three modes. (A) Scheduled sweep — reconciliation pass that catches what the investor-update-inbound webhook missed; scans Tom's Gmail inbox for new investor update or board emails from the past 24 hours. (B) Webhook — invoked per inbound message via the claude-job-queue primitive, processes one specific email instead of scanning the inbox. (C) Manual trigger — auto-detects when the user forwards or pastes an investor update email or board deck/notification in conversation (look for phrases like 'investor update', 'quarterly update', 'monthly update', 'portfolio update', 'board meeting', 'board deck', 'board update', 'board materials', company update newsletters, Google Slides share notifications for portfolio decks, or any email that reads like a periodic business/financial update or board communication from a startup founder to their investors/directors). In all modes, extract the company name, locate the matching Active Portfolio opportunity in Notion, create a new page in the Company Updates database with the email content, save a PDF archive, and link the update to the Opportunity via a dual relation."
+description: >-
+  Process investor update emails AND board materials (board meetings/decks/updates) from PORTFOLIO COMPANIES and
+  attach them to the matching Notion Opportunity. Board materials are Formal-track entries (Update Type =
+  Formal) with a `Board Meeting` title pattern — there is NO separate Board type. NOT the same as investor
+  letters. Three modes: (A) Scheduled sweep — scans Gmail inbox for update/board emails from the past 24h,
+  catching what the webhook missed. (B) Webhook — one inbound message via claude-job-queue. (C) Manual —
+  auto-detects a forwarded/pasted update or board deck; phrases: investor update, quarterly/monthly/portfolio
+  update, board meeting, board deck, board update, board materials, company-update newsletters, Google Slides
+  share notifications for portfolio decks, or any periodic business/financial or board communication from a
+  founder. All modes: extract company, find the Active Portfolio Opp, create a Company Updates page with the
+  content, save a PDF archive, link via dual relation.
 ---
 
 # Investor Update Processor (Portfolio Companies)

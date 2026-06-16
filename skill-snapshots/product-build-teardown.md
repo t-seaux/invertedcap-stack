@@ -1,22 +1,14 @@
 ---
 name: product-build-teardown
-description: >
-  Produce a long-form Product Build Teardown for a pipeline opportunity. Pulls all
-  available context from the Notion Opportunity (page body, Diligence Materials,
-  call transcripts), explores the company's public surface area (website, docs,
-  API reference, demos), takes screenshots of anything informative, walks
-  competitor / peer sites mentioned in materials or first-pass docs, and uses
-  Exa (primary) + Parallel (fallback) for broad-based product teardown
-  research. Produces a six-section analysis covering Product Anatomy, Delivery
-  Mechanism, Build Cost to v1, Path to Production-Grade, Moat Read, and
-  Killshots — each grounded in cited evidence with cost/time estimates tied to
-  the shared cost-calibration table. Outputs a Notion Notes page (Category =
-  Diligence, linked to the Opp), a formatted PDF matching first-pass-diligence
-  styling, a Drive upload, and a Slack alert. Trigger whenever Tom says
-  "product teardown on X", "build teardown on X", "product build teardown on
-  X", "do a teardown on X", or any variant requesting a product/build
-  teardown analysis on a named opportunity. Always trigger inline — no
-  confirmation needed before acting.
+description: >-
+  Produce a long-form Product Build Teardown for a pipeline Opportunity. Pulls Notion context (page body,
+  Diligence Materials, transcripts), explores the company's public surface (site, docs, API reference, demos)
+  with screenshots, walks competitor/peer sites, and researches via Exa (primary) + Parallel (fallback).
+  Produces a six-section analysis — Product Anatomy, Delivery Mechanism, Build Cost to v1, Path to
+  Production-Grade, Moat Read, Killshots — each cited with cost/time estimates tied to the shared
+  cost-calibration table. Outputs a Notion Notes page (Category = Diligence), a first-pass-styled PDF, a Drive
+  upload, and a Slack alert. Trigger: "product teardown on X", "build teardown on X", "product build teardown on
+  X", "do a teardown on X", or any teardown request on a named opportunity. Always inline — no confirmation.
 ---
 
 # Product Build Teardown

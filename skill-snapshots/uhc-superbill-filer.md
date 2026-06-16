@@ -45,6 +45,17 @@ Before touching Chrome, read the uploaded invoice PDF and extract:
 Cross-check the total against the computed amount (sessions × $450). If there is any
 discrepancy, stop and flag it to Tom before proceeding.
 
+**Pre-flight hard gates (MANDATORY — these stop the run before Chrome is touched):**
+
+1. **Diagnosis code must equal `F43.20`.** Anything else → stop and ask Tom to confirm
+   before proceeding (a different code could mean a wrong invoice, a different provider,
+   or a billing change that needs review — never file it unconfirmed).
+2. **CPT codes must be a subset of `{99214, 90836}`.** Any other code on the invoice →
+   stop and ask Tom to confirm. Do not assume a new code is a harmless addition.
+3. **Compute the expected service-date pairing** as a list: `[(date1, 99214), (date1, 90836),
+   (date2, 99214), (date2, 90836), ...]`. This list is the ground truth diffed
+   programmatically against the portal form fields in Step 6d — not eyeballed.
+
 Read `references/static-data.md` for the full set of static values used throughout the flow.
 
 ## Step 1: Navigate to Submit a Claim
@@ -154,6 +165,12 @@ Expand each service entry and verify:
   - Services #5 and #6 → third session date
   - And so on...
 - All dates use the correct month and year from the invoice
+
+**Programmatic pairing diff**: extract the portal's (date, CPT) list from the expanded
+service entries and diff it against the expected pairing list computed in Step 0. Every
+mismatch (wrong date, wrong code order, missing/extra entry) gets corrected via
+"Edit details" — list the diffs explicitly in the Step 6e report rather than relying
+on visual inspection.
 
 If any field is wrong, use the "Edit details" link to correct it.
 

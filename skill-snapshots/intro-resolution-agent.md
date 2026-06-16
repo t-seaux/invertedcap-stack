@@ -169,7 +169,21 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
 6. **Route the verdict**:
    - **Made** → invoke the JS-backed write (Step 7).
    - **Declined** (explicit decline or hard deferral) → invoke the JS-backed write (Step 7).
-   - **Soft-deferral / ambiguous** → no write, no alert. Log `single-message resolution: <person> on <opp> — <verdict> → kept in Outreach`. Exit 0.
+   - **Opt-in, no intro sent yet** (verdict = clear opt-in, the inline-intro check did NOT fire, and no standalone double-opt-in was found → the contact said yes but Tom has not made the intro): do NOT write a terminal state (person stays in ☎️ Outreach), but **enqueue `intro-draft-agent` to auto-draft the double-opt-in intro** (Step 6a). Then log `single-message resolution: <person> on <opp> — opt-in → kept in Outreach, draft queued` and exit 0.
+   - **Soft-deferral / ambiguous** → no write, no draft, no alert. Log `single-message resolution: <person> on <opp> — <verdict> → kept in Outreach`. Exit 0.
+6a. **Auto-draft handoff (opt-in path only).** For the opt-in-without-intro case above, enqueue a follow-on `intro-draft-agent` job so a Gmail draft of the double-opt-in intro is created within ~a minute (event-driven, not waiting on the next scheduled scan). Target opp = the candidate Opp where this person currently sits in ☎️ Outreach (from `oppCandidateIds`; if multiple, enqueue one job per such Opp). Write a typed args JSON and call the canonical helper — do NOT read `intro-draft-agent/SKILL.md` or draft inline:
+   ```bash
+   cat > /tmp/intro-draft-args-<messageId>-<personId>.json <<'JSON'
+   { "messageId": "<messageId>", "personId": "<personId>", "oppId": "<oppId>",
+     "threadId": "<threadId>", "senderEmail": "<senderEmail>" }
+   JSON
+   ~/.claude/scripts/enqueue-intro-draft.sh /tmp/intro-draft-args-<messageId>-<personId>.json
+   ```
+   The helper reads `$CLAUDE_JOB_QUEUE_SECRET` from env, computes idempotency key `intro-draft-<messageId>-<personId>`, and POSTs to `/enqueue`. Interpret the result:
+   - exit 0 + body `{"enqueued": true, ...}` → draft job queued; it runs on its own tick.
+   - exit 0 + body `{"enqueued": false, "reason": "dedup"}` → already queued for this opt-in (a prior retry) — fine, log `intro-draft-already-enqueued` and continue.
+   - non-zero → infrastructure error; log it but do NOT fail the resolution job over a draft-enqueue miss (the scheduled `intro-draft-agent` scan is the backstop). The opt-in itself is already correctly left in Outreach.
+   The draft agent independently re-checks sent/draft mail before creating, so a spurious enqueue never produces a duplicate or a draft for an already-sent intro.
 7. **Execute atomic write via the JS endpoint** (replaces direct `notion-update-page` calls in Mode B):
    ```bash
    ~/.claude/scripts/intro-resolution-write.py \

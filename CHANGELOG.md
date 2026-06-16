@@ -1,4 +1,18 @@
 # Changelog
+
+## [2026-06-16] (Week of 2026-06-16)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- intro-resolution-agent -- on opt-in reply where no intro has been sent, now auto-enqueues intro-draft-agent via enqueue-intro-draft.sh rather than waiting for next scheduled scan
+- intro-draft-agent -- added targeted webhook invocation mode (from intro-resolution-agent on confirmed opt-in); mode pill updated to S+W+M
+- draft-investment-memo -- renamed Round OS% field to OS% @ Round throughout
+**Total skills:** 33
+**Functions:** No changes
+
+---
+
 ## [2026-06-15] (Week of 2026-06-15)
 
 **Added:** batch-add-to-crm (Pipeline Management — was in mapping since 2026-06-12, now surfaced to Platform Map and Quick Reference)
@@ -44,7 +58,6 @@
 **Functions:** No changes
 
 ---
-
 
 ## [2026-06-10] (Week of 2026-06-09)
 

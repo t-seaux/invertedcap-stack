@@ -1,17 +1,13 @@
 ---
 name: intro-agent
-description: >
-  Detect and log investor intro requests from Gmail and iMessage into Notion. Operates in two modes:
-  (1) Scheduled sweep — reconciliation pass that catches what the per-event webhook handlers
-  (intro-agent-inbound, intro-outreach, intro-made) missed. Scans Tom's Gmail inbox and recent
-  iMessages from the past 24 hours for intro requests, processing each one automatically.
-  (2) Manual trigger — auto-detects when the user forwards or pastes an intro request in conversation,
-  or when the user explicitly asks to log an intro (e.g., "intro Dan Li to Nishant Karandikar",
-  "log these intros", "add these intros to qualified"). Also triggers on screenshots of text messages
-  or emails containing intro requests. Trigger phrases include: "intro", "intros", "qualified intros",
-  "log intro", "facilitate intro", "make an intro", "connect X to Y", or any message that references
-  facilitating introductions between people and portfolio companies. Even if the user doesn't say "intro"
-  explicitly, trigger if the context clearly involves connecting a person to a portfolio company founder.
+description: >-
+  Detect and log investor intro requests from Gmail and iMessage into Notion. Two modes: (1) Scheduled sweep —
+  reconciliation pass (past 24h Gmail + iMessage) catching what the per-event webhooks (intro-agent-inbound,
+  intro-outreach, intro-made) missed. (2) Manual — auto-detects a forwarded/pasted intro request or an explicit
+  ask ("intro Dan Li to Nishant Karandikar", "log these intros", "add these intros to qualified"); also triggers
+  on screenshots of texts/emails with intro requests. Trigger phrases: "intro", "intros", "qualified intros",
+  "log intro", "facilitate intro", "make an intro", "connect X to Y", or any message about connecting a person
+  to a portfolio company founder.
 ---
 
 # Intro Agent — Qualified Scanner

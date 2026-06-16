@@ -1,31 +1,14 @@
 ---
 name: draft-feedback
 description: >-
-  Headless feedback engine for outreach + pass-note drafters. Captures sent-vs-draft
-  diffs (when Tom edits Claude's draft) AND from-scratch sends (when Tom writes the
-  email himself), extracts voice patterns, and writes them to skill-local
-  EDIT_PATTERNS.md / VOICE_EXAMPLES.md so future drafts converge on Tom's voice.
-
-  Runs invisibly via the Gmail Watch webhook (FOUNDER_EVAL_FRAMEWORK.md §13). Apps Script
-  detects sends, queues jobs to Drive; a local launchd processor drains the queue
-  every 5 minutes, calls `claude --print` to extract patterns, and appends results.
-  No Notion fields, no labels, no manual triggers. Drafters write a draft snapshot
-  to Drive at draft-creation time; the webhook matches sent → snapshot by Gmail's
-  persistent message ID (which survives subject/recipient/body edits).
-
-  After each pass-note send is fully processed, sends a single consolidated Slack
-  DM via `send-alert` confirming all three outcomes: Status flipped to Pass (Met),
-  Notes entry logged, and diff (or from-scratch voice) captured. Reads the
-  webhook's `_system/pass-note-results/<sentMsgId>.json` sidecar to verify the
-  status flip + archive actually happened.
-
-  Trigger phrases for manual invocation (rare): "run draft feedback", "process
-  draft queue", "drain feedback queue", "show recent edit patterns".
-
-  Distinct from `writing-style` (long-form prose voice guide, separate corpus),
-  from `decision-retro` (captures decision reasoning, not writing mechanics), and
-  from `founder-outreach` / `pass-note-drafter` (the drafters themselves — this
-  skill is their feedback layer).
+  Headless feedback engine for the outreach + pass-note drafters. Captures sent-vs-draft diffs (when Tom edits
+  Claude's draft) and from-scratch sends, extracts voice patterns, and writes them to EDIT_PATTERNS.md /
+  VOICE_EXAMPLES.md so future drafts converge on Tom's voice. Runs invisibly via the Gmail Watch webhook +
+  launchd queue processor; no Notion fields, labels, or manual triggers in normal use. After each pass-note
+  send, posts a consolidated Slack confirmation via send-alert. Rare manual triggers: "run draft feedback",
+  "process draft queue", "drain feedback queue", "show recent edit patterns". Distinct from writing-style
+  (long-form prose voice), decision-retro (decision reasoning), and the drafters themselves (founder-outreach /
+  pass-note-drafter).
 ---
 
 # Draft Feedback

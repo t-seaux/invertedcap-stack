@@ -25,6 +25,14 @@ These amounts are fixed each quarter and should be hardcoded as the targets:
 
 Once provided, extract balances for the three LP accounts only. **Ignore management company (MC) accounts entirely** — Fund I MC, Fund II MC, and any other MC-suffixed accounts are excluded from all calculations.
 
+### Freshness gate (MANDATORY — before any calculation)
+
+The snapshot must be **dated within 24 hours**, verified from the date/time in the Citi snapshot header. If the header shows an older date, or no date/time is visible, do NOT compute transfer amounts. Stop and respond:
+
+> "This snapshot is dated [date] / has no visible timestamp — balances may be stale. Please share a fresh CitiBusiness deposit account summary (or confirm these balances are current) and I'll run the calc."
+
+Exception: if Tom explicitly confirms in the same message that the balances are current ("these are as of this morning"), proceed and note the confirmation in the output footer.
+
 ## LP Account Mapping
 Match Citi account names to entities as follows:
 

@@ -1,6 +1,14 @@
 ---
 name: coop-finances
-description: Maintain 25 Garden Place Corp's P&L workbook from raw bank txn data. Canonical artifact is `~/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Garden/25_Garden_Place_PL.xlsx` (iCloud-synced, edited in place via openpyxl, two-way with Tom's Excel/Numbers edits). Two trigger paths — (A) scheduled 1st-of-month Slack prompt asking Tom to drop the latest Citi CHK-7926 CSV and a Reserve account screenshot/xls as thread replies, and (B) webhook-triggered processing when Tom replies with attachments. Plus (C) manual: Tom drops a CSV in chat with phrasing like "ingest these coop txns" or "update the coop financials". Skill opens iCloud xlsx, ingests the new feed, classifies txns per `references/VENDOR_CLASSIFICATIONS.md` and `references/CHECK_LEDGER.md`, applies maintenance clustering (4×$1,100 → 1 service month), flags unknown vendors / off-pattern CHECKs, saves in place, and posts a Slack summary. New vendor classifications confirmed by Tom in the reply thread get appended to the classifications table for next time. Drive snapshot is opt-in only — Tom can ask "push a snapshot to Drive" for sharing.
+description: >-
+  Maintain 25 Garden Place Corp's P&L workbook from raw bank txn data. Canonical artifact: ~/Library/Mobile
+  Documents/com~apple~CloudDocs/Desktop/Garden/25_Garden_Place_PL.xlsx (iCloud-synced, edited in place via
+  openpyxl). Trigger paths: (A) scheduled 1st-of-month Slack prompt for the latest Citi CHK-7926 CSV + Reserve
+  screenshot; (B) webhook processing when Tom replies with attachments; (C) manual — Tom drops a CSV with
+  "ingest these coop txns" or "update the coop financials". Ingests the feed, classifies txns per
+  references/VENDOR_CLASSIFICATIONS.md + CHECK_LEDGER.md, applies maintenance clustering, flags unknown vendors
+  / off-pattern CHECKs, saves in place, posts a Slack summary. New vendor classes confirmed in-thread get
+  appended. Drive snapshot opt-in only ("push a snapshot to Drive").
 ---
 
 # coop-finances
@@ -96,6 +104,14 @@ In-place edits to the xlsx:
 - For new years, create a new sheet via the same row scaffold (copy 2026 layout, blank cells).
 
 Save xlsx in place. iCloud handles sync. No Drive upload unless Tom explicitly asks for a snapshot.
+
+### 6.5 Post-run verification gates (MANDATORY — never silently accept)
+
+`update_pl.py` already computes the verification primitives; the calling agent must treat them as **hard gates**, not informational output:
+
+- **CSV ↔ _Raw reconciliation**: the output JSON includes `csv_sum_delta_in` / `csv_sum_delta_out` (from `reconcile_csv_sums` — parse-vs-written sums). Both must be `0.00`. Any non-zero delta means a row was dropped or duplicated between parse and write — lead the Slack reply/inline response with `⚠️ RECONCILIATION FAILED: in delta $X, out delta $Y — review before trusting this run` and do not present the run as clean.
+- **Cluster integrity**: any `cluster_issues` entries surface verbatim in the flagged section.
+- **Reserve screenshot OCR validation**: when a Reserve screenshot (not CSV/xls) is the input, the OCR'd transcription must be validated before ingest — recompute the running balance from the extracted (date, type, amount) tuples and compare to the screenshot's final displayed balance. **Mismatch > $1 → reject the OCR pass entirely**; do not ingest. Reply: "Screenshot OCR didn't reconcile (computed $X vs displayed $Y) — please export the Reserve account as CSV/xls instead." Additionally pass the screenshot's final balance through to `check_reserve_balance` so the workbook-level check runs; surface any reported mismatch as a flag.
 
 ### 7. Slack summary (Mode A/B) or inline (Mode C)
 

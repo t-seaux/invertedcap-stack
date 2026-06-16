@@ -1,6 +1,14 @@
 ---
 name: draft-investment-memo
-description: Draft the initial investment memo for a portfolio company Tom is investing in. Pulls every diligence artifact for the Opportunity (call notes with transcripts, deck, one-pager, first-pass diligence, pre-mortem, feedback), reads every reference memo in the canonical Drive folder (weighted by recency for structural drift), and drafts a Google Doc memo in Tom's voice that matches the modern memo skeleton — declarative opening, Round Overview table, Team table, numbered Thesis pillars (unbounded count) sourced from the first-pass diligence analysis, Appendix links table. Audits every factual and quantitative claim against the source bundle via research-artifact-audit before publishing. Refuses if a memo Drive doc already exists (future skills will edit the existing version). Trigger when Tom says "draft investment memo for [X]", "draft deal memo for [X]", "memo for [X]", "initial memo on [X]", "draft the memo on [X]", "first draft of the [X] memo", or any variant requesting a new memo for a named company. Manual-only — no scheduled or webhook entry point.
+description: >-
+  Draft the initial investment memo for a portfolio company Tom is investing in. Pulls every diligence artifact
+  for the Opp (call notes + transcripts, deck, one-pager, first-pass diligence, pre-mortem, feedback), reads the
+  reference memos in the canonical Drive folder (recency-weighted), and drafts a Google Doc in Tom's voice
+  matching the modern memo skeleton — declarative opening, Round Overview table, Team table, numbered Thesis
+  pillars from the first-pass analysis, Appendix links table. Audits every factual/quantitative claim against
+  the source bundle via research-artifact-audit before publishing. Refuses if a memo Doc already exists.
+  Trigger: "draft investment memo for [X]", "draft deal memo for [X]", "memo for [X]", "initial memo on [X]",
+  "draft the memo on [X]", "first draft of the [X] memo". Manual-only.
 ---
 
 # Draft Investment Memo
@@ -48,7 +56,7 @@ one. Never auto-pick.
 `notion-fetch` the Opp page. Extract every memo-relevant property:
 
 - Identity: `Name`, `Description`, `Website`, `HQ`, `Stage`, `Round Details`,
-  `Round OS%`, `Inv @ Round`, `Close Date`, `Fund`, `Status`, `Contact`
+  `OS% @ Round`, `Inv @ Round`, `Close Date`, `Fund`, `Status`, `Contact`
 - Relations: `🏁 Founder(s)`, `Source(s)`, `Support`, `Coinvestors`, `Angels`,
   `👓 Existing Backers`, `✍️ Notes`, `🗄️ Investor Updates`,
   `🕰️ Funding History`
@@ -159,7 +167,7 @@ not warranted by the deal's structure]
 | Fund | [Fund name from Opp.Fund property — e.g., Inverted 1️⃣] |
 | Round | [Stage label — e.g., Seed, Series A] |
 | Round Size & Cap | [From Opp.Round Details — e.g., $5M on $40M post] |
-| Inverted Check & Ownership | [From Opp.Inv @ Round + Opp.Round OS% — e.g., $250k / 0.625%] |
+| Inverted Check & Ownership | [From Opp.Inv @ Round + Opp.OS% @ Round — e.g., $250k / 0.625%] |
 | Investor Syndicate | [From Opp.Coinvestors + Opp.👓 Existing Backers — comma-separated, hyperlinked where possible] |
 | Prior Funding | [From Opp.🕰️ Funding History or page body — total prior raised; "N/A" if pre-seed first round] |
 | Deal Source | [From Opp.Source(s) relation — person/firm who sourced the deal] |

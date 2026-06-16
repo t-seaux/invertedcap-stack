@@ -1,27 +1,15 @@
 ---
 name: decision-retro
 description: >-
-  Capture Tom's free-form retro on any invest/pass decision — including cold dismissals.
-  Supersedes the old `founder-feedback` placeholder with broader scope: retros can touch
-  founder signals, company stage, market structure, business model, positioning, valuation,
-  anything Tom has texture on. Raw retro stays on the Opportunity page; extracted nuggets
-  accumulate in a thematic master log at `neg1-enricher/DECISION_RETROS.md`. Strong
-  patterns eventually get promoted from retros → `FOUNDER_EVAL_CASEBOOK.md` through manual curation.
-  Three trigger paths. (1) Scheduled scan (daily 9am ET) detects Opportunity status transitions
-  to Committed / Pass Note Pending / Pass (Met) / Pass (DNM) (including follow-on rounds) and posts a prompt to the
-  `#decision-retros` Slack channel; Tom replies in thread (voice-to-text or typed);
-  scheduled listener (daily 6pm ET) processes replies. (2) Capture mode (manual): Tom says
-  "retro on [company]", "log retro on X", "decision retro on X", "log this retro",
-  or any imperative variant indicating he's providing new retro text for an Opp.
-  (3) Lookup mode (manual): Tom asks a past-tense question about a prior decision —
-  "why did I pass on [X]", "why did I invest in [X]", "what did I think of [X]",
-  "pull my retro on [X]", "show me my feedback on [X]", "my take on [X]". Lookup
-  returns a structured summary (header / official pass note feedback / internal-feedback
-  nuggets by dimension / framework connections / diligence context / Notion link) —
-  never echoes the raw retro verbatim. Distinct from `first-pass-diligence` (which
-  runs BEFORE the decision) and from `pass-note-drafter` (which produces outbound
-  comms to founders). Capture mode writes INTERNAL reasoning that never leaves the
-  system; Lookup mode surfaces it on demand. Free-form — never imposes a template.
+  Capture Tom's free-form retro on any invest/pass decision, including cold dismissals — founder signals, stage,
+  market, model, positioning, valuation, anything Tom has texture on. Raw retro stays on the Opportunity page;
+  nuggets accumulate in a thematic master log. Three paths: (1) Scheduled scan (daily 9am ET) detects Opp status
+  to Committed / Pass Note Pending / Pass (Met) / Pass (DNM) and prompts in #decision-retros Slack; a 6pm
+  listener processes replies. (2) Capture mode (manual): "retro on [company]", "log retro on X", "decision retro
+  on X", "log this retro". (3) Lookup mode (manual): past-tense questions — "why did I pass on [X]", "why did I
+  invest in [X]", "what did I think of [X]", "pull my retro on [X]", "my take on [X]" — returns a structured
+  summary, never the raw retro verbatim. Distinct from first-pass-diligence (before the decision) and
+  pass-note-drafter (outbound founder comms).
 ---
 
 # Decision Retro

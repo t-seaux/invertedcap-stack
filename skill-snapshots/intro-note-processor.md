@@ -1,20 +1,14 @@
 ---
 name: intro-note-processor
-description: >
-  Process a Notion meeting note for follow-up intro commitments. Reviews the note body
-  for explicit intro mentions ("intro X to [Founder]") and implicit intro signals (Tom
-  promising to bring in a coinvestor, customer, downstream investor, or advisor). For
-  each candidate, resolves the person in the People DB, dedups against all four intro
-  lifecycle fields on the linked Opportunity, appends new candidates to 👓 Intros
-  (Qualified), and saves a Gmail draft of the outreach email Tom should send to the
-  target — using historical sent emails of the same type as the voice/structure
-  template. Missing People DB entries surface as a Slack alert (no auto-stub). Two
-  modes: (B) Subroutine — called by meeting-note-processor at the end of its Mode
-  B-process flow, inheriting the already-fetched note + Opportunity. (C) Manual —
-  Tom triggers explicitly. Trigger phrases for Mode C: "process my call with [person]
-  for intros", "process the [company] note for intros", "extract intros from [note]",
-  "draft intro outreach from this call", or any variant pointing at a specific note
-  and asking for follow-up intro extraction.
+description: >-
+  Process a Notion meeting note for follow-up intro commitments. Scans the note body for explicit ("intro X to
+  [Founder]") and implicit intro signals (Tom offering a coinvestor, customer, downstream investor, or advisor).
+  For each, resolves the person in the People DB, dedups against all four intro lifecycle fields on the linked
+  Opp, appends new candidates to Intros (Qualified), and saves a Gmail draft of the outreach using historical
+  same-type sends as the voice template. Missing People DB entries surface as a Slack alert (no auto-stub).
+  Modes: (B) Subroutine — called by meeting-note-processor at the end of Mode B-process; (C) Manual — "process
+  my call with [person] for intros", "process the [company] note for intros", "extract intros from [note]",
+  "draft intro outreach from this call".
 ---
 
 # Intro Note Processor
