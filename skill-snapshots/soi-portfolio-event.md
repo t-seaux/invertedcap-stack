@@ -16,7 +16,7 @@ description: >-
 Real-time SOI maintenance when a portfolio Opp changes. Companion to `soi-refresh-inputs` (which handles
 *fund-admin* re-anchoring on a quarterly cadence); this one handles *portfolio* changes event-driven.
 
-Engine: `~/.claude/scripts/soi/refresh_inputs.py` (subcommands `mark`, `distribution`) + `run.sh`.
+Engine: `~/code/lp-portal/refresh_inputs.py` (subcommands `mark`, `distribution`) + `run.sh`.
 **Marks/distributions live in `fund_inputs.json`** — `priced_round_marks[company] = {ownership, fmv}` and
 `distributions[company]`. Never write investment/portfolio facts to Notion; those are read live by `soi_generate.py`.
 
@@ -32,7 +32,7 @@ Tier 2 is below.
 
 ## Mode A — Tier 1 rebuild (webhook)
 
-1. `cd ~/.claude/scripts/soi && bash run.sh` (gates must pass; on fail it alerts and keeps the last good doc).
+1. `cd ~/code/lp-portal && bash run.sh` (gates must pass; on fail it alerts and keeps the last good doc).
 2. The harness's own diff alert reports the changed values. Nothing else to do.
 
 ## Detecting SAFE vs priced (two layers)
@@ -153,10 +153,10 @@ Apply with the engine (always `--dry-run` first, echo the diff), then rebuild:
 
 ```
 # priced mark
-python3 ~/.claude/scripts/soi/refresh_inputs.py mark --company <C> --ownership <dec> --fmv <int>
+python3 ~/code/lp-portal/refresh_inputs.py mark --company <C> --ownership <dec> --fmv <int>
 # exit / distribution
-python3 ~/.claude/scripts/soi/refresh_inputs.py distribution --company <C> --amount <int> --residual-fmv <int>
-cd ~/.claude/scripts/soi && bash run.sh
+python3 ~/code/lp-portal/refresh_inputs.py distribution --company <C> --amount <int> --residual-fmv <int>
+cd ~/code/lp-portal && bash run.sh
 ```
 
 Then post a close-loop reply IN THE SAME THREAD: the applied values, the new company MOIC, and (if shown)

@@ -4,7 +4,7 @@ description: >-
   Re-anchor the Fund 1 SOI's fund-level inputs when fresh administrator docs arrive from Vector / Valence.
   The SOI's returns run on a NAV roll-forward (live NAV = last audited Total Partners' Capital, rolled
   forward daily by documented events + LPA management-fee accrual). This skill updates the ANCHOR and fee
-  facts in ~/.claude/scripts/soi/fund_inputs.json — it does NOT touch investment/portfolio data (that is
+  facts in ~/code/lp-portal/fund_inputs.json — it does NOT touch investment/portfolio data (that is
   live from Notion). Three fund-admin sources: (1) management fee = latest Vector email .xlsx; (2) financial
   statements (NAV / paid-in) = Valence portal; (3) capital calls = Valence portal. Docs lag quarter-end by
   weeks; between anchors the daily run.sh keeps rolling forward, so this is NOT time-gated — it re-anchors
@@ -44,7 +44,7 @@ the next quarter). That is expected and fine: the roll-forward covers the gap. S
 
 ## Engine
 
-`~/.claude/scripts/soi/refresh_inputs.py` — deterministic; every mutation prints a field diff and writes
+`~/code/lp-portal/refresh_inputs.py` — deterministic; every mutation prints a field diff and writes
 atomically. Always `--dry-run` first, show the diff, then apply.
 
 ```
@@ -107,7 +107,7 @@ Run `refresh_inputs.py show` first to see the current anchor `as_of` and fee fac
 
 ### 4. Rebuild + verify + alert
 
-1. `cd ~/.claude/scripts/soi && bash run.sh` (omit `--no-send` so change alerts fire) — gates must pass.
+1. `cd ~/code/lp-portal && bash run.sh` (omit `--no-send` so change alerts fire) — gates must pass.
 2. Show Tom: the field diffs applied, the new anchor, and the resulting live NAV / would-be TVPI from
    `refresh_inputs.py show`.
 3. Deliver the rebuilt `~/Inverted_Capital_I_SOI.html` (SendUserFile).

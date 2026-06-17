@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-06-17] (Week of 2026-06-16)
+
+**Added:** soi-portfolio-event, soi-refresh-inputs (Portfolio Management — added to canonical mapping and surfaced to Platform Map and Quick Reference)
+**Removed:** None
+**Modified:**
+- soi-portfolio-event -- SOI engine path migrated from `~/.claude/scripts/soi/` to `~/code/lp-portal/`
+- soi-refresh-inputs -- SOI engine path migrated from `~/.claude/scripts/soi/` to `~/code/lp-portal/`
+**Total skills:** 35
+**Functions:** Portfolio Management — soi-portfolio-event and soi-refresh-inputs added to Platform Map and Quick Reference
+
+---
+
 ## [2026-06-16] (Week of 2026-06-16)
 
 **Added:** None

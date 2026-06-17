@@ -356,7 +356,7 @@
   <div class="responsive-inner" id="responsive-inner">
     <div class="page-wrap">
 
-      <div class="page-date">Updated 2026-06-16 (<a href="https://github.com/t-seaux/invertedcap-stack/blob/main/CHANGELOG.md" target="_blank">Changelog</a>)</div>
+      <div class="page-date">Updated 2026-06-17 (<a href="https://github.com/t-seaux/invertedcap-stack/blob/main/CHANGELOG.md" target="_blank">Changelog</a>)</div>
 
       <!-- —— Stack Map —— -->
       <div class="artifact-frame">
@@ -370,7 +370,7 @@
           <div class="sm-fns-row" id="fns-row">
             <div class="sm-fn-card" id="fn-pipeline"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Pipeline Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">pipeline-agent</span><span class="sm-sk sm-event">draft-feedback</span><span class="sm-sk">neg1-enricher</span><span class="sm-sk sm-sched">neg1-sourcing</span><span class="sm-sk">add-to-contacts</span><span class="sm-sk">batch-add-to-crm</span></div></div>
             <div class="sm-fn-card" id="fn-intro"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Intro Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event sm-composite">intro-agent</span><span class="sm-sk">network-scan</span></div></div>
-            <div class="sm-fn-card" id="fn-portfolio"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Portfolio Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">investor-update</span><span class="sm-sk">coinvestor-recommender</span></div></div>
+            <div class="sm-fn-card" id="fn-portfolio"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Portfolio Management</div><div class="sm-fn-skills"><span class="sm-sk sm-event">investor-update</span><span class="sm-sk">coinvestor-recommender</span><span class="sm-sk sm-event">soi-portfolio-event</span><span class="sm-sk">soi-refresh-inputs</span></div></div>
             <div class="sm-fn-card" id="fn-diligence"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Diligence Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched sm-composite">diligence-agent</span><span class="sm-sk">update-diligence-priors</span><span class="sm-sk">pre-mortem</span><span class="sm-sk">product-build-teardown</span><span class="sm-sk">add-conversation-to-notion</span><span class="sm-sk">decision-retro</span><span class="sm-sk">draft-investment-memo</span><span class="sm-sk">finalize-diligence</span><span class="sm-sk">diligence-qa</span><span class="sm-sk">log-pass-note-guidance</span></div></div>
             <div class="sm-fn-card" id="fn-research"><div class="sm-eyebrow">Function</div><div class="sm-fn-name">Research Management</div><div class="sm-fn-skills"><span class="sm-sk sm-sched">research-agent</span><span class="sm-sk">log-transcript-to-notion</span><span class="sm-sk">deal-digest</span><span class="sm-sk">log-investor-letter-to-notion</span><span class="sm-sk">add-to-companies</span><span class="sm-sk">company-scan</span></div></div>
           </div>
@@ -459,6 +459,8 @@
             <div class="qr-fn-header">Portfolio Management</div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-on">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">investor-update</span></div><div class="qr-skill-line">Ingests investor update emails and board materials from portfolio companies into Notion; archives PDFs to Drive and links updates to the matching Opportunity.</div></div>
             <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">coinvestor-recommender</span></div><div class="qr-skill-line">Recommends qualified coinvestors from Tom's network for a specific deal.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-on">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">soi-portfolio-event</span></div><div class="qr-skill-line">Maintains the SOI on portfolio Opportunity changes; field-driven events rebuild, document-driven events (priced rounds, exits) draft marks or distributions for Tom's in-thread confirmation.</div></div>
+            <div class="qr-skill-row"><div class="qr-skill-name"><span class="qr-mode-pill"><span class="qr-cell qr-off">S</span><span class="qr-cell qr-off">W</span><span class="qr-cell qr-on">M</span></span><span class="qr-skill-text">soi-refresh-inputs</span></div><div class="qr-skill-line">Re-anchors the SOI's fund-level inputs (NAV, management fee, capital calls) when administrator docs arrive from Vector and Valence.</div></div>
           </div>
           <div class="qr-fn-section">
             <div class="qr-fn-eyebrow">Function</div>

@@ -326,10 +326,10 @@ SOI mark/distribution. Route here.
 3. **Apply** with the engine (always `--dry-run` first, confirm the diff is what Tom asked), then rebuild:
    ```bash
    # priced mark
-   python3 ~/.claude/scripts/soi/refresh_inputs.py mark --company "<C>" --ownership <decimal> --fmv <int>
+   python3 ~/code/lp-portal/refresh_inputs.py mark --company "<C>" --ownership <decimal> --fmv <int>
    # exit / distribution
-   python3 ~/.claude/scripts/soi/refresh_inputs.py distribution --company "<C>" --amount <int> --residual-fmv <int>
-   cd ~/.claude/scripts/soi && bash run.sh
+   python3 ~/code/lp-portal/refresh_inputs.py distribution --company "<C>" --amount <int> --residual-fmv <int>
+   cd ~/code/lp-portal && bash run.sh
    ```
 4. **Close-loop reply** in-thread: the applied values, the company's new MOIC, and the new fund DPI/TVPI
    (from `refresh_inputs.py show`). Deliver the rebuilt `~/Inverted_Capital_I_SOI.html` path. Skip Step 3
