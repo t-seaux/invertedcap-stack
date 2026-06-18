@@ -3,8 +3,12 @@ name: mademeals-weekly-order
 description: >
   Compute Tom's MadeMeals subscription rotation for the upcoming delivery,
   apply the swaps directly on mademeals.co via Playwright (the wc-autoship
-  AngularJS plugin), and post the outcome to Slack. Runs automatically every
-  Saturday at 9 AM ET via launchd (`com.tomseo.scheduled.mademeals-weekly-order`).
+  AngularJS plugin), and post the outcome to Slack. **DISABLED 2026-06-17** —
+  launchd jobs (`com.tomseo.scheduled.mademeals-weekly-order` and
+  `com.tomseo.scheduled.mademeals-daily-check`) are unloaded after recurring
+  HTTP 400 errors from the wc-autoship schedule API. Plists remain on disk
+  at `~/Library/LaunchAgents/`; re-enable with `launchctl bootstrap gui/$UID`
+  once the session/nonce issue is diagnosed.
 
   Also triggers when Tom says "what's this week's mademeals order", "run
   mademeals rotation", "next week's mademeals", "show me this week's swaps",

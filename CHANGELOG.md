@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026-06-18] (Week of 2026-06-16)
+
+**Added:** None
+**Removed:** None
+**Modified:** None
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-06-17] (Week of 2026-06-16)
 
 **Added:** soi-portfolio-event, soi-refresh-inputs (Portfolio Management — added to canonical mapping and surfaced to Platform Map and Quick Reference)
@@ -668,4 +678,3 @@ Notes: First run with the `skill-snapshots/` diff baseline — snapshots seeded 
 
 ## Future Release Notes
 (Previous releases will be documented as they occur)
-
