@@ -32,8 +32,15 @@ Tier 2 is below.
 
 ## Mode A — Tier 1 rebuild (webhook)
 
-1. `cd ~/code/lp-portal && bash run.sh` (gates must pass; on fail it alerts and keeps the last good doc).
-2. The harness's own diff alert reports the changed values. Nothing else to do.
+1. **Coinvestors check (new portfolio entries only)** — if this is a **new** SOI entry (Status flipped to
+   Active Portfolio for the first time, or a Follow-On Opp with no prior round in the SOI), inspect the
+   Opp's **Coinvestors** relation. If empty, look in the Opp body / diligence materials (deck / cap table /
+   investor update / call notes) for explicitly-named coinvestors and link the matching Companies DB rows
+   (create new ones for any coinvestor not yet tracked). **If no coinvestors are listed anywhere on the
+   Opp, leave the relation empty** — `soi_render_html.py:338` auto-renders "N/A" when the list is empty.
+   Don't go hunting / fabricating: N/A is the right outcome when none are recorded.
+2. `cd ~/code/lp-portal && bash run.sh` (gates must pass; on fail it alerts and keeps the last good doc).
+3. The harness's own diff alert reports the changed values. Nothing else to do.
 
 ## Detecting SAFE vs priced (two layers)
 

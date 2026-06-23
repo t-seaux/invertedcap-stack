@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-06-23] (Week of 2026-06-23)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- soi-portfolio-event -- added coinvestors enrichment step for new portfolio entries; inspects Opp's Coinvestors relation and links matching Companies DB rows before rebuilding the SOI
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-06-19] (Week of 2026-06-16)
 
 **Added:** None
@@ -688,3 +699,4 @@ Notes: First run with the `skill-snapshots/` diff baseline — snapshots seeded 
 
 ## Future Release Notes
 (Previous releases will be documented as they occur)
+

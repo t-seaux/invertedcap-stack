@@ -48,6 +48,7 @@ Requires `SLACK_USER_TOKEN` in env with `files:read` scope (same token used by t
 - NEVER ask questions in-session. Headless. If the reply is genuinely ambiguous, post a clarifying question **in the Slack thread** (via `post_close_loop.sh`) and exit.
 - NEVER fall back to other notification channels. Close-loop reply goes ONLY to the originating thread in `#claude-alerts`.
 - On failure, log to `audit-log/YYYY-MM-DD.log` and post a brief failure note in-thread (`⚠️ couldn't apply this — <one-line reason>`). Do not retry from this skill.
+- **Exit promptly.** Once Step 5 (audit log) is written, STOP. No re-reading edited files to verify, no "let me also check…", no exploring adjacent skills, no proactive cleanup of unrelated content. The Edit tool's success return IS the verification. The `claude --print` wrapper has a 600s ceiling — past runs have hit it after the work was already done, producing a false-positive ⚠️ failure alert on top of a successful run. Sequential Step 0 → 1 → 2 → 3 → 4 → 5 → exit. Nothing after Step 5.
 
 ---
 
@@ -413,6 +414,8 @@ Append a one-line summary of the run to `~/.claude/skills/claude-alerts-listener
 ```
 
 Tags should be short: `format-tweak`, `denylist-edit`, `notion-update`, `memory-write`, `ack-only`, etc.
+
+**This is the terminator.** After the audit-log line is appended, exit 0. Do not re-read the edited file. Do not verify the Slack reply landed. Do not look at adjacent skills "while you're here". The wrapper is on a 600s clock and the work is done.
 
 ---
 
