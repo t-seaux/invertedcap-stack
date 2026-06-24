@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-06-24] (Week of 2026-06-23)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm -- simplified Opportunity page body to two sections (Original Email verbatim + three-paragraph Summary replacing the former multi-section layout); moved material links from body to property fields; added Funding History property to link prior Opps on re-engagements; tightened URL fidelity rules
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-06-23] (Week of 2026-06-23)
 
 **Added:** None

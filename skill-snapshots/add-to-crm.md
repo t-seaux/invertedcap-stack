@@ -278,37 +278,27 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 
 ### Page Content Structure
 
-See `references/schema.md` for the canonical page body structure. Key sections: **Summary**, **Source Blurb** (if source material contains a company blurb), **Team**, **Round**, **Diligence Materials** (if any deck/material links exist), **Source Context** (with Gmail deep link if from email).
+See `references/schema.md` for the canonical body structure. The body has **exactly two sections**: `**Original Email**` (verbatim source material) and `**Summary**` (three short paragraphs: overview + traction, team, round).
 
 ```
+**Original Email**
+
+[email body verbatim — hyperlinks preserved, paragraph breaks preserved, NO horizontal-rule dividers like `***` / `---` (strip those and replace with a single blank line — they render as section breaks and make trailing blurbs look like orphan sections above Summary)]
+
 **Summary**
-[Paragraph description — richer than the one-liner property, covering product, market, and context.]
 
-**Source Blurb**
-[If the source email, message, or document contains a pitch blurb or company description, reproduce it here verbatim. Omit this section if no blurb is present in the source material.]
+[paragraph 1 — what the company does (richer than the Description one-liner) + recent progress / traction. If this is a re-engagement on a prior Opp, call that out here.]
 
-**Team**
-[Founder Name](LinkedIn URL) — [brief bio/background if available].
+[paragraph 2 — founders with linked LinkedIn URLs and one-line bios anchored on the backgrounds that matter for THIS deal.]
 
-**Round**
-[Round details if known, otherwise omit this section.]
-
-**Diligence Materials**
-[Only include if deck/material links exist. List each as a labeled bullet.]
-- [Document Title](Drive URL)
-
-**IMPORTANT:** If DocSend materials were converted to PDF and uploaded to Drive as part of this flow, the Diligence Materials section must link ONLY to the Drive PDFs — never to the original `docsend.com/view/...` URLs. DocSend links are transient input; the Drive PDFs are the permanent artifact. This also applies to other sections (e.g. Round) — do not reference DocSend as the source of materials anywhere in the page body.
-
-**URL fidelity — never fabricate URLs in the page body.** Any URL written into the page body (deck links, demo URLs, GitHub repos, founder LinkedIn, company website, social profiles, third-party deck-sharing platforms, etc.) MUST appear as a literal substring of the source material (email body, screenshot OCR, deck text, pasted text, or a tool result such as a ContactOut response). Never reconstruct or guess a URL from memory or pattern (e.g. inferring `linkedin.com/in/firstlast` from a name) — omit instead. Before writing a link, verify the URL is present in the source — `grep -F "<url>" <source>` mentally. If the URL is not literally in the source, omit the link entirely and reference the artifact by name instead (e.g., `**Deck**: see attached` rather than `[Deck](https://docsend.com/view/<fabricated>)`). This rule overrides "be helpful by filling in plausible URLs" — a missing link is recoverable; a wrong link wastes Tom's time and corrupts the audit trail. Applies equally to: the Diligence Materials body section, the Source Context section, the Team section's founder LI links (if the LI URL wasn't in source, leave the founder name unlinked), and any inline references elsewhere on the page.
-
-**Source Context**
-[Raw source material: full email text, transcribed screenshot text, DM content, etc. Include Gmail deep link if from email.]
+[paragraph 3 — current raise (stage + any disclosed terms) + prior round if relevant (amount + named participants).]
 ```
 
-**Source Blurb formatting rules:**
-- Use `**Source Blurb**` as the section header — bolded, same style as all other section headers, no italics, no attribution in the header.
-- Reproduce the blurb text exactly as written in the source — do not paraphrase or edit.
-- This section is for any company description, pitch excerpt, or blurb found in the source material (email body, forwarded intro, etc.). It is separate from Source Context, which holds the full raw message.
+**Header naming by source type:** `**Original Email**` for email. For other source types, swap the noun: `**Original DM**` (LinkedIn DM), `**Original Text**` (iMessage / SMS screenshot), `**Original Post**` (Twitter / Slack / LinkedIn post), `**Original LI Profile**` (bare LinkedIn URL with no other context).
+
+**Material links go in property fields, NOT the body.** The Diligence Materials Files property is the canonical home for deck/memo URLs. Do not add a body section duplicating those chips. DocSend materials must be converted to PDF and linked as the Drive URL — never link `docsend.com/view/...` URLs anywhere on the page.
+
+**URL fidelity — never fabricate URLs in the page body.** Any URL written into the page body (deck links, demo URLs, GitHub repos, founder LinkedIn, company website, social profiles, third-party deck-sharing platforms, etc.) MUST appear as a literal substring of the source material (email body, screenshot OCR, deck text, pasted text, or a tool result such as a ContactOut response). Never reconstruct or guess a URL from memory or pattern (e.g. inferring `linkedin.com/in/firstlast` from a name) — omit instead. Before writing a link, verify the URL is present in the source — `grep -F "<url>" <source>` mentally. If the URL is not literally in the source, omit the link entirely and reference the artifact by name instead (e.g., `Deck: see attached` rather than `[Deck](https://docsend.com/view/<fabricated>)`). This rule overrides "be helpful by filling in plausible URLs" — a missing link is recoverable; a wrong link wastes Tom's time and corrupts the audit trail. Applies equally to: the Original Email section's preserved hyperlinks, the Summary section's founder LI links (if the LI URL wasn't in source, leave the founder name unlinked), and any inline references elsewhere on the page.
 
 ### Relation Fields (resolve before creating)
 
@@ -317,6 +307,7 @@ Before creating the page, resolve these relation fields. **All relation lookups 
 - **Source(s)**: Identify who referred/sourced the deal from context (email sender, person who texted, person who made the intro, etc.). Search the **People DB only** using `notion-search` with `data_source_url` set to `collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`. If a matching entry is found, include their page URL in the `Source(s)` property at creation time. If not found, leave blank. **If no source/referrer is identified (e.g. user found the profile directly), default to "Direct": `https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9`.**
 - **🏁 Founder(s)**: Search the **People DB only** (same `data_source_url` as above) for the founder's name. If a matching entry is found, include their page URL at creation time. **If no match is found, leave the relation blank — never auto-create a People row from this flow.** Call out the gap in the confirmation summary to Step 4 (e.g. "🏁 Founder(s): not in People DB — link blank, add manually if desired") so Tom can decide whether to add them via `add-to-contacts`. When Tom DOES authorize a People creation, the `add-to-contacts` flow is responsible for populating both `City` AND `State` — never just City.
 - **Support**: Always set to `https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1` (the "N/A" entry).
+- **🕰️ Funding History**: When the Protected Status Guard's dedup pass surfaces a prior Opp on the same company that the user is explicitly overriding to create a new entry (e.g. re-engagement on a prior `Pass (Met)` Opp at a new stage; follow-on raise on a prior portfolio Opp; named-company promotion of a prior `-1` row), link the prior Opp's URL in `🕰️ Funding History` on the new page. This is the canonical thread between rounds — without it, the new Opp is orphaned from its history. Multi-round histories link every prior Opp, not just the immediate predecessor.
 
 ## Step 6: Handle Decks and Materials
 
