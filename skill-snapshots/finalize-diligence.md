@@ -127,6 +127,26 @@ finalize is always allowed, even directly off the original first-pass).
 Unlike `update-diligence-priors` (which reads only NEW material since the last run), finalize
 reads everything. The closing call must reconcile against the entire diligence record.
 
+**HARD RULE — every company-provided material is in scope, regardless of filename labels.**
+Process every entry in the Diligence Materials property field. Do NOT skip files because the
+filename or title contains `[DEPRECATED]`, `(deprecated)`, `OLD`, `[OLD]`, `superseded`, `v0`,
+`archived`, `graveyard`, or any other founder-applied "this is no longer current" tag. Every
+artifact the founders provide goes into the Final Assessment. Founder-marked deprecation is
+itself diligence signal — include the file with a `(deprecated)` qualifier inline, and treat
+the contrast between deprecated and current as material for the Diligence Journey and Net
+Take sections (what changed, what was walked back, what the rename or pivot signals). The
+only valid filters when building the materials set are (a) is this the diligence output the
+skill itself wrote (e.g., the prior consolidated PDF), and (b) is this a duplicate of another
+material in the set. Nothing else. Memory:
+`feedback_diligence_materials_deprecated_not_skip`. Caught after AgentBay 2026-06-25.
+
+**Classification rule.** All company-provided artifacts (decks, financial models, docs,
+slides, transcripts, screenshots founders sent) belong in the Diligence Findings as
+company-provided materials — not as "Customer Feedback" or other reader-feedback categories.
+Tom-authored framework docs (Diligence Q&A, question lists, pre-mortems) are Research &
+Analysis. Drive owner email is the tiebreaker: company-domain owner = Materials;
+tom@invertedcap.com owner = Research & Analysis.
+
 ### 2.0 Enumerate the Notion link map — MANDATORY
 
 Before reading content, enumerate every URL in the Opp's `✍️ Notes` relation. For each Notion
