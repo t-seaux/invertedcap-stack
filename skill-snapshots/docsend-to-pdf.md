@@ -24,6 +24,32 @@ DocSend URLs come in two flavors:
 
 The key signal is `/view/s/` in the URL. If present, it's a data room. If absent, it's a single doc.
 
+## Papermark (`papermark.com/view/{slug}`) — sibling vendor, different auth
+
+Papermark is the open-source DocSend clone Tom encounters in the wild. URL shape is identical (`https://www.papermark.com/view/{linkId}`) but the conversion path differs — use the recipe below, not the DocSend Step 1 / 2 flow.
+
+1. **Pull `linkData` from `__NEXT_DATA__`** — `GET` the view URL, regex `<script id="__NEXT_DATA__" type="application/json">(.+?)</script>`, parse, read `props.pageProps.linkData.link`. You need `id` (linkId), `document.id` (documentId), and `document.versions[0].id` (documentVersionId).
+2. **Auth + page list in one POST**:
+
+   ```python
+   POST https://www.papermark.com/api/views
+   Content-Type: application/json
+   {
+     "linkId": "<linkId>", "documentId": "<documentId>", "documentVersionId": "<versionId>",
+     "email": "tom@invertedcap.com", "password": "<password>",
+     "linkType": "DOCUMENT_LINK", "hasPages": true,
+     "userId": null, "useCustomAccessForm": false, "previewToken": null,
+     "verifiedEmail": null, "dataroomId": null, "viewType": "DOCUMENT_VIEW"
+   }
+   ```
+
+   Response is `{ "viewId", "viewerId", "pages": [{ "file": "<cloudfront signed url>", "pageNumber": N, ... }] }`. All pages come back in one shot — no per-page polling, no CSRF dance.
+3. **Download + compile** — sort `pages` by `pageNumber`, fetch each `file` URL with the same `requests` session, open via `Pillow`, convert to RGB if needed, save as PDF (same `images[0].save(out, "PDF", save_all=True, append_images=images[1:], resolution=150)` pattern as DocSend Step 1).
+4. **Naming** — Papermark exposes the source filename at `linkData.link.document.name` (e.g. `[SHARE] AgentBay investment memo.pdf`). Strip leading bracket tags (`[SHARE]`, `[DRAFT]`, etc.) and the trailing `.pdf`, then format as `[Company] - [Clean Title].pdf`.
+5. **Drive upload + Notion chip** — identical to Step 3 / Step 5 below.
+
+CloudFront URLs in the response are pre-signed and short-lived (~hours). Don't cache; download immediately.
+
 ## Step 1: Convert DocSend to PDF (Python Approach)
 
 Use this proven Python approach (pip dependency: `Pillow`):
