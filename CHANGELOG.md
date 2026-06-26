@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-06-26] (Week of 2026-06-23)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- first-pass-diligence -- added per-job workspace isolation to prevent concurrent-job workspace collisions; scoped all tmp working paths under a per-page-id directory so parallel workers no longer overwrite each other's files mid-run
+- update-diligence-priors -- added guardrail to process all company-provided materials regardless of filename deprecation labels ([DEPRECATED], (deprecated), etc.); added classification rule distinguishing company artifacts (Materials) from researcher-authored analysis (Research & Analysis)
+- finalize-diligence -- added same deprecated-label guardrail as update-diligence-priors; added classification rule for company vs. researcher-authored artifacts in the Final Assessment materials list
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-06-24] (Week of 2026-06-23)
 
 **Added:** None
