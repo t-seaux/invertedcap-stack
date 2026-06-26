@@ -39,13 +39,63 @@ materials handling for the new round.
 
 ---
 
+## Step 0: Set up per-job workspace
+
+Concurrent first-pass-diligence jobs (webhook-triggered runs and
+diligence-agent parallel workers) used to share `/tmp/firstpass_*` paths,
+which caused workspace collisions on 2026-06-24: AgentBay's webhook run
+aborted after diligence-agent's parallel workers for Durable / Orbital /
+Quiet AI overwrote `/tmp/firstpass_draft.md` and `/tmp/firstpass_manifest.json`
+mid-run.
+
+Every job MUST scope its working files under a per-page-id directory. Export
+`WORKSPACE` once at the top and use `$WORKSPACE/...` for every per-job path
+in this skill.
+
+```bash
+# PAGE_ID = the Opportunity page UUID with hyphens.
+# Derive it from whichever input you have:
+#   - Webhook invocation: from args.page_id (e.g., "38200bef-f4aa-81ba-94bd-edfa3d08b3b3").
+#   - diligence-agent worker invocation: extract from the Opportunity URL
+#     (last 32 hex chars; insert hyphens as 8-4-4-4-12).
+#   - Manual invocation: from the Notion URL you fetched in Step 1a.
+export PAGE_ID=<page_id from args, or extracted from Opportunity URL>
+export WORKSPACE=/tmp/firstpass-${PAGE_ID}
+mkdir -p "$WORKSPACE"
+```
+
+Every `/tmp/firstpass_<file>` path in this skill is rewritten to use
+`$WORKSPACE/<basename>`. The mapping is:
+
+| Old (shared, collision-prone) | New (per-job, isolated) |
+|---|---|
+| `/tmp/firstpass_draft.md` | `$WORKSPACE/draft.md` |
+| `/tmp/firstpass_sources.md` | `$WORKSPACE/sources.md` |
+| `/tmp/firstpass_audit.json` | `$WORKSPACE/audit.json` |
+| `/tmp/firstpass_manifest.json` | `$WORKSPACE/manifest.json` |
+| `/tmp/firstpass_start_ts.txt` | `$WORKSPACE/start_ts.txt` |
+| `/tmp/firstpass_raw_transcripts/` | `$WORKSPACE/raw_transcripts/` |
+| `/tmp/firstpass_labeled_transcripts/` | `$WORKSPACE/labeled_transcripts/` |
+| `/tmp/firstpass_draft.iter*` | `$WORKSPACE/draft.iter*` |
+| `/tmp/firstpass_draft.normalized.md` | `$WORKSPACE/draft.normalized.md` |
+| `/tmp/firstpass_demo_*` | `$WORKSPACE/demo_*` |
+| `/tmp/firstpass_product_screens_*` | `$WORKSPACE/product_screens_*` |
+
+Exception (shared, read-mostly cache): **`/tmp/firstpass_memos/`** stays at
+that path so portfolio memos accumulate across runs and across concurrent
+jobs. The cache is keyed by company name and only read after a successful
+file-exists check; concurrent writers to the same memo file are not a
+real-world hazard.
+
+---
+
 ## Step 1: Gather All Available Context
 
 **Anchor the start time first** so the audit-start Slack alert (Step 4b) can
 report elapsed-from-start minutes. Write this once, before any other work:
 
 ```bash
-date +%s > /tmp/firstpass_start_ts.txt
+date +%s > "$WORKSPACE/start_ts.txt"
 ```
 
 Before writing anything, assemble the full evidence base. Completeness matters — the analysis
@@ -89,19 +139,19 @@ deviation #28 in Common Deviations and memory
 note transcript:
 
 ```bash
-mkdir -p /tmp/firstpass_raw_transcripts /tmp/firstpass_labeled_transcripts
+mkdir -p $WORKSPACE/raw_transcripts $WORKSPACE/labeled_transcripts
 
 # 1. Extract the raw transcript text (one turn per line) into a per-call file.
 #    Strip the <transcript>...</transcript> wrapper from the MCP fetch output.
 
 # 2. Relabel each transcript via Haiku.
 python3 ~/.claude/skills/first-pass-diligence/relabel_transcript.py \
-    --transcript /tmp/firstpass_raw_transcripts/<call_slug>.md \
+    --transcript $WORKSPACE/raw_transcripts/<call_slug>.md \
     --attendees 'TOM (investor at Inverted Capital, asks investor-style questions and raises analogies);\
 SONIA (founder + CEO of [Company], [healthcare/fintech/etc background], owns market positioning);\
 MANISH (founder + CTO of [Company], ex-Google, owns engineering architecture)' \
     --subject '[meeting subject line — date, company, deal stage, who attended]' \
-    --output /tmp/firstpass_labeled_transcripts/<call_slug>.md
+    --output $WORKSPACE/labeled_transcripts/<call_slug>.md
 ```
 
 Cost: ~$0.03–$0.05 per 75KB transcript at Haiku 4.5. Latency: ~20–30 seconds serialized
@@ -119,6 +169,23 @@ The labeled transcripts are consumed by `first_pass_lint.py --labeled-transcript
 in Step 4a to enforce deterministic attribution.
 
 ### 1c. Fetch Diligence Materials
+
+**HARD RULE — every company-provided material is in scope, regardless of filename labels.**
+Process every entry in the Diligence Materials property field. Do NOT skip files because the
+filename or title contains `[DEPRECATED]`, `(deprecated)`, `OLD`, `[OLD]`, `superseded`, `v0`,
+`archived`, `graveyard`, or any other founder-applied "this is no longer current" tag. Every
+artifact the founders provide goes into the analysis. Founder-marked deprecation is itself
+diligence signal — include the file with a `(deprecated)` qualifier inline, and treat the
+contrast between deprecated and current as material for the analysis (what changed, what was
+walked back, what the rename or pivot signals). Memory:
+`feedback_diligence_materials_deprecated_not_skip`. Caught after AgentBay 2026-06-25.
+
+**Classification rule.** All company-provided artifacts (decks, financial models, docs,
+slides, transcripts, screenshots founders sent) belong in the Sources list as company-provided
+materials — not as "Customer Feedback" or other reader-feedback categories. Tom-authored
+framework docs (Diligence Q&A, question lists, pre-mortems) are Research & Analysis. Owner
+email in the Drive metadata is the tiebreaker: company-domain owner = Materials; tom@
+invertedcap.com owner = Research & Analysis.
 
 The Diligence Materials field may contain five types of sources. Identify each by its URL
 or file extension and use the corresponding access method:
@@ -192,11 +259,11 @@ have each document converted individually.
 **Type 5: Video files** (`.mp4`, `.mov`, `.m4v`, `.webm` — typically product demos, recorded
 calls, founder pitches uploaded to Notion or Drive)
 
-Download the file to `/tmp/firstpass_demo_<original_name>.<ext>`, then transcribe via the
+Download the file to `$WORKSPACE/demo_<original_name>.<ext>`, then transcribe via the
 local Whisper helper:
 
 ```bash
-python3 ~/.claude/scripts/transcribe_video.py /tmp/firstpass_demo_<name>.<ext> --model small > /tmp/firstpass_demo_<name>.txt
+python3 ~/.claude/scripts/transcribe_video.py $WORKSPACE/demo_<name>.<ext> --model small > $WORKSPACE/demo_<name>.txt
 ```
 
 Use `--model small` as the default — better fidelity than `base` for diligence-grade
@@ -324,6 +391,25 @@ actual memo and fails the gate if the overlay is ungrounded. Caching adds ~1 sec
 memo, negligible against the rest of Step 1e's compute. **Skipping the cache means the
 analog-grounding gate is disabled for this run — call out explicitly in the publish
 summary if you skip it.**
+
+**Manifest coverage gate — MANDATORY before proceeding to Step 1f.** Run
+`verify_memo_manifest.py` to assert that `$WORKSPACE/manifest.json`'s
+`memo_manifest` lists every memo currently in the Drive folder. Exit code 3 =
+missing memos; the script names them so you can re-read them and re-write the
+manifest. Do not proceed to Step 1f / Step 2 with a failing gate.
+
+```bash
+python3 ~/.claude/skills/first-pass-diligence/verify_memo_manifest.py \
+  --manifest "$WORKSPACE/manifest.json" \
+  --folder-id 1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO
+```
+
+Why: the model has historically short-circuited Step 1e and only read a subset
+of memos (AgentBay first-pass 2026-06-24 missed 3 of 6 memos — Rengo, Oun
+Homes, Signal7 — silently shipping an analysis built on a partial framework
+inventory). Manual prose discipline ("read every memo") doesn't enforce
+itself; the gate does, by listing the Drive folder via service account and
+diffing against the manifest.
 
 ### 1f. Load Feedback Patterns
 
@@ -759,7 +845,7 @@ public-surface, engineering-signal, peer-surface, and broad-based-web-
 research crawls defined in the framework spec ("Public surface area
 crawl", "Engineering signal crawl", "Competitor / peer surfaces",
 "Broad-based web research" subsections). Save screenshots to
-`/tmp/firstpass_product_screens_<n>.png`. Fold all extracted signal
+`$WORKSPACE/product_screens_<n>.png`. Fold all extracted signal
 into the Step 4b source bundle under the `==== PUBLIC PRODUCT SURFACE
 ====`, `==== ENGINEERING SIGNAL ====`, `==== COMPETITOR / PEER SURFACES
 ====`, and `==== EXTERNAL RESEARCH ====` blocks so the audit can
@@ -1371,11 +1457,23 @@ Sources for each manifest field:
 
 ```bash
 python3 /Users/tomseo/.claude/skills/first-pass-diligence/first_pass_lint.py \
-  --draft /tmp/firstpass_draft.md \
-  --manifest /tmp/firstpass_manifest.json \
+  --draft $WORKSPACE/draft.md \
+  --manifest $WORKSPACE/manifest.json \
   --memo-text-dir /tmp/firstpass_memos \
-  --labeled-transcripts-dir /tmp/firstpass_labeled_transcripts
+  --labeled-transcripts-dir $WORKSPACE/labeled_transcripts \
+  --meeting-note $WORKSPACE/meeting_note_raw.md
 ```
+
+`--meeting-note` is MANDATORY in the canonical flow — it points to the raw
+meeting note .md file. Notion-AI meeting notes routinely emit action items
+of the form "Tom to share spelling / details for X and Y" when speech-to-text
+mishears a company or person name. The `unverified_entity_grounding` check
+extracts those entity names and fails the lint if the draft externally
+grounds them (assigns a URL, funding stage, product positioning) without an
+explicit unverified marker. Without this flag, the check is skipped and
+transcription-error hallucinations like AgentBay's "Kibo / KSAP" fabrication
+(2026-06-24 — the transcript mishearing of "Casap" became a wholly invented
+company complete with a fake `kibocommerce.com` URL) can ship.
 
 `--labeled-transcripts-dir` is MANDATORY in the canonical flow — it points to the
 directory of speaker-labeled transcripts produced by `relabel_transcript.py` in
@@ -1398,9 +1496,9 @@ lint).** After the lint passes, run the deterministic speaker-attribution
 verifier on the draft against EACH labeled call transcript:
 
 ```bash
-for T in /tmp/firstpass_labeled_transcripts/*.md; do
+for T in $WORKSPACE/labeled_transcripts/*.md; do
   python3 ~/.claude/scripts/verify_speaker_attribution.py \
-      --draft /tmp/firstpass_draft.md --transcript "$T"
+      --draft $WORKSPACE/draft.md --transcript "$T"
 done
 ```
 
@@ -1452,22 +1550,22 @@ that file in full before continuing this step.
 
 | Binding (per research-artifact-audit) | Value (first-pass-diligence) |
 |---|---|
-| `DRAFT` | `/tmp/firstpass_draft.md` |
-| `SOURCES` | `/tmp/firstpass_sources.md` |
-| `AUDIT_JSON` | `/tmp/firstpass_audit.json` |
+| `DRAFT` | `$WORKSPACE/draft.md` |
+| `SOURCES` | `$WORKSPACE/sources.md` |
+| `AUDIT_JSON` | `$WORKSPACE/audit.json` |
 | `JUDGE_PROMPT` | `/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.prompt.md` |
 | `AUDIT_RUNNER` | `/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py` |
 | `MAX_ITER` | `3` |
 | `WEB_RESEARCH_CAP` | `6` |
-| `ITER_SNAPSHOT_PREFIX` | `/tmp/firstpass_draft.iter` |
-| `NORMALIZED_DRAFT` | `/tmp/firstpass_draft.normalized.md` |
+| `ITER_SNAPSHOT_PREFIX` | `$WORKSPACE/draft.iter` |
+| `NORMALIZED_DRAFT` | `$WORKSPACE/draft.normalized.md` |
 
 **Fire the audit-start Slack alert BEFORE building the source bundle.** This
 is a diligence-specific progress ping (not part of research-artifact-audit's
 generic flow):
 
 ```bash
-ELAPSED_MIN=$(( ($(date +%s) - $(cat /tmp/firstpass_start_ts.txt)) / 60 ))
+ELAPSED_MIN=$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 ))
 COMPANY="<subject company name>"
 cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
 🧪 First-pass audit starting for **${COMPANY}** — T+${ELAPSED_MIN} min from job start
@@ -1479,7 +1577,7 @@ Single line, no feedback prompt, no links. Do NOT include `💬 Reply in thread`
 that exact string).
 
 **Diligence-specific source bundle structure (Step A in research-artifact-audit).**
-Write `/tmp/firstpass_sources.md` with this layout (the runner chunks at the
+Write `$WORKSPACE/sources.md` with this layout (the runner chunks at the
 `==== … ====` boundaries):
 
 ```markdown
@@ -1594,10 +1692,10 @@ tildes, dollar signs, and other special characters directly without any precedin
 file deterministically:
 
 ```bash
-if [ -f /tmp/firstpass_draft.normalized.md ]; then
-  FINAL_DRAFT=/tmp/firstpass_draft.normalized.md
+if [ -f $WORKSPACE/draft.normalized.md ]; then
+  FINAL_DRAFT=$WORKSPACE/draft.normalized.md
 else
-  FINAL_DRAFT=/tmp/firstpass_draft.md
+  FINAL_DRAFT=$WORKSPACE/draft.md
 fi
 echo "publishing from: $FINAL_DRAFT"
 ```
