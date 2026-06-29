@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-06-29] (Week of 2026-06-23)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- pass-note-drafter -- eligibility filter now spec-driven via shared trigger file; reads `status_allow` and name-exclusion regex from `shared-references/triggers/pass-note-drafter.json`; added exclusion gate for a specific deal-type category
+- materials-handler -- deal-closing documents (term sheets, SAFEs, closing binders, etc.) now route to a nested `Deal Docs/` subfolder within the company's Diligence Drive folder
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-06-26] (Week of 2026-06-23)
 
 **Added:** None
