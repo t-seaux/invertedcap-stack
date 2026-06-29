@@ -62,9 +62,20 @@ For Mode B specifically:
 
 ### Step 1: Get Pass Note Pending Queue from Notion
 
-> **Mode B note:** skip this step — your queue is the single page passed in via `args.page_id`. Fetch that page via `notion-fetch`, verify its current Status is still "Pass Note Pending" (exit if not), and proceed to Step 2 with a queue of one. Resume here only for Mode A.
+> **Mode B note:** skip this step — your queue is the single page passed in via `args.page_id`. Fetch that page via `notion-fetch`, verify its current Status is still in `status_allow` from the shared trigger spec (see below) and its Name does not match `name_exclude_regex` (exit if either guard fails), and proceed to Step 2 with a queue of one. Resume here only for Mode A.
 
+**Trigger spec (read FIRST in Mode A).** Both this sweep and the `notion-webhook` event-driven producer read their gate from a single shared file. Read it before filtering:
 
+```bash
+cat ~/.claude/skills/shared-references/triggers/pass-note-drafter.json
+```
+
+Use these fields from the spec:
+- `status_allow` — currently `["Pass Note Pending"]`. Filter local results to `Status` strictly in this list.
+- `name_exclude_regex` + `name_exclude_regex_flags` — currently `\([^)]*\bFO\b[^)]*\)` / `i`. Drop any Opp whose Name matches (FO Opps don't get pass notes).
+- `opportunity_data_source_id` — Notion data source ID.
+
+If the spec is missing or unreadable, ABORT the dispatcher and log the failure — do NOT fall back to hardcoded values. See `~/.claude/skills/shared-references/triggers/README.md` for the drift-mitigation policy.
 
 Notion is the source of truth. Start here — not Gmail.
 
@@ -74,11 +85,11 @@ Use `notion-query-database-view` to query the **Agent View** of the Opportunitie
 Agent View URL: https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673
 ```
 
-This view returns all pipeline opportunities. After retrieving the results, **filter locally** for pages where `Status = "Pass Note Pending"`. The Agent View includes Pass Note Pending opportunities — you just need to isolate them from the broader result set.
+This view returns all pipeline opportunities. After retrieving the results, **filter locally** to Opps whose `Status ∈ status_allow` AND whose `Name` does NOT match `name_exclude_regex`. The Agent View is a superset — the spec-driven filter narrows it.
 
 For each matching page, collect the `id`, `Name`, `Status`, `Contact`, `🏁 Founder(s)`, `Source(s)`, `Diligence Materials`, `✍️ Notes`, and `Description` properties. These are your confirmed pending opportunities.
 
-**If no results match `Pass Note Pending`:** Stop. Send the Signal alert (Step 7) saying nothing is pending, and exit.
+**If no results match:** Stop. Send the Signal alert (Step 7) saying nothing is pending, and exit.
 
 ---
 
