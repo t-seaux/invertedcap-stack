@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-07-03] (Week of 2026-06-30)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- feedback-outreach-drafter -- dedup guard expanded from three-state (sent/draft/neither) to inbox-wide search; deleted drafts now treated as a terminal signal, preventing re-creation on subsequent sweeps
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-06-29] (Week of 2026-06-23)
 
 **Added:** None

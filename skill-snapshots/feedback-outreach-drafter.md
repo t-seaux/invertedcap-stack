@@ -65,21 +65,19 @@ Triggered by the Diligence Agent on a recurring schedule. No names are provided 
 
 Query the Opportunities DB for all opportunities whose `📣 Pending Feedback` relation field was updated in the past 30 hours. For each opportunity:
 
-> **Why 30 hours:** The agent runs on a ~10-hour cadence (8am and 6pm ET). A 30-hour lookback creates a 20-hour overlap between consecutive runs, so any contact added near a run boundary — or during a run's own execution window — is always caught by the next run. The three-state dedup check below prevents double-drafting regardless of overlap.
+> **Why 30 hours:** The agent runs on a ~10-hour cadence (8am and 6pm ET). A 30-hour lookback creates a 20-hour overlap between consecutive runs, so any contact added near a run boundary — or during a run's own execution window — is always caught by the next run. The draft-once dedup check below prevents double-drafting regardless of overlap.
 
 1. Fetch the opportunity page and read the current `📣 Pending Feedback` array.
-2. For each person in the array, run a **three-state check**:
+2. For each person in the array, run a **draft-once dedup check** across all of Gmail (including Trash and Spam):
 
-   **State 1 — Sent mail exists:**
-   Search `subject:"Thoughts on [Company]" in:sent to:[person email]`
-   → If found, skip. Already reached out.
+   **Any trace exists (sent, draft, or previously-deleted draft):**
+   Search `subject:"Thoughts on [Company]" to:[person email] in:anywhere`
+   → If ANY match returns (in sent, drafts, or trash), skip. The outreach has already been handled — either sent, awaiting Tom's send, or Tom deleted the draft as a terminal signal (meaning he reached out through another channel or decided not to pursue this contact).
 
-   **State 2 — Draft exists but not yet sent:**
-   Call `gmail_list_drafts` and scan for any draft whose subject matches `Thoughts on [Company]` addressed to this person.
-   → If found, skip. Draft is pending send — do not recreate.
-
-   **State 3 — Neither sent nor drafted:**
+   **No trace anywhere:**
    → Add to the drafting queue for this opportunity.
+
+   **Why draft-once semantics:** Presence in `📣 Pending Feedback` is sticky — the relation persists after the initial draft. Without checking Trash, a deleted draft would keep getting re-created on every scan. Treating draft deletion as terminal collapses the loop: Tom drafts, decides (send / manual reach-out / skip), the record ends there.
 
 3. If the queue is empty after checking all opportunities, return a summary noting nothing to draft and exit.
 
