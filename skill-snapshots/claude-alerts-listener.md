@@ -318,7 +318,7 @@ SOI mark/distribution. Route here.
    - Priced round: `ownership` (FD %, e.g. `6.2%`), `post-money` ($), and the derived `fair value` ($).
    - Exit: `cash distributed` ($) and `residual NAV` ($).
 2. **Parse Tom's reply:**
-   - `confirm` (or "yes", "lgtm", "ship it") → apply the proposed values verbatim.
+   - `confirm` (or "approved", "approve", "yes", "lgtm", "ship it") → apply the proposed values verbatim.
    - An adjustment → override the named field(s), then RE-DERIVE: for a priced round
      `fair value = ownership × post-money`. Examples: `ownership 6.0%`, `post-money 38m`,
      `fair value 2.4m`, `distribution 1.2m`, `residual 0`. Parse `m`/`mm` = millions, `k` = thousands,
@@ -338,6 +338,36 @@ SOI mark/distribution. Route here.
 
 Never write portfolio facts to Notion here — only `fund_inputs.json` via the engine. Marks are valuation
 judgments: if the cap-table read in the parent looks off, flag it rather than applying silently.
+
+---
+
+### Special branch: SOI rebuild confirm (Tier 1 gate)
+
+Check this **before** the generic taxonomy. If the parent alert header starts with
+`🧾 **SOI rebuild pending your confirm**` (posted by `soi_notify.py --draft` via the daily sweep, or by
+`soi-portfolio-event` Tier 1), Tom is gating a plain rebuild — Notion-derived values only, no valuation
+judgment. Route here.
+
+1. **Parse Tom's reply:**
+   - `confirm` (or "approved", "approve", "yes", "lgtm", "ship it", "publish") → publish.
+   - **A value fix (e.g. "Factir should be 750k", "the cap is 15m not 12.5m") → he's correcting the
+     NOTION data, and stating the value IS the instruction.** Apply it: patch the named field on the
+     Opp (`Inv @ Round` for check size, `Round Details` for cap/post — SCOPE: only Opps in
+     {Active Portfolio, Portfolio: Follow-On, Exited}, never Committed/other), reply in-thread with the
+     field diff you wrote, and DON'T publish — the edit fires the webhook, which re-drafts with corrected
+     numbers for his approval. If the reply is ambiguous about which field/Opp he means, ask in-thread
+     instead of guessing.
+   - A question → answer it in-thread from the draft's old→new lines + methodology, don't publish.
+   - Anything else (feedback on format, skill behavior, "stop including X") → generic taxonomy applies:
+     fix the skill/code/memory, close-loop.
+2. **Publish** on confirm: `cd ~/code/lp-portal && bash run.sh` (plain — no `--draft`; gates must pass).
+   The post-publish `📊 SOI updated` alert doubles as the applied record.
+3. **Close-loop reply** in-thread: confirm published + deployed, restate the headline changes (invested /
+   FMV / MOIC), link `~/Inverted_Capital_I_SOI.html`. Audit intent: `soi-rebuild-confirm`.
+
+No `fund_inputs.json` writes on this branch — Tier 1 is pure Notion-derived recompute. If the draft's
+numbers look wrong (e.g. a fat-fingered Inv @ Round produced a wild swing), say so in the close-loop
+rather than publishing silently even on "confirm".
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: meeting-note-processor
-description: "Process auto-generated Notion AI meeting notes (Zoom/Granola call summaries) that land in the Notes DB. Two webhook phases — `link` runs immediately on page.created and best-effort sets the Opportunity relation from the title, `process` runs ~45 min later (after the meeting wraps and Notion AI fills in the summary) and finishes the job: opportunity match (if not yet set), category classification via note-classifier, Round Details extraction onto the linked Opportunity, AND for portfolio-tagged notes, upsert of a Live entry in the Company Updates DB (one row per Company × Month, rolling Summary/Traction with prior-month freeze). Also supports a manual Mode C for retroactive runs against existing notes. Not user-facing in webhook modes — invoked via the `claude-job-queue` primitive by `notion-webhook/notion-meeting-note.js`."
+description: "Process auto-generated Notion AI meeting notes (Zoom/Granola call summaries) that land in the Notes DB. Two webhook phases — `link` runs immediately on page.created and best-effort sets the Opportunity relation from the title, `process` runs ~45 min later (after the meeting wraps and Notion AI fills in the summary) and finishes the job: opportunity match (if not yet set), category classification via note-classifier, Round Details extraction onto the linked Opportunity, AND for portfolio-tagged notes, upsert of the call into the Company Updates period row (one row per Company × Period shared with Formal letters/board decks; rolling Summary/Traction, prior-month freeze for Live content, Formal-wins precedence). Also supports a manual Mode C for retroactive runs against existing notes. Not user-facing in webhook modes — invoked via the `claude-job-queue` primitive by `notion-webhook/notion-meeting-note.js`."
 ---
 
 # Meeting Note Processor
@@ -10,7 +10,7 @@ Handles new Notion AI meeting-note pages that land in the `✏️ Notes` databas
 1. **Tag the note against an existing Opportunity** (when the company is identifiable from the title or the call body)
 2. **Set the Category** via `note-classifier` (Diligence for live deals, Portfolio for committed/active companies)
 3. **Populate Round Details on the linked Opportunity** when extractable from the call body and the Opp's existing Round Details field is empty
-4. **Upsert a Live entry in the Company Updates DB** when `Category=Portfolio` — appends the call as a dated subsection to a `Company × Month` rollup, regenerates rolling `Summary` + `Traction` (with a prior-month freeze rule). See `~/.claude/skills/shared-references/company-updates-db.md` for the full design.
+4. **Upsert the call into the Company Updates period row** when `Category=Portfolio` — adds the call as a dated subsection to the `Company × Month` row (shared with Formal letters/board decks), regenerates rolling `Summary` + `Traction` (prior-month freeze for Live content; Formal-wins Traction precedence). See `~/.claude/skills/shared-references/company-updates-db.md` for the full design.
 
 **Notes DB data_source_id:** `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`
 **Opportunities DB data_source_id:** `fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`
@@ -75,12 +75,13 @@ For each candidate, fetch the linked Opportunity. Drop the candidate unless ALL 
 
 ### Step 3: Idempotency check — has this note already been processed?
 
-For each surviving candidate, query the Company Updates DB for Live entries where:
-- `Update Type = Live`
+For each surviving candidate, query the Company Updates DB for the period row where:
 - `Company` relation contains the candidate's linked Opp
 - `Period` multi-select contains the `Mon YYYY` derived from `note.Created`
 
-If a matching entry exists AND its `Artifacts` files property includes this note's URL → already processed, drop the candidate. The Artifacts entry is the canonical "this note has been incorporated" marker because `add_link_to_files_property.py` writes it as the last step of B-process Step 6.
+(Do NOT filter by Update Type — the row is shared with Formal content and may not carry `Live` yet.)
+
+If a matching row exists AND its `Artifacts` files property includes this note's URL → already processed, drop the candidate. The Artifacts entry is the canonical "this note has been incorporated" marker because `add_link_to_files_property.py` writes it as the last step of B-process Step 6.
 
 If no matching entry OR matching entry exists but doesn't reference this note → this is a real gap; keep the candidate.
 
@@ -375,9 +376,9 @@ Properties: { "Round Details": "<extracted>", "Stage": "<extracted>" }
 
 (Omit Stage from the patch if not extractable or already set.)
 
-### Step 6: Upsert Live Company Updates entry
+### Step 6: Upsert call into the Company Updates period row
 
-If `Category = Portfolio` AND `Opportunity` is set, this step rolls the call into the Live track of the `📚 Company Updates` DB (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`). Live entries aggregate one row per `Company × Month`. Read the canonical reference at `~/.claude/skills/shared-references/company-updates-db.md` for the full design.
+If `Category = Portfolio` AND `Opportunity` is set, this step rolls the call into the `📚 Company Updates` DB (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`). The DB holds **one row per Company × Period label**, shared with Formal content (investor letters, board decks) written by `investor-update` — the target row may already hold Formal sections, and a formal update may land in it later. Read the canonical reference at `~/.claude/skills/shared-references/company-updates-db.md` for the full design, including the Formal-wins Traction precedence and the mixed body stream.
 
 **Gate is Opp-side, not Notes-Category-side.** Note-classifier has gaps — it tagged 13/19 portfolio meetings in Jan 2026 as Diligence/None instead of Portfolio (discovered 2026-05-01 during the broader-filter sweep). The canonical filter is the linked Opportunity's Status. Notes Category is informational, not a hard gate.
 
@@ -395,6 +396,7 @@ If `Category = Portfolio` AND `Opportunity` is set, this step rolls the call int
   - contains `Demo` (incl. `Loom Demo`) — product demo videos / sessions
   - contains `Deep Research` / `DDQ` / `Onboarding` / `Deck` — research, diligence, or administrative artifacts
   - contains `Pass Notes` — compilations of investor pass notes from other VCs (artifact / record-keeping, not a portfolio meeting and not a company update from the founder)
+- **Content gate (checked at Step 6c via the per-call Sonnet prompt's eligibility pre-check):** title patterns can't catch everything — a ref-check call titled with just two names passes every pattern above (the Christopher Lo / Rengo miss, Jul 2026). If the per-call Sonnet output is the `[not a portfolio update – <reason>]` marker, SKIP the upsert entirely (no row create, no body write, no rolling fields), log `content-gate-skip`, and surface the skip + reason in the Step 7 alert. Same skip-and-surface convention as portfolio-tagged third-party research.
 
 **Step 6a — Compute the target group:**
 - `target_opp` = the linked Opportunity (page ID + page URL + Name)
@@ -402,36 +404,36 @@ If `Category = Portfolio` AND `Opportunity` is set, this step rolls the call int
 - `target_title` = `{opp_name} – {Mon YYYY}` — note: en dash `–`, NOT em dash, per pinned style memory.
 - `current_month_key` = today's calendar month, same `Mon YYYY` format.
 
-**Step 6b — Search for an existing Live entry for this group:**
-Query Company Updates DB scoped to `Update Type=Live` matches where `Company contains <target_opp>` AND `Period contains <target_month>`. Best path: `notion-search` with the title `{opp_name} – {Mon YYYY}` (exact-match prefix). If a single match returns, use it. If multiple ambiguous candidates, fetch each and disambiguate by exact `Company` relation match.
+**Step 6b — Search for the existing period row:**
+Do NOT filter by Update Type — the row may exist with only Formal content (an investor letter already landed for this month). Best path: `notion-search` with the title `{opp_name} – {Mon YYYY}` (exact-match prefix). If a single match returns, use it. If multiple ambiguous candidates, fetch each and disambiguate by exact `Company` relation match.
 
 **Step 6c — UPSERT logic:**
 
-**Case A — entry doesn't exist:**
-1. Generate per-call summary via Sonnet — adaptive 2–5 markdown bold-prefixed sections (`**Product:**`, `**GTM:**`, `**Customers:**`, etc.) covering only topics the call actually addressed. Prompt template in `~/.claude/skills/shared-references/company-updates-db.md`.
+**Case A — row doesn't exist:**
+1. Generate per-call summary via Sonnet — adaptive 2–5 markdown bold-prefixed sections (`**Product:**`, `**GTM:**`, `**Customers:**`, etc.) covering only topics the call actually addressed. Prompt template in `~/.claude/skills/shared-references/company-updates-db.md`. **If the output is `[not a portfolio update – ...]` or `[thin call – no substantive content]`, stop here** — content-gate skip per the Skip conditions above (applies identically in Cases B and C; the eligibility check runs before any write in all three).
 2. Generate cumulative `Summary` + `Traction` via Sonnet using just this one call's content.
-3. Create the Live entry with:
+3. Create the row with:
    - `Name = target_title`
-   - `Update Type = Live`
+   - `Update Type = ["Live"]` (multi-select array)
    - `Period = ["{target_month}"]`
    - `Company = ["{opp_url}"]`
    - `date:Update Date:start = note.Created` (date only)
-   - `Summary`, `Traction` (Sonnet output, en dashes only, inline date parens at end of clauses for Summary; per-line `(Mon DD)` stamps for Traction bullets)
+   - `Summary`, `Traction` (Sonnet output, en dashes only, inline date parens at end of clauses for Summary; single `(Mon DD)` stamp on Traction)
    - `content` = single dated subsection: `### {Mon} {DD} – Call ([Notes]({note_url}))\n\n{per_call_summary}`
 4. Add the note's Notion page URL to `Artifacts` via `python3 ~/.claude/scripts/notion_files_property.py --page-id <new_entry_id> --prop "Artifacts" --url <note_url> --label "<note title>"`.
 
-**Case B — entry exists, `target_month == current_month_key`:**
+**Case B — row exists, `target_month == current_month_key`:**
 1. Generate per-call summary via Sonnet (same prompt as Case A).
-2. Fetch the existing entry's body content. Prepend a new dated subsection (newest on top): `### {Mon} {DD} – Call ([Notes]({note_url}))\n\n{per_call_summary}\n\n` then existing body.
-3. Re-derive cumulative `Summary` + `Traction` via Sonnet using ALL subsections (existing body + new subsection).
-4. Update the entry: `replace_content` with the new body; `update_properties` to overwrite `Summary`, `Traction`, and `date:Update Date:start` (set to the new note's date if newer).
-5. Add the note's URL to `Artifacts` (idempotent — helper skips dupes).
+2. Fetch the existing row's body content. Insert the new dated subsection at the top of the CALLS zone: `### {Mon} {DD} – Call ([Notes]({note_url}))\n\n{per_call_summary}\n\n`. The body may open with Formal sections (`### {Mon DD} – Formal Update` / `– Board Meeting`) — formal text always leads the row, so the call section goes AFTER the last formal section (top of body only when no formal content exists). Calls order newest-first among themselves. Never disturb formal content.
+3. Re-derive cumulative `Summary` + `Traction` via Sonnet using ALL the row's content — formal sections AND call subsections (use the v2 cumulative prompt in the shared reference, which takes both). **Traction precedence:** a call figure never displaces a same-period formal figure — formal wins ties; a call figure only wins when it describes a strictly later period.
+4. Update the row: `replace_content` with the new body; `update_properties` to overwrite `Summary`, `Traction`, and `date:Update Date:start` (set to the new note's date if newer). **Update Type is additive:** ensure `Live` is present in the array without removing `Formal`/`Board`.
+5. Add the note's URL to `Artifacts` (idempotent — helper skips dupes; never remove existing chips, incl. formal PDFs).
 
-**Case C — entry exists, `target_month` is a prior calendar month:**
-**Frozen rolling-fields rule** (per pinned memory `feedback_live_entry_prior_month_freeze.md`): once we cross into a new calendar month, prior-month Live entries' Summary and Traction are immutable. Body subsections can still be appended for late transcripts.
+**Case C — row exists, `target_month` is a prior calendar month:**
+**Frozen rolling-fields rule** (per pinned memory `feedback_live_entry_prior_month_freeze.md`): once we cross into a new calendar month, prior-month rows' Summary and Traction are immutable **to Live content** (formal updates remain exempt — that's investor-update's lane, not this skill's). Body subsections can still be added for late transcripts.
 1. Generate per-call summary via Sonnet.
-2. Fetch existing body content. Prepend the new dated subsection.
-3. `replace_content` with the new body. **Do NOT** update `Summary`, `Traction`, or `Update Date`.
+2. Fetch existing body content. Insert the new dated subsection at the top of the calls zone (same zone rule as Case B — after the last formal section).
+3. `replace_content` with the new body. **Do NOT** update `Summary`, `Traction`, or `Update Date`. DO ensure `Live` is in the Update Type array (additive property write only).
 4. Add the note's URL to `Artifacts`.
 5. Log `prior-month-frozen-skip-rolling-fields` so the alert in Step 7 reflects what happened.
 

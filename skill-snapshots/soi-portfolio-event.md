@@ -2,8 +2,10 @@
 name: soi-portfolio-event
 description: >-
   Handle a portfolio change on an Inverted Capital I Opportunity that affects the SOI, driven by the
-  notion-webhook. Two tiers. TIER 1 (field-driven — new investment, SAFE follow-on, status change,
-  exit-flag): just rebuild the SOI (run.sh) since holdings derive live from Notion. TIER 2 (document-driven
+  notion-webhook. Two tiers, BOTH draft-for-confirm. TIER 1 (field-driven — new investment, SAFE follow-on,
+  status change, Inv @ Round / Round Details edit): build the draft model, post a before→after portal diff
+  (Fund Returns / Summary Metrics / Holdings / Pacing) to Slack, publish via run.sh only on Tom's in-thread
+  confirm. TIER 2 (document-driven
   — a PRICED follow-on round, or an EXIT with cash back): read the deal-doc cap table / wire, draft the
   proposed mark or distribution, and post a Slack alert to #claude-alerts that WALKS THROUGH THE MATH so Tom
   can reply in-thread to confirm or adjust; a claude-alerts-listener branch applies the confirmed value to
@@ -24,23 +26,63 @@ Engine: `~/code/lp-portal/refresh_inputs.py` (subcommands `mark`, `distribution`
 
 | Tier | Trigger (notion-webhook) | Handling |
 |---|---|---|
-| **1 — field-driven** | new Opp → Active Portfolio; SAFE follow-on → Portfolio: Follow-On; any Status change; Round Details / Inv @ Round edit | **Rebuild only** — `bash run.sh`. Holdings, invested, SAFE ownership all recompute from Notion. The diff alert reports what moved. |
+| **1 — field-driven** | new Opp → Active Portfolio; SAFE follow-on → Portfolio: Follow-On; any Status change; Round Details / Inv @ Round edit (`opp-soi-field-edit`) | **Draft + confirm** (Tom 2026-07-11 — gate added; was rebuild-only). Build the draft model, show the before→after per the conveying convention, publish only on Tom's in-thread confirm. |
 | **2 — document-driven** | a follow-on round that is **priced** (cap table, not a SAFE); or Status → **Exited** with cash returned | **Draft + confirm** — read the doc, walk through the math in Slack, apply on Tom's in-thread confirm. |
 
-Tier 1 needs no judgment; if `Round Details`/`Inv @ Round` are blank the gate fails and the alert says so.
-Tier 2 is below.
+BOTH tiers gate on Tom's confirm before the live doc moves. The difference: Tier 1 drafts a Notion-derived
+recompute (no judgment, no fund_inputs writes); Tier 2 drafts a valuation (cap-table read → mark). If
+`Round Details`/`Inv @ Round` are blank the generator gate fails and the alert says so.
 
-## Mode A — Tier 1 rebuild (webhook)
+## Conveying changes — the before→after convention (Tom 2026-07-11)
+
+Every draft (Tier 1 and Tier 2) shows the change as the ACTUAL portal elements with `old → new` arrows —
+never a bare list of numbers. Sections, in portal order, showing ONLY lines that change:
+
+1. **FUND RETURNS** — MOIC (Gross) / TVPI (Net) / DPI.
+2. **SUMMARY METRICS** — companies, invested, fair value, **and the averages** (avg check, avg post, avg
+   ownership, first-check %) when they move.
+3. **HOLDINGS** — the affected company's table row (`invested → `, `FMV → `, `MOIC → `, `OS% → `), plus a
+   company-modal block (`~/holdings/<co>` style: INVESTMENT SUMMARY lines + per-ROUND rows) when round
+   composition changes — new round row, markup, status flip.
+4. **PACING** — total investable / first checks / follow-on.
+5. **METHODOLOGY** — every draft WALKS THROUGH THE MATH for each changed figure, SAFEs included
+   (Tom 2026-07-11). Per affected company: one derivation line per round — SAFE:
+   `$inv ÷ $Xm cap = Y% · held at cost → FMV $inv`; priced/converted: `shares × $PPS = $fmv (cost → MOIC×)`
+   — then the ownership method (`Σ (invested ÷ cap) across SAFEs` vs `FD% from pro-forma cap table`),
+   FMV = Σ rounds, MOIC = FMV ÷ cost. Per changed fund-level line: the formula with the actual numbers
+   (e.g. `invested $6,596,697 ÷ $25m fund = 26.4%`). `soi_notify.py --draft` emits this block
+   deterministically; agent-composed drafts follow the same shapes.
+
+Format values exactly as the portal renders them ($X,XXX,XXX; X.X%; X.Xx). The deterministic fallback
+(`soi_notify.py --draft`, used by the daily sweep where no agent runs) emits the same sections in plain
+old→new lines; agent-composed drafts (this skill) add the modal block and any context (e.g. which Notion
+edit caused it).
+
+## Mode A — Tier 1 draft (webhook)
 
 1. **Coinvestors check (new portfolio entries only)** — if this is a **new** SOI entry (Status flipped to
    Active Portfolio for the first time, or a Follow-On Opp with no prior round in the SOI), inspect the
    Opp's **Coinvestors** relation. If empty, look in the Opp body / diligence materials (deck / cap table /
    investor update / call notes) for explicitly-named coinvestors and link the matching Companies DB rows
-   (create new ones for any coinvestor not yet tracked). **If no coinvestors are listed anywhere on the
-   Opp, leave the relation empty** — `soi_render_html.py:338` auto-renders "N/A" when the list is empty.
-   Don't go hunting / fabricating: N/A is the right outcome when none are recorded.
-2. `cd ~/code/lp-portal && bash run.sh` (gates must pass; on fail it alerts and keeps the last good doc).
-3. The harness's own diff alert reports the changed values. Nothing else to do.
+   (create new ones for any coinvestor not yet tracked). **Selectivity bar: only MAJOR institutional funds
+   — never small funds or angels** (e.g. Signal7 Seed cap table lists Fika, Recall, TMV, an angel → link
+   Fika only; when unsure, leave it off and ask). **If no coinvestors are listed anywhere on the Opp, leave
+   the relation empty** — `soi_render_html.py:338` auto-renders "N/A" when the list is empty. Don't go
+   hunting / fabricating: N/A is the right outcome when none are recorded.
+2. **Build the draft model without publishing:**
+   `cd ~/code/lp-portal && python3 soi_generate.py --strict --out /tmp/soi_model_draft.json`
+   (no `--sync-os` — no Notion writes before Tom confirms). Generator gates must pass; on gate failure
+   alert the per-company errors and stop, exactly like run.sh does.
+3. **Compose the draft** per the conveying convention above: diff the draft model against
+   `.last_snapshot.json` (labels/kinds mirror `soi_notify.flatten`), render the changed sections with
+   `old → new` arrows, and include the company-modal block for the affected Opp. Header line MUST start
+   with `🧾 **SOI rebuild pending your confirm**` — claude-alerts-listener routes replies on it. End with:
+   `Reply **confirm** to publish, or fix Notion and this re-drafts.`
+4. **Post via send-alert and STOP.** Nothing is published, no snapshot is written. Tom's in-thread
+   "confirm" → claude-alerts-listener "SOI rebuild confirm" branch runs `bash run.sh` (plain), which
+   publishes + deploys + updates the snapshot; its `📊 SOI updated` alert is the applied record.
+   Note: confirm publishes the LATEST Notion state (run.sh regenerates), not the drafted snapshot — if
+   Notion moved again in between, the post-publish diff shows the final values.
 
 ## Detecting SAFE vs priced (two layers)
 
@@ -181,8 +223,10 @@ the new fund DPI / TVPI. Deliver the rebuilt `~/Inverted_Capital_I_SOI.html`.
 
 ## Guardrails
 
-- Marks are valuation judgments — Tier 2 is **always draft-for-confirm**, never auto-applied. Walk through
-  the inputs and math every time so Tom can sanity-check the cap-table read.
+- **Both tiers are draft-for-confirm — nothing publishes without Tom's in-thread reply** (Tier 1 gate
+  added 2026-07-11). Tier 2 additionally walks through the cap-table inputs and both cross-foot methods
+  every time so Tom can sanity-check the read.
+- Every draft follows the before→after conveying convention (portal sections, `old → new` arrows).
 - Never write portfolio facts to Notion; only `fund_inputs.json` (priced_round_marks / distributions).
 - A bad cap-table read is the main risk — show the share counts and post-money you used, not just the %.
 - TVPI/RVPI stay gated to N/A until 60% called; a mark doesn't change the gate (but updates the underlying).

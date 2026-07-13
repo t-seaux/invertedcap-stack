@@ -2,26 +2,29 @@
 name: investor-update
 description: >-
   Process investor update emails AND board materials (board meetings/decks/updates) from PORTFOLIO COMPANIES and
-  attach them to the matching Notion Opportunity. Board materials are Formal-track entries (Update Type =
-  Formal) with a `Board Meeting` title pattern — there is NO separate Board type. NOT the same as investor
-  letters. Three modes: (A) Scheduled sweep — scans Gmail inbox for update/board emails from the past 24h,
-  catching what the webhook missed. (B) Webhook — one inbound message via claude-job-queue. (C) Manual —
-  auto-detects a forwarded/pasted update or board deck; phrases: investor update, quarterly/monthly/portfolio
-  update, board meeting, board deck, board update, board materials, company-update newsletters, Google Slides
-  share notifications for portfolio decks, or any periodic business/financial or board communication from a
-  founder. All modes: extract company, find the Active Portfolio Opp, create a Company Updates page with the
-  content, save a PDF archive, link via dual relation.
+  roll them into the matching Company Updates row. The DB holds ONE row per Company × Period label
+  ({Company} – {Mon YYYY} / Q# YYYY / YYYY / YYYY (Plan)) shared with Live call content; this skill UPSERTS a
+  dated Formal section into that row (never a standalone page per email). Board materials add the `Board`
+  Update Type value (multi-select). NOT the same as investor letters. Three modes: (A) Scheduled sweep — scans
+  Gmail inbox for update/board emails from the past 24h, catching what the webhook missed. (B) Webhook — one
+  inbound message via claude-job-queue. (C) Manual — auto-detects a forwarded/pasted update or board deck;
+  phrases: investor update, quarterly/monthly/portfolio update, board meeting, board deck, board update, board
+  materials, company-update newsletters, Google Slides share notifications for portfolio decks, or any periodic
+  business/financial or board communication from a founder. All modes: extract company, find the Active
+  Portfolio Opp, upsert into the Company Updates period row, save a PDF archive, link via dual relation.
 ---
 
 # Investor Update Processor (Portfolio Companies)
 
-Process investor update emails **and board materials** from portfolio companies and store them in the dedicated Company Updates Notion database, linked to the correct Opportunity via a dual relation.
+Process investor update emails **and board materials** from portfolio companies and roll them into the Company Updates Notion database, linked to the correct Opportunity via a dual relation.
 
-> **Scope — investor updates AND board materials.** This skill handles two flavors of formal portfolio comms, both stored as `Update Type = Formal`:
-> - **Investor updates** — periodic founder-authored letters with metrics. Title format: `[Company] - [Mon] [YYYY] Update`.
-> - **Board materials** — board meetings, board decks, board updates, board materials shared with directors (commonly via Google Slides share notifications). Title format: `[Company] - [Mon] [YYYY] Board Meeting`.
+> **Single-row model (v2, Jul 2026).** The Company Updates DB holds **one row per Company × Period label** — that row aggregates formal letters, board decks, AND live call content for the period. This skill never creates a standalone page per email; it **upserts a dated Formal section into the period row** (creating the row only if absent). The canonical design lives in `~/.claude/skills/shared-references/company-updates-db.md` — read it before writing.
 >
-> Both are `Formal` entries — there is no separate `Board` Update Type. The only divergence is the title naming convention. Summary and Traction are extracted the same way for both: parse the underlying artifact (email body for investor updates; deck content for board materials) and populate canonical aggregate metrics. Never default to `N/A`/"detail in deck" when deck content is accessible. The track design lives in `~/.claude/skills/shared-references/company-updates-db.md`.
+> **Scope — investor updates AND board materials.** Two flavors of formal portfolio comms flow through this skill:
+> - **Investor updates** — periodic founder-authored letters with metrics. Add Update Type value `Formal`.
+> - **Board materials** — board meetings, board decks, board updates shared with directors (commonly via Google Slides share notifications). Add Update Type values `Formal` + `Board` (multi-select; the old `Board Meeting` title convention is retired).
+>
+> Summary and Traction are extracted the same way for both: parse the underlying artifact (email body for investor updates; deck content for board materials) and populate canonical aggregate metrics per the rolling/precedence rules in the shared reference. Never default to `N/A`/"detail in deck" when deck content is accessible.
 
 Read `references/schema.md` for database field details and matching logic before proceeding.
 
@@ -35,22 +38,25 @@ Read `references/schema.md` for database field details and matching logic before
 >
 > If the user says "investor letters" or "letters from other firms," use the `daily-investor-letters` scheduled task — NOT this skill.
 
-## Naming Convention
+## Row Key & Naming Convention
 
-All entries are `Update Type = Formal`. Title format depends on what kind of artifact this is:
+**Notion row title:** `{Company} – {Period label}` — en dash, uniform for every row (e.g., `Signal7 – Jun 2026`, `Caplight – Q1 2026`). No `Update` / `Board Meeting` title suffixes — the Update Type multi-select carries what the row holds.
 
-**Investor updates:**
-- **Monthly:** `[Company] - [Mon] [YYYY] Update` — e.g., `Soap Payments - Feb 2026 Update`, `Signal7 - Dec 2025 Update`
-- **Annual:** `[Company] - [YYYY] Update` — e.g., `Slip.stream - 2025 Update`
-- Use annual format when an update explicitly covers a full calendar year.
+**Computing the Period label (the row key).** The label is the REPORTING period — what the data covers, not when the email landed:
 
-**Board materials:**
-- **Board meetings/decks/updates:** `[Company] - [Mon] [YYYY] Board Meeting` — e.g., `Outmarket - May 2026 Board Meeting`
-- The month is the meeting month (taken from the email subject, board calendar invite, or document title — e.g., "Board Meeting May 5th 2026" → `May 2026`). Day-of-month is intentionally dropped from the title; meeting day is captured in the `Update Date` property if needed.
+- **Monthly update** → the month the numbers report on: `{Company} – {Mon YYYY}`. A "June 2026 Update" sent Jul 10 reporting June data → `Signal7 – Jun 2026`.
+- **Multi-month update** (e.g., a combined Apr–May letter) → the **latest covered month**: `Quiet AI – May 2026`, with `Period = ["Apr 2026", "May 2026"]`.
+- **Quarterly update** → its own quarter row: `Caplight – Q1 2026`. Never folded into a month row.
+- **Annual recap** → `{Company} – {YYYY}`: `Slip.stream – 2025`.
+- **Plan / forecast doc** → `{Company} – {YYYY} (Plan)`: `Signal7 – 2026 (Plan)`.
+- **Board materials** → the meeting month: `Outmarket – May 2026` (from the subject / invite / deck title, e.g., "Board Meeting May 5th 2026" → `May 2026`; the meeting day goes in `Update Date`).
+
+**PDF filenames keep the old descriptive convention** — they name the artifact, not the row:
+- Investor updates: `[Company] - [Mon] [YYYY] Update.pdf` (annual: `[Company] - [YYYY] Update.pdf`)
+- Board materials: `[Company] - [Mon] [YYYY] Board Meeting.pdf`
+- Attachments get descriptive suffixes: `... - Deck.pdf`, `... - Financials.pdf`
 
 Where `[Mon]` is the three-letter abbreviated month (Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec).
-
-This applies to both the Notion page title (`Name` property) and the PDF filename.
 
 ## Workflow
 
@@ -58,7 +64,7 @@ This applies to both the Notion page title (`Name` property) and the PDF filenam
 2. For each email: identify the portfolio company
 3. Locate the matching Notion opportunity (Active Portfolio only)
 4. Save a local PDF archive to `~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/Portfolio/Investor Updates/` (mounted workspace folder on Tom's Mac)
-5. Create a page in the Company Updates database with a plain-text file path to the local PDF and the email content formatted below
+5. Upsert into the Company Updates period row — find-or-create `{Company} – {Period label}`, prepend a dated Formal section, regenerate rolling fields per precedence
 6. Report results
 
 ## Investor Type Prioritization
@@ -118,10 +124,10 @@ Inspect forwarded email bodies for investor-update signals (founder/CEO sender, 
 
 Deduplicate all results by message ID. For each unique message, use `read_gmail_message` to fetch the full content. Discard any email that is clearly not portfolio comms (e.g., marketing newsletters, product update notifications from SaaS tools, etc.).
 
-Two valid kinds pass validation. Both are `Update Type = Formal`; the kind only affects the title naming convention.
+Two valid kinds pass validation. The kind determines the Update Type value(s) added to the row and the PDF filename.
 
-- **Investor update** — comes from a founder or CEO, references metrics like revenue/ARR/burn/runway, addressed to investors or stakeholders. Title: `[Company] - [Mon] [YYYY] Update`.
-- **Board material** — references a board meeting, shares a board deck, or is a Google Slides share notification for a board presentation. Sender is typically a founder, CEO, or COO; recipients are typically board directors. Subject often contains "Board Meeting", "Board Deck", "Board Update", "Board Materials", or `Presentation shared with you:` (Slides share template). Body length can be short (Slides share notifications carry minimal email body — the substance is in the deck, which MUST be read for Summary/Traction extraction). Title: `[Company] - [Mon] [YYYY] Board Meeting`.
+- **Investor update** — comes from a founder or CEO, references metrics like revenue/ARR/burn/runway, addressed to investors or stakeholders. Adds Update Type `Formal`. PDF: `[Company] - [Mon] [YYYY] Update.pdf`.
+- **Board material** — references a board meeting, shares a board deck, or is a Google Slides share notification for a board presentation. Sender is typically a founder, CEO, or COO; recipients are typically board directors. Subject often contains "Board Meeting", "Board Deck", "Board Update", "Board Materials", or `Presentation shared with you:` (Slides share template). Body length can be short (Slides share notifications carry minimal email body — the substance is in the deck, which MUST be read for Summary/Traction extraction). Adds Update Type `Formal` + `Board`. PDF: `[Company] - [Mon] [YYYY] Board Meeting.pdf`.
 
 If neither kind fits, discard. If no emails pass validation across all searches, report "No new investor updates or board materials found in the past 24 hours" and stop.
 
@@ -137,7 +143,7 @@ Triggered by `gmail-webhook` (`investor-update.js`) on inbound mail that passes 
 
 **Behavior in Mode B:**
 - Process exactly the one message identified by `messageId`. Do **not** scan the inbox for other updates in this run.
-- Run the same dedup check (Step 4 — `investorUpdatePageExists` by intended page title). If a page already exists, log and exit without re-uploading the PDF.
+- Run the same artifact-level idempotency check (Step 4 — has this message already been incorporated into its period row?). If yes, log and exit without re-uploading the PDF.
 - Skip Step 1's portfolio-list query and per-company searches entirely — those exist for the scheduled mode.
 - Otherwise proceed through Steps 2–5 unchanged. The Slack alert in Step 5 is the single notification for this update — the webhook does not post its own alert in this path.
 - Single-message alert format (override Step 5's batch format): one line, same shape as a row in the batch — `📬 **<Company>** — "<subject or period>" — <PDF source>. <Notion page link>`. Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
@@ -395,25 +401,46 @@ Extract the canonical aggregate metric (Traction) and the headline narrative (Su
 
 Case C doesn't require this step — the email body IS the artifact, and Step 4's body-based extraction is sufficient.
 
-## Step 4: Create Investor Update Page in Notion
+## Step 4: Upsert Into the Company × Period Row
 
-Create a new page in the **Company Updates** database (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`). This is the primary reading interface — Tom will click into each update page to read the content directly in Notion.
+The Company Updates DB (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`) holds **one row per Company × Period label**, shared with Live call content. This step finds (or creates) that row and rolls this email's content into it — it never creates a standalone page per email. Full model: `~/.claude/skills/shared-references/company-updates-db.md`.
 
-**⚠️ CRITICAL — FULL EMAIL BODY REQUIRED:** The page body must contain the **complete, verbatim email body** — every paragraph, bullet point, metric, quote, ask, and sign-off. Never summarize, truncate, paraphrase, or rewrite any part of the email. The Notion page is the primary archive of the update. If the original email is long, the Notion page should be long. Read the full email via `gmail_read_message` and use the `body` field directly. **For forwarded emails, use the normalized body produced by Step 2.5 — the forward chrome (wrapper line, metadata block, `>` quote prefixes, `\uFFFC` glyphs) is stripped, but the original founder content is preserved verbatim.**
+**Step 4a — Compute the row key.** Apply the "Row Key & Naming Convention" rules above: reporting month for monthlies (a June letter sent Jul 10 → the `Jun 2026` row), latest covered month for multi-month letters, own row for quarterly/annual/plan (`{Company} – Q1 2026` / `– 2025` / `– 2026 (Plan)`), meeting month for board materials. Title: `{Company} – {Period label}`, en dash.
 
-### Page properties
+**Step 4b — Find or create the row.** Search the data source by exact title; disambiguate multiple hits by exact `Company` relation match. If no row exists, create it via `notion-create-pages` with the properties below and the Formal section as the initial body. If a row already exists (e.g., Live calls populated it earlier in the month), upsert into it.
+
+**Step 4c — Idempotency check (replaces the old page-exists dedup).** The row existing means nothing — the question is whether THIS message has already been incorporated. Skip processing (no PDF re-upload, no body write) when:
+- the row's body already contains this message's Gmail thread URL (`https://mail.google.com/mail/u/0/#inbox/{message_id}`), OR
+- `Artifacts` already holds this email's body-PDF Drive URL, OR
+- (fast path) a data-source query on `Source Email = {thread URL}` returns a hit — note `Source Email` only tracks each row's LATEST formal, so a miss here is NOT proof of novelty; the body check is authoritative.
+
+For non-email origins (iMessage / manual uploads), fall back to checking the row body for the same 📄 PDF filename link.
+
+**Step 4d — Insert the dated Formal section at the TOP of the body.** Formal text always leads the row — insert this section above everything (older formal sections and all call sections). Formal sections order newest-first among themselves; call sections live below the formal zone. Section shape:
+
+```
+### {Mon DD} – Formal Update ([Email](https://mail.google.com/mail/u/0/#inbox/{message_id}))
+📄 [{Company} - {Mon} {YYYY} Update.pdf](https://drive.google.com/file/d/{EMAIL_BODY_PDF_FILE_ID}/view)
+[Full verbatim email body]
+```
+
+Board materials use `### {Mon DD} – Board Meeting ([Email](...))` with the deck PDF as the 📄 link. `{Mon DD}` = email send date (board: meeting date). Never edit a previously-written Formal section — a founder correction becomes a NEW dated section (`### {Mon DD} – Formal Update (correction)`).
+
+**⚠️ CRITICAL — FULL EMAIL BODY REQUIRED:** The Formal section must contain the **complete, verbatim email body** — every paragraph, bullet point, metric, quote, ask, and sign-off. Never summarize, truncate, paraphrase, or rewrite any part of the email. This row is the primary archive of the update. If the original email is long, the section should be long. Read the full email via `gmail_read_message` and use the `body` field directly. **For forwarded emails, use the normalized body produced by Step 2.5 — the forward chrome (wrapper line, metadata block, `>` quote prefixes, `\uFFFC` glyphs) is stripped, but the original founder content is preserved verbatim.**
+
+### Row properties (set on create; merge on upsert)
 
 | Property | Value |
 |---|---|
-| `Name` | Investor update: `[Company] - [Mon] [YYYY] Update` (e.g., "Soap Payments - Feb 2026 Update"). Board material: `[Company] - [Mon] [YYYY] Board Meeting` (e.g., "Outmarket - May 2026 Board Meeting"). |
-| `Update Type` | Always `Formal` — both investor updates and board materials use the Formal track. There is no separate `Board` Update Type. See `~/.claude/skills/shared-references/company-updates-db.md`. |
+| `Name` | `{Company} – {Period label}` (en dash) — e.g., `Signal7 – Jun 2026`, `Caplight – Q1 2026`, `Outmarket – May 2026`. Never overwrite an existing row's title. |
+| `Update Type` | **Multi-select, additive.** Add `Formal` (investor updates) or `Formal` + `Board` (board materials) to whatever values the row already holds. Never remove `Live` or any existing value. See `~/.claude/skills/shared-references/company-updates-db.md`. |
 | `Company` | URL of the matched Opportunity page (e.g., `https://www.notion.so/{page_id_no_dashes}`) |
-| `Update Date` | Date the email was sent (ISO-8601 date, not datetime). For board materials with an explicit meeting date in the subject (e.g., "Board Meeting May 5th 2026"), prefer the meeting date over the email send date. |
-| `Source Email` | Gmail thread URL: `https://mail.google.com/mail/u/0/#inbox/{message_id}`. If the update was not delivered via email (e.g., manually provided in conversation, uploaded file, screenshot), set this field to `N/A`. |
-| `Period` | The period(s) the update covers (not necessarily when sent). Format: `Mmm YYYY` for monthly; `YYYY` for annual. See extraction rules below. **This is a multi-select field** — pass as a JSON array of strings (e.g., `'["Feb 2026", "Mar 2026"]'`). For single-month updates, pass a one-element array (e.g., `'["Feb 2026"]'`). For multi-month or quarterly updates, include each month as a separate value. **For board materials**: use the meeting month — `["May 2026"]` for a May 2026 board meeting. If an option does not yet exist in Notion, it will be created automatically. |
-| `Traction` | Revenue or ARR figure for the corresponding period. See formatting rules below. **Read every attachment to extract Traction.** Whenever an attachment is present (deck, financial sheet, memo, etc.), open it and pull the canonical aggregate metric from the artifact — do NOT default to `N/A` just because the email body doesn't restate the figure. Founders routinely put the headline number in the attachment, not the body. Use `mcp__claude_ai_Google_Drive__get_file_metadata` (content snippet) or `download_file_content` for Drive files; fetch Gmail attachments inline. Use `N/A` only if the artifact genuinely discloses no aggregate company-level metric (rare). |
-| `Summary` | 1-2 sentence shorthand summary. **Read every attachment.** Whenever the email or message has an attached artifact (deck PDF, financial sheet, memo, doc, slide export — board or otherwise), open it and incorporate its substance into the Summary. Never write "detail in deck", "see attached", "see PDF", or any other placeholder phrase that defers to the artifact instead of summarizing it. The email body alone is rarely the full picture — founders put the substantive numbers and narrative in the attached document. Use `mcp__claude_ai_Google_Drive__get_file_metadata` (content snippet) or `download_file_content` for Drive files; fetch attachments inline for Gmail attachments. Apply the same shorthand rules below. Example: `Closed largest deal ever — IMA Financial ($975k ARR / $1.95m TCV); ARR $5.0m (Apr) up from $2.1m Dec — 2.4x in 4mo, 34x YoY; 16/100 Top 100 brokers customers + 18 in pipeline; NDR 105% / GDR 95%; 100+ mo runway on $18.7m cash.` |
-| `Artifacts` | Files & Media property — populated AFTER page creation via the headless helper (see Step 4.5 below). The structured Artifacts field is the canonical "what files belong to this entry" list. The body's top-line file link points to the same email-body PDF that's the first Artifacts chip. |
+| `Update Date` | Date of the row's LATEST artifact. Bump to this email's send date (board materials: the meeting date, e.g. "Board Meeting May 5th 2026" → 2026-05-05) only if newer than the current value. ISO-8601 date, not datetime. |
+| `Source Email` | Gmail thread URL: `https://mail.google.com/mail/u/0/#inbox/{message_id}` — set/overwrite only when this is the row's newest formal artifact (each body section carries its own Email link, so older threads stay reachable). Not delivered via email (manual / iMessage / upload): leave any existing value; `N/A` on a fresh row. |
+| `Period` | The period(s) the update covers (not necessarily when sent). Format: `Mmm YYYY` for monthly; `Q# YYYY` quarterly; `YYYY` annual; `YYYY (Plan)` forecast docs. See extraction rules below. **Multi-select, union on upsert** — add this update's covered period(s) to whatever the row already has (e.g., a combined Apr–May letter landing on the May row adds `"Apr 2026"` alongside the existing `"May 2026"`). **For board materials**: the meeting month. If an option does not yet exist in Notion, it is created automatically. |
+| `Traction` | Revenue or ARR figure for the corresponding period, **written per the rolling precedence rules** (shared reference): most recent-period disclosure wins; same-period tie → this formal figure beats any call-sourced figure already on the row; formal-sourced stamps use month/quarter/year precision (`(Jun)`, `(Q1 2026)`), never day. See formatting rules below. **Read every attachment to extract Traction.** Whenever an attachment is present (deck, financial sheet, memo, etc.), open it and pull the canonical aggregate metric from the artifact — do NOT default to `N/A` just because the email body doesn't restate the figure. Founders routinely put the headline number in the attachment, not the body. Use `mcp__claude_ai_Google_Drive__get_file_metadata` (content snippet) or `download_file_content` for Drive files; fetch Gmail attachments inline. Use `N/A` only if the artifact genuinely discloses no aggregate company-level metric (rare). |
+| `Summary` | 1-2 sentence shorthand summary, **regenerated across the WHOLE row** — when the row already holds call content, re-synthesize with this formal letter as the anchor and calls as color (use the cumulative Sonnet prompt in the shared reference). **Read every attachment.** Whenever the email or message has an attached artifact (deck PDF, financial sheet, memo, doc, slide export — board or otherwise), open it and incorporate its substance into the Summary. Never write "detail in deck", "see attached", "see PDF", or any other placeholder phrase that defers to the artifact instead of summarizing it. The email body alone is rarely the full picture — founders put the substantive numbers and narrative in the attached document. Use `mcp__claude_ai_Google_Drive__get_file_metadata` (content snippet) or `download_file_content` for Drive files; fetch attachments inline for Gmail attachments. Apply the same shorthand rules below. Example: `Closed largest deal ever — IMA Financial ($975k ARR / $1.95m TCV); ARR $5.0m (Apr) up from $2.1m Dec — 2.4x in 4mo, 34x YoY; 16/100 Top 100 brokers customers + 18 in pipeline; NDR 105% / GDR 95%; 100+ mo runway on $18.7m cash.` |
+| `Artifacts` | Files & Media property — populated AFTER the row write via the headless helper (see Step 4.5 below). Accumulates across the row's whole life: this email's PDFs join any chips already there (earlier formals' PDFs, call Notes URLs). The Formal section's 📄 link points to the same email-body PDF that becomes its Artifacts chip. |
 
 #### Period extraction
 
@@ -430,9 +457,9 @@ Determine the correct period(s) by reading the body — look for the time period
 - Quarterly cadence reporting Jan–Mar data → Period=`["Q1 2026"]` (single quarter option)
 - Annual recap covering full calendar year → Period=`["2025"]`
 
-**Title vs. Period can diverge.** The entry's title typically matches the founder's send-month branding (e.g., "Clerq - Apr 2026 Update"), but Period may be `[Mar 2026]` if the body reports March data. That's intentional — title preserves the founder's labeling for searchability; Period preserves the data identity for filtering and grouping.
+**Period drives the row key.** The reporting period you extract here IS what determines which row the update lands in (Step 4a) — a "Clerq April 2026 Update" reporting March data belongs to the `Clerq – Mar 2026` row with Period=`[Mar 2026]`. The founder's send-month branding survives in the PDF filename and the verbatim body, not the row title.
 
-**Forecast / plan documents** (one-off forward-looking docs, not periodic updates) use a special `YYYY (Plan)` Period option. Example: Signal7 sent a "2026 Financial Plan" in Dec 2025 with EOY targets for 2026 → Period=`[2026 (Plan)]`, NOT `[Dec 2025]` (it's not a Dec update) and NOT `[2026]` (it's a forecast, not a 2026 retrospective). The `(Plan)` suffix marks the Period as forward-looking. Title in this case is typically `[Company] - YYYY Financial Plan` (or similar), matching the document's nature.
+**Forecast / plan documents** (one-off forward-looking docs, not periodic updates) use a special `YYYY (Plan)` Period option and get their own row. Example: Signal7 sent a "2026 Financial Plan" in Dec 2025 with EOY targets for 2026 → row `Signal7 – 2026 (Plan)`, Period=`[2026 (Plan)]` — NOT `[Dec 2025]` (it's not a Dec update) and NOT `[2026]` (it's a forecast, not a retrospective). The PDF filename matches the document's nature (`Signal7 - 2026 Financial Plan.pdf`).
 
 **Format rules:**
 - Monthly update → three-letter abbreviated month + year: `Jan 2026`, `Dec 2025`
@@ -446,10 +473,10 @@ Determine the correct period(s) by reading the body — look for the time period
 
 Scan the email body for the primary revenue or ARR metric tied to the period in `Period`. Apply this logic based on the metric type:
 
-**FORMAT: metric OUTSIDE parens, period stamp INSIDE.** Formal entries use month / quarter / year precision (no day) — the period is the meaningful anchor, and stamping it visibly lets Tom see at a glance "this is an April figure" even when scanning the entry in May. Multi-month covers go as a range with en dash. Examples:
+**FORMAT: metric OUTSIDE parens, period stamp INSIDE.** Formal figures use month / quarter / year precision (no day) — the period is the meaningful anchor, and stamping it visibly lets Tom see at a glance "this is an April figure" even when scanning the row in May. **No ranges** — ARR/MRR/CARR are point-in-time; multi-month covers stamp the LATEST month (trajectory belongs in Summary). Examples:
 
 - `$5.0m ARR (Apr)` — monthly update covering April
-- `$5.0m ARR (Nov–Dec)` — multi-month update covering Nov + Dec (en dash range)
+- `$5.0m ARR (Dec)` — multi-month update covering Nov + Dec (latest month, not a range)
 - `$5.0m ARR (Q1 2026)` — quarterly update
 - `~$21m Revenue (2025)` — annual update
 - `$0 (Apr)` — explicit pre-rev confirmation in an April update
@@ -492,27 +519,21 @@ Examples:
 - `Closed $8m Series A led by Sequoia. Burn ~$350k/mo, 22mo runway. Product GA in Apr.`
 - `Rev flat MoM at $280k MRR; lost 2 enterprise accounts. Pivoting GTM from inbound to outbound.`
 
-### Page body content structure
+### Formal section formatting rules
 
-The page body must follow this exact layout:
+The dated Formal section (Step 4d) follows these rules:
 
-```
-📄 [[Company] - [Mon] [YYYY] Update.pdf](https://drive.google.com/file/d/[EMAIL_BODY_PDF_FILE_ID]/view)
-[Full email body, preserving structure. Use ## for section headers,
-bullet points for lists, **bold** for emphasis. Maintain the original
-formatting as closely as possible.]
-```
+- The `### {Mon DD} – Formal Update ([Email](gmail-url))` heading comes first — en dash, Gmail thread URL as the `Email` link. Board materials: `### {Mon DD} – Board Meeting ([Email](...))`.
+- Immediately under the heading, a clickable link to **this email's body-PDF file** (the canonical `[Company] - [Mon] [YYYY] Update.pdf` produced in Step A-2 / Case C), prefixed with the 📄 emoji. Link text = the PDF filename, URL = the file's Drive view URL. Example: `📄 [Quiet AI - Jan 2026 Update.pdf](https://drive.google.com/file/d/1abc.../view)`.
+- **The 📄 link is ALWAYS the email-body PDF — never the attachment / deck / financial-plan / any other artifact.** Non-negotiable. When the email body is short or near-empty (forwarded signature-only message, Slides-share notification), STILL render an email-body PDF — even minimal — and link THAT. Attachments/decks live in the Artifacts chips, not the 📄 slot. A header-only email-body PDF is acceptable; an attachment in the 📄 slot is not.
+- The parent-folder Drive URL is NOT linked (reachable via the PDF's Drive breadcrumb).
+- **No divider** between the 📄 link and the email body — content starts on the next line. The full verbatim body uses the original structure: sub-headers, bullets, **bold**. Use `##`-level headers only if the email itself has major sections; they nest visually under the `###` section heading, which is fine.
+- **No From/To/Date metadata block** — the section heading date + Email link carry it.
+- **No empty lines or blank paragraphs between content blocks** — Notion renders visible gaps.
+- **Flat single-dash bullets** (`- item`), never double-dash; nested lists flatten or use tab + `-`.
+- **Placement:** at the very top of the body — formal text always leads the row, above older formal sections and all call sections.
 
-Key formatting rules:
-- A clickable link to **this entry's email-body PDF file** (the canonical `[Company] - [Mon] [YYYY] Update.pdf` produced in Step A-2 / Case C) sits at the very top of the page body, prefixed with the 📄 (document) emoji. Link text = the PDF filename, URL = the file's Drive view URL. Example: `📄 [Quiet AI - Jan 2026 Update.pdf](https://drive.google.com/file/d/1abc.../view)`. This renders as a clickable link in Notion that opens the specific update PDF — one click from the entry to the artifact Tom reads.
-- **The body link is ALWAYS the email-body PDF — never the attachment / deck / financial-plan / press-release / any other artifact.** This is non-negotiable. When the email body is short or near-empty (e.g., a forwarded message that's mostly signature, or a Slides-share notification that carries no founder prose), STILL render an email-body PDF in Step A-2 / Case C — even if minimal — and link THAT in the body. The attachment / deck / etc. lives in the Artifacts files-property (chips), NOT in the body's top-line link. A header-only email-body PDF is acceptable; an attachment in the body-link slot is not.
-- The parent-folder Drive URL is NOT linked from the body. It's reachable via the body PDF's Drive viewer (Drive shows the parent breadcrumb on every file).
-- **No divider** between the file link and the email body. The email content starts immediately on the next line.
-- **Do NOT include a From/To/Date metadata block.** This information is already captured in the page properties (Source Email link, Update Date). Including it in the body is redundant.
-- **Do NOT insert empty lines or blank paragraphs between content blocks.** Notion renders these as visible empty space.
-- **Bullet points must be flat single-dash bullets** (`- item`), never double-dash (`- - item`). When the email has nested lists, flatten sub-items into the parent bullet or use indented sub-bullets with proper Notion markdown (tab + `-`).
-
-### Pre-write grounding gate (MANDATORY — before creating the page)
+### Pre-write grounding gate (MANDATORY — before any row write)
 
 Before any Notion write, run the two-layer grounding check (see `~/.claude/skills/shared-references/grounding-check.md`) on the generated `Summary` and `Traction` values against the source email body + attachments text:
 
@@ -521,35 +542,35 @@ Before any Notion write, run the two-layer grounding check (see `~/.claude/skill
 
 On failure: fix and re-check ONCE. If a clause still can't be grounded, drop it from the Summary and note the drop in the Slack alert (`⚠️ dropped ungrounded clause: "..."`). Never publish an ungrounded metric.
 
-### Creating the page
+### Writing the row
 
-Use `notion-create-pages` with:
+**Row doesn't exist (create):** use `notion-create-pages` with:
 
 ```
 parent: { data_source_id: "bf491fb9-214f-456e-921b-5194b8187f2a" }
 pages: [{
   properties: {
-    "Name": "[Company] - [Mon] [YYYY] Update",
-    "Update Type": "Formal",
+    "Name": "[Company] – [Period label]",
+    "Update Type": "[\"Formal\"] — or [\"Formal\", \"Board\"] for board materials (multi-select JSON array)",
     "Company": "https://www.notion.so/[matched_page_id]",
     "date:Update Date:start": "[YYYY-MM-DD]",
     "date:Update Date:is_datetime": 0,
     "Source Email": "https://mail.google.com/mail/u/0/#inbox/[message_id] — or N/A if not from email",
-    "Period": "[\"Mmm YYYY\", ...] — JSON array of month values, one per covered month. Single-month: [\"Feb 2026\"]. Multi-month: [\"Feb 2026\", \"Mar 2026\"]. Annual: [\"2025\"]",
-    "Traction": "[extracted Traction or N/A or $0.0m — see Traction extraction rules]",
+    "Period": "[\"Mmm YYYY\", ...] — JSON array of covered period(s). Single-month: [\"Feb 2026\"]. Multi-month: [\"Feb 2026\", \"Mar 2026\"]. Quarterly: [\"Q1 2026\"]. Annual: [\"2025\"]",
+    "Traction": "[extracted Traction or N/A or $0 — see Traction extraction rules]",
     "Summary": "[1-2 sentence shorthand summary — see Summary rules]"
   },
-  content: "📄 [[Company] - [Mon] [YYYY] Update.pdf](https://drive.google.com/file/d/[EMAIL_BODY_PDF_FILE_ID]/view)\n[formatted email body]"
+  content: "### [Mon DD] – Formal Update ([Email](gmail-url))\n📄 [[Company] - [Mon] [YYYY] Update.pdf](https://drive.google.com/file/d/[EMAIL_BODY_PDF_FILE_ID]/view)\n[formatted email body]"
 }]
 ```
 
-The content begins with a clickable link to this entry's email-body PDF file (`📄 [Title.pdf](file_url)`), followed immediately by the full email body. No divider, no From/To/Date metadata.
+**Row exists (upsert):** use `notion-update-page` to (a) insert the Formal section into the body at its date position, (b) merge properties — Update Type array-union, Period array-union, Update Date bump-if-newer, Source Email set-if-newest-formal, Summary/Traction regenerated per the rolling precedence rules (shared reference). Never drop existing Update Type values, Period values, or body sections.
 
-The dual relation automatically links the update back to the Opportunity — the `🗄️ Investor Updates` field on the Opportunity page will show this new entry.
+The dual relation automatically links the row back to the Opportunity — the `🗄️ Investor Updates` field on the Opportunity page shows it.
 
-### Deduplication
+### Fast-path idempotency query (supports Step 4c)
 
-Before creating a new page, dedup by **Source Email exact match** — the Gmail thread URL embeds the message ID, which is the canonical identity of an inbound update. A title-only / semantic search is not sufficient: same-minute Notion-search has indexing latency, and titles can collide on the same month even when the underlying messages differ.
+The **Source Email exact match** is the cheap first check — the Gmail thread URL embeds the message ID. Remember its limit: the property tracks only each row's LATEST formal, so a hit proves duplicate but a miss proves nothing — the row-body check in Step 4c is authoritative.
 
 1. Query the Company Updates data source (`bf491fb9-214f-456e-921b-5194b8187f2a`) for any page whose `Source Email` equals the URL you're about to write (`https://mail.google.com/mail/u/0/#inbox/<message_id>`):
    ```python
@@ -576,16 +597,16 @@ Before creating a new page, dedup by **Source Email exact match** — the Gmail 
        # already logged — skip creation, surface existing page ID for the alert
        return hits[0]["id"]
    ```
-2. If a hit exists, skip page creation and report "Update already logged (Source Email match)" — do NOT re-upload the PDF, do NOT re-render anything.
-3. As a belt-and-suspenders fallback (only when `Source Email` is `N/A` — i.e., iMessage / manual / Mode C origin), apply a secondary title+Period exact match against the data source to catch hand-uploaded duplicates.
+2. If a hit exists, skip processing and report "Update already logged (Source Email match)" — do NOT re-upload the PDF, do NOT re-render anything.
+3. On a miss, fall through to Step 4c's authoritative check: fetch the target row (if it exists) and scan its body for this message's Gmail thread URL and its Artifacts for the body-PDF URL. Only a miss there too means the message is new.
 
-This applies uniformly to Mode A (sweep), Mode B (webhook), and Mode C (manual). The Source Email dedup is the single canonical guard against duplicate Company Updates entries.
+This applies uniformly to Mode A (sweep), Mode B (webhook), and Mode C (manual). Artifact-level idempotency (Step 4c) is the single canonical guard against double-incorporating an email.
 
 ## Step 4.5: Populate Artifacts field with the specific PDF Drive URL
 
-After the page is created, attach the saved PDF(s) from Step 3 to the entry's `Artifacts` Files & Media property using the public-API helper. This makes `Artifacts` the canonical structured artifact list. The body's top-line file link (Step 4) points to the SAME email-body PDF that becomes the first Artifacts chip — one canonical URL, two clickable places.
+After the row write, attach the saved PDF(s) from Step 3 to the row's `Artifacts` Files & Media property using the public-API helper. `Artifacts` is the canonical structured artifact list for the WHOLE row — this email's chips join any already there (earlier formals' PDFs, call Notes URLs); never remove existing chips. The Formal section's 📄 link (Step 4d) points to the SAME email-body PDF that becomes this email's first chip — one canonical URL, two clickable places.
 
-**For Case A (attachment present):** add BOTH the email-body PDF AND the attachment(s). Add the email-body PDF first so its chip renders left-most — it's the canonical update. The attachment chips follow with descriptive suffixes (`... - Deck.pdf`, etc.).
+**For Case A (attachment present):** add BOTH the email-body PDF AND the attachment(s). Add the email-body PDF first — it's the canonical update. The attachment chips follow with descriptive suffixes (`... - Deck.pdf`, etc.).
 
 ```bash
 # Case A: email body PDF first, then attachment(s)

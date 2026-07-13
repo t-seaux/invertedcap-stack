@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-07-13] (Week of 2026-07-07)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- soi-portfolio-event -- Tier 1 field-driven events now require Tom's in-thread confirm before publishing (was rebuild-only); all drafts include a before→after portal diff with methodology walkthrough; tightened coinvestor selectivity to major institutional funds only
+- soi-refresh-inputs -- added step to restate the pinned quarterly record after a financial re-anchor whose as-of date is a quarter-end
+- investor-update -- migrated from standalone page-per-update to shared Company Updates row model (one row per company per period, shared with live call content); board materials now append a Board Update Type value alongside Formal via multi-select; row key changed to company–period label format
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-07-03] (Week of 2026-06-30)
 
 **Added:** None

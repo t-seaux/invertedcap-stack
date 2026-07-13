@@ -112,6 +112,22 @@ Run `refresh_inputs.py show` first to see the current anchor `as_of` and fee fac
    `refresh_inputs.py show`.
 3. Deliver the rebuilt `~/Inverted_Capital_I_SOI.html` (SendUserFile).
 
+### 5. Restate the pinned quarter (quarterly LP reporting)
+
+`~/code/lp-portal/quarters/<YYYY-Qn>.json` holds an immutable per-quarter record for LP letters
+(written by run.sh on quarter-end days; engine `soi_quarter.py`). A quarter-end pin carries the
+ROLLED-FORWARD NAV; the audited statement just anchored is the authoritative figure for that same
+period-end. After a `financials` re-anchor whose `--as-of` is a quarter-end:
+
+```
+python3 soi_quarter.py restate --quarter <YYYY-Qn> --nav <N> --paid-in <N> \
+    [--distributions <N>] --source "Valence FS <as-of>" --dry-run    # show, then apply
+```
+
+Restatement writes a `restated` block ALONGSIDE the as-reported values — never over them; the pin must
+still answer "what did we tell LPs at the time". `soi_quarter.py report` prefers restated when present.
+Skip for fee-only / calls-only refreshes, or when the period-end has no pin (`soi_quarter.py list`).
+
 ## Guardrails
 
 - **Confirm before applying** financials/calls changes — these drive LP-facing returns. Show the diff,
