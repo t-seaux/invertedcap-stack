@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-07-14] (Week of 2026-07-14)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- soi-portfolio-event -- added idempotence preflight gate (soi_preflight.py) that classifies each event as NO-OP / DATE-REPAIR / ENGAGE before any Notion writes or Slack; Holdings conveying convention updated to per-round inline lines (no column-aligned tables, which shatter on Slack mobile); mark command now requires per-round share breakdown
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-07-13] (Week of 2026-07-07)
 
 **Added:** None

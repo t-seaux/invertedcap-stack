@@ -315,26 +315,47 @@ or `💸 Exit —` (drafted by the `soi-portfolio-event` skill), Tom is confirmi
 SOI mark/distribution. Route here.
 
 1. **Parse the parent alert** for the company and the proposed values:
-   - Priced round: `ownership` (FD %, e.g. `6.2%`), `post-money` ($), and the derived `fair value` ($).
+   - Priced round: `ownership` (FD %), `post-money` ($), `PPS` ($), Inverted's **total FD shares**, and the
+     **per-round lines** — each carries `<round label>`, converted `shares`, and `conv pps` (the price that
+     round converted at). The derived `fair value` ($) is the headline.
    - Exit: `cash distributed` ($) and `residual NAV` ($).
 2. **Parse Tom's reply:**
    - `confirm` (or "approved", "approve", "yes", "lgtm", "ship it") → apply the proposed values verbatim.
    - An adjustment → override the named field(s), then RE-DERIVE: for a priced round
      `fair value = ownership × post-money`. Examples: `ownership 6.0%`, `post-money 38m`,
      `fair value 2.4m`, `distribution 1.2m`, `residual 0`. Parse `m`/`mm` = millions, `k` = thousands,
-     `%` = decimal.
+     `%` = decimal. **An adjusted ownership/post-money/fair-value invalidates the drafted share counts** —
+     apply the adjustment in COMPANY-LEVEL form (omit the per-round flags); per-round detail returns on the
+     next re-mark off the corrected cap table.
    - Anything ambiguous / a question → reply asking for clarification, do NOT write.
-3. **Apply** with the engine (always `--dry-run` first, confirm the diff is what Tom asked), then rebuild:
+3. **Apply** with the engine (always `--dry-run` first — global flag, BEFORE the subcommand — confirm the
+   diff is what Tom asked, then re-run without it), then rebuild:
    ```bash
-   # priced mark
-   python3 ~/code/lp-portal/refresh_inputs.py mark --company "<C>" --ownership <decimal> --fmv <int>
+   # priced mark — ALWAYS the per-round form on a plain confirm (2026-07-13; the engine
+   # cross-foots sum(shares)×pps against --fmv and refuses >0.5% mismatch):
+   python3 ~/code/lp-portal/refresh_inputs.py [--dry-run] mark --company "<C>" \
+     --ownership <decimal> --fmv <int> --pps <float> --post-money <int> --total-shares <int> \
+     --shares-json '{"<round label>": {"shares": <n>, "conversion_pps": <float>}, ...}'
+   # company-level fallback (adjustments only): drop the --pps/--post-money/--total-shares/--shares-json flags
    # exit / distribution
-   python3 ~/code/lp-portal/refresh_inputs.py distribution --company "<C>" --amount <int> --residual-fmv <int>
+   python3 ~/code/lp-portal/refresh_inputs.py [--dry-run] distribution --company "<C>" --amount <int> --residual-fmv <int>
    cd ~/code/lp-portal && bash run.sh
    ```
-4. **Close-loop reply** in-thread: the applied values, the company's new MOIC, and the new fund DPI/TVPI
-   (from `refresh_inputs.py show`). Deliver the rebuilt `~/Inverted_Capital_I_SOI.html` path. Skip Step 3
-   (generic taxonomy). Audit intent: `soi-mark-confirm`.
+   Round labels in `--shares-json` must match the SOI's (e.g. `Pre-Seed`, `Pre-Seed+`, `Seed`) — they key
+   the generator's per-round marking, MOIC derivation, and cost tie-out gate. `--total-shares` is
+   **INVERTED'S total FD shares post-round** (= Σ of the shares in `--shares-json`), NOT the round's
+   whole FD share count — in "holds X FD shares of Y total", it's X (mis-read as Y once, 2026-07-13).
+4. **Close-loop reply** in-thread, with fund impact read off the REBUILT model (`.last_snapshot.json`
+   after run.sh — the portal's own numbers), old → new per the conveying convention:
+   - the applied values (ownership, FMV, company MOIC),
+   - **Fund MOIC (gross) old → new** — always (Tom 2026-07-13), plus fund Invested and Fair Value,
+   - **TVPI and DPI — always** (Tom 2026-07-13: the close-loop is the INTERNAL view). Source TVPI from
+     the REBUILT model's underlying value — the generator computes it and merely gates the external
+     portal display to N/A below 60% called; tag it `(internal — portal shows N/A until 60% called)`
+     when gated. NEVER derive it from `refresh_inputs.py show`'s fund-admin NAV: that mixes a stale
+     quarterly admin figure with the just-applied mark (shipped once, 2026-07-13).
+   Deliver the rebuilt `~/Inverted_Capital_I_SOI.html` path. Skip Step 3 (generic taxonomy).
+   Audit intent: `soi-mark-confirm`.
 
 Never write portfolio facts to Notion here — only `fund_inputs.json` via the engine. Marks are valuation
 judgments: if the cap-table read in the parent looks off, flag it rather than applying silently.

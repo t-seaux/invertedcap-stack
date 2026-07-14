@@ -79,6 +79,21 @@ Supported transforms:
 
 **Blank lines emit a `\n\n` spacer.** A blank line in the source markdown widens the visible vertical gap because `md_to_blocks.py` inserts a `rich_text_section` containing `\n\n` between blocks. For tight single-line spacing, omit blank lines. Add them only where you genuinely want extra vertical separation.
 
+**NO column-aligned tables — EVER** (Tom 2026-07-13). Tom reads these alerts on his phone, where Slack
+wraps code blocks at ~40 chars instead of scrolling: a 5-column aligned table shatters into interleaved
+fragments (row halves on alternating lines, headers orphaned). This includes space-padded tables inside
+` ``` ` fences, GFM pipe tables, and anything else that only reads correctly when columns line up.
+Tabular data is always **one line per row, label first, ` · ` separating the pairs**:
+
+```
+**Pre-Seed (SAFE)** — inv $850,000 · OS 6.80% · FMV $850,000 · 1.00×
+**Seed (new)** — inv $728,447 · pending mark
+```
+
+Each line survives any wrap width because a wrapped continuation still reads left-to-right as the same
+row. Keep units/labels on every value (`inv`, `OS`, `FMV`) — after wrapping, position no longer tells the
+reader which number is which.
+
 ---
 
 ## Per-entity row convention (compact format, bullets removed 2026-04-27)
