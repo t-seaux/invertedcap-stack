@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-07-15] (Week of 2026-07-14)
+
+**Added:** log-deal-share (uncategorized — pending function assignment by Tom)
+**Removed:** None
+**Modified:**
+- investor-update -- added stripped-attachment guard: detects when iPhone/Apple Mail forwards drop the attachment; skips row creation and alerts when the body has insufficient content to reconstruct the update on its own
+**Total skills:** 35
+**Functions:** No changes (log-deal-share pending categorization)
+
+---
+
 ## [2026-07-14] (Week of 2026-07-14)
 
 **Added:** None

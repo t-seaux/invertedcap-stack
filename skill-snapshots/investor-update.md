@@ -230,6 +230,26 @@ Save a PDF copy of every investor update to the company's subfolder within the *
 
 Evaluate the email content to determine which case applies, checked in this order.
 
+> **🛑 STRIPPED-ATTACHMENT GUARD — check before anything else.** Apple Mail forwards (especially from iPhone) routinely **drop the attachment** while leaving its filename behind in the body as a plaintext placeholder: `<26Q2 - Investor Update.pdf>`. The message looks complete and passes every other check, but the artifact is gone.
+>
+> Detect: the body references a document filename in angle brackets (`.pdf`, `.docx`, `.xlsx`, `.pptx`, `.csv`, …) **AND** the Attachment Saver returns zero files. When both hold, the forward stripped it.
+>
+> Then measure the body's real substance — strip the forward chrome (wrapper line, `From:`/`Date:`/`Cc:`/`Subject:` fields, which Gmail may mash onto a *single line*), the signature block below the `-- ` delimiter, and the confidentiality boilerplate. What remains is the founder's actual prose.
+>
+> - **Substance < ~200 chars** → the attachment WAS the update. **Do NOT create a row.** A row with `Summary: N/A` / `Traction: N/A` is worse than no row. Alert Tom via `send-alert` to re-send the file, and stop.
+> - **Substance ≥ ~200 chars** → the body carries a real update and the attachment was supplementary. Process normally, but still alert Tom that the artifact is missing.
+>
+> Alert format:
+> ```
+> 📎 ATTACHMENT MISSING — {Company}
+> "{subject}"
+> Body references `{filename}` but the message carries no attachment — the forward stripped it.
+> {nothing was logged | logged without the artifact}
+> Action: re-forward from the Mac (iPhone Mail is what drops attachments), or drop the file into chat.
+> ```
+>
+> The webhook enforces this in code (`investor-update.js → detectStrippedAttachment`), so Mode B never enqueues a content-less job. Modes A and C must apply the same rule themselves. MakersHub 2026-07-14 is the precedent: the Q2 letter's entire content was in the PDF, the forward dropped it, and the body was signature-only.
+
 > **⚠️ ALWAYS probe for attachments first.** Run the Gmail Attachment Saver on the target message unconditionally *before* considering Case B / C / D / E — even when the email body shows a Google Doc/Slides link or appears to be pure prose. Tom frequently forwards investor updates with the PDF attached (and texts himself board deck PDFs alongside the Slides share notification). The `plaintextBody` returned by the Gmail MCP hides attachments behind the `￼` (object-replacement) placeholder glyph, so the only reliable signal is probing the message with the Attachment Saver. Jumping straight to Case B/D when you see a Google Doc/Slides link duplicates work Tom already did and is a regression. If the saver returns a PDF, use Case A and stop. Only fall through to Case B / Case C / Case D / Case E if the saver returns zero files.
 
 ### Case A: PDF attachment exists
