@@ -278,27 +278,19 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 
 ### Page Content Structure
 
-See `references/schema.md` for the canonical body structure. The body has **exactly two sections**: `**Original Email**` (verbatim source material) and `**Summary**` (three short paragraphs: overview + traction, team, round).
+See `references/schema.md` for the canonical body structure. The body has **exactly one section**: `**Original Email**` (verbatim source material). Do NOT add a `**Summary**` section — everything a summary would carry (what the company does, founders, round) already lives in the properties (Description, Round Details, Contact, HQ, Website) and the relation fields; surface any extra texture in the chat reply summary, not the page body. (Per Tom, 2026-07-15.)
 
 ```
 **Original Email**
 
-[email body verbatim — hyperlinks preserved, paragraph breaks preserved, NO horizontal-rule dividers like `***` / `---` (strip those and replace with a single blank line — they render as section breaks and make trailing blurbs look like orphan sections above Summary)]
-
-**Summary**
-
-[paragraph 1 — what the company does (richer than the Description one-liner) + recent progress / traction. If this is a re-engagement on a prior Opp, call that out here.]
-
-[paragraph 2 — founders with linked LinkedIn URLs and one-line bios anchored on the backgrounds that matter for THIS deal.]
-
-[paragraph 3 — current raise (stage + any disclosed terms) + prior round if relevant (amount + named participants).]
+[email body verbatim — hyperlinks preserved, paragraph breaks preserved, NO horizontal-rule dividers like `***` / `---` (strip those and replace with a single blank line — they render as false section breaks)]
 ```
 
 **Header naming by source type:** `**Original Email**` for email. For other source types, swap the noun: `**Original DM**` (LinkedIn DM), `**Original Text**` (iMessage / SMS screenshot), `**Original Post**` (Twitter / Slack / LinkedIn post), `**Original LI Profile**` (bare LinkedIn URL with no other context).
 
 **Material links go in property fields, NOT the body.** The Diligence Materials Files property is the canonical home for deck/memo URLs. Do not add a body section duplicating those chips. DocSend materials must be converted to PDF and linked as the Drive URL — never link `docsend.com/view/...` URLs anywhere on the page.
 
-**URL fidelity — never fabricate URLs in the page body.** Any URL written into the page body (deck links, demo URLs, GitHub repos, founder LinkedIn, company website, social profiles, third-party deck-sharing platforms, etc.) MUST appear as a literal substring of the source material (email body, screenshot OCR, deck text, pasted text, or a tool result such as a ContactOut response). Never reconstruct or guess a URL from memory or pattern (e.g. inferring `linkedin.com/in/firstlast` from a name) — omit instead. Before writing a link, verify the URL is present in the source — `grep -F "<url>" <source>` mentally. If the URL is not literally in the source, omit the link entirely and reference the artifact by name instead (e.g., `Deck: see attached` rather than `[Deck](https://docsend.com/view/<fabricated>)`). This rule overrides "be helpful by filling in plausible URLs" — a missing link is recoverable; a wrong link wastes Tom's time and corrupts the audit trail. Applies equally to: the Original Email section's preserved hyperlinks, the Summary section's founder LI links (if the LI URL wasn't in source, leave the founder name unlinked), and any inline references elsewhere on the page.
+**URL fidelity — never fabricate URLs in the page body.** Any URL written into the page body (deck links, demo URLs, GitHub repos, founder LinkedIn, company website, social profiles, third-party deck-sharing platforms, etc.) MUST appear as a literal substring of the source material (email body, screenshot OCR, deck text, pasted text, or a tool result such as a ContactOut response). Never reconstruct or guess a URL from memory or pattern (e.g. inferring `linkedin.com/in/firstlast` from a name) — omit instead. Before writing a link, verify the URL is present in the source — `grep -F "<url>" <source>` mentally. If the URL is not literally in the source, omit the link entirely and reference the artifact by name instead (e.g., `Deck: see attached` rather than `[Deck](https://docsend.com/view/<fabricated>)`). This rule overrides "be helpful by filling in plausible URLs" — a missing link is recoverable; a wrong link wastes Tom's time and corrupts the audit trail. Applies equally to: the Original Email section's preserved hyperlinks and any inline references elsewhere on the page.
 
 ### Relation Fields (resolve before creating)
 

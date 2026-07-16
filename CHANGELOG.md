@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-07-16] (Week of 2026-07-14)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm -- simplified Opportunity page body to a single Original Email section; removed Summary section since deal metadata lives in Notion properties
+- research-agent -- updated research universe: removed three public equity managers, added one new manager
+**Total skills:** 35
+**Functions:** No changes
+
+---
+
 ## [2026-07-15] (Week of 2026-07-14)
 
 **Added:** log-deal-share (uncategorized — pending function assignment by Tom)

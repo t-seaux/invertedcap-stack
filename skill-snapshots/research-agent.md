@@ -49,9 +49,7 @@ These are firms/investors Tom actively tracks. Search for each by name. Organize
 | Greenlight Capital (David Einhorn) | Quarterly letters |
 | Fairfax Financial (Prem Watsa) | Annual letter (typically March), quarterly commentary |
 | Markel Group (Tom Gayner) | Annual letter, Markel Investor Day remarks |
-| Oakmark / Harris Associates (Bill Nygren) | Quarterly commentary, market outlooks |
 | Tweedy Browne | Quarterly letters, published research papers |
-| Longleaf Partners / Southeastern Asset Mgmt (Mason Hawkins) | Quarterly letters, shareholder commentary |
 | Semper Augustus (Chris Bloomstran) | Annual letter (typically Q1, very long-form and detailed) |
 | Horizon Kinetics (Murray Stahl) | Quarterly reviews, research commentaries |
 | Li Lu / Himalaya Capital | Letters (rare but notable), published speeches |
@@ -89,7 +87,6 @@ These are firms/investors Tom actively tracks. Search for each by name. Organize
 
 | Firm / Investor | What to look for |
 |---|---|
-| Fundsmith (Terry Smith) | Annual letter (typically January), shareholder letters |
 | Akre Capital Management (Chuck Akre) | Annual letter, quarterly commentaries |
 | Giverny Capital (François Rochon) | Annual letter (typically Q1, thoughtful long-form) |
 | Brown Capital Management | Quarterly letters |
@@ -211,6 +208,7 @@ Tom has reviewed and rejected these firms — they are **not interesting** for h
 - Nightview Capital
 - Polen Capital (all strategies — 5Perspectives Small Growth Strategy, etc.)
 - Praetorian Capital
+- Right Tail Capital
 - Rowan Street Capital
 - Value Guinea (GVI)
 - Wedgewood Partners
