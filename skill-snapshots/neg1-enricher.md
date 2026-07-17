@@ -1,23 +1,63 @@
 ---
 name: neg1-enricher
 description: >-
-  Enrichment + evaluation primitive for pre-founder (-1) candidates. Takes a LinkedIn URL, builds a
-  fully-enriched -1 Scanner row in Notion (ContactOut + per-employer Company Search, online-presence research,
-  Companies DB relations), then applies Tom's signal-framework rubric and writes the verdict (Eval Breakdown,
-  Working Description, Claude Rec, Eval Summary). Supports `--score-only` (re-score without re-fetching
-  ContactOut). Manual trigger only; scheduled bulk enrichment is pipeline-agent Task 6, which calls this skill.
-  On MANUAL runs auto-chains into founder-outreach (draft ready regardless of verdict); batch runs do not chain.
-  Trigger phrases: "-1 scan [URL]", "-1 scanner", "add to scanner", "add to -1 scanner", "add to sourcing",
-  "source these", "scan these profiles", "enrich these LI URLs", "score [name]", "rescore [name]", "score-only",
-  or any LinkedIn URL(s) paired with sourcing/enrichment/scoring intent — including a bare list of LinkedIn
-  URLs. Distinct from add-to-contacts (People DB) and add-to-crm (Opportunities).
+  Enrichment + evaluation primitive for pre-founder (-1) candidates — HEADLESS, upstream of Notion. Takes a
+  LinkedIn URL, enriches via ContactOut + local company caches + online research, applies the founder-taste
+  rubric (RUBRIC.md) + When gate, writes the verdict to the CANDIDATE STORE
+  (~/.claude/scripts/decision-ledger/candidates.py — signals_line, eval_summary, eval_rationale, rec), and posts
+  a candidate card to #neg1-sourcing when the verdict is Reach Out. NOTHING lands in Notion — that happens only
+  when Tom replies draft (neg1-sourcing-listener creates the Opportunity). Job mode (claude-job-queue, args
+  {mode: headless, li_url, source}) is the primary scheduled path — enqueued the moment a generator surfaces a
+  name. Supports --score-only re-scoring against store rows. Trigger phrases: "-1 scan [URL]", "scan these
+  profiles", "enrich these LI URLs", "score [name]", "rescore [name]", "run a founder eval on [name/this person]",
+  "founder eval on [X]", or LinkedIn URL(s) with sourcing intent.
+  The -1 Scanner Notion DB is DELETED (2026-07-16) — never query it; archive at
+  ~/.claude/data/neg1_scanner_archive.json.
 ---
 
 # -1 Enricher
 
 Enrichment + evaluation primitive for pre-founder candidates. Takes a LinkedIn URL, produces a fully-enriched and **fully-evaluated** -1 Scanner row that Tom can act on. Per Tom's mental model: enrichment is "gather info/context, then apply my frameworks and intelligence to further enrich" — scoring IS a form of enrichment (it enriches the row with a rubric-derived verdict). Drafting the cold email lives in `founder-outreach` and only runs *after* Tom flips Claude Rec to ✅.
 
-## Notion Targets
+## v2 HEADLESS FLOW (2026-07-16 — CURRENT DEFAULT)
+
+**The -1 Scanner DB is retired for new candidates.** Evaluation lives upstream in the candidate store (`candidates` table in `~/.claude/data/decision_ledger.db`, CLI: `python3 ~/.claude/scripts/decision-ledger/candidates.py`); Notion is touched only when Tom replies `draft` to a card — at which point an **Opportunity** is created in the Opportunities DB (see neg1-sourcing-listener). Everything below this section describes the LEGACY Notion-scanner path — still valid for existing scanner rows and only when Tom explicitly says "add to scanner".
+
+**Step 0 (preflight) — existing-Opportunity check.** BEFORE enriching, search the Opportunities DB (`fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`) for an existing Opp on this person — query the candidate's name AND their LinkedIn URL (founder relations + title link both carry it). If an Opp already exists (any status), the person is already in the pipeline, so the enrichment must NOT stop at a candidate-store row + Slack card. Instead: run the full enrichment/scoring, then land the framework output as a **Notes-DB note tagged to that Opp** — a `-1 {Name}: Founder Eval` page in the Notes DB with the Opportunity relation set (same shape neg1-sourcing-listener produces at draft time; the Opp *body* stays clean — Tom's rule). Still upsert the store row for ledger continuity, but the tagged note is the deliverable Tom reads. Only when NO Opp exists do you follow the default card-only path below. (Tom, 2026-07-16: "when you neg1 enrich you should check to see if there's an opportunity entry. If so you should create a new note with the enrichment and tag it to the opp.")
+
+**Eval-note format (canonical — Tom's 2026-07-16 spec; applies wherever the eval note is written, incl. neg1-sourcing-listener's draft-time note):**
+- **Icon:** the `:claude-color:` Notion custom emoji (Claude generates the artifact, so it carries Claude's logo). Not a thematic emoji.
+- **Title:** `-1 ([Name](LI URL)): Founder Eval` — hyperlinked name (same `-1 ([Name](LI))` shape as the Opp) plus the `: Founder Eval` suffix (Tom's confirmed format, 2026-07-16 screenshot).
+- **Body = the "Tier A" mini-memo** (Tom-approved 2026-07-16; prototyped on Stephanie Wan). Notion-native only — no rendered images/PDFs. Blocks in this exact order:
+  1. **Verdict callout** — `<callout icon="{verdict emoji}" color="{verdict color}">` where ✅→`green_bg`, 🤔→`yellow_bg`, ❌→`red_bg`. Inside: `**Claude Rec: {verdict}**` — verdict as plain text, NO emoji after it (the callout icon already carries the verdict emoji) and no parenthetical — + a 2–3 sentence summary + a re-surface/next-check line. The callout IS the summary — no separate `**Summary.**` paragraph.
+  2. **Fact row + arc** — one line `**Seat:** … · **Home:** … · **Contact:** … · **Source:** …`, then `**Arc:** Stop → Stop → Stop` career one-liner.
+  3. **`## Signals` table** (header-row) — columns `Signal | Score | In one line`. Score = plain `{n}/10` (NO dot scales — Tom found them weird). Peak signal bolded with a trailing `(Spike)` label (not a ★). Signal names spelled out in full (never NL/Ant/Rng). Numeric scores live ONLY in this table — the prose below must NOT repeat `({n}/10)` score-led paragraphs.
+  4. **`## Founder Eval`** — six per-signal paragraphs, each led by the bolded signal name (`**Intellectual Rigor (Spike).**`, `**Intentionality.**`, …), ordered by score descending so the spike leads. NO What/How/Why lens rollup headings (Tom tried it and rejected it, 2026-07-16) and NO `({n}/10)` in the bold leads — scores stay in the table. Each paragraph: evidence + why-this-level in prose; the spike gets the most ink.
+  5. **`**The detail that sticks.**`** — one memorable concrete fact (the line Tom would repeat to someone else).
+  6. **`**Closest archetype.**`** — one line mapping to the §6 four-archetype taxonomy (or "too early to assign").
+  7. **`## Gaps / what would change the read`** — 2–4 falsifiable bullets: evidence that would move the scores (a 0→1 seat, an opportunity cost walked past, fuller enrichment). This is evidence-framing, NOT a reach-out recommendation.
+  8. **Footer provenance quote** — `> Pre-founder (-1) evaluation via the founder-taste rubric. Enriched from {sources}. {date}.`
+- **No timing section.** Do NOT write a "When gate" / "W1/W2/W3" block AND do NOT write an "Is the timing right to reach out?" section — Tom makes the timing call himself (2026-07-16). The When gate still COMPUTES during scoring (§8.9) and can still downgrade the rec; it just isn't surfaced in the note at all.
+- Keep the store's `eval_summary`/`eval_rationale` fields for machine use — the note renders the Tier A memo, not those fields verbatim.
+
+Headless mode maps the legacy steps as follows:
+- **Step 1 (ContactOut enrich + cache)** — unchanged, including the raw-payload cache write.
+- **Step 2 (primary role)** — unchanged.
+- **Step 3 (companies)** — do NOT create Notion Companies rows or relations. Read company context from the local caches instead: `~/.claude/scripts/company_cache.py` (headcount/momentum) and the Deal Digest cache (`shared-references/deal-digest-cache.md`) for revenue traction. Only candidates Tom drafts get Companies-DB treatment later (add-to-crm path).
+- **Step 4 (write the row)** — replace the Notion write with a store upsert:
+  ```bash
+  python3 ~/.claude/scripts/decision-ledger/candidates.py upsert --json '{"li_url": "...", "name": "...", "email": "...", "city": "...", "spike_era_role": "...", "spike_era_company": "...", "current_role": "...", "current_company": "...", "education": "School (year)", "arc": ["School (yr)", "Stop (yrs)", ...], "presence": [{"label": "Blog", "url": "..."}], "path": "2nd degree via ...|cold", "type": "Cold 🧊|Warm ☀️", "source": "monday-sweep|manual|network-scan", "contactout_cache": "<cache file path>", "state": "surfaced"}'
+  ```
+- **Step 5 (rubric + When gate)** — unchanged logic (RUBRIC.md §5–§8 + §8.9), but outputs land in the store: `scores` (JSON dict), `signals_line` (compact format), `rec` (post-gate), `pre_gate_rec`, `when_gate` (fired rule + evidence or null), `eval_summary`, `eval_rationale` (full per-signal prose — this is the store's version of the old Eval Breakdown), `working_desc`, `gap` (sharpest Gaps clause).
+- **Step 6 (chain to drafting)** — REMOVED in v2. Every headless run ENDS by posting the candidate card to `#neg1-sourcing` (pipeline-agent Task 6 step 2b format — read that block for the exact card anatomy) when the verdict is `Reach Out ✅`; save the posted ts via `set-state --card-ts`. `Second Look 🤔` and `Pass ❌` post no card (they're visible via `candidates.py list`). Tom decides from the card.
+
+**Job mode (per-candidate, event-driven — the PRIMARY scheduled path):** invoked via claude-job-queue with args `{mode: "headless", li_url, source, name?}` (enqueued by `~/.claude/scripts/enqueue-neg1-enrich.sh` the moment a generator surfaces a name — there is NO batching delay). Run the full headless flow above for the single candidate, card it if ✅, exit. Idempotency: if the store row for `li_url` is already `state=surfaced` with a `card_ts` (or any later state), exit silently — the job is a retry.
+
+---
+
+**RETIRED 2026-07-16:** the -1 Scanner DB was deleted after full decommission — data archived at `~/.claude/data/neg1_scanner_archive.json` + migrated into the candidate store. Everything below referencing the Scanner is historical documentation only; do NOT query the DB.
+
+## Notion Targets (RETIRED — historical)
 
 - **-1 Scanner Database** — Data Source ID: `32c00bef-f4aa-80a5-923b-000b83921fa3`
 - **Companies Database** — Data Source ID: `7d50b286-c431-49f5-b96a-6a6390691309`
@@ -173,15 +213,15 @@ See `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.m
 ### Step 5: Apply the Rubric and Write the Evaluation
 
 Read the framework + rubric from co-located references:
-- `FOUNDER_EVAL_CASEBOOK.md` — 6-founder calibration corpus (per-signal scoring evidence)
+- `founder-taste/CASEBOOK.md` — 6-founder calibration corpus (per-signal scoring evidence)
 - `ONLINE_SOURCES.md` — Phase 2 online research taxonomy
-- `../founder-outreach/FOUNDER_EVAL_FRAMEWORK.md` §6 — current rubric, anchors, thresholds (canonical)
+- `../founder-taste/RUBRIC.md` §5–§8 — current rubric (signals + archetypes), anchors, thresholds (canonical)
 
 Apply the framework in two phases:
 
 **Phase 1 — derive HIGH-fidelity signals from already-ingested structured data:**
 - **Non-Linearity**: count function/discipline crossings across `experience[].job_function` + title transitions.
-- **Earned Reps**: cross-reference `experience[]` tenure against the highest-fidelity hypergrowth signal available, in priority order (per FOUNDER_EVAL_FRAMEWORK.md §Signal 2): (1) **CC Momentum** rollup on the -1 Scanner row — pulls Deal Digest revenue traction directly from the primary employer's Companies DB row, no extra hop required; (2) Companies DB Headcount + HC Commentary (Sales Nav scrape); (3) Companies DB Hypergrowth Windows (funding-round cadence). When tenure overlaps best-in-class peer-tier ramp (e.g., 6-10x+ YoY ARR for early-stage), rate High. Apply sector-difficulty multiplier (health systems, public sector, defense, regulated finance) when the traction was earned in a hard buyer environment.
+- **Earned Reps**: cross-reference `experience[]` tenure against the highest-fidelity hypergrowth signal available, in priority order (per founder-taste/RUBRIC.md §Signal 2): (1) **CC Momentum** rollup on the -1 Scanner row — pulls Deal Digest revenue traction directly from the primary employer's Companies DB row, no extra hop required; (2) Companies DB Headcount + HC Commentary (Sales Nav scrape); (3) Companies DB Hypergrowth Windows (funding-round cadence). When tenure overlaps best-in-class peer-tier ramp (e.g., 6-10x+ YoY ARR for early-stage), rate High. Apply sector-difficulty multiplier (health systems, public sector, defense, regulated finance) when the traction was earned in a hard buyer environment.
 - **Range**: triple intersection of `job_function` × `industry` across employers (Technical / Commercial / Domain).
 
 **Phase 2 — narrative research for LOW–MED fidelity signals (only if Phase 1 doesn't already disqualify):**
@@ -189,22 +229,30 @@ Apply the framework in two phases:
 - **Anticipation**: WebSearch on `projects[]` / `headline` topics with date filters — was the bet pre-consensus at the time? Cross-check internal employer projects too.
 - **Intentionality**: LLM read of `experience[].summary` for demotion / anti-accelerator / patient-tenure markers; "On leaving X" essays; podcast career-arc framing.
 
-**Compute the verdict (per FOUNDER_EVAL_FRAMEWORK.md §6):**
-- Rate each signal **High**, **Medium**, or **Low** using the rubric anchors in FOUNDER_EVAL_FRAMEWORK.md. Pure spike-based MAX — one singular High is enough. **No Intentionality gate** (Intentionality is informational, not a veto).
+**Compute the verdict (per founder-taste/RUBRIC.md §8):**
+- Rate each signal **High**, **Medium**, or **Low** using the rubric anchors in founder-taste/RUBRIC.md. Pure spike-based MAX — one singular High is enough. **No Intentionality gate** (Intentionality is informational, not a veto).
 - `Claude Rec` based on peak signal rating:
   - Any signal High → `Reach Out ✅`
   - Peak Medium → `Second Look 🤔`
   - All signals Low → `Pass ❌`
+- **Apply the When gate (RUBRIC.md §8.9) AFTER the verdict.** From `experience[]` career-state evidence, check:
+  - **W1 stale peak**: peak-signal evidence ended 3+ years ago AND roles since are comfort-mode (ascending employee titles at mature companies, advisory/angel float, no new 0→1 exposure).
+  - **W2 career-stage ceiling**: 5+ years single-lane senior role at an established company with no discipline crossings since the peak.
+  - **W3 fresh seat elsewhere** (OBSERVE-ONLY — annotate, never downgrade): took a new employee seat at someone else's company within the last ~12 months, or is mid-tenure inside a current rocketship with visible upward trajectory.
+  If W1 or W2 fires AND Claude Rec is `Reach Out ✅`: keep the pre-gate rec in the Signals `rec:` element, downgrade `Claude Rec` to `Second Look 🤔`, and prepend one line to Eval Summary — `When gate: W# – <one-line evidence>.` If only W3 matches: keep the rec unchanged and append `When note: W3 pattern (observe) – <evidence>. Watchlist: re-check in 12-18 months.` The gate never auto-passes, never changes signal scores, and never fires on someone already in a founder-shaped seat (founding now, running their own firm, or visibly between stints exploring). The `rec:` element of the Signals line is the PRE-gate auto-rec — that is what lets the ledger back-test the gate itself.
 - `Working Description` (2-3 sentence TL;DR, anchored on the peak signal).
-- `Eval Breakdown` (per-signal rationale with evidence URLs from Phase 2 research).
+- `Signals` (compact property line `NL:{n} · Reps:{n} · Rigor:{n|U} · Ant:{n} · Int:{n} · Rng:{n} · rec:{✅|🤔|❌}` (0-10 numbers; U = unobservable; legacy rows may carry H/M/L letters; `rec` = the PRE-gate auto-rec)) — the machine-readable scores every downstream parser reads.
+- **Eval Rationale (page BODY, not a property)**: append a `## Eval Rationale (YYYY-MM-DD)` heading + per-signal prose paragraphs with evidence URLs from Phase 2 research. This replaced the deleted `Signals` property (2026-07-16 — too wordy for the table); the depth lives one click in, the row stays scannable.
 - `Eval Summary` — use the canonical structure from memory `feedback_eval_summary_format.md`: **Primary Signal: [Name].** paragraph → **Other Qualities** bullets (• **Signal Name (Rating).** sentence.) → **Gaps.** paragraph. When Intentionality is unobservable from public data or rated Low, say so explicitly in one clause (e.g. "Intentionality unobservable from public sources" in Gaps) — informational only, never a veto; the no-Intentionality-gate scoring rule is unchanged.
 
-Write all four fields back to the -1 Scanner row via `notion-update-page`. Do not touch Status here.
+Write all four fields back to the -1 Scanner row via `notion-update-page`. Do not touch Status here (Task 6 mode sets `Enriched` in Step 6; every other status transition belongs to founder-outreach or Tom).
 
 ### Step 6: Chain to Drafting (manual invocation only)
 
 The -1 Scanner's `Status` field workflow:
 - `Pending Enrichment` → initial state; picked up by pipeline-agent Task 6
+- `Enriched` → enrichment + scoring done, verdict written; awaiting Tom's triage (set by Task 6 mode after Step 5; manual runs skip past it because they chain straight to drafting)
+- `Draft Requested` → Tom pressed the **Request Draft** button on the row (or flipped the dropdown); the notion-webhook Worker fires `founder-outreach` in webhook mode within ~1–2 min, with pipeline-agent Task 6's sweep as backstop
 - `Draft Ready` → after `founder-outreach` produces a Gmail draft (set BY founder-outreach)
 - `Reached Out` → Tom sent the outreach (detected by pipeline-agent Task 7)
 - `Passed` → Tom decided not to send (manual flip)
@@ -213,7 +261,7 @@ The -1 Scanner's `Status` field workflow:
 
 **Exception**: if the user explicitly says "enrich only" / "just score, don't draft" / "no outreach" / similar, skip the chain and stop after Step 5.
 
-**Task 6 mode** (called by pipeline-agent with an existing page ID, scheduled bulk enrichment): do NOT chain. Return after Step 5 with the verdict written. Drafting from the scheduled summary stays manual — Tom triages which rows warrant an outreach draft.
+**Task 6 mode** (called by pipeline-agent with an existing page ID, scheduled bulk enrichment): do NOT chain. After Step 5 writes the verdict, set `Status = Enriched` (the one exception to Step 5's "do not touch Status" rule — Task 6 mode owns this transition), then return. Drafting stays Tom-initiated: he triages the `Enriched` rows and presses **Request Draft** on the ones that warrant outreach.
 
 **`--score-only` mode**: does NOT chain (it's a re-evaluation, not a fresh outreach decision).
 
@@ -236,7 +284,7 @@ After all writes complete (Steps 4–6), re-fetch the -1 Scanner row via `notion
 | Work History | ≥1 relation | Re-run Step 3 for experience array and re-write |
 | Claude Rec | Non-null select | Re-run Step 5 verdict derivation and re-write |
 | Eval Summary | Non-empty, ≥100 chars, contains "Primary Signal:" and "Other Qualities" and "Gaps." | Re-run Step 5 and re-write |
-| Eval Breakdown | Non-empty, ≥100 chars | Re-run Step 5 and re-write |
+| Signals | Non-empty, ≥100 chars | Re-run Step 5 and re-write |
 | Working Description | Non-empty | Re-run Step 5 and re-write |
 | Experience Summary | Non-empty | Re-extract from ContactOut payload and re-write |
 | Last Enriched | Set to today's date | Write today's date |
@@ -289,20 +337,20 @@ For batches, present results as a summary table sorted by peak signal rating des
 
 ## `--score-only` Mode (re-scoring without re-enriching)
 
-Per FOUNDER_EVAL_FRAMEWORK.md §6.7 (re-scoring without re-enriching). Used when the rubric changes and Tom wants to re-score existing rows against the new rubric without burning ContactOut credits re-pulling data that hasn't changed.
+Per founder-taste/RUBRIC.md §8.7 (re-scoring without re-enriching). Used when the rubric changes and Tom wants to re-score existing rows against the new rubric without burning ContactOut credits re-pulling data that hasn't changed.
 
 **Trigger**: user passes `--score-only` flag, OR uses phrases like "rescore [name]", "re-score [name]", "score-only this row", "rescore the calibration corpus".
 
 **Behavior**:
 - **Skip Steps 1–4.5 entirely** — no ContactOut calls, no online presence re-research, no Companies DB writes.
 - **Run Step 5 only**, against whatever data is already on the -1 Scanner row (Experience Summary, LI Profile Summary, Online Presence files, Companies relations + their Headcount/CC Momentum/HC Commentary).
-- **Overwrite** Eval Breakdown, Working Description, Claude Rec, Eval Summary with the new verdict.
+- **Overwrite** Signals, Working Description, Claude Rec, Eval Summary with the new verdict.
 - **Preserve Status** — a row that's already `Reached Out` stays `Reached Out` regardless of the new rating. We're updating the evaluation artifact, not the workflow state.
 - **No Step 6 chain** to founder-outreach in score-only mode (it's a re-evaluation, not a fresh outreach decision).
 
 **Targeting**:
 - Single row: pass a -1 Scanner page URL or person name.
-- The 6-founder calibration corpus (per FOUNDER_EVAL_FRAMEWORK.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `FOUNDER_EVAL_CASEBOOK.md`).
+- The 6-founder calibration corpus (per founder-taste/RUBRIC.md Future State item 14, quarterly drift check): pass `--score-only --calibration-corpus` (resolves via the names in `founder-taste/CASEBOOK.md`).
 - Bulk: pass `--score-only --where "Claude Rec is null"` or any Notion filter. Use sparingly — re-scoring 100+ rows takes time even without ContactOut calls.
 
 **Snapshot before overwrite**: write before-state to `/tmp/score_only_snapshot_{timestamp}.jsonl` (one JSON per row: page_id, name, before_eval_breakdown, before_eval_summary, before_claude_rec). Lets Tom diff old vs new verdicts and revert if a rubric change misfires.

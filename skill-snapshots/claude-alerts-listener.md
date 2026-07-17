@@ -164,7 +164,7 @@ kind that compounds over time but rarely warrants an absolute rule edit.
 2. **Escalate to SKILL.md edit ONLY when Tom uses absolute-rule language.** Phrases like
    "never X", "always Y", "from now on", "stop including X" signal an absolute rule. In
    those cases, edit the appropriate prescriptive file (`first-pass-diligence/SKILL.md`,
-   `FOUNDER_EVAL_FRAMEWORK.md`, or memory) instead of FEEDBACK_PATTERNS. When in doubt,
+   `founder-taste/RUBRIC.md`, or memory) instead of FEEDBACK_PATTERNS. When in doubt,
    route to FEEDBACK_PATTERNS — absolute rules will surface naturally through repetition
    (Step 3 promotion logic below).
 

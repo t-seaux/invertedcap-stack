@@ -319,7 +319,7 @@ Still follow the scanning and efficiency rules below (Steps 1–2) to identify w
    ```
    ## 📎 Diligence Materials
 
-   - **[Attachment filename(s)]** — from [sender], [date]
+   **[Attachment filename(s)]** — from [sender], [date]
      [Open in Gmail](https://mail.google.com/mail/u/0/#all/<messageId>)
      ⚠️ Pending manual download and Drive upload
    ```
@@ -337,7 +337,16 @@ Still follow the scanning and efficiency rules below (Steps 1–2) to identify w
 
 Spawn with `Task` tool.
 
-**Goal**: Scan the -1 Scanner database for rows with `Status = Pending Enrichment` (or empty Status). For each, run the full -1 sourcing pipeline: enrichment → scoring → drafting → set `Status = Draft Ready`.
+**v2 HEADLESS (2026-07-16 — CURRENT):** candidates live in the candidate store (`python3 ~/.claude/scripts/decision-ledger/candidates.py`), NOT the -1 Scanner. This task's v2 behavior:
+1. `list --state pending` (cap 10 oldest) → run neg1-enricher **headless mode** on each. NOTE (2026-07-16): this is now the RECONCILIATION BACKSTOP — generators enqueue per-candidate jobs at surface time (`enqueue-neg1-enrich.sh`), so pending rows here mean a job was missed or failed. Only process rows older than ~2 hours; younger rows likely have an in-flight job.
+2. Post cards per step 2b below for every `rec = Reach Out ✅` surfaced THIS run — card data comes from store fields (spike_era_role/company, signals, eval_summary, arc, when_gate → TIMING, path, presence, gap); fingerprint is the LinkedIn vanity slug: `[neg1:{slug}]`. Save ts via `set-state --card-ts`. `Second Look 🤔` → run summary only.
+3. Implicit-pass sweep (step 2c): store rows `state=surfaced` untouched 14+ days → ledger `no-outreach` (verdict-raw "Implicit pass (stale Nd)", scores/rec from store) → `set-state --state passed`.
+4. Re-surface sweep (step 2d): `due-resurface` rows → re-post card (TIMING: "Open – track period elapsed") → `set-state --state surfaced --card-ts <new ts>`.
+5. The Notion-scanner instructions below are RETIRED (DB deleted 2026-07-16; archive at ~/.claude/data/neg1_scanner_archive.json) — historical documentation only, never query.
+
+**Goal**: Two sub-passes over the -1 Scanner database. (1) Enrich + score rows with `Status = Pending Enrichment` (or empty Status) and land them at `Status = Enriched` — NO drafting; Tom triages Enriched rows himself via the **Request Draft** button. (2) Sweep rows sitting in `Status = Draft Requested` (button presses the notion-webhook missed, or whose founder-outreach job failed) and invoke `founder-outreach` on each.
+
+Status flow context: `Pending Enrichment` → `Enriched` (this task) → `Draft Requested` (Tom's button; fires founder-outreach via notion-webhook in real time) → `Draft Ready` (set by founder-outreach) → `Reached Out` / `Passed`. Gate values shared with the webhook live in `~/.claude/skills/shared-references/triggers/founder-outreach.json` — read it, don't inline.
 
 **Steps**:
 
@@ -347,28 +356,58 @@ Spawn with `Task` tool.
 
    **Cap at 10 rows per run** to bound ContactOut credit consumption (enrichment + Company Search + online research per row). If more exist, process the 10 oldest and note the remainder were deferred.
 
-2. **For each detected row, run the full pipeline**:
-
-   **a) Enrichment** — read `/Users/tomseo/.claude/skills/neg1-enricher/SKILL.md` and follow its Steps 1–4 (Update path, invoked by Task 6 mode — do NOT chain to founder-outreach from within neg1-enricher; Task 6 handles chaining):
+2. **For each detected row, enrich + score**: read `/Users/tomseo/.claude/skills/neg1-enricher/SKILL.md` and follow its Steps 1–5 in Task 6 mode (do NOT chain to founder-outreach):
    - Call `contactout_enrich_linkedin_profile` on the row's `LI` value
    - Resolve Companies relations (Step 3 — dedup by Domain, create/backfill as needed, respect Last Enriched skip rule)
    - Update the existing -1 Scanner row via `notion-update-page` (Step 4 Update path)
+   - Apply the rubric (Step 5) — writes Signals line, Working Description, Claude Rec, Eval Summary
+   - Set `Status = Enriched` (per neg1-enricher Step 6 Task 6 mode)
 
-   **b) Scoring + Drafting** — read `/Users/tomseo/.claude/skills/founder-outreach/SKILL.md` and invoke Mode 1 (Score) then Mode 2 (Draft) in sequence for this row:
-   - Mode 1 writes Eval Score + Rationale + Signals + Working Description + auto-rec text to Reach Out?
-   - Mode 2 generates Gmail draft, populates Gmail Draft URL, sets `Status = Draft Ready`
+2b. **Surface Reach Out candidates to `#neg1-sourcing`**: for each row enriched in THIS run whose `Claude Rec = Reach Out ✅`, post a candidate card to the `#neg1-sourcing` Slack channel — post via `send-alert/md_to_blocks.py` in bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py` (prints the message `ts` — no webhook needed). Card format (Tom's mock, locked 2026-07-16 — labeled bullets, NO verdict line since every card is already a ✅):
+   ```
+   🚨 <u>**{Name} ({current role} @ {current company}, ex-{spike-era company}; {City})** | [Notion]({row URL}) | [LinkedIn]({LI URL})</u>
+   - **Spike(s).** {Short signal name(s)} – {evidence from the eval's primary-signal paragraph; keep the specific numbers. Spike-relevant role details from ANY career stop get folded in HERE, never into Arc. Multiple spikes each get named.}
+   - **Arc.** {School (grad year)} → {Company Role (years)} → … → {Current role (years-Present)}. PURE chronology — school + company + role + years only, NO descriptions of what they did there. EVERY stop carries years; resolve education via: School(s)/store → network cache raw_text → ContactOut education[] → LI profile; if genuinely unresolvable write "Education unknown", never silently drop the leg.
+   - **Timing.** Open – {tenure/window context, one clause}. **Every card is Open** — window-closed profiles never card (the When gate downgraded them upstream), and a fresh seat is a factual NOTE ("joined X in Feb, 5 months in – noted, not a blocker"), never a different label. The "Track" timing label is RETIRED (2026-07-16): it collided with the track/snooze verb and read as an already-applied state, and Tom's rulings (Megan: "she's been there long enough"; Jinsub: "I didn't do anything yet... he's open") both collapse to Open-with-context.
+   - **Path.** {warm-path in ≤6 words, or "Cold"}
+   - **Presence.** {hyperlinked artifact labels; omit the line entirely if none}
+   - **Gap(s).** {sharpest clause(s) from the eval's Gaps — the best argument to pass}
+   `[neg1:{LinkedIn vanity slug}]`
+   ```
+   Header identity = CURRENT role + `ex-{spike-era company}` (changed 2026-07-16: a spike-era-only header read as stale data — Tom: "you didn't get her latest info"). Labels are bold — `- **Spike(s).**` — plain bullets, NO brackets, NO `--` dividers, no blank lines anywhere (blank lines emit `\n\n` spacers). NO verb-legend footer — the reply grammar lives in the pinned channel legend and the listener parses free text anyway; the `[neg1:<short-id>]` fingerprint is the only footer line (the listener needs it to resolve the row). Short signal names on cards: Reps / Non-Linearity / Rigor / Anticipation / Intentionality / Range.
+   Rules: `Second Look 🤔` rows do NOT get cards — list them by name in the run summary instead (When-gated downgrades included). `Pass ❌` stays in Notion only. Gate in code: if `~/.claude/skills/neg1-sourcing/.sourcing_channel_id` does not exist, skip silently and list the Reach Out ✅ names in the run summary. Only rows enriched in THIS run — never re-post previously Enriched rows (except step 2d re-surfacing). Tom acts by replying in the card's thread — verbs are processed by `neg1-sourcing-listener` (go / pass <why> / watch / more); the Notion Request Draft button remains a fallback.
 
-3. **Guardrails**:
+2d. **Re-surface sweep (watchlist)**: query the -1 Scanner for rows where `Re-surface` (date) ≤ today AND Status ∈ {`Enriched`, `Draft Ready`}. For each: re-post the step 2b card with the Timing bullet reading `**Timing.** Open – track period elapsed ({original date} → today); {what changed if the row's Company relations show news, else "no visible change"}`, then clear the `Re-surface` property so it doesn't re-fire daily. Same channel-id gate as 2b.
+
+2c. **Implicit-pass sweep (ledger only — NEVER touches Notion Status)**: query the same data source for rows where `Status ∈ {Enriched, Draft Ready}` and `Last Enriched` is more than **14 days** ago. Each is a revealed-preference soft pass — the candidate surfaced and Tom chose not to act. For each, parse the Signals line scores + Claude Rec exactly as in Task 7 step 3c and run:
+   ```bash
+   python3 ~/.claude/scripts/decision-ledger/append_decision.py \
+     --label "{Name}" --decision no-outreach --date {today} \
+     --source "-1 scanner" --verdict-raw "Implicit pass (stale {N}d)" \
+     --scores '{...}' --rubric-verdict {reach-out|pass} \
+     --rubric-version {frontmatter version} --retro-ref "{row URL}"
+   ```
+   Idempotent: `append_decision.py` upserts on (name, decision), so daily re-runs refresh the same row. Leave the Notion row untouched — Tom can still act later, and Task 7's ledger step supersedes the implicit row if he does. Non-fatal on error.
+
+3. **Draft Requested sweep**: query the same data source for rows with `Status = Draft Requested`. The webhook normally handles these within ~1–2 min of the button press, so anything still sitting here after a scheduled-run interval is a missed event or failed job. For each: read `/Users/tomseo/.claude/skills/founder-outreach/SKILL.md` and run its webhook mode against the row (drafts regardless of Claude Rec; unscored rows get reset to `Pending Enrichment` + Slack alert per that skill's webhook-mode rules). founder-outreach sets `Status = Draft Ready` on success.
+
+4. **Guardrails**:
    - Skip rows where `LI` is malformed or not a LinkedIn URL — flag in summary
-   - If ContactOut returns no data, mark the row's `LI Profile Summary` = `"[enrichment failed: no ContactOut data]"` and skip scoring+drafting for that row
-   - If scoring yields peak score 0–3 (auto-rec ❌), still create the draft (Mode 2 runs regardless of auto-rec score in the new Status-based flow — Tom's action is via Status, not Reach Out? gate)
+   - If ContactOut returns no data, mark the row's `LI Profile Summary` = `"[enrichment failed: no ContactOut data]"`, leave Status at `Pending Enrichment`, and skip scoring for that row
    - Respect Company dedup + Last Enriched skip rule — credit-saving
 
-4. **Return concise summary (under 500 chars)**: rows processed (names + primary company + peak signal + Gmail draft URL), rows skipped with reason, deferred count if cap hit.
+5. **Return concise summary (under 500 chars)**: rows enriched (names + primary company + peak signal + Claude Rec), drafts swept (names + Gmail draft URL), rows skipped with reason, deferred count if cap hit.
 
 ## Task 7: -1 Reached Out Detection
 
 Spawn with `Task` tool.
+
+**v2 HEADLESS (2026-07-16 — CURRENT):** query the candidate store for `state=drafted` rows (`python3 ~/.claude/scripts/decision-ledger/candidates.py list --state drafted`) instead of Draft Ready scanner rows. For each, run the same Gmail sent-mail scan (step 2 below). On a detected send:
+- `set-state --state reached-out`
+- Ledger: append_decision.py `--decision reached-out` with scores/rec from the store row (same flags as step 3c below); pass the row's `draft_why` as `--why` when populated + delete any implicit-pass row (supersede rule below).
+- **NO CRM bridge here** — in v2 the Opportunity was already created at draft time by neg1-sourcing-listener (`notion_opp_url` on the row). Optionally confirm the Opp exists; if it's somehow missing, fall back to step 3b's add-to-crm table.
+- **Trashed-draft detection (v2):** for each `state=drafted` row where the sent-scan finds nothing AND the Gmail draft no longer exists (`list_drafts` query `to:{email}` has no draft matching the stored `gmail_draft_url` hex): Tom trashed the draft = a pass decision. `set-state --state passed`, ledger `no-outreach` (verdict-raw "Draft trashed", scores/rec from the store), and post a one-line reply in the candidate's card thread (md_to_blocks bot-token mode with `SLACK_THREAD_TS={card_ts}`): `Draft trashed — logged as a pass. Reply with a one-line why to teach the taste engine.` The listener captures any reply as the pass reason.
+- The scanner-row instructions below are RETIRED (DB deleted 2026-07-16) — historical only. Chris Angove, the last in-flight row, was migrated to the store (state=drafted).
 
 **Goal**: Detect when Tom has SENT one of the drafted outreach notes from -1 Scanner (not just saved the draft). For each detected send, update `Status = Reached Out` and invoke `add-to-crm` to bridge the person into the Opportunities pipeline as `-1 (Founder Name)` so tracking continues there.
 
@@ -412,6 +451,23 @@ Spawn with `Task` tool.
    | **Followed Up** | `__NO__` |
 
    This is the "bridge" — the candidate now lives in both -1 Scanner (for sourcing history) and Opportunities (for pipeline tracking), connected via the bidirectional relation. The -1 prefix in the title visually marks these as "pre-company" opportunities until the founder reveals a company name, at which point Tom manually renames.
+
+   **c) Log to the decision ledger**: parse the per-signal ratings from the row's `Signals` compact line `NL:{n} · Reps:{n} · Rigor:{n|U} · Ant:{n} · Int:{n} · Rng:{n} · rec:{✅|🤔|❌}` (0-10 numbers; U = unobservable; legacy rows may carry H/M/L letters; `rec` = the PRE-gate auto-rec) into a JSON dict `{"Non-Linearity": 5, ...}` (use the H/M/L word when no number is present), map `Claude Rec` to `reach-out` / `pass`, then run:
+   ```bash
+   python3 ~/.claude/scripts/decision-ledger/append_decision.py \
+     --label "{Name}" --decision reached-out --date {send date YYYY-MM-DD} \
+     --source "-1 scanner" --verdict-raw "Reached Out" \
+     --scores '{...}' --rubric-verdict {reach-out|pass} \
+     --rubric-version {status version from founder-taste/RUBRIC.md frontmatter, e.g. v0.8.5} \
+     --retro-ref "{-1 Scanner row URL}"
+   ```
+   Non-fatal: if the script errors, note it in the summary and continue — the ledger append must never block the status flip or CRM bridge.
+
+   After a successful append, supersede any implicit-pass row Task 6 step 2c may have logged for this person (the send proves it wasn't a pass):
+   ```bash
+   sqlite3 ~/.claude/data/decision_ledger.db \
+     "DELETE FROM decisions WHERE decision='no-outreach' AND verdict_raw LIKE 'Implicit pass%' AND lower(label)=lower('{Name}')"
+   ```
 
 4. **Guardrails**:
    - Only run for rows in `Status = Draft Ready` — never demote rows in other states

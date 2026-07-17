@@ -1,15 +1,35 @@
 ---
 name: neg1-sourcing
-description: Weekly Monday sourcing sweep — surfaces 2 reconnect (in-network) + 3 cold outreach candidates from Tier 1-3 companies matching target role criteria, logs each to -1 Scanner as Pending Enrichment, sends Slack digest.
+description: >-
+  Weekly Monday sourcing sweep — surfaces 2 warm reconnects + 8 cold candidates (2 wildcards; other 6 rotate
+  archetype recipes A-D from RUBRIC.md §6), plus monthly network deep sweep + quarterly departure diff (first
+  Monday after the Jan/Apr/Jul/Oct cache refresh). Upserts each candidate to the CANDIDATE STORE (state=pending)
+  and immediately enqueues a per-candidate enrichment job (enqueue-neg1-enrich.sh) — cards post to
+  #neg1-sourcing within minutes; NO batching delay, NO Notion writes. Dedup reads the store. Slack digest posts
+  to #neg1-sourcing.
 triggers:
   - /neg1-sourcing
 ---
 
 # neg1-sourcing — Weekly Pre-Founder Sourcing Sweep
 
-Runs every Monday at 08:00 ET. Produces 2 reconnect + 3 cold outreach candidates from Tier 1–3 high-growth companies, writes them to -1 Scanner, and sends a Slack digest. neg1-enricher picks them up automatically via the `Pending Enrichment` queue.
+Runs every Monday at 08:00 ET. Produces 2 reconnect + 8 cold outreach candidates (2 wildcards) from Tier 1–3 high-growth companies, writes them to -1 Scanner, and sends a Slack digest. neg1-enricher picks them up automatically via the `Pending Enrichment` queue.
 
 **Unattended execution guard:** never ask questions, never halt waiting for input. If a step fails, skip it, log the error, and continue. Always reach the Slack alert even if some rows failed to write.
+
+---
+
+## v2 HEADLESS FLOW (2026-07-16 — CURRENT)
+
+Candidates no longer land in the -1 Scanner. Steps 2-3 (Notion row writes) are replaced by store upserts — for each verified candidate:
+```bash
+python3 ~/.claude/scripts/decision-ledger/candidates.py upsert --json '{"li_url": "...", "name": "...", "city": "...", "current_role": "...", "current_company": "...", "type": "Warm ☀️|Cold 🧊", "source": "monday-sweep", "state": "pending"}'
+```
+then IMMEDIATELY enqueue a per-candidate enrichment job — enrichment happens as names surface, never on a batch delay (Tom, 2026-07-16: "there shouldn't be a delay"):
+```bash
+~/.claude/scripts/enqueue-neg1-enrich.sh "<li_url>" "monday-sweep" "<name>"
+```
+Cards post to `#neg1-sourcing` within minutes as each job completes. This applies to the weekly sweep AND the Step 1.75 monthly deep sweep / departure diff. pipeline-agent Task 6 remains the daily reconciliation backstop for `state=pending` rows older than ~2 hours (missed/failed jobs). The Step 4 Slack digest is unchanged. Everything referencing -1 Scanner writes below is LEGACY.
 
 ---
 
@@ -110,7 +130,42 @@ Write each row individually. If a row fails, log the error and continue to the n
 
 ---
 
+## Step 1.5b — Cold-pass cohort recipes (archetype feeders)
+
+6 of the 8 cold slots draw from a WEEKLY ROTATING archetype recipe (RUBRIC.md §6 sourcing strategies) instead of generic role × tier search. Rotation by ISO week number mod 4:
+
+| Week | Recipe | Query shape |
+|---|---|---|
+| A | **FDDM** (Field-Derived Domain Mastery) | ex-implementation / CS / solutions operators, 2y+ tenure, at category-defining vertical cos (ServiceTitan, Procore, Toast, Veeva, Samsara, and Tier-1 vertical leaders from the Companies cache) |
+| B | **TCDM** (Technical-Commercial Dual Mastery) | FDE / solutions engineer / applied engineer at growth-stage B2B cos — hired technical, pulled customer-facing |
+| C | **Hypergrowth alumni** | early employees (joined pre-~150 HC) of Deal Digest best-in-class-tier companies, 2y+ tenure, now senior |
+| D | **Composite markers** | visible demotion-to-switch-disciplines / commercial→technical reinventors (Exa keyword search on transition language) |
+
+**Doctrine coupling:** this table is the sourcing expression of RUBRIC.md §6 — it is NOT independently editable. When an archetype is added, revised, or retired in the rubric (human-gated), update this rotation in the same change. Recipes never drift from doctrine.
+
+**Wildcard slots (explore vs exploit):** every week, 2 of the 8 cold slots are reserved for candidates deliberately OUTSIDE all current archetypes but carrying ONE extreme signal the rubric respects on a shape it doesn't recognize (e.g. a 10-grade spike on Non-Linearity or Earned Reps in an arc that matches no recipe). Upsert with `source="wildcard"`. Purpose: archetype discovery — the doctrine-coupled recipes can only find shapes past taste already codified. Quarterly, review wildcard conversion in the ledger (`SELECT * FROM decisions WHERE label IN (SELECT name FROM candidates WHERE source='wildcard')`); 3+ wildcard drafts sharing a shape is a new-archetype candidate for the Casebook.
+
+All recipes still pass the ContactOut verification gate (Step 1.5) and the full rubric downstream — the recipe only shapes WHO enters the funnel.
+
+## Step 1.75 — Monthly network deep sweep + departure diff (FIRST Monday of the month only)
+
+The weekly reconnect pass samples the network; this step mines it. Source: `~/.claude/scripts/network_cache.db` (`profiles` table — ~5.8k connections, ~3.5k with live company data).
+
+**A. WHAT-lens deep sweep (top 5):**
+1. Pull profiles with non-empty `company`, excluding anyone already in the candidate store (`candidates.py get --li`), already actioned, or in the Opportunities DB.
+2. Coarse-score from cache + `company_cache.py` data: employer momentum/hypergrowth (Deal Digest tier, headcount growth) × function fit (engineering / product / technical-GTM from `role`) × tenure signal from `parsed_json`.
+3. Top 5 → `candidates.py upsert` with `state=pending`, `type="Warm ☀️"`, `source="network-deep-sweep"`.
+
+**B. Departure diff (cap 3) — runs ONLY on the first Monday after a quarterly cache refresh (Jan/Apr/Jul/Oct; the `network-quarterly-refresh` launchd job re-enriches the full cache via Exa on the 1st at 18:12):**
+1. Read `~/.claude/scripts/decision-ledger/network_snapshot.json` (`{li_url: company}` from the last run; if absent, write it and skip the diff this month).
+2. Diff current cache vs snapshot: profiles whose `company` changed or emptied = movers — the When window may just have OPENED.
+3. Movers passing a coarse founder-shape filter (was at a hypergrowth-cohort employer, technical/product function) → `upsert` with `state=pending`, `source="departure-trigger"` and a note in `path` ("role change detected {old} → {new}").
+4. Rewrite the snapshot with current values.
+Cadence rationale: the cache refreshes quarterly (not monthly), so a monthly diff would compare static data 2 months out of 3. Quarterly-aligned, the diff catches a full quarter's role changes in one pass at zero marginal cost. If the snapshot predates the last refresh and the cache HAS moved, run; otherwise log "no cache movement since last diff" and skip.
+
 ## Step 4 — Slack digest
+
+**Channel routing (gate in code):** if `~/.claude/skills/neg1-sourcing/.sourcing_channel_id` exists, post via `send-alert/md_to_blocks.py` in bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py` (prints the message `ts` — no webhook needed) — all sourcing surfaces live in `#neg1-sourcing` (this weekly digest of raw candidates + pipeline-agent Task 6's post-enrichment Reach Out ✅ cards). If the file does not exist, fall back to the default `send-alert` channel.
 
 Invoke the `send-alert` skill with the following message. Bodies are GFM markdown (see `send-alert/SKILL.md`) — `**bold**` becomes bold, `[label](url)` becomes a clickable link, `*single asterisks*` would render as italic so avoid them.
 
@@ -122,10 +177,9 @@ Invoke the `send-alert` skill with the following message. Bodies are GFM markdow
 • [{name}]({linkedin_url}) — {role} @ {company} [{growth_tier} · {timing_signal}]
 • [{name}]({linkedin_url}) — {role} @ {company} [{growth_tier} · {timing_signal}]
 
-**Cold (3)**
+**Cold (8, incl. 2 wildcards — tag those rows `[wildcard]`)**
 • [{handle}]({linkedin_url}) — {role} @ {company} [{growth_tier}]
-• [{handle}]({linkedin_url}) — {role} @ {company} [{growth_tier}]
-• [{handle}]({linkedin_url}) — {role} @ {company} [{growth_tier}]
+• (8 rows)
 
 Rows written to -1 Scanner → Pending Enrichment. neg1-enricher picks up tonight.
 ```

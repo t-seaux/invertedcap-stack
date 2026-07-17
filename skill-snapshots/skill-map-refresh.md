@@ -116,7 +116,7 @@ Scan the skills directory to build a complete inventory.
 
 | Function | Skills |
 |---|---|
-| Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback` |
+| Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share` |
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan` |
 | Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs` |
 | Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa` |

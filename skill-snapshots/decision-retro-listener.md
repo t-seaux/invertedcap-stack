@@ -1,6 +1,6 @@
 ---
 name: decision-retro-listener
-description: "Processes thread replies in #decision-retros. Mode A (sweep): daily 6pm ET reconciliation pass over the full queue — catches what the webhook missed. Mode B (webhook): invoked via claude-job-queue when Slack fires a thread-reply event. Two B sub-flows: B0 detects parent thread type — retro prompts route to the existing nugget-extraction flow (B1+); weekly retro summary posts (from retro-weekly-summary) route to a feedback-handling flow (Mode B-summary) that mirrors claude-alerts-listener — ack, apply edits to retro-weekly-summary/SKILL.md or FOUNDER_EVAL_CASEBOOK.md, post close-loop. Framework writes (FOUNDER_EVAL_FRAMEWORK.md) are allowed only when Tom's reply explicitly authorizes them — his Slack reply IS the human gate. Not user-facing — invoked exclusively by scheduled-tasks/decision-retro-listener/run.sh (Mode A) or claude-job-queue-processor dispatching slack-retro-webhook jobs (Mode B)."
+description: "Processes thread replies in #decision-retros. Mode A (sweep): daily 6pm ET reconciliation pass over the full queue — catches what the webhook missed. Mode B (webhook): invoked via claude-job-queue when Slack fires a thread-reply event. Two B sub-flows: B0 detects parent thread type — retro prompts route to the existing nugget-extraction flow (B1+); weekly retro summary posts (from retro-weekly-summary) route to a feedback-handling flow (Mode B-summary) that mirrors claude-alerts-listener — ack, apply edits to retro-weekly-summary/SKILL.md or founder-taste/CASEBOOK.md, post close-loop. Framework writes (founder-taste/RUBRIC.md) are allowed only when Tom's reply explicitly authorizes them — his Slack reply IS the human gate. Not user-facing — invoked exclusively by scheduled-tasks/decision-retro-listener/run.sh (Mode A) or claude-job-queue-processor dispatching slack-retro-webhook jobs (Mode B)."
 ---
 
 # Decision Retro Listener
@@ -25,7 +25,7 @@ Reads Tom's replies in `#decision-retros` threads, extracts framework nuggets, l
 
 - Queue: `/Users/tomseo/.claude/skills/decision-retro/queue.json`
 - Audit: `/Users/tomseo/.claude/scheduled-tasks/decision-retro-listener/audit-log/`
-- Master nugget log: `/Users/tomseo/.claude/skills/neg1-enricher/DECISION_RETROS.md`
+- Master nugget log: `/Users/tomseo/.claude/skills/founder-taste/DECISION_RETROS.md`
 
 ---
 
@@ -117,13 +117,13 @@ Tom's reply is open-ended feedback on the weekly summary. Examples:
 |---|---|
 | "bold the decision labels" | Edit `retro-weekly-summary/SKILL.md` Step 7 format spec |
 | "Spangler shouldn't be `Pass` — should be `Pass (Met)`" | Either (a) flip Notion Status if it's actually wrong, or (b) confirm the re-fetch in Step 2b is doing its job; do NOT hand-edit the queue |
-| "drop the 'Coaching the founder' theme — duplicate of existing entry" | Edit `FOUNDER_EVAL_CASEBOOK.md` to remove or consolidate the entry |
-| "promote 'Sub-scale seed' to a Framework dimension" | Tom's explicit reply IS the human gate — edit `FOUNDER_EVAL_FRAMEWORK.md`. Make the smallest change that satisfies intent (new dimension, threshold shift, anchored example). Echo the diff back in the close-loop reply so Tom can verify. |
+| "drop the 'Coaching the founder' theme — duplicate of existing entry" | Edit `founder-taste/CASEBOOK.md` to remove or consolidate the entry |
+| "promote 'Sub-scale seed' to a Framework dimension" | Tom's explicit reply IS the human gate — edit `founder-taste/RUBRIC.md`. Make the smallest change that satisfies intent (new dimension, threshold shift, anchored example). Echo the diff back in the close-loop reply so Tom can verify. |
 
 **Scope constraints:**
 
-- ALLOWED writes (always): `~/.claude/scheduled-tasks/retro-weekly-summary/SKILL.md`, `~/.claude/skills/neg1-enricher/FOUNDER_EVAL_CASEBOOK.md`, `~/.claude/skills/neg1-enricher/DECISION_RETROS.md`, `send-alert/md_to_blocks.py` (only for format-spec changes), memory under `~/.claude/projects/-Users-tomseo/memory/`.
-- ALLOWED with explicit request: `~/.claude/skills/founder-outreach/FOUNDER_EVAL_FRAMEWORK.md`. Tom's reply must clearly authorize it — e.g., "promote X to the framework", "add Y as a new dimension", "update the framework rubric to ...", "add this anchor to Signal 5". A passing mention of the Framework in a broader request does NOT count; the action verb has to target the Framework. When in doubt, post a clarifying reply and exit.
+- ALLOWED writes (always): `~/.claude/scheduled-tasks/retro-weekly-summary/SKILL.md`, `~/.claude/skills/founder-taste/CASEBOOK.md`, `~/.claude/skills/founder-taste/DECISION_RETROS.md`, `send-alert/md_to_blocks.py` (only for format-spec changes), memory under `~/.claude/projects/-Users-tomseo/memory/`.
+- ALLOWED with explicit request: `~/.claude/skills/founder-taste/RUBRIC.md`. Tom's reply must clearly authorize it — e.g., "promote X to the framework", "add Y as a new dimension", "update the framework rubric to ...", "add this anchor to Signal 5". A passing mention of the Framework in a broader request does NOT count; the action verb has to target the Framework. When in doubt, post a clarifying reply and exit.
 - Notion writes are allowed only if Tom is explicitly asking to fix a stale Notion field (e.g., "flip Spangler to Pass (Met)").
 
 **Framework-edit guardrails** (only relevant when the explicit-request path fires):
@@ -254,7 +254,7 @@ Page ID is `opp_id` in the queue entry (historical name — for `scope == "neg1"
 
 ### 3g. Log nuggets to DECISION_RETROS.md
 
-Path: `/Users/tomseo/.claude/skills/neg1-enricher/DECISION_RETROS.md`
+Path: `/Users/tomseo/.claude/skills/founder-taste/DECISION_RETROS.md`
 
 For each non-empty taxonomy array, append entries under the matching H2:
 

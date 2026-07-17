@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-07-17] (Week of 2026-07-14)
+
+**Added:** log-deal-share (Pipeline Management — categorized from pending since 2026-07-15)
+**Removed:** None
+**Modified:**
+- neg1-enricher -- migrated to headless candidate-store mode; evaluations write to candidate store and post cards to #neg1-sourcing; Notion -1 Scanner DB retired
+- neg1-sourcing -- expanded to 8 cold candidates via rotating archetype recipes; monthly network deep sweep and quarterly departure diff added; immediately enqueues per-candidate enrichment jobs instead of batching
+- pipeline-agent -- updated pre-founder pipeline Tasks 6–7 to candidate-store v2 flow; added trashed-draft detection and card-timestamp tracking
+- decision-retro -- added structured decision-ledger logging at capture time; neg1-retro-scan sub-skill retired; framework reference paths updated
+- founder-outreach -- store mode (v2) added as default invocation; multiple invocation modes formalized; Notion -1 Scanner DB retired
+- skill-map-refresh -- added log-deal-share to Pipeline Management canonical mapping
+- claude-alerts-listener, decision-retro-listener, draft-feedback, first-pass-diligence, network-scan -- framework reference paths updated following 2026-07-16 knowledge-base consolidation
+**Total skills:** 35
+**Functions:** Pipeline Management +1 (log-deal-share categorized)
+
+---
+
 ## [2026-07-16] (Week of 2026-07-14)
 
 **Added:** None

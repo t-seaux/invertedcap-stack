@@ -126,7 +126,7 @@ The person-side `vsearch` results also carry a `companies` array (resolved via `
 
 **Angel investor ask** — look for: prior exits, angel activity mentioned in bio, operator at a company relevant to the portfolio company's space, strong network.
 
-**Founder framework ask** — apply Tom's framework heuristics: hypergrowth operator experience, domain depth, founder archetype signals (missionary, domain expert, etc). Read `/Users/tomseo/.claude/skills/founder-outreach/FOUNDER_EVAL_FRAMEWORK.md` if you need the full rubric.
+**Founder framework ask** — apply Tom's framework heuristics: hypergrowth operator experience, domain depth, founder archetype signals (missionary, domain expert, etc). Read `/Users/tomseo/.claude/skills/founder-taste/RUBRIC.md` if you need the full rubric.
 
 **Reconnect / catch up ask** — surface people with strong profiles Tom may not have engaged with recently. Lean toward operators and founders, not investors, unless Tom specifies.
 

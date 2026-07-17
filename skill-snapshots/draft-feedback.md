@@ -15,7 +15,7 @@ description: >-
 
 Headless feedback engine. Captures voice signal from every outbound outreach and pass note — both edited drafts and from-scratch sends — and feeds patterns back into the drafters so they converge on Tom's voice over time.
 
-Part of the Feedback Engines described in FOUNDER_EVAL_FRAMEWORK.md §12.2 + §13.
+Part of the Feedback Engines described in founder-taste/SYSTEM.md §14.2 + §15.
 
 ## Architecture (headless, event-driven)
 

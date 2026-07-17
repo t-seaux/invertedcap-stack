@@ -14,7 +14,7 @@ description: >-
 
 # Decision Retro
 
-Captures Tom's post-hoc reasoning on every invest/pass decision and routes the raw retro + extracted nuggets into the feedback corpus that drives framework evolution (per FOUNDER_EVAL_FRAMEWORK.md §6.6, §12.1).
+Captures Tom's post-hoc reasoning on every invest/pass decision and routes the raw retro + extracted nuggets into the feedback corpus that drives framework evolution (per founder-taste/RUBRIC.md §8.6 + SYSTEM.md §14.1).
 
 ## Scope
 
@@ -35,7 +35,7 @@ Manual trigger works the same way, independent of Status.
 Two scheduled agents:
 
 - **`decision-retro-scan`** (daily 9am ET) — queries Notion for Opps in terminal status, dedups against `queue.json`, posts new prompts to `#decision-retros` as the `claude` Slack app with fingerprint `[opp:<short>]`, records each prompt's thread `ts` in the queue with `scope="opp"`.
-- **`neg1-retro-scan`** (daily 9:05am ET) — mirror for the `-1 Scanner` DB. Queries rows where `Status ∈ {Passed, Outreach}`, posts compact prompts with fingerprint `[neg1:<short>]` and a person-shaped header (🧍 Name | Notion | LinkedIn / Status), records with `scope="neg1"`.
+- ~~`neg1-retro-scan`~~ — RETIRED 2026-07-16 (plist in `_disabled-plists/`). The -1 Scanner DB is deleted; -1 pass/draft reasons are captured at decision time in the `#neg1-sourcing` card thread by neg1-sourcing-listener. Historic `scope="neg1"` queue entries remain valid for lookups.
 - **`decision-retro-listener`** (daily 6pm ET) — for each `prompted` item in the queue, reads the Slack thread, handles both `[opp:]` and `[neg1:]` fingerprints, treats concatenated Tom replies as the retro, runs the extractor (founder-signal-weighted for `scope="neg1"`), logs to source page + `DECISION_RETROS.md`, marks `completed`. Items prompted >7 days ago with no reply auto-close as `no_retro`. `skip`/`ignore`/etc. replies mark as `skipped` and are excluded from framework feed.
 - **`retro-weekly-summary`** (Fri 4pm ET) — rolls up the week, groups by `scope` (Company retros / Founder-signal retros), posts synthesis to `#decision-retros`.
 
@@ -169,6 +169,21 @@ For each `items[]` entry where `status == "prompted"`:
    - **YYYY-MM-DD · [Company] · [Invested/Pass]** — [nugget verbatim or lightly paraphrased]
      - Source: [Opportunity page URL]
    ```
+7a. **Log to the decision ledger** (`~/.claude/data/decision_ledger.db`) — one structured row per decision so the rubric can be back-tested against Tom's actual calls:
+   - **Decision mapping**: `Committed` → `invested`; `Pass (Met)` / `Pass Note Pending` → `pass-met`; `Pass (DNM)` → `pass-dnm`. For `scope="neg1"`: `Outreach` → `reached-out`; `Passed` → `no-outreach`.
+   - **Signal scores**: for `scope="neg1"` rows, parse from the row's `Signals` compact line `NL:{n} · Reps:{n} · Rigor:{n|U} · Ant:{n} · Int:{n} · Rng:{n} · rec:{✅|🤔|❌}` (0-10 numbers; U = unobservable; legacy rows may carry H/M/L letters; `rec` = the PRE-gate auto-rec) and map `Claude Rec` → `--rubric-verdict reach-out|pass`. For `scope="opp"` rows, do a **quick retro-time 6-signal read** from the Opp page context already fetched in Step 5 (founder background, call notes, first-pass block): H/M/L per signal with the founder-taste/RUBRIC.md §5 anchors, omitting signals with no evidence. This is a coarse read, NOT an enrichment — never call ContactOut or run web research here. Omit `--rubric-verdict` for opp rows (no auto-rec existed at decision time).
+   - **Call**:
+     ```bash
+     python3 ~/.claude/scripts/decision-ledger/append_decision.py \
+       --label "{Opp/person name}" --decision {mapped} --date {today} \
+       --source {pipeline|-1 scanner} --verdict-raw "{raw status}" \
+       [--scores '{"Non-Linearity": "High", ...}'] [--rubric-verdict reach-out|pass] \
+       --rubric-version {status version from founder-outreach/founder-taste/RUBRIC.md frontmatter} \
+       --why "{nuggets joined with ' | '}" --retro-ref "{Opp/row URL}"
+     ```
+   - The script upserts on (canonical name, decision) — safe to re-run; a Task 7 `reached-out` row for the same person stays separate.
+   - **Non-fatal**: if the script errors, log and continue — the ledger append must never block retro capture.
+
 8. Mark queue item `status="completed"`, `completed_at=now()`, `nugget_count=<total>`, `would_back_again=<band>`, `would_back_again_rationale=<one-line>`. The `would_back_again` field on the queue item makes the disposition queryable for future Lookup-mode calls without re-parsing the Opp page.
 9. Single-line alert via `send-alert` to DM: `🔁 Retro captured for [Company] ([N] nuggets across [sections])` — append ` — would back: [band]` only when `would_back_again` is not `"n/a"`.
 
@@ -230,14 +245,14 @@ When Tom asks a past-tense question about a prior decision — "why did I pass o
 
 **Target resolution:**
 - If the question names a **company** ("why did I pass on Dorsal"): search the Opportunities DB (`collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`). Use the earliest-fund original investment if multiple matches (e.g. `Rengo` + `Rengo (Seed FO)`) — follow-on rows (`(FO)`, `(Seed FO)`, `(A FO)`, `(SPV)`) deprioritize. Use `scope="opp"`.
-- If the question names a **person** ("why did I pass on Elsie Kenyon", "what did I think of [person]", especially when paired with `-1`, `scanner`, or a LinkedIn URL): search the -1 Scanner DB (`collection://32c00bef-f4aa-80a5-923b-000b83921fa3`) by Name. Use `scope="neg1"`. For neg1 targets, the output structure changes slightly — see "-1 Lookup variant" below.
+- If the question names a **person** ("why did I pass on Elsie Kenyon", "what did I think of [person]", especially when paired with `-1` or a LinkedIn URL): query the CANDIDATE STORE (`python3 ~/.claude/scripts/decision-ledger/candidates.py get --name "<name>"`) + the decision ledger (`SELECT * FROM decisions WHERE label LIKE ...`) + the archive (`~/.claude/data/neg1_scanner_archive.json` for pre-2026-07-16 rows). The -1 Scanner DB is deleted. For -1 targets the output structure changes slightly — see "-1 Lookup variant" below (Eval context now reads from the store fields: signals_line, rec, when_gate).
 - If no match, say so and stop.
 
 **Data sources (in priority order):**
 1. **Official pass note** — the outbound email archived by `pass-note-drafter`. Locate via the Opp's `✍️ Notes` relation → filter to entries with `Category = Diligence` whose body contains the pass note text. If not in Notes, fall back to Gmail search for sent mail to the founder around the Close Date. Summarize (do not paste verbatim).
-2. **Internal feedback** — the Opp page's `## Retro (YYYY-MM-DD)` block(s), plus any matching entries in `~/.claude/skills/neg1-enricher/DECISION_RETROS.md` sourced to this Opp URL. Distill into dimension-keyed summaries (no raw text quoted).
+2. **Internal feedback** — the Opp page's `## Retro (YYYY-MM-DD)` block(s), plus any matching entries in `~/.claude/skills/founder-taste/DECISION_RETROS.md` sourced to this Opp URL. Distill into dimension-keyed summaries (no raw text quoted).
 3. **Diligence context** — the Opp page's first-pass diligence block and/or pre-mortem block, or the linked first-pass page in `✍️ Notes`. One-line summary only.
-4. **Framework** — `~/.claude/skills/neg1-enricher/FOUNDER_EVAL_CASEBOOK.md` + `FOUNDER_EVAL_FRAMEWORK.md`. Match nuggets to named patterns.
+4. **Framework** — `~/.claude/skills/founder-taste/CASEBOOK.md` + `founder-taste/RUBRIC.md`. Match nuggets to named patterns.
 
 **Output structure** (inline chat response, not Slack):
 
@@ -256,7 +271,7 @@ When Tom asks a past-tense question about a prior decision — "why did I pass o
 (Omit dimensions with no nuggets. Use bare `~$3-4B`, en dashes only.)
 
 **Framework connections**
-• Reinforces: [pattern name from FOUNDER_EVAL_CASEBOOK.md] — [one-line why]
+• Reinforces: [pattern name from founder-taste/CASEBOOK.md] — [one-line why]
 • Challenges: [pattern] — [why]
 • Expands: [new pattern hint] — [why]
 
@@ -342,13 +357,14 @@ Rules:
 - **Cold dismissal retros are fully valid**. A one-sentence "wrong GTM motion for this market" is a legitimate retro. Don't prompt for more.
 - **Never prompt twice for the same Opportunity** — idempotency is enforced by queue.json `opp_id` dedup.
 - **Never match queue items by `short_id` alone** — Notion 8-char prefixes collide more often than feels intuitive (e.g. Comvex `35100bef-f4aa-8162-...` and Atina `35100bef-f4aa-816d-...` share `35100bef`). When deriving short_id from a Slack fingerprint in `decision-retro-listener` Mode A or B, narrow further before writing — disambiguate by `prompted_at` proximity to `thread_ts`, or by `status == "prompted"` (only one item per short_id should be open at a time). Always update queue rows by full `opp_id`. Same caution applies to any future skill that keys off short_id in this queue.
-- **Promote to CALIBRATION manually.** This skill does NOT write to `FOUNDER_EVAL_CASEBOOK.md` directly. Patterns solidify into calibration through Tom's explicit curation call.
+- **Promote to CALIBRATION manually.** This skill does NOT write to `founder-taste/CASEBOOK.md` directly. Patterns solidify into calibration through Tom's explicit curation call.
 - **Status re-transitions are one-shot.** If Tom flips an Opp's status across terminal states (e.g., `Pass Note Pending` → `Pass (Met)`, or `Pass (Met)` → `Committed` — rare), the queue's existing `prompted` / `completed` entry stays — no re-prompt. The cascade fires once per Opp ID at the earliest terminal transition. Edge case; handle manually via Tom saying "retro on X" if he wants another pass.
 
 ## Consumption (downstream)
 
-- `neg1-enricher` reads `DECISION_RETROS.md` alongside `FOUNDER_EVAL_CASEBOOK.md` during Step 5 (rubric application). Retros surface as soft priors in the Eval Breakdown.
-- Quarterly `--score-only` drift check (per FOUNDER_EVAL_FRAMEWORK.md §6.7 + Future State item 14) uses accumulated retros as evidence for whether signal anchors need retuning.
+- `neg1-enricher` reads `DECISION_RETROS.md` alongside `founder-taste/CASEBOOK.md` during Step 5 (rubric application). Retros surface as soft priors in the Signals line.
+- **Decision ledger** (`~/.claude/data/decision_ledger.db`, written by Step 7a + pipeline-agent Task 7 step 3c) joins the rubric's read at decision time to Tom's actual call. Override rows (`override IS NOT NULL`) are the highest-signal evidence of rubric drift — 3+ same-direction overrides in a quarter is promotion/demotion-grade evidence. Backfill/rebuild: `~/.claude/scripts/decision-ledger/backfill.py` (2026-07-16 backfill: 93 decisions).
+- Quarterly `--score-only` drift check (per founder-taste/RUBRIC.md §8.7 + Future State item 14) now starts from ledger queries (rubric precision, override clustering by signal and direction) rather than a hand re-score; accumulated retros remain the qualitative evidence layer.
 
 ## Example
 

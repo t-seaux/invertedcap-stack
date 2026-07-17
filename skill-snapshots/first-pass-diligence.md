@@ -972,7 +972,7 @@ from Founder-Market Fit (founder + market match) and Team Dynamics & Composition
 makeup, skills, gaps).
 
 **Read the framework fresh.** Open
-`/Users/tomseo/.claude/skills/founder-outreach/FOUNDER_EVAL_FRAMEWORK.md` at the start of this
+`/Users/tomseo/.claude/skills/founder-taste/RUBRIC.md` at the start of this
 subsection and apply whatever signals §5.A currently defines, with thresholds and anchors from
 §6. The signal set evolves — do NOT hardcode a list from prior runs or from the
 `neg1-enricher` skill description. Whatever the current framework says, that's what you score
@@ -1005,7 +1005,7 @@ status before including. If status remains ambiguous after a good-faith check, m
 in the Team Dynamics rollup but do not run a per-founder block on them.
 
 **Stand-alone prose — no framework-internal references.** The prose must read clearly to
-someone who has never opened FOUNDER_EVAL_FRAMEWORK.md. Do NOT cite section numbers (`§5.A`,
+someone who has never opened founder-taste/RUBRIC.md. Do NOT cite section numbers (`§5.A`,
 `§6.2 #3`, `§Signal 2 9/10 trigger`), framework-internal anchors (`composite-case Tuor`,
 `anti-accelerator sub-pattern`), or version-stamps (`v0.8.1`) in the published output.
 Translate framework-internal language into plain analytical English. The framework is your

@@ -1,24 +1,44 @@
 ---
 name: founder-outreach
 description: >-
-  Drafting primitive for pre-founder (-1) candidates. Reads an already-evaluated -1 Scanner
-  row (Eval Breakdown + Claude Rec populated by neg1-enricher) and generates a
-  Gmail draft using the canonical writing-style/outreach/STYLE.md cold email format, personalization anchored on
-  the spike signal. Sets Status to "Draft Ready" when complete. Idempotent, never sends.
-  Scoring + evaluation lives in neg1-enricher — this skill refuses to run if the row is
-  unscored. Trigger phrases: "draft outreach for [name]", "draft cold email for [name]",
-  "draft for [name]", "create outreach draft", "run founder-outreach". Auto-invoked as
-  the terminal step of neg1-enricher on MANUAL -1 scan requests (runs regardless of
-  Claude Rec — even Pass verdicts get a draft so Tom sees what the outreach would look
-  like before deciding). Not auto-invoked on pipeline-agent Task 6 batch enrichment.
-  Part of pipeline management.
+  Drafting primitive for pre-founder (-1) candidates — store mode is the default: invoked inline by
+  neg1-sourcing-listener when Tom replies draft to a #neg1-sourcing card. Reads the candidate-store row
+  (candidates.py get), generates a Gmail draft per writing-style/outreach/STYLE.md anchored on the spike signal,
+  writes the draft URL back to the store, and writes the Drive snapshot for draft-feedback voice learning.
+  Never sends. NO Notion reads/writes in this skill — the listener owns Opportunity + eval-note creation at
+  draft time. Refuses unscored rows (missing eval_summary/signals_line/email → run neg1-enricher first).
+  Manual triggers: "draft outreach for [name]", "draft for [name]". The -1 Scanner DB and Request Draft button
+  are RETIRED (2026-07-16).
 ---
 
 # Founder Outreach
 
-Single-mode drafting primitive for pre-founder candidates. Reads a fully-evaluated -1 Scanner row and generates a Gmail draft. Scoring, rubric application, and recommendation all live in `neg1-enricher` — this skill is just the email.
+Drafting primitive for pre-founder candidates. Reads a fully-evaluated -1 Scanner row and generates a Gmail draft. Scoring, rubric application, and recommendation all live in `neg1-enricher` — this skill is just the email.
 
-## Notion Targets
+## Invocation modes
+
+Trigger gate values shared with the webhook producer live in `~/.claude/skills/shared-references/triggers/founder-outreach.json` — read it at invocation and use its values; never inline them here (see the triggers README for policy).
+
+**Manual mode** — Tom (or the neg1-enricher manual chain) invokes by name/URL. The default; everything below describes it unless noted.
+
+**Webhook mode** — args contain `mode: "webhook"` and `page_id`. Fired by the notion-webhook Worker when a -1 Scanner row's Status flips to `Draft Requested` (Tom pressing the **Request Draft** button, or flipping the dropdown by hand). Differences from manual mode:
+
+- **Resolve by `page_id`** directly — skip the name/LI search.
+- **The button press is an explicit Tom request.** Draft regardless of `Claude Rec` — including `Pass ❌`. Tom flipped the status while looking at the verdict; that IS the override. The Pass-refusal rule below applies only to bare manual trigger phrases.
+- **Unscored row** (missing Eval Summary, `Signals` (+ body Eval Rationale), or Email): cannot draft. Set Status back to `Pending Enrichment` (so pipeline-agent Task 6 enriches it on the next sweep), then post a Slack alert via `send-alert` telling Tom the row wasn't scored yet and will re-enter the enrichment queue — the button press must not be silently lost. Exit without drafting.
+- **Terminal row** (`Status` already `Reached Out` or `Passed` at read time): exit without drafting, one-line Slack note.
+- **On success**: same Step 7–8 as manual (draft + snapshot + Notion writes, Status → `Draft Ready`), then post a one-line Slack alert via `send-alert` with name, spike signal, and the Gmail draft URL (webhook runs are headless — the Step 9 chat report has no reader).
+
+
+**Store mode (v2, 2026-07-16)** — invoked inline by `neg1-sourcing-listener` on a `draft` reply, with a candidate-store row instead of a -1 Scanner row (`python3 ~/.claude/scripts/decision-ledger/candidates.py get --li <url>`). Differences from manual mode:
+- Precondition fields come from the store: `eval_summary`, `signals_line`, `email` must be populated; the personalization anchor is the spike evidence in `eval_summary` / `eval_rationale`.
+- NO Notion reads or writes in this skill — the caller handles the Opportunity + eval note. Write the draft URL back with `set-state --gmail-draft-url` instead of a Notion property.
+- Drive snapshot write (Step 9) unchanged — draft-feedback voice learning must keep working.
+- Never sends, same as always.
+
+**RETIRED 2026-07-16:** the -1 Scanner DB was deleted after full decommission — data archived at `~/.claude/data/neg1_scanner_archive.json` + migrated into the candidate store. Everything below referencing the Scanner is historical documentation only; do NOT query the DB.
+
+## Notion Targets (RETIRED — historical)
 
 - **-1 Sourcing Database** — `collection://32c00bef-f4aa-80a5-923b-000b83921fa3`
 - **Companies Database** — `collection://7d50b286-c431-49f5-b96a-6a6390691309`
@@ -33,12 +53,12 @@ Before doing anything, verify the target row is fully evaluated. Required popula
 
 - `Eval Summary` — the rationale (includes the bold peak sentence)
 - `Claude Rec` — the verdict (`Reach Out ✅` or `Pass ❌`)
-- `Eval Breakdown` — per-signal breakdown (needed for personalization anchor)
+- `Signals` — compact per-signal line (the page-body Eval Rationale section carries the evidence for the personalization anchor)
 - `Email` — recipient required
 
 **If any of those are missing**, refuse to draft. Tell Tom: "This row hasn't been evaluated yet. Run `neg1-enricher` on it first — that skill now owns enrichment + scoring + the Claude Rec verdict. Then come back to draft." Do not fall back into running the rubric here. Scoring is out of scope for this skill.
 
-**If `Claude Rec = Pass ❌`**, also refuse. Tell Tom the row was auto-passed by neg1-enricher; if he wants to override, he should flip Claude Rec to ✅ in Notion and re-invoke this skill.
+**If `Claude Rec = Pass ❌`**, also refuse — UNLESS this run is webhook mode (button press) or the neg1-enricher manual chain, both of which draft regardless of the verdict (the button press / manual scan request is itself the override). For a bare "draft for [name]" trigger, tell Tom the row was auto-passed by neg1-enricher; he can override by pressing Request Draft on the row (or flipping Claude Rec to ✅ and re-invoking).
 
 **If `Status` is already `Reached Out` or `Passed`**, also refuse. Don't redraft once Tom has acted.
 
@@ -78,9 +98,9 @@ See memories `feedback_workshop_iteration_not_pass.md` and `feedback_gmail_draft
 - `~/.claude/skills/writing-style/outreach/EDIT_PATTERNS.md` — two sections: **Canonical Principles** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted outreach — apply as priors, then check the final draft against them). Read both sections in full.
 - `~/.claude/skills/writing-style/outreach/VOICE_EXAMPLES.md` — full sent emails Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice. Use as ground truth — if your draft sounds nothing like these, recalibrate.
 
-Both files are auto-maintained by the `draft-feedback` pipeline (FOUNDER_EVAL_FRAMEWORK.md §13). Patterns are observations, not commands.
+Both files are auto-maintained by the `draft-feedback` pipeline (founder-taste/SYSTEM.md §15). Patterns are observations, not commands.
 
-**5. Build the personalization paragraph** (per writing-style/outreach/STYLE.md "Personalization paragraph — structure"). The anchor is the **spike signal** already identified in `Eval Breakdown` — do not re-derive it. Pull the specific evidence cited in the breakdown for that peak signal, rewrite in Tom's voice.
+**5. Build the personalization paragraph** (per writing-style/outreach/STYLE.md "Personalization paragraph — structure"). The anchor is the **spike signal** already identified in `Signals` (+ body Eval Rationale) — do not re-derive it. Pull the specific evidence cited in the breakdown for that peak signal, rewrite in Tom's voice.
 
 Sketches by peak signal:
 - Peak Non-Linearity: `"Your path caught my eye – [specific function-to-function crossing and why it's unusual]."`
@@ -123,7 +143,7 @@ Exit code 0 = both writes succeeded. Exit codes 1/2/3 = failure — abort the ro
 
 **Both writes are MANDATORY on every invocation, including the 2nd/3rd/Nth iteration during a workshop session.** Defensive belt-and-suspenders — primary fix is Step 3's iteration-aware skip-deletion, but re-asserting Status here protects against any other event that might have flipped it. See memory `feedback_workshop_iteration_not_pass.md`.
 
-**Leave unchanged**: everything else (Eval Breakdown, Claude Rec, Eval Summary, Working Description — all of which were written by `neg1-enricher` and are out of scope here). The legacy `Email Draft` Notion property is no longer used — the snapshot lives in Drive instead.
+**Leave unchanged**: everything else (`Signals` (+ body Eval Rationale), Claude Rec, Eval Summary, Working Description — all of which were written by `neg1-enricher` and are out of scope here). The legacy `Email Draft` Notion property is no longer used — the snapshot lives in Drive instead.
 
 **9. Report back.** Per person: name, spike signal, 1-line personalization preview, Gmail draft URL. Summary table for batches.
 
@@ -134,21 +154,23 @@ Exit code 0 = both writes succeeded. Exit codes 1/2/3 = failure — abort the ro
 - **Never score, never apply the rubric.** If the row is unscored, refuse and point Tom at `neg1-enricher`. This skill has ONE job: write the email.
 - **Never send.** Only create drafts. `create_draft` is a hard boundary.
 - **Never redraft if `Status` is `Reached Out` or `Passed`.** Idempotence prevents clobbering Tom's actions.
-- **Never draft without `Claude Rec = "Reach Out ✅"`.** If auto-rec is ❌ and Tom wants to override, he must flip it first.
-- **Pull personalization from `Eval Breakdown`, not from scratch.** The breakdown already captures the spike signal and evidence — the draft's job is to render that in Tom's voice.
+- **Never draft an auto-passed row from a bare manual trigger.** Webhook mode (Request Draft button) and the neg1-enricher manual chain are the two sanctioned overrides — both draft regardless of Claude Rec.
+- **Pull personalization from `Signals` (+ body Eval Rationale), not from scratch.** The breakdown already captures the spike signal and evidence — the draft's job is to render that in Tom's voice.
 - **No pattern-match declarations.** Per writing-style/outreach/STYLE.md anti-patterns.
 - **En dashes in all prose.** Per Tom's voice preference (memory: feedback_use_en_dash).
 - **Report concisely.** Summary table for batches. 3-4 lines max for singletons.
 
 ---
 
-## Interaction with neg1-enricher scheduled auto-draft
+## Interaction with the -1 Scanner status flow
 
-The `pipeline-agent` Task 6 runs the full pipeline on rows with `Status = Pending Enrichment` — it invokes `neg1-enricher` (which handles enrichment + scoring) and then this skill (for drafting) when Claude Rec comes out as ✅. Both paths — manual via this skill, scheduled via pipeline-agent — use the same writing-style/outreach/STYLE.md scaffolding and the same Notion update logic.
+The -1 Scanner status pipeline: `Pending Enrichment` → `Enriched` → `Draft Requested` → `Draft Ready` → `Reached Out` / `Passed`.
 
-Manual invocation via this skill is for:
-- On-demand drafting when Tom doesn't want to wait for the next scheduled run
-- Drafting after Tom manually flips Claude Rec from ❌ to ✅ on an auto-passed row
+`pipeline-agent` Task 6 enriches + scores pending rows via `neg1-enricher` and leaves them at `Enriched` — it does NOT draft. Drafting is Tom-initiated: he reviews the scored row and presses the **Request Draft** button (Status → `Draft Requested`), which fires this skill in webhook mode within ~1–2 min. Task 6's sweep also picks up any `Draft Requested` rows the webhook missed. All paths — manual, webhook, sweep — use the same writing-style/outreach/STYLE.md scaffolding and the same Notion update logic.
+
+Manual invocation via trigger phrase is for:
+- On-demand drafting when Tom is already in a chat session (skips the button round-trip)
+- The neg1-enricher manual-scan chain (drafts regardless of verdict)
 
 ---
 
@@ -162,7 +184,7 @@ Manual invocation via this skill is for:
 1. Finds Greg → Earned Reps: High (peak signal), Claude Rec = "Reach Out ✅", Gmail Draft URL empty.
 2. Precondition check passes.
 3. Deletes any existing Gmail draft for the recipient.
-4. Builds personalization anchored on peak Earned Reps (Meta cross-surface — pulled from Eval Breakdown).
+4. Builds personalization anchored on peak Earned Reps (Meta cross-surface — pulled from `Signals` (+ body Eval Rationale)).
 5. Creates Gmail draft.
 6. Updates Notion: Gmail Draft URL + Email Draft + Status = Draft Ready.
 7. Reports: drafted, spike, preview line, Gmail URL.
@@ -172,5 +194,5 @@ Manual invocation via this skill is for:
 **User:** `"draft for jane smith"`
 
 **Claude:**
-1. Finds Jane Smith → Claude Rec empty, Eval Breakdown empty.
+1. Finds Jane Smith → Claude Rec empty, `Signals` (+ body Eval Rationale) empty.
 2. Refuses: "Jane Smith's -1 Scanner row hasn't been evaluated yet. Run `neg1-enricher` on her profile first — that skill handles enrichment + scoring + the Claude Rec verdict. Once the row shows Claude Rec = ✅, come back to draft."
