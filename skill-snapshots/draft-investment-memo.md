@@ -105,14 +105,21 @@ read it once via whichever access path resolves it.
 
 ### 1d. Read all 5 reference memos in the Drive folder (weighted by recency)
 
-List and read every memo in `1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`. As of 2026-05
+List and read every memo in `1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`. As of 2026-07
 the canonical set is:
 
-1. **Tuor** (Feb 2026) — newest, heaviest structural weight
-2. **Signal7** (Nov 2025)
-3. **Rengo** (Sep 2025)
-4. **Quiet AI** (May 2025)
-5. **Oun Homes** (Apr 2025) — oldest, drift exists (4-column Team table,
+1. **Factir** (May 2026) — newest, and THE canonical formatting exemplar
+   (Tom-confirmed 2026-07-17): match its margins, logo placement, bullet
+   indents, table chrome, and section layout exactly. `canonical_spec.py`
+   and the template were baked from its publish run, so the harness output
+   IS Factir formatting — verify against the doc itself on the Step 6d
+   spot-check.
+   [Doc](https://docs.google.com/document/d/1uDluLfFs7Qc7vONpIrwOptnDCARTXQF-23G4Ui6Vt90/edit)
+2. **Tuor** (Feb 2026) — heaviest structural weight alongside Factir
+3. **Signal7** (Nov 2025)
+4. **Rengo** (Sep 2025)
+5. **Quiet AI** (May 2025)
+6. **Oun Homes** (Apr 2025) — oldest, drift exists (4-column Team table,
    plain-bold title, no `Appendix` H1 wrapper) — **do not replicate** the Oun
    formatting
 
@@ -162,15 +169,21 @@ not warranted by the deal's structure]
 
 ## Round Overview
 
+[ALL 7 values come from the deterministic harness — run
+`python3 ~/.claude/skills/draft-investment-memo/round_overview.py
+--company "[Company]" --lead "[Lead fund]"` and paste its table verbatim.
+Do NOT hand-derive. See "Round Overview — deterministic facts harness"
+below for the field mapping. Example output (AgentBay, 2026-07-17):]
+
 | | |
 |---|---|
-| Fund | [Fund name from Opp.Fund property — e.g., Inverted 1️⃣] |
-| Round | [Stage label — e.g., Seed, Series A] |
-| Round Size & Cap | [From Opp.Round Details — e.g., $5M on $40M post] |
-| Inverted Check & Ownership | [From Opp.Inv @ Round + Opp.OS% @ Round — e.g., $250k / 0.625%] |
-| Investor Syndicate | [From Opp.Coinvestors + Opp.👓 Existing Backers — comma-separated, hyperlinked where possible] |
-| Prior Funding | [From Opp.🕰️ Funding History or page body — total prior raised; "N/A" if pre-seed first round] |
-| Deal Source | [From Opp.Source(s) relation — person/firm who sourced the deal] |
+| Fund | Inverted Capital I, LP |
+| Round | Pre-Seed (Pre-Product, Pre-Revenue) |
+| Round Size & Cap | $2.5m on $12.5m post (SAFE) |
+| Inverted Check & Ownership | $1.0m (8.0%) |
+| Investor Syndicate | Moonfire Ventures (Lead), QED Investors, Inverted Capital |
+| Prior Funding | N/A |
+| Deal Source | Laura Bock (QED Investors) |
 
 ## Team
 
@@ -202,22 +215,88 @@ cap at 3 — use as many as the evidence supports. Oun used 5.]
 
 ## Diligence Materials & Notes
 
-| | |
+| Artifact | Links (Restricted) |
 |---|---|
 | **External** | |
-| Investor Deck | [hyperlink] |
-| Overview Memo | [hyperlink, if exists] |
-| One-Pager | [hyperlink, if exists] |
-| Product Demo | [hyperlink, if exists] |
-| Customer Deck | [hyperlink, if exists] |
+| Investor Deck | [the company's fundraise deck from Opp.Diligence Materials, as a Drive chiclet; `N/A` if none] |
+| Investor Memo | [the COMPANY's own memo (not Tom's), from Opp.Diligence Materials, Drive chiclet] |
+| Other | [ALL remaining company-provided materials from Opp.Diligence Materials — one chiclet per line] |
 | **Internal** | |
-| Internal Workspace | [Notion Opp URL] |
-| Claude Artifacts | [first-pass diligence note URL, pre-mortem URL, market research URLs] |
-| Diligence Q&A | [hyperlink, if exists] |
-| Founder Meetings | [bullet list of note title + date, each hyperlinked to the Notion note] |
-| Expert Feedback | [bullet list of note title + date, each hyperlinked] |
-| References | [bullet list of reference notes, hyperlinked] |
+| Internal Workspace | [`[Company] Opportunity (Notion)` — hyperlink to the Notion Opp page] |
+| Master Diligence Doc | [the Master Diligence PDF from Opp.Diligence Materials, Drive chiclet] |
+| Diligence Q&A | [the ORIGINAL Q&A Google Doc(s) — may be one or more; never the PDF export] |
+| Founder Meetings | [date-only bullets (`May 5, 2026`), each hyperlinked to the Notion note — ONLY calls Tom had with the founders, from the Opp's ✍️ Notes relation] |
+| Feedback | [`Name @ Company` bullets, hyperlinked — customers, design partners, potential customers/partners, investors Tom asked for a take, from ✍️ Notes; never `[PENDING]` notes; FULL names always] |
+| References | [grouped per founder: unbulleted full-name header line (`Nipun Jasuja`), that founder's reference bullets beneath (`Name @ Company (ex-X)`), blank line between groups — founder reference calls from ✍️ Notes] |
 ```
+
+### Round Overview — deterministic facts harness
+
+Run `round_overview.py` (sibling file) instead of hand-deriving the table.
+Read-only Notion REST; token via `$NOTION_API_TOKEN` or the SOPS fallback.
+
+```bash
+python3 ~/.claude/skills/draft-investment-memo/round_overview.py \
+  --company "[Company]" --lead "[Lead fund]"   # add --json for dict output
+```
+
+Field mapping (confirmed by Tom 2026-07-17):
+
+- **Fund** — `Fund` select mapped to the formal legal name:
+  `Inverted 1️⃣` → `Inverted Capital I, LP`. Unmapped funds warn loudly;
+  extend `FUND_FORMAL_NAMES` in the script.
+- **Round** — `Stage` select, emoji stripped, plus the default qualifier
+  `(Pre-Product, Pre-Revenue)` (override with `--round-qualifier`).
+- **Round Size & Cap** — parsed from `Round Details`. A "cap" round is a
+  SAFE and renders `$2.5m on $12.5m post (SAFE)` — always say `post`; the
+  `(SAFE)` suffix is what marks it, and its absence implies a priced round.
+- **Inverted Check & Ownership** — `Inv @ Round` + `OS% @ Round`, rendered
+  `$1.0m (8.0%)`. When OS% is blank and the round is a SAFE, ownership is
+  computed as invested ÷ cap from Round Details (the only permitted
+  no-cap-table math). Priced rounds with no OS% stay TBC — never
+  approximate without the pro-forma cap table.
+- **Investor Syndicate** — every fund in `Coinvestors` (page titles), the
+  lead marked `(Lead)` and listed first (`--lead`; ask Tom if not
+  specified — he designates the lead), `Inverted Capital` appended last.
+- **Prior Funding** — `N/A` default; warns if the Funding History relation
+  is non-empty so the value gets filled by hand.
+- **Deal Source** — `Source(s)` relation rendered `Person (Company)` with
+  the firm spelled out (e.g., `Laura Bock (QED Investors)`).
+
+### Appendix sourcing rules (confirmed by Tom 2026-07-17, Factir example)
+
+Every External row comes from the Opp's `Diligence Materials` property
+field. `Investor Memo` is the memo the COMPANY put together — never
+Inverted's memo. `Other` is a catch-all listing everything else the company
+provided during diligence. Internal note rows are partitioned from the
+Opp's `✍️ Notes` relation: Founder Meetings = Tom's calls with the founders
+only, rendered as date-only links (`May 5, 2026`); References = founder
+reference calls; Feedback = everyone whose take Tom solicited (customers,
+design partners, potential customers/partners, investors) — EXCLUDE
+`[PENDING]` feedback notes; a note only earns a row once the feedback has
+actually landed (Tom 2026-07-17). References are GROUPED PER FOUNDER: an
+unbulleted full-name header line per founder, that founder's reference
+bullets beneath, blank line between groups — attribution comes from the
+note title (`[Ref name]: [Founder] Reference`). FULL NAMES always in
+Feedback and References, regardless of what the Notion note title uses
+(note titles often shorthand — "Bukie" → "Bukie Adebo Umeano"); resolve
+via the People DB, ContactOut as fallback. Bullets appear ONLY in the
+Founder Meetings / Feedback / References cells, only on link-carrying
+lines, with BLACK glyphs — all enforced by the harness's appendix-bullets
+phase (see canonical_spec `list_labels` / `plain_labels` /
+`bullet_glyph_black`). Drive-file cells render as smart chips (chiclets)
+via `insert_drive_chips.py` at publish.
+
+**PDF-snapshot policy (Tom 2026-07-17)**: company-provided Google Docs and
+Slides/presentations are never chipped live — export each to PDF
+(`files.export_media`, upload to the Opp's `Diligence/[Company]/` Drive
+folder, named `[Company] - [Artifact].pdf`, preserving any `(Deprecated)`
+tag) and chip the PDF snapshot instead. Spreadsheets/Excel models are the
+exception: chip the live Sheet, since a frozen model loses its utility.
+NOTE: the template's `{{APPX_*}}` placeholder rows predate this schema
+(Overview Memo / One-Pager / Claude Artifacts etc.) — map old placeholders
+to the new row set at populate time, and fold the renames into the next
+template re-scaffold (Step 6e).
 
 ### Thesis section — sourcing rules
 
@@ -463,11 +542,15 @@ Tuor, Signal7, Rengo, Quiet, Oun):
   optional but recommended when team is a dominant signal.
 - **Round Overview**: 7 rows in this exact order — Fund, Round, Round Size
   & Cap, Inverted Check & Ownership, Investor Syndicate, Prior Funding,
-  Deal Source. Fund is always `Inverted Fund I, LP`. Round always includes
+  Deal Source — produced verbatim by `round_overview.py` (see the
+  deterministic facts harness section in Step 2). Fund is the formal legal
+  name (`Inverted Capital I, LP` for Inverted 1). Round always includes
   the qualifier `Pre-Seed (Pre-Product, Pre-Revenue)` (or Seed/Series A
-  equivalent). Check & Ownership uses parens, not slash: `$750k (6.0%)`.
-  Investor Syndicate uses `Funds:` / `Angels:` sub-grouping when mixed.
-  Prior Funding is `N/A` (no parenthetical elaboration).
+  equivalent). SAFEs render `$2.5m on $12.5m post (SAFE)`; no `(SAFE)`
+  suffix implies priced. Check & Ownership uses parens, not slash:
+  `$750k (6.0%)`. Syndicate lists the lead first marked `(Lead)` with
+  `Inverted Capital` last. Prior Funding is `N/A` (no parenthetical
+  elaboration).
 - **Team**: 3 columns (Name+LinkedIn / Role / Previous). Previous is
   comma-separated `Company (Function), …, School (Degree)`. No arrows
   (`→`) inside Function — use comma-separated roles when listing multiple

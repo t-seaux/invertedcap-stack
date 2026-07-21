@@ -64,6 +64,7 @@ Scan the skills directory to build a complete inventory.
      | `neg1-retro-scan` | `decision-retro` |
      | `retro-weekly-summary` | `decision-retro` |
      | `neg1-sourcing` | `neg1-sourcing` |
+     | `neg1-sourcing-listener` | `neg1-sourcing-listener` |
 
    **Excluded LaunchAgents** — infrastructure-only agents that do not correspond to a skill and must NOT be rendered on the Platform Map or Quick Reference. Listed here so the Step 0 guardrail finds them and does not flag them as unclassified.
 
@@ -116,10 +117,10 @@ Scan the skills directory to build a complete inventory.
 
 | Function | Skills |
 |---|---|
-| Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share` |
+| Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `neg1-sourcing-listener`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share` |
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan` |
 | Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs` |
-| Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa` |
+| Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste` |
 | Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)

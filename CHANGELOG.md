@@ -1,5 +1,20 @@
 # Changelog
 
+## [2026-07-21] (Week of 2026-07-21)
+
+**Added:** neg1-sourcing-listener (Pipeline Management — categorized from pending since 2026-07-17), founder-taste (Diligence Management — categorized from pending since 2026-07-17)
+**Removed:** None
+**Modified:**
+- neg1-enricher -- applies prefilter gate before scoring; now posts individual Slack cards for all verdicts (Reach Out / Second Look / Pass), not just Reach Out; 🧠 callout icon and restructured card format with fixed bullet order
+- neg1-sourcing -- added prefilter screen (Step 1.6); all-verdict card posting; new -1 Engine report section in daily alert; re-surface sweep migrated from Notion to local candidate store
+- pipeline-agent -- -1 Engine alert section added (cumulative queue + today's activity); candidate store fully replaces deleted Notion -1 Scanner DB; all-candidate card posting aligned with neg1-enricher
+- draft-investment-memo -- new canonical formatting exemplar; round overview table now populated via deterministic harness (script output pasted verbatim, never hand-derived); simplified Diligence Materials table
+- research-agent -- added two fund families to research universe
+**Total skills:** 37
+**Functions:** Pipeline Management +1 (neg1-sourcing-listener), Diligence Management +1 (founder-taste)
+
+---
+
 ## [2026-07-17] (Week of 2026-07-14)
 
 **Added:** log-deal-share (Pipeline Management — categorized from pending since 2026-07-15)

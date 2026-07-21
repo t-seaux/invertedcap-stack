@@ -26,7 +26,7 @@ Turns `#neg1-sourcing` into the decision surface for pre-founder sourcing: one S
 
 Candidates live in the candidate store (`python3 ~/.claude/scripts/decision-ledger/candidates.py`), not the -1 Scanner. **The `draft` reply is the moment of CRM birth** — nothing exists in Notion before it. v2 verb behavior (the Notion-flip instructions below are RETIRED — DB deleted 2026-07-16; ALL cards resolve via the candidate store):
 
-**Resolve (Step 1 v2):** card fingerprints are LinkedIn vanity slugs — `[neg1:{slug}]`. Resolve via `get --li https://linkedin.com/in/{slug}`; verify the card's name matches the row. Legacy short-id fingerprints (pre-2026-07-16 cards) resolve via the archive at ~/.claude/data/neg1_scanner_archive.json.
+**Resolve (Step 1 v2):** card fingerprints are LinkedIn vanity slugs — `[neg1:{slug}]`. Resolve via `get --li https://linkedin.com/in/{slug}` (the store canonicalizes hosts — www./regional prefixes are equivalent); if empty, `get --name` from the card header; verify name matches. **Verb handling uses `set-state` ONLY — NEVER `upsert` (a verb on an unresolvable card posts an error reply; it must not mint a new row — caused the 2026-07-17 Jinsub duplicate).** Legacy short-id fingerprints (pre-2026-07-16 cards) resolve via the archive at ~/.claude/data/neg1_scanner_archive.json.
 
 **draft [<why>] (v2):** anything after the verb is Tom's POSITIVE taste signal — why this person earned the email. Optional, but when present it is first-class feedback:
 - Save it: `set-state --draft-why "<why verbatim>"`.
@@ -40,6 +40,11 @@ Then execute:
 5. Close-loop reply: draft link + Opp link, one line each.
 
 **pass <why> (v2):** `set-state --state passed` + ledger append (scores/rec from store fields, not Notion) + retro logging exactly as below (nuggets to DECISION_RETROS.md; the raw reply is quoted in the ledger `why` — there is no Notion page to hold a Retro block pre-draft, and none is needed). No decision-retro queue registration (no scanner row → the 9:05am scan won't prompt).
+
+**Prefilter promotion (added 2026-07-20 — the top-of-funnel feedback loop):** after logging a pass, classify the reason:
+- **Category-level** — Tom excludes a SHAPE, not just this person: "you should not be flagging X", "never show me Y", "stop surfacing Z-shaped people", or a reason that plainly generalizes ("Carta is a stale unicorn; not much signal for folks working there"). → Append a new rule (or extend an existing one, e.g. add a company to PF-3's stale-unicorn list) in `~/.claude/skills/founder-taste/PREFILTERS.md`, with the verbatim quote + date as Source. If the rule is code-expressible, mirror it in `neg1_sourcing.py` (EXCLUDE_ROLES / FUND_NAME_RE / STALE_UNICORNS) in the same change — doctrine-coupled. Then note it in the close-loop reply: `→ promoted to prefilter ({rule id}): {one-clause rule}. Veto by replying here.`
+- **Individual-level** — the reason is about this person's particulars. → Retro nugget only (existing behavior), no rule.
+When in doubt, nugget — don't rule. A wrongly-minted rule silently starves the funnel; a missed promotion just means Tom repeats himself once more.
 
 **track / snooze (v2):** `set-state --state tracked --resurface {today + duration, default 3mo}`. No Notion.
 

@@ -92,6 +92,21 @@ For each **cold candidate**, call `contactout_enrich_linkedin_profile` with `pro
 
 ---
 
+## Step 1.6 — Prefilter screen (Tom-taught hard disqualifiers)
+
+Read `~/.claude/skills/founder-taste/PREFILTERS.md` and screen every surviving candidate (warm AND
+cold) against each rule checkable from the data in hand (role, company, cache tenure — arc-shape
+rules wait for enrichment). The script already mirrors PF-1/PF-3 in code (EXCLUDE_ROLES, fund-name
+heuristic, STALE_UNICORNS); this pass catches what code can't express — judgment calls like "this
+cached role reads as an investor seat" or "this employer is past its window per the momentum field".
+
+On a kill: drop the candidate, do NOT upsert or enqueue, and log `[PREFILTERED] {name/url} — {rule id}: {one clause}`
+to the audit log ONLY. Prefiltered candidates get NO card and NO mention in the Slack digest or any
+alert (Tom, 2026-07-20: "prefiltered folks shouldn't be revealed in alert") — the audit log is the
+sole record of the kill.
+
+---
+
 ## Step 2 — Resolve company Notion relations
 
 For each candidate, look up the company in the Companies DB to get the Notion page URL for the relation field:
@@ -194,6 +209,8 @@ If some rows failed to write, append:
 ```
 ⚠️ {N} row(s) failed — see audit log.
 ```
+
+Prefilter kills (Step 1.6) are NEVER mentioned in the digest — audit log only.
 
 Do **not** append a "Type options pending" warning — Warm ☀️ / Cold 🧊 are the canonical options; if a row fails to write with one of those values, treat it as a real failure and bump the failed counter.
 

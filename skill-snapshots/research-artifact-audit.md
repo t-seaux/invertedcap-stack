@@ -297,6 +297,21 @@ diligence runs (50-400KB) pass `--chunk-size 0` explicitly to force a single
 un-chunked pass. Memory `feedback_audit_script_chunk_merge_gap` documents the
 failure mode.
 
+**Draft batching — auto-batches claim-heavy drafts (independent of source size).**
+Source chunking splits the *input* sources, but every judge call still emits
+*all* of the draft's claims, so a claim-heavy draft overflows the judge's
+output-token ceiling no matter how small the sources are. This is the Fair
+2026-07-20 failure: a 127.6KB / 81-claim draft's single-pass audit report
+overran the 32K output cap, crashed `claude --print`, and the full-audit retries
+blew the 3h job-queue wall-clock cap. The runner now auto-splits the DRAFT at
+`## ` section boundaries when it exceeds `DRAFT_AUTO_BATCH_THRESHOLD` (110KB,
+target 80KB/batch ≈ 50 claims), auditing each batch against the sources and
+concatenating the disjoint claim sets. Judge output ceiling is also raised to
+64K tokens. Batching is orthogonal to `--chunk-size`; both can apply. Force with
+`--draft-batch-size` (`-1` auto, `0` single-pass, `>0` explicit chars). A batch
+that produces zero audits is a coverage gap — the runner records it in
+`_failed_draft_batches` and the B.2 gate blocks publish on it (see B.2.2).
+
 Snapshot the pre-audit draft to `<ITER_SNAPSHOT_PREFIX>0.md` before the first
 audit so the original is preserved.
 
@@ -304,8 +319,16 @@ audit so the original is preserved.
 
 ```bash
 UNTRACED=$(python3 -c "import json; print(json.load(open('$AUDIT_JSON'))['summary']['untraced'])")
+FAILED_BATCHES=$(python3 -c "import json; print(len(json.load(open('$AUDIT_JSON')).get('_failed_draft_batches', [])))")
 ITER_N=$(ls "${ITER_SNAPSHOT_PREFIX}"*.md 2>/dev/null | wc -l | tr -d ' ')
-if [ "$UNTRACED" = "0" ] || [ "$ITER_N" -ge "$MAX_ITER" ]; then
+if [ "$FAILED_BATCHES" != "0" ]; then
+  # NOT clean, regardless of untraced: one or more draft batches produced zero
+  # audits, so their claims went entirely UNAUDITED. `untraced` only counts
+  # claims the judge actually saw — a failed batch is a silent coverage gap.
+  # Re-run the audit ONCE with a halved --draft-batch-size to shrink the
+  # offending batch under the output ceiling (see B.2.2). Do NOT publish.
+  echo "audit gate: BLOCKED — $FAILED_BATCHES draft batch(es) unaudited; re-run smaller (B.2.2)"
+elif [ "$UNTRACED" = "0" ] || [ "$ITER_N" -ge "$MAX_ITER" ]; then
   # PUBLISH NOW — skip to Step C. Do not edit draft. Do not re-run audit.
   echo "audit gate: exit (untraced=$UNTRACED iter=$ITER_N)"
 else
@@ -375,6 +398,35 @@ All 6 were cross-section traceability artifacts.
 
 If un-chunked STILL reports untraced > 0, those are real findings —
 proceed to B.3 iteration loop.
+
+### B.2.2 — Failed-batch re-run (MANDATORY when `_failed_draft_batches` is non-empty)
+
+A non-empty `_failed_draft_batches` means one or more draft batches produced
+zero parseable audits — usually because a single `## ` section was still large
+enough to overflow the judge's output ceiling. Those claims are UNAUDITED, so
+the gate blocks publish regardless of `untraced`. Re-run ONCE with a halved
+`--draft-batch-size` to force the offending section into smaller batches:
+
+```bash
+if [ "$FAILED_BATCHES" != "0" ]; then
+  # Halve the per-batch target (default 80KB -> 40KB) to break the oversized
+  # section apart. This is orthogonal to $CHUNK_FLAG — keep passing that too.
+  python3 "$AUDIT_RUNNER" \
+    --draft   "$DRAFT" \
+    --sources "$SOURCES" \
+    --output  "$AUDIT_JSON" \
+    --draft-batch-size 40000 \
+    $CHUNK_FLAG
+  FAILED_BATCHES=$(python3 -c "import json; print(len(json.load(open('$AUDIT_JSON')).get('_failed_draft_batches', [])))")
+  UNTRACED=$(python3 -c "import json; print(json.load(open('$AUDIT_JSON'))['summary']['untraced'])")
+fi
+```
+
+If it STILL reports `_failed_draft_batches` after the halved re-run, a single
+section's claims genuinely can't fit one judge pass — do NOT publish clean.
+Surface it in the Slack publish-summary (append `⚠️ Audit incomplete: batches
+<list> unaudited — judge output overflow`) and stop; treat like residual
+untraced findings after the iteration cap (Step B.4 partial-publish discipline).
 
 ### B.3 — Iteration loop (only when the gate says "continue")
 

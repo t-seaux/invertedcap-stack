@@ -196,6 +196,7 @@ Tom has reviewed and rejected these firms — they are **not interesting** for h
 - Diamond Hill Capital (all funds/strategies)
 - Fiduciary Management Inc.
 - FPA Funds (all funds — FPA Crescent Fund, etc.)
+- Fundsmith (Terry Smith — Fundsmith Equity Fund, Smithson, semi-annual/annual shareholder letters)
 - Greystone Capital
 - Henchmen Partners
 - Hotchkis & Wiley (all funds)
@@ -203,6 +204,7 @@ Tom has reviewed and rejected these firms — they are **not interesting** for h
 - Jensen Investment Management (all funds — Jensen Quality Mid Cap Fund, etc.)
 - Laughing Water Capital
 - Lawrence Lepard / Equity Management Associates
+- Longleaf Partners (Southeastern Asset Management — all funds: Longleaf Partners Fund, Small-Cap Fund, International Fund, etc.)
 - Matrix Asset Management
 - Montaka Global Investments
 - Nightview Capital
