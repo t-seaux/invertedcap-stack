@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026-07-22] (Week of 2026-07-21)
+
+**Added:** talent-scan (Portfolio Management), question-bank (Diligence Management)
+**Removed:** None
+**Modified:** None
+**Total skills:** 39
+**Functions:** Portfolio Management +1 (talent-scan), Diligence Management +1 (question-bank)
+
+---
+
 ## [2026-07-21] (Week of 2026-07-21)
 
 **Added:** neg1-sourcing-listener (Pipeline Management — categorized from pending since 2026-07-17), founder-taste (Diligence Management — categorized from pending since 2026-07-17)
