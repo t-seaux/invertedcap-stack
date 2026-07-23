@@ -60,23 +60,22 @@ loop up to 3). Inputs: the draft + sources + link map from Subagent A. Returns: 
 audit JSON summary. If iteration is needed, surfaces specific claims with notes; parent decides
 whether to re-invoke Subagent A for fixes vs. surface as `⚠️ Audit:` warning.
 
-**Subagent C₁ — Preview Builder (Sonnet OK).** Owns Step 7 (PDF build — operates on a
+**Subagent C — Publisher (Sonnet OK).** Owns Step 7 (PDF build — operates on a
 local consolidated markdown snapshot built from the new FA draft + the existing page
-content, NOT a post-Notion-prepend re-fetch) + Step 7.5 (Preview Gate — Slack ping +
-HALT). Inputs: verified draft + audit JSON + link map. Outputs: preview PDF in iCloud
-Downloads + Slack approval request. Does NOT touch Notion or canonical Drive yet.
+content, NOT a post-Notion-prepend re-fetch), Step 4 (Notion prepend — uses REST
+canonical per memory `feedback_mcp_insert_content_ordering_bug`), Step 8 (canonical
+Drive upload + retention sweep + Notion link patches), and Step 9 (final Slack alert).
+Inputs: verified draft + audit JSON + link map. Pure mechanical publish, no
+re-drafting.
 
-**HARD GATE.** Subagent C₁ halts after posting the preview. The parent waits for Tom's
-explicit `publish <company>` reply in chat (or equivalent). On `revise <company>
-[feedback]`, parent routes back to Subagent A with the feedback. On `publish`, parent
-dispatches Subagent C₂.
-
-**Subagent C₂ — Publisher (Sonnet OK).** Owns Step 4 (Notion prepend — uses REST
-canonical per memory `feedback_mcp_insert_content_ordering_bug`) + Step 8 (canonical
-Drive upload + retention sweep + Notion link patches) + Step 9 (final Slack alert).
-Inputs: the approved preview PDF + verified draft. Pure mechanical publish, no
-re-drafting. The canonical Drive upload REUSES the same PDF bytes Subagent C₁
-generated — no rebuild needed.
+**NO preview gate — publish runs straight through.** Tom killed the old Step 7.5
+preview-approval HALT on 2026-07-21 ("you shouldn't ask for my permission to do
+this"): once Subagent B's verification passes (lint + audit reconciled +
+speaker-attribution clean) and the three deterministic PDF gates pass, publish
+autonomously — Notion prepend, Drive upload, retention sweep, links, alerts. The
+Step 9 completion alert is Tom's review surface; if he wants changes he says
+"revise <company> [feedback]" after the fact and the skill re-runs (re-finalize
+replaces the FA block in place, so post-publish revision costs nothing).
 
 **Parallelism inside Subagent C.** Step 7 (PDF build) operates on the consolidated page state
 AFTER Step 4 (Notion prepend) completes, but Step 6 (audit, owned by Subagent B) operates on the
@@ -302,7 +301,9 @@ preamble paragraph introduces the section in 1-2 sentences — DO NOT include qu
 language like "rather than by Update date" or other meta-comparisons. Just say the
 record is organized by NTB and what the commentary covers.
 
-For each NTB, emit a `#### NTB-N — [Short Title]` H4 anchor, followed by 1-3 short
+For each NTB, emit a `#### NTB-N – [Short Title]` H4 anchor (en dash — only the top
+`# Final Assessment —` anchor gets an em dash, see the header contract below), followed
+by 1-3 short
 bullet points (NOT prose paragraphs) that visually break up each block:
 
 - **Going-In View** — the initial framing from the deck, first call, intro context;
@@ -361,10 +362,10 @@ visual hierarchy Tom workshopped.
 |---|---|---|
 | `# Final Assessment — Month DD, YYYY` | H0: 13pt bold UNDERLINED | The single H1 anchor at top |
 | `### Overview` / `### Thesis` / `### Diligence Journey` / `### Standing Open Questions` / `### Footnotes for this Section` | H2: 11pt bold UNDERLINED | All five subsection headers |
-| `#### NTB-N — [Short Title]` (under Diligence Journey) | H3: 10.5pt bold-italic UNDERLINED | Per-NTB anchors inside Diligence Journey |
+| `#### NTB-N – [Short Title]` (en dash — under Diligence Journey) | H3: 10.5pt bold-italic UNDERLINED | Per-NTB anchors inside Diligence Journey |
 | `**Need to Believes**` (standalone line inside Thesis section) | h2-style bold (no underline) | The NTB sub-label inside Thesis prose |
 | `***Open Questions:***` inline | italic-only (no bold) | First-pass §X-style callouts — N/A in Final Assessment block usually |
-| `**Label.**` paragraph-leader (e.g. `**Killshot 1 — …**`) | body-bold inline | Leaf labels inside body prose |
+| `**Label.**` paragraph-leader (e.g. `**Killshot 1 – …**`) | body-bold inline | Leaf labels inside body prose |
 
 **Don't emit:**
 - `**bold standalone line**` as a section header — use `###` instead (legacy h2-style without underline collapses against `**Need to Believes**`).
@@ -490,33 +491,36 @@ combination is **non-deterministic on multi-block markdown ordering** — observ
 2026-05-22 to place 118 blocks in REVERSE order on 2 of 3 attempts. Memory
 `feedback_mcp_insert_content_ordering_bug` documents the bug; do not use MCP for prepend.
 
-**Canonical REST prepend pattern.** Notion's `PATCH /v1/blocks/{page_id}/children` endpoint
-accepts a `children:[...]` array and an `after` parameter. To prepend (insert as the new first
-children), set `after` to the empty string `""` — Notion places the new blocks at the start of
-the parent's children list and preserves the order of the `children` array exactly as sent.
+**Canonical REST prepend pattern — insert-after-first-block + delete.** Notion's
+`PATCH /v1/blocks/{page_id}/children` endpoint accepts a `children:[...]` array and an
+`after` parameter, but `after: ""` is REJECTED with a 400 validation error
+(`body.position.after_block.id should be a valid uuid`) — confirmed on AgentBay
+2026-07-21; the empty-string prepend documented in earlier versions of this skill no
+longer works. There is no native "insert at position 0". The workaround that nets out
+to a prepend:
+
+1. GET the page's first top-level child block.
+2. **If it's a childless divider** (the common case — diligence pages lead with a
+   divider bracketing the top section): PATCH `children` with `after: <divider_id>`
+   (append a trailing divider to your payload to preserve the section-bracket
+   pattern), then DELETE the original leading divider. Net result: your blocks are
+   first, in payload order.
+3. **If the first block is content** (heading etc.): PATCH `children` with
+   `after: <first_block_id>` where your payload is `[...FA blocks..., <recreated
+   copy of the first block>]`, then DELETE the original first block. Only safe when
+   the first block is childless and faithfully recreatable (plain heading/paragraph
+   rich_text); if it has children, STOP and re-derive rather than orphaning them.
 
 ```python
-import json
-from urllib.request import Request, urlopen
-
-# blocks_payload is the list of Notion block JSON objects derived from the
-# Final Assessment markdown. Build via your preferred markdown→blocks converter
-# (the same logic the MCP wraps, but invoked directly so we control ordering).
-payload = {
-    "children": blocks_payload,
-    "after": "",  # empty string → prepend; ordering of `children` is preserved
-}
-urlopen(Request(
-    f'https://api.notion.com/v1/blocks/{PAGE_ID}/children',
-    headers=HDR, method='PATCH',
-    data=json.dumps(payload).encode(),
-))
+first = GET /v1/blocks/{PAGE_ID}/children?page_size=1  ->  results[0]
+PATCH /v1/blocks/{PAGE_ID}/children  {"children": blocks_payload, "after": first["id"]}
+DELETE /v1/blocks/{first["id"]}
 ```
 
 If a single PATCH would exceed Notion's per-request block limit (100 children per call), batch
-in groups of 100 and reverse the iteration order so each batch's blocks land in front of the
-previously-prepended ones — net result preserves the original markdown order at the top of the
-page.
+in groups of 100: the first batch uses `after: <first_block_id>`, each subsequent batch uses
+`after: <id of the last block created by the prior batch>` (the PATCH response returns the
+created blocks) — net result preserves the original markdown order at the top of the page.
 
 **MCP fallback (only for complex embeds).** If the Final Assessment markdown contains tables
 with merged cells, image embeds, or callouts that the REST hand-builder doesn't handle, use
@@ -854,7 +858,9 @@ Read the formatting spec at
 `/Users/tomseo/.claude/skills/shared-references/long-form-pdf-spec.md`.
 
 Save the PDF to:
-`/sessions/loving-modest-fermat/Users/tomseo/Downloads/[Company]_Master_Diligence_MM.DD.YYYY_vFinal.pdf`
+`~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/[Company]_Master_Diligence_MM.DD.YYYY_vFinal.pdf`
+(iCloud Downloads — matches Gate 2's example path; an earlier version of this line carried a
+stale `/sessions/...` cloud-container path)
 
 ### Deterministic publish gates — MANDATORY before Drive upload
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-07-23] (Week of 2026-07-21)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- finalize-diligence -- removed preview-approval gate; publish now runs autonomously once verification passes; merged subagents into a single publisher
+- first-pass-diligence -- added resume protocol for queue-timeout relaunches; memo cache migrated to persistent symlink
+- log-pass-note-guidance -- target format changed from bolded-paragraph to ⛔ callout block
+- materials-handler -- added pinned Drive-folder chip to Diligence Materials; added PDF-snapshot supersedes-native-chip hygiene step
+- pass-note-drafter -- updated guidance detection to handle new ⛔ callout shape alongside legacy paragraph/heading shapes
+- pipeline-agent -- notification delivery switched from Signal to Slack
+- update-diligence-priors -- notification delivery switched from Signal to Slack
+**Total skills:** 39
+**Functions:** No changes
+
+---
+
 ## [2026-07-22] (Week of 2026-07-21)
 
 **Added:** talent-scan (Portfolio Management), question-bank (Diligence Management)

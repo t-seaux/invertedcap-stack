@@ -52,7 +52,6 @@ Scan the skills directory to build a complete inventory.
      | `investor-update` | `investor-update` |
      | `admin-agent` | `note-classifier` |
      | `office-cleaning-expense` | `office-cleaning-expense` |
-     | `whole-foods-weekly-order` | `whole-foods-weekly-order` |
      | `mademeals-weekly-order` | `mademeals-weekly-order` |
      | `mademeals-daily-check` | `mademeals-weekly-order` |
      | `coop-finances-prompt` | `coop-finances` |
@@ -119,8 +118,8 @@ Scan the skills directory to build a complete inventory.
 |---|---|
 | Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `neg1-sourcing-listener`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share` |
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan` |
-| Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs` |
-| Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste` |
+| Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan` |
+| Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste`, `question-bank` |
 | Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)
@@ -130,7 +129,7 @@ These functions are tracked internally for completeness but do NOT appear in ANY
 | Function | Skills | Why hidden |
 |---|---|---|
 | Fund Ops | `mmf-to-lp-calc`, `cpa-report` | Operational fund accounting -- not part of the deal/research workflow |
-| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `nightly-backup`, `design-language`, `writing-style`, `office-cleaning-expense`, `whole-foods-weekly-order`, `mademeals-weekly-order`, `meeting-note-processor`, `coop-finances`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh`, `lp-portal-allowlist` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense`, `whole-foods-weekly-order`, and `mademeals-weekly-order` are LaunchAgent-driven personal-life automations (expense logging, grocery orders, meal orders). `nightly-backup` is the 3am ET LaunchAgent (`com.invertedcap.nightly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to 5 backup repos + monthly SA-key rotation; lives in `~/.claude/local-agents/nightly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. |
+| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `weekly-backup`, `design-language`, `writing-style`, `office-cleaning-expense`, `mademeals-weekly-order`, `meeting-note-processor`, `coop-finances`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh`, `share-skills`, `lp-portal-allowlist` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense` and `mademeals-weekly-order` are LaunchAgent-driven personal-life automations (expense logging, meal orders). `weekly-backup` (formerly `nightly-backup`) is the Monday 3am ET LaunchAgent (`com.invertedcap.weekly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to backup repos + SA-key rotation; lives in `~/.claude/local-agents/weekly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. `share-skills` regenerates the sanitized public skill bundle for external sharing — meta-utility over the skill corpus itself. |
 
 #### Excluded duplicates
 
@@ -138,9 +137,7 @@ These skills exist in the directory but are intentional duplicates of skills alr
 
 | Skill | Duplicate of | Notes |
 |---|---|---|
-| `feedback-outreach-drafter-manual` | `feedback-outreach-drafter` | Identical implementation; consolidated into the canonical skill |
-| `feedback-outreach-drafter-ad-hoc` | `feedback-outreach-drafter` | Identical implementation; consolidated into the canonical skill |
-| `backchannel-drafter` | `feedback-outreach-drafter` | Same skill under a different name; "backchannel" trigger phrases merged into canonical skill |
+| _None currently_ | — | The former entries (`feedback-outreach-drafter-manual`, `feedback-outreach-drafter-ad-hoc`, `backchannel-drafter`) were deleted from disk and their rows removed 2026-07-22. Table retained — Step 0.5 references it. |
 
 #### Excluded — not a user-facing skill
 

@@ -35,27 +35,33 @@ invokes explicitly.
 ## The Notion Data Model
 
 - **Opportunities DB:** `collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`
-- **Target field:** page body — section header is a bolded paragraph `Pass Note Guidance`,
-  followed by bullets. (Pass-note-drafter Step 3f accepts both `heading_2`/`heading_3`
-  variants and bolded-paragraph; this skill standardizes on bolded paragraph because that's
-  the format Tom uses in the screenshots/notes he hands over.)
+- **Target field:** page body — a `⛔` **callout** block at the top of the body, whose
+  first line is the bolded label `Pass Note Guidance` and whose children are the guidance
+  bullets. (Pass-note-drafter Step 3f detects the callout shape, plus the older
+  heading/bolded-paragraph variants for back-compat.)
 
 ## Section Format (canonical — must match what pass-note-drafter recognizes)
 
-The section MUST be written so pass-note-drafter Step 3f detects it. Two acceptable forms:
+The section MUST be written so pass-note-drafter Step 3f detects it.
 
-**Form A — bolded paragraph header (default; use this for new sections):**
+**Canonical form — `⛔` callout (use this for every new section):**
 ```
-**Pass Note Guidance**
-
-- {bullet 1}
-- {bullet 2}
-- ...
+<callout icon="⛔" color="gray_bg">
+	**Pass Note Guidance**
+	- {bullet 1}
+	- {bullet 2}
+	- ...
+</callout>
 ```
+Children (label + bullets) are indented one tab inside the `<callout>` per Notion-flavored
+Markdown. Icon is always the no-entry emoji `⛔`; color is always `gray_bg` (matches the
+Notion UI's default gray callout — without an explicit color the API renders it
+transparent, which looks off).
 
-**Form B — heading (only if an existing section already uses a `## Pass Note Guidance`
-or `### Pass Note Guidance` header from a prior hand-edit by Tom):** preserve the existing
-header style when appending.
+**Legacy forms (accept when they already exist — append into them, don't convert):** a
+bolded paragraph `**Pass Note Guidance**` followed by sibling bullets, or a
+`## Pass Note Guidance` / `### Pass Note Guidance` heading. If a legacy section already
+exists on an Opp, append into it in place rather than creating a second callout.
 
 Casing/punctuation variants Tom uses interchangeably: `pass note guidance`,
 `Pass-Note Guidance`, `Pass note guidance`. Treat all as the same section — do not create
@@ -71,21 +77,25 @@ Extract two things from Tom's message:
 
 1. **Target Opportunity name** — the company / Opp Tom is referencing. May be shorthand
    (e.g., "the Lex one", "Acme") or explicit (e.g., "the Acme Seed Opp").
-2. **Guidance bullets** — the actual scratch/voice content. May arrive as:
+2. **Guidance content** — the actual scratch/voice thoughts. May arrive as:
    - Inline bulleted text in the message
-   - A pasted screenshot of bullets (read the image, transcribe the bullets verbatim)
-   - A voice-style run-on paragraph (parse into bullets — split on sentence/thought
-     boundaries; preserve Tom's wording, do NOT rewrite for style)
+   - A pasted screenshot of bullets (read the image)
+   - A voice-style run-on paragraph (Tom's default — he dictates unstructured)
 
-**Transcription rule:** Tom's words are sacrosanct here. The section is supposed to capture
-*his read* — pass-note-drafter will filter through voice/style on the drafting side. Do
-NOT smooth, edit, or "improve" the bullets. Preserve typos, parentheticals, scare quotes,
-ellipses, em/en-dash usage, etc. Trim only whitespace and obvious OCR artifacts.
+**Paraphrase rule (Tom's explicit preference, 2026-07-21):** Tom WANTS your paraphrase —
+he drops guidance unstructured via voice, so clean it into clear, structured bullets that
+capture *his read*. Rewrite run-on dictation into self-contained thoughts; fix transcription
+artifacts and filler; organize into a tight bullet per idea. Preserve his **meaning,
+emphasis, and any specific pass reason** exactly — do not soften his verdict, invent
+substance he didn't imply, or over-editorialize with your own analysis. When in doubt about
+whether a point is his read or your inference, keep it to his read. This is the one skill
+where paraphrasing is correct: the downstream `pass-note-drafter` treats this as authorial
+intent, so it must faithfully represent what Tom thinks, just more legibly than raw voice.
 
-**Voice-to-bullet split rule:** if input is run-on prose, split on natural thought
-boundaries (sentence boundaries, "and another thing", "also", "the other thing is",
-discourse markers). Each bullet should be one self-contained thought. Do not invent
-content; do not merge bullets to "improve flow".
+**Structuring:** split into natural thought boundaries, one self-contained idea per bullet.
+Lead with what excited him / the strengths; put the actual pass reason (if he names one) in
+its own bullet so the drafter can lift it as the spine. Don't pad to hit a bullet count —
+if he gave one clear thought, one bullet is fine.
 
 If the target Opportunity is ambiguous (Tom said "the deal we discussed"), ask once for
 clarification — this is the one place ambiguity gets a question, because writing to the
@@ -143,23 +153,22 @@ a transcript-consuming one; per `feedback_notion_fetch_always_include_transcript
 skip the flag here).
 
 Walk the block children and check for an existing **Pass Note Guidance** section
-(case-insensitive match on the four canonical variants listed above). The detector should
-match:
+(case-insensitive match on the label variants above). The detector should match:
 
-- A `heading_2` or `heading_3` block whose plain text equals the label
-- A `paragraph` block whose entire content is bolded text equal to the label
+- A `callout` block whose first child is the bolded label (canonical current shape)
+- A `paragraph` block whose entire content is bolded text equal to the label (legacy)
+- A `heading_2` or `heading_3` block whose plain text equals the label (legacy)
 
-Capture: (a) whether a section exists, (b) if so, the block ID of the section header and
-the IDs/positions of the bullet blocks beneath it (consecutive `bulleted_list_item` blocks
-until the next non-bullet block or another heading).
+Capture: (a) whether a section exists, (b) if so, which shape (callout vs. legacy), and
+the rendered markdown of its last bullet (the append anchor).
 
 ### Step 4: Write the Section
 
 **Case A — No existing section (most common, first invocation):**
 
-Prepend the new section to the TOP of the page body. Notion's REST API has no native
-prepend or block-move endpoint, so use the MCP `notion-update-page` with `command:
-update_content`, anchored on the first child block's rendered markdown:
+Prepend a new `⛔` callout to the TOP of the page body. Notion's REST API has no native
+prepend, so use MCP `notion-update-page` with `command: update_content`, anchored on the
+first child block's rendered markdown:
 
 ```
 notion-update-page
@@ -167,69 +176,47 @@ notion-update-page
   page_id: <opp_page_id>
   content_updates: [{
     old_str: "<first child markdown verbatim>",
-    new_str: "**Pass Note Guidance**\n\n- <bullet 1>\n- <bullet 2>\n...\n\n<first child markdown verbatim>"
+    new_str: "<callout icon=\"⛔\" color=\"gray_bg\">\n\t**Pass Note Guidance**\n\t- <bullet 1>\n\t- <bullet 2>\n</callout>\n<first child markdown verbatim>"
   }]
 ```
+Children inside the callout are indented one tab. Fetch the first child via `notion-fetch`;
+the first non-empty block's markdown is the anchor. If that markdown is short/common enough
+to risk a non-unique match (a bare `---`, a one-word heading), extend the anchor to include
+the next block so the substitution is unambiguous.
 
-Fetch the first child via `notion-fetch` on the page; the first non-empty block's markdown
-is the anchor. If that markdown is short/common enough to risk a non-unique match
-elsewhere on the page (e.g., a bare `---` divider, a one-word heading), extend the anchor
-to include the next block too so the substitution is unambiguous.
+**Simplest alternative (equally valid):** `command: insert_content` with
+`position: {"type":"start"}` and the callout markdown as `content` — this prepends without
+needing an anchor. Prefer it when the first-block anchor is awkward.
 
-**Page is empty (no children):** fall back to `PATCH /v1/blocks/{opp_page_id}/children`
-directly with the new blocks array — on an empty page, append === prepend. New blocks
-array (one paragraph header + N bulleted_list_items):
-
-```json
-[
-  {"object":"block","type":"paragraph","paragraph":{
-    "rich_text":[{"type":"text","text":{"content":"Pass Note Guidance"},
-                  "annotations":{"bold":true}}]}},
-  {"object":"block","type":"bulleted_list_item","bulleted_list_item":{
-    "rich_text":[{"type":"text","text":{"content":"<bullet 1 verbatim>"}}]}},
-  ... one bulleted_list_item per bullet ...
-]
-```
-
-**Anchor genuinely unresolvable (first-block markdown empty/whitespace AND page non-empty,
-which is rare):** append at bottom via the empty-page fallback and surface the placement:
-`⚠️ Could not reliably prepend; section appended at bottom of [Opp Name] instead. Reorder
-manually if you want it at the top.`
+**Page is empty (no children):** `insert_content` with `position: {"type":"start"}` (append
+=== prepend on an empty page) and the callout markdown as `content`.
 
 **Case B — Existing section found (append bullets):**
 
-Append the new bullets to the END of the existing section's bullet list. Two valid
-approaches; prefer (i):
-
-(i) **MCP `update_content` anchored on the last existing bullet:**
-   ```
-   notion-update-page
-     command: update_content
-     page_id: <opp_page_id>
-     content_updates: [{
-       old_str: "- <last existing bullet text verbatim>",
-       new_str: "- <last existing bullet text verbatim>\n- <new bullet 1>\n- <new bullet 2>\n..."
-     }]
-   ```
-   This preserves the existing header style (Form A or Form B).
-
-(ii) **Direct REST `PATCH /v1/blocks/{section_header_block_id}/children`** with the new
-    bulleted_list_item blocks as `children`, using the `after` parameter set to the last
-    existing bullet's block ID. This appends the new bullets immediately after the existing
-    ones, in-section, with no risk of string-matching collisions.
+Append the new bullets into the existing section. Anchor on the last existing bullet's
+rendered markdown (works for both callout and legacy shapes — the new bullets inherit the
+same indentation/nesting):
+```
+notion-update-page
+  command: update_content
+  page_id: <opp_page_id>
+  content_updates: [{
+    old_str: "\t- <last existing bullet verbatim>"   (callout: leading tab; legacy: no tab)
+    new_str: "\t- <last existing bullet verbatim>\n\t- <new bullet 1>\n\t- <new bullet 2>"
+  }]
+```
+Match the existing indentation exactly — a callout's bullets carry a leading tab, legacy
+sibling bullets do not. Do NOT convert a legacy section to a callout; append in place.
 
 Idempotency: before writing, check whether each new bullet's text already appears in the
-existing section (exact substring match, case-sensitive). Skip bullets that already exist
-to handle re-runs of the same input. If ALL new bullets are duplicates, report
+existing section (substring match). Skip duplicates to handle re-runs. If ALL new bullets
+are duplicates, report
 `⚠️ All bullets already present in [Opp Name]'s Pass Note Guidance — no change made.`
 
-**Case C — Existing section found but section is empty (header only, no bullets):**
+**Case C — Existing section found but empty (label only, no bullets):**
 
-Same as Case B but anchor on the section header text instead of the last bullet:
-```
-old_str: "**Pass Note Guidance**\n\n"  (or "## Pass Note Guidance\n\n" for Form B)
-new_str: "**Pass Note Guidance**\n\n- <bullet 1>\n- <bullet 2>\n...\n\n"
-```
+Anchor on the label line and append the bullets after it, matching the shape's indentation
+(callout: tab-indented bullets under the label; legacy: sibling bullets).
 
 ### Step 5: Verify the Write
 
@@ -276,12 +263,15 @@ Opp: <Notion URL>
 
 ## Key Rules
 
-- **Never edit Tom's words.** Transcribe verbatim; preserve typos, parentheticals, scare
-  quotes, dash style. Pass-note-drafter handles voice/polish downstream.
+- **Paraphrase, don't transcribe.** Clean Tom's unstructured voice/scratch into tight,
+  legible bullets that capture his read (his explicit preference, 2026-07-21). Preserve his
+  meaning, emphasis, and pass reason exactly; don't soften his verdict or add your own
+  analysis. Keep it to his read when unsure whether a point is his or your inference.
 - **Never create an Opportunity.** If the named company has no Opp entry, stop and tell
   Tom to run `add-to-crm` first.
-- **One section per Opp.** Detect existing sections under all four label variants; append
-  bullets rather than creating a second section with a different label.
+- **One section per Opp.** Detect existing sections under the callout and legacy label
+  shapes; append into the existing section rather than creating a second one (never convert
+  a legacy section to a callout — append in place).
 - **Section goes at the TOP** of the page body for new sections. This makes it visible to
   Tom (and to pass-note-drafter on a quick body scan) without scrolling past historical
   call notes.
@@ -296,8 +286,8 @@ Opp: <Notion URL>
 - **Don't escape special characters.** Per `feedback_no_escaped_tildes.md`, bare `~$3-4B`,
   bare `$100M`, no leading backslashes. Especially relevant for Tom's voice notes where
   numbers and ranges show up.
-- **Use en dashes, not em dashes** in any prose YOU add (Step 6 reports). Tom's transcribed
-  content stays verbatim regardless of dash style.
+- **Use en dashes, not em dashes** throughout — both the guidance bullets (now your
+  paraphrase) and the Step 6 report. Per `feedback_writing_mechanics`.
 
 ## Disambiguation From Adjacent Skills
 

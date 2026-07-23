@@ -100,6 +100,7 @@ Posted via the `send-alert` skill. Format (GFM — `send-alert` converts to Slac
 7. **Upload autonomy — Drive Upload Apps Script, never ask** — use the Drive Upload Apps Script (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`) for every non-Gmail file: call `createFolder` to get or create the company's Diligence subfolder, then `upload` with the returned `folderId` and the base64-encoded file content. On failure, retry once, then note the failure in the summary. Do not ask Tom to upload files manually.
 8. **Per-company subfolders in Diligence** — all materials for a given opportunity go into a dedicated subfolder: `Diligence/[Company Name]/`. Use the Apps Script's `createFolder` action to get-or-create the subfolder idempotently under the Diligence root (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Use the company name exactly as it appears in Notion (the opportunity title). When linking in Notion, link to the specific file URL whenever possible, and the company subfolder URL as a fallback.
 9. **Deal Docs land in a nested `Deal Docs/` subfolder** — anything routed to the Notion `Deal Docs` property (term sheets, SAFEs, SPAs, voting agts, IRA/ROFR/co-sale, stockholder consents, cert of incorp, wire SSI, pro forma cap tables, closing binders) goes into `Diligence/[Company Name]/Deal Docs/`. Create it idempotently with a second `createFolder` call passing `parentId = <company subfolder id>`. Diligence Materials chips continue to land directly in `Diligence/[Company Name]/`.
+10. **Pin a Drive-folder chip at the top of Diligence Materials.** Every Opp's Diligence Materials property carries a permanent first chip linking to its whole Drive subfolder, labeled `[G DRIVE] [Company Name] Diligence Materials` and pointing at `https://drive.google.com/drive/folders/<company subfolder id>`. This gives one click to the full materials folder — including anything not individually chipped — without disturbing the per-file chips below it. Check for it (by folder URL) before any new chips are added on a run; if missing, add it first via `--prepend` so it leads the list (subsequent default-append chips then naturally land after it). See Step 4.
 
 ## Inputs
 
@@ -372,6 +373,19 @@ If you're writing an exception-case body section, use the bullet format below. O
 
 **This step always runs.** Append each saved Drive link to the appropriate Files property on the opportunity page — either **Diligence Materials** or **Deal Docs** per the routing rules in Step 2's "Property Routing" section. Term sheets, SAFEs, side letters, pro forma cap tables, etc. → Deal Docs. Decks, memos, models, demos, etc. → Diligence Materials.
 
+**Pinned Drive-folder chip (Diligence Materials only, once per company).** Before adding any other chip on this run, check whether a chip pointing at the company's Diligence subfolder URL (`https://drive.google.com/drive/folders/<folderId>`, the same `folderId` returned by Step 3's `createFolder` call) already exists on Diligence Materials. If not, add it first:
+
+```bash
+python3 ~/.claude/scripts/notion_files_property.py \
+    --page-id <opportunity_page_id> \
+    --prop "Diligence Materials" \
+    --url "https://drive.google.com/drive/folders/<folderId>" \
+    --label "[G DRIVE] [Company Name] Diligence Materials" \
+    --prepend
+```
+
+`--prepend` only matters the first time — once the chip exists, every later run's idempotency check (URL match) skips it, and normal appended chips already land after it. Never apply this to Deal Docs.
+
 Shell out to the public-API helper:
 
 ```bash
@@ -391,6 +405,30 @@ Exit 0 = success (including idempotent skip when URL already present); exit 1 = 
 For each file saved to Drive in the preceding steps, call the helper with the opportunity page ID, the Drive file URL, and a descriptive display name that matches the PDF filename (e.g., `Chief Rebel - Week 20 Investor Update.pdf`). For link-only materials, use the external URL and a label like `Bloom - Deck (Figma)`. For multiple files, call once per URL — the helper is idempotent on URL.
 
 Skip this step only if the helper exits 1 (hard failure). In that case, note it in the summary and continue — the page body link is the interim record.
+
+## Step 4.4: Materials Hygiene — PDF Snapshot Supersedes Native / Link-Only Chip
+
+**Trigger:** this run adds a PDF chip to Diligence Materials for an artifact that ALREADY has a chip on the same property pointing at one of:
+- a native Google Doc/Slides link (`docs.google.com/document/...`, `docs.google.com/presentation/...`), or
+- a hosted-viewer link (Papermark, DocSend, Brieflink, or similar — matches the Step 3E link-only patterns).
+
+...for the **same underlying content** (same title/topic — e.g. the PDF is a snapshot export of that exact Doc, or a converted download of that exact DocSend/Papermark link).
+
+**Action, in this order:**
+
+1. **If the superseded chip is a native Google Doc/Slides/Sheet** owned by the founder (not Tom), first archive a durable copy into the company's Diligence subfolder in its *original* format — export via the Drive v3 API (`files.export`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document` for Docs, `...presentationml.presentation` for Slides) and upload the bytes to `Diligence/[Company Name]/` via the Drive Upload Apps Script, same as any other upload. This is required BEFORE removing the Notion chip — the founder's own copy can be unshared or deleted at any time, and the chip removal must not leave the artifact recoverable only through Notion history. **Do not modify or delete the founder's original file** — export is read-only against it.
+   - Skip this archival sub-step for hosted-viewer links (Papermark/DocSend/Brieflink) — the PDF conversion produced in Step 3B/3E is already the durable Drive copy; there's no separate "original file" to export.
+   - Skip entirely for a live Google Sheet (financial model) or a Tom-authored Doc (e.g. Diligence Q&A) meant to stay editable — these never get PDF-snapshotted or superseded; leave their native chip alone.
+2. **Remove the superseded chip** from Diligence Materials:
+   ```bash
+   python3 ~/.claude/scripts/notion_files_property.py \
+       --page-id <opportunity_page_id> --prop "Diligence Materials" \
+       --url "<native_or_hosted_viewer_url>" --remove
+   ```
+   Exit 0 (including idempotent skip if already absent) = done; exit 1 = hard failure, log it and leave both chips in place rather than risk an inconsistent state.
+3. **Never remove a chip whose PDF counterpart doesn't yet exist on the property.** This step only fires as the direct result of adding a PDF snapshot chip in the same run (or a run that's explicitly doing a materials-hygiene pass) — it is not a general "clean up old links" sweep.
+
+Log the swap in the Step 5 summary (`[title] — native chip removed, archived as .docx/.pptx to Diligence/[Company]/, PDF chip is now canonical`).
 
 ## Step 4.5: Extract Contact Signals from Materials
 
@@ -495,6 +533,7 @@ Found: [N] materials across [M] emails
   - [Figma link] → Diligence Materials ✅ (link-only, not downloadable)
   - [Demo URL] → Diligence Materials ✅ (interactive demo, creds in label)
 DocSend: [N] converted and uploaded
+Materials hygiene: [title] — native/link-only chip removed, archived as .docx/.pptx to Diligence/[Company]/, PDF chip now canonical (or omit line if nothing superseded this run)
 Contact extraction: upgraded tom@old.com → tom@company.com ✅ / kept existing (custom domain) / nothing found
 Round Details extraction: wrote "Raising $2m" ✅ / no-match (mined deck, nothing explicit) / skipped (already populated)
 Notion: Page body updated ✅ | Diligence Materials updated ✅ | Deal Docs updated ✅ (public API) / failed ⚠️

@@ -179,10 +179,11 @@ For each confirmed "Pass Note Pending" opportunity, collect:
 - **If the section is absent:** note that explicitly in your internal context as "no Pass Note Guidance found — proceeding from other sources" and continue. Do not silently skip the step; the explicit absence-note is what proves the check ran.
 - **If the section is present:** capture its full contents and apply the priority rules below.
 - **Label format is flexible — match any of these shapes:**
+  - A `callout` block (Tom's current default — a `⛔` callout whose first child is the bolded label `Pass Note Guidance`, followed by bullets **nested inside the callout**). The guidance content lives as the callout's children, not as sibling blocks after it. `log-pass-note-guidance` writes this shape.
+  - A `paragraph` block whose entire content is bolded text equal to the label (older format — a single bolded line `Pass Note Guidance` on its own paragraph, followed by sibling bullets).
   - A Notion `heading_1` / `heading_2` / `heading_3` block whose text equals the label.
-  - A `paragraph` block whose entire content is bolded text equal to the label (Tom's most common format — e.g., a single bolded line `Pass Note Guidance` sitting on its own paragraph, followed by bullets).
   - A `paragraph` block that begins with the bolded label followed by inline content (rarer, but accept it).
-- **Section boundaries:** the section starts immediately after the label block and extends until the next heading block, the next standalone bolded-label paragraph that looks like a new section marker, or the end of the page — whichever comes first. Captured content can be paragraphs, bullets, numbered list items, or a mix.
+- **Section boundaries:** for the `callout` shape, the section is the callout block and everything nested inside it. For the paragraph/heading shapes, the section starts immediately after the label block and extends until the next heading block, the next standalone bolded-label paragraph that looks like a new section marker, or the end of the page — whichever comes first. Captured content can be paragraphs, bullets, numbered list items, or a mix.
 - If present, treat the contents as **direct authorial intent, not background context.** It outranks the call notes, materials, and first-pass diligence doc when those conflict with it. Tom's guidance is the freshest read on his actual thinking; everything else is upstream signal you used to form a hypothesis.
 - Apply it specifically to:
   - **Bullet 3 (pass reason):** if Tom's guidance names the reason (e.g., "really it's capital intensity for me," "stage mismatch — too late," "market's fine but the founder felt off"), that reason wins. Do not manufacture a different pass reason just because the materials suggest one.

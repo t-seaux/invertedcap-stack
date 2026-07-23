@@ -918,13 +918,12 @@ Act autonomously — do not ask for permission. Report what was done in the summ
 
 ---
 
-## Step 6: Send Signal Alert
+## Step 6: Send Completion Alert
 
-Read the `send-alert` skill (`**/send-alert/SKILL.md`) for the chatID and guardrails.
+Read the `send-alert` skill (`**/send-alert/SKILL.md`) for formatting guardrails, then send the body via its delivery script:
 
-Use `send_message` (Beeper MCP) with the chatID from the send-alert skill. Compose the body:
-
-```
+```bash
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
 🔄 [Company Name] — Diligence Priors Updated
 
 New information processed:
@@ -935,6 +934,7 @@ Net assessment: [One sentence — more convicted, less convicted, or thesis unch
 
 Notion: [Notion page URL]
 PDF: [Google Drive URL to updated PDF]
+EOF
 ```
 
 ---

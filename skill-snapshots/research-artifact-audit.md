@@ -458,7 +458,33 @@ After resolving:
 1. Re-write `$DRAFT` with the resolutions applied.
 2. Snapshot to `<ITER_SNAPSHOT_PREFIX>N.md` so the gate's iter count
    advances on disk.
-3. Re-run the audit (Step B.1) against the updated draft.
+3. Re-run the audit **incrementally** — carry forward verdicts for `## `
+   sections the resolutions didn't touch; judge only changed sections.
+   Sound because verdicts are per-claim against a fixed evidence bundle
+   (the runner fingerprints the bundle and auto-falls-back to a full
+   audit if it changed non-append-only). Added 2026-07-21 — a full
+   re-judge of an unchanged 130KB draft section costs ~25 min per
+   iteration for zero information.
+
+   ```bash
+   cp "$AUDIT_JSON" "${AUDIT_JSON%.json}.prev.json"
+   # Baseline draft = the snapshot the PRIOR audit judged (second-newest snapshot).
+   PREV_SNAP=$(ls "${ITER_SNAPSHOT_PREFIX}"*.md | sort | tail -2 | head -1)
+   python3 "$AUDIT_RUNNER" \
+     --draft   "$DRAFT" \
+     --sources "$SOURCES" \
+     --output  "$AUDIT_JSON" \
+     --baseline-draft "$PREV_SNAP" \
+     --incremental-from "${AUDIT_JSON%.json}.prev.json" \
+     --no-clean \
+     $CHUNK_FLAG
+   ```
+
+   `--no-clean` is MANDATORY on iteration re-runs: the runner's default
+   stale-artifact cleanup deletes iter snapshots, which resets the
+   gate's `ITER_N` count and defeats the MAX_ITER cap. (Cleanup on the
+   FIRST B.1 invocation stays default-on — that's the retry-staleness
+   protection.)
 4. **Return to the HARD EXIT GATE (B.2)** — do not chain iterations
    without re-checking the gate.
 

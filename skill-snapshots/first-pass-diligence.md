@@ -5,8 +5,8 @@ description: >
   Pulls all available context (opportunity page, call notes, diligence materials, investment
   memos), evaluates the company against Tom's Inverted Lens frameworks, conducts web research
   to enrich open questions with data, and produces three outputs: (1) a Notion page with the
-  full analysis as the living artifact, (2) a formatted PDF, and (3) a Signal alert via Beeper
-  with the Notion link. Trigger whenever Tom says "first pass", "first-pass diligence",
+  full analysis as the living artifact, (2) a formatted PDF, and (3) a Slack alert to
+  #claude-alerts (via send-alert) with the Notion link. Trigger whenever Tom says "first pass", "first-pass diligence",
   "run diligence on [company]", "diligence analysis on [company]", "first pass on [company]",
   "analyze [company]", "diligence [company]", or any variant requesting an initial structured
   diligence analysis on a named opportunity. Also trigger when Tom says "run the diligence
@@ -82,10 +82,38 @@ Every `/tmp/firstpass_<file>` path in this skill is rewritten to use
 | `/tmp/firstpass_product_screens_*` | `$WORKSPACE/product_screens_*` |
 
 Exception (shared, read-mostly cache): **`/tmp/firstpass_memos/`** stays at
-that path so portfolio memos accumulate across runs and across concurrent
-jobs. The cache is keyed by company name and only read after a successful
+that path — since 2026-07-21 it is a symlink to the persistent cache at
+`~/.claude/data/firstpass_memos/`, maintained by `memo_cache.py` (Step 1e).
+The cache is keyed by company name and only read after a successful
 file-exists check; concurrent writers to the same memo file are not a
 real-world hazard.
+
+---
+
+## Step 0.5: Resume Protocol (self-healing)
+
+If `$WORKSPACE` already exists and holds artifacts from a prior attempt — a
+queue-timeout relaunch (the processor retries dead first-pass jobs once with a
+RESUME NOTE), a webhook retry, or a manual resume — do NOT restart from
+scratch. Hours of completed work live in that directory.
+
+**Trust gate first:** read `$WORKSPACE/manifest.json` and confirm
+`opportunity.page_id` matches this job's page_id. Mismatch = stale foreign
+workspace → delete the directory and start fresh at Step 1.
+
+Then re-enter at the furthest completed step, keeping everything upstream:
+
+| Workspace state | Re-enter at |
+|---|---|
+| Step 1 artifacts only (raw/labeled transcripts, founder_evidence, meeting_note_raw.md; no draft.md) | Earliest missing Step 1 artifact, then Step 2 onward. Run `memo_cache.py sync` regardless (cheap, keeps memos current). |
+| `draft.md` + `sources.md` present, no `audit.json` | Re-run the Step 4a lint on the current draft (cheap, deterministic), then the bundle completeness gate, then the Step 4b audit. |
+| `audit.json` present and its gate resolves to publish (untraced=0 or iter cap) | Step 3.5 partial normalization, then Step 4 publish. |
+| Notion page already created (search the Notes DB for `[Claude] <Company> Master Diligence Doc — <today>` and legacy title variants per the dedup rule) | PDF build / Drive upload / property link / completion alert only — never create a duplicate page. |
+
+Iteration snapshots (`draft.iterN.md`) and prior audit JSONs found in the
+workspace count toward the audit gate's iteration cap — do not delete them on
+resume. Send the audit-start / progress alerts as normal so Tom can see the
+resumed run's progress; note "(resumed)" in the first alert.
 
 ---
 
@@ -334,10 +362,29 @@ explicitly in Section 5 — the evaluation runs with whatever evidence is availa
 
 ### 1e. Read Tom's Investment Framework Memos
 
-List all files in the Google Drive investment memos folder (`1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`)
-using `google_drive_search` or by listing the folder contents. Then read **every memo** in the
-folder using the appropriate access method (Google Drive fetch for Docs, `read_pdf_bytes` with
-the download URL format `https://drive.google.com/uc?export=download&id={FILE_ID}` for PDFs).
+**Sync the persistent memo cache first** (added 2026-07-21 — replaces per-run Drive MCP
+fetches of every memo, which cost 15-25 min for content that changes ~monthly):
+
+```bash
+python3 ~/.claude/skills/first-pass-diligence/memo_cache.py sync
+```
+
+The script lists the canonical Drive memo folder (`1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`)
+via service account, compares each memo's Drive `modifiedTime` against
+`~/.claude/data/firstpass_memos/_meta.json`, and re-downloads ONLY new/changed memos
+(Docs via text export, PDFs via pdftotext). **The latest Drive version always wins** —
+an edited memo flips its modifiedTime and is re-fetched on the next sync; deleted memos
+are dropped from the cache. The JSON report on stdout gives `{company: {path, url,
+status}}` for every memo.
+
+Then read **every memo** in the analysis: Read each `<Company>.md` file from the cache
+directory locally. This is the same full text you would have fetched from Drive — the
+"read every memo" rule is unchanged; only the transport is faster. If the sync exits 4,
+one or more memos failed extraction (named in `failed`) — fetch THOSE via Drive MCP
+(`google_drive_fetch` for Docs, `read_pdf_bytes` with
+`https://drive.google.com/uc?export=download&id={FILE_ID}` for PDFs) so coverage stays
+complete. If the sync exits 2 (auth/listing failure), fall back to the legacy path:
+list the folder and fetch every memo via Drive MCP.
 
 **Why read all memos, not a subset:** The frameworks Tom applies evolve as the portfolio grows.
 New memos may introduce new frameworks, refine existing ones, or reveal cross-portfolio patterns
@@ -368,29 +415,21 @@ as memo content. Any portfolio company NOT in this manifest has no memo readable
 upgrade decision-retro snippets or call-note prose into "memo" framing. Carry the manifest
 forward into Step 3; the Reference Documents section in Step 5 must reconcile against it.
 
-**Memo text cache — MANDATORY, enables the Step 4a analog-grounding lint check.** As you
-read each memo's full text, ALSO write it to disk so the lint can verify analog
-characterizations against the actual memo prose. Cache directory: `/tmp/firstpass_memos/`.
-Filename convention: `<Company Name>.md` exactly as the company appears in the manifest
-(spaces preserved). Example: `/tmp/firstpass_memos/Oun Homes.md`. Include the full memo
-text — body prose, framework sections, founder-evaluation prose. Frontmatter optional.
-
-```bash
-mkdir -p /tmp/firstpass_memos
-# For each memo fetched in this step:
-#   cat > "/tmp/firstpass_memos/<Company Name>.md" <<'EOF'
-#   <full memo text>
-#   EOF
-```
+**Memo text cache — maintained by memo_cache.py, enables the Step 4a analog-grounding
+lint check.** The sync above materializes every memo's full text at
+`~/.claude/data/firstpass_memos/<Company Name>.md`, and `/tmp/firstpass_memos` is a
+symlink to that directory — so the lint's `--memo-text-dir /tmp/firstpass_memos` flag
+keeps working unchanged. If you had to fetch any memo manually (sync exit 4), write its
+text into the cache dir yourself using the same `<Company Name>.md` convention so the
+lint can see it.
 
 Why this matters: without the cache, Step 4a's `find_ungrounded_analog_overlays` LLM
 check is skipped with a warning (Kalos first-pass 2026-05-28 shipped with the Oun-as-
 physical-operating-surface hallucination because no such check existed). With the cache,
 the lint runs an LLM judge per candidate analog overlay sentence against the analog's
-actual memo and fails the gate if the overlay is ungrounded. Caching adds ~1 second per
-memo, negligible against the rest of Step 1e's compute. **Skipping the cache means the
-analog-grounding gate is disabled for this run — call out explicitly in the publish
-summary if you skip it.**
+actual memo and fails the gate if the overlay is ungrounded. **A run where the cache dir
+is empty or missing means the analog-grounding gate is disabled — call out explicitly in
+the publish summary if that happens.**
 
 **Manifest coverage gate — MANDATORY before proceeding to Step 1f.** Run
 `verify_memo_manifest.py` to assert that `$WORKSPACE/manifest.json`'s
@@ -431,7 +470,35 @@ builds over time. No action needed beyond reading.
 
 Before drafting, run targeted web searches to enrich the analysis with independent data points.
 The goal is to verify founder claims, size markets, and ground open questions in real numbers
-rather than leaving them as generic unknowns. Typical research areas:
+rather than leaving them as generic unknowns.
+
+**MANDATORY — fan out the research as parallel subagents (added 2026-07-21).** The research
+areas below (and the §2 Product crawls in Step 3) are independent read-only sweeps; running
+them serially in the main context costs 20-30 min of wall clock and bloats the drafting
+context with raw crawl output. Spawn them as parallel `Task` subagents
+(`subagent_type: "general-purpose"`) **in a single message**, one per lane:
+
+1. **Market + regulatory** — TAM/SAM data, growth rates, regulatory timelines/costs vs.
+   founder representations
+2. **Competitive landscape** — comparable company metrics, funding, positioning; includes
+   the framework spec's "Competitor / peer surfaces" crawl
+3. **Public product surface + engineering signal** — the company's marketing/product/
+   pricing/docs pages, careers JDs, engineering blog, GitHub org (framework spec crawls)
+4. **Founder online presence** — one lane covering all founders: personal sites, talks,
+   posts, company-of-record artifacts, LinkedIn-association check
+
+Each subagent's prompt must state: the company, what to find, and that its final message
+must be the raw structured findings (key data points + pull-quotes + source URLs, grouped
+under the bundle-section headers from Step 4b: `==== EXTERNAL RESEARCH ====`,
+`==== COMPETITOR / PEER SURFACES ====`, `==== PUBLIC PRODUCT SURFACE ====`,
+`==== ENGINEERING SIGNAL ====`). Write each result verbatim to
+`$WORKSPACE/research_<lane>.md` on return — these files feed both the drafting step and
+the Step 4b source bundle, so nothing is lost to context compression. Rigor is unchanged:
+same crawls, same URL-capture discipline, same fold-into-bundle requirement — only run
+concurrently. Chrome-dependent extractions (LinkedIn scrapes, Loom transcripts) stay in
+the main session if the Chrome MCP is unavailable to subagents.
+
+Typical research areas:
 
 - **Market sizing** — TAM/SAM data, growth rates, comparable market benchmarks
 - **Regulatory environment** — licensing timelines, requirements, costs (compare to founder
@@ -840,11 +907,14 @@ once before drafting §2.4 / §2.5. Every cost, time, FTE-month, infra
 unit cost, or third-party API integration cost cited must trace to a
 specific row formatted as `(per calibration §<N>)` inline.
 
-**Crawl prep — before drafting any subsection.** Apply the
+**Crawl prep — before drafting any subsection.** The
 public-surface, engineering-signal, peer-surface, and broad-based-web-
 research crawls defined in the framework spec ("Public surface area
 crawl", "Engineering signal crawl", "Competitor / peer surfaces",
-"Broad-based web research" subsections). Save screenshots to
+"Broad-based web research" subsections) are covered by the Step 2
+parallel research fan-out — read the `$WORKSPACE/research_<lane>.md`
+files instead of re-crawling serially here; run only crawls the fan-out
+missed. Save screenshots to
 `$WORKSPACE/product_screens_<n>.png`. Fold all extracted signal
 into the Step 4b source bundle under the `==== PUBLIC PRODUCT SURFACE
 ====`, `==== ENGINEERING SIGNAL ====`, `==== COMPETITOR / PEER SURFACES
@@ -1719,7 +1789,7 @@ pages: [{
 }]
 ```
 
-Save the resulting Notion page URL — it will be referenced in the PDF and the Signal alert.
+Save the resulting Notion page URL — it will be referenced in the PDF and the completion alert.
 
 **Fire publish-progress alert (1 of 3).** The publish phase is silent for 15-20
 min between the audit-start alert and the final completion alert. These

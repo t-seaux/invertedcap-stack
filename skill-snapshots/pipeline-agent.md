@@ -25,7 +25,7 @@ The orchestrator (you) should:
 1. Spawn Tasks 1–7 as `Task` sub-agents **in parallel in a single message**, passing ALL necessary context (Notion IDs, field schemas, view URLs, instructions) directly in each prompt
 2. Wait for all seven to complete (they run concurrently)
 3. Compile a final combined report
-4. Send Signal Note to Self summary via Beeper (unless suppressed by run-all override)
+4. Send Slack summary via send-alert (unless suppressed by run-all override)
 
 ### Orchestration Flow
 
@@ -39,7 +39,7 @@ The orchestrator (you) should:
   ├─→ Task 6: -1 Enrich New (sub-agent)        ─┤
   ├─→ Task 7: -1 Auto-Draft (sub-agent)        ─┘
   │   ... wait for all 7 to complete ...
-  └─→ Compile final report + Signal Note to Self
+  └─→ Compile final report + Slack alert via send-alert
 ```
 
 ## CRITICAL: Protected Status Guard
@@ -588,7 +588,7 @@ Rules:
 
 ## Edge Cases
 
-- **Beeper send may fail**: Handle gracefully — skip and note limitation.
+- **Alert send may fail**: Handle gracefully — skip and note limitation.
 - **Ambiguous signals**: Leave status unchanged, note for manual review.
 - **Multiple sources**: Include all identifiable source URLs in Source(s) array.
 - **Stage extraction**: Match explicit stage mentions to emoji options. Default: `Pre-Seed 💡`.
