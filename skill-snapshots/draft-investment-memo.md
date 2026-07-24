@@ -36,9 +36,10 @@ matching the memo Drive folder.
 If a memo Drive doc is found, STOP. Reply to Tom with:
 
 > A memo already exists at `<Drive URL>`. This skill only drafts initial memos.
-> Future edits to the existing memo will be handled by a dedicated
-> `update-investment-memo` skill (not yet built). Want me to scaffold that
-> instead, or open the existing doc?
+> Want me to start a `memo-workshop` session on the existing doc instead?
+
+Then, if Tom says yes, invoke the `memo-workshop` skill (context-loading + iterative
+co-writing on an existing memo Doc).
 
 Do NOT auto-version (`v2`), do NOT create a side-by-side draft, do NOT proceed.
 
