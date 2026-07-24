@@ -2,12 +2,12 @@
 
 ## [2026-07-24] (Week of 2026-07-21)
 
-**Added:** intro-outreach-drafter (Portfolio Management)
+**Added:** intro-outreach-drafter (Portfolio Management), memo-workshop (Diligence Management)
 **Removed:** None
 **Modified:**
 - draft-investment-memo -- updated existing-memo redirect to invoke memo-workshop session instead of referencing a planned future skill
-**Total skills:** 40
-**Functions:** Portfolio Management +1 (intro-outreach-drafter)
+**Total skills:** 41
+**Functions:** Portfolio Management +1 (intro-outreach-drafter); Diligence Management +1 (memo-workshop)
 
 ---
 

@@ -392,6 +392,37 @@ rather than publishing silently even on "confirm".
 
 ---
 
+### Special branch: Skill-map function assignment
+
+Check this **before** the generic taxonomy. Trigger when the parent alert is a
+`skill-map-refresh` pending-categorization alert (header `🗺️` **and** the body names an
+uncategorized skill with phrasing like "not yet assigned to a function" / "Assign to a
+function" / "Pending items"), AND Tom's reply names a Function for it (e.g. "Memo workshop
+is diligence management", "put it in Research", "that's pipeline management").
+
+Do **not** hand-edit the mapping table — run the deterministic helper, which does the row
+edit in code (idempotent; handles both the visible and hidden 3-column tables):
+
+```
+python3 ~/.claude/skills/skill-map-refresh/assign_skill_to_function.py \
+  --skill <skill-name> --function "<function phrase from Tom's reply>"
+```
+
+- `<skill-name>` = the pending skill from the parent alert (strip backticks). `--function`
+  matching is lenient — "diligence" / "diligence management" both resolve; a bare phrase is fine.
+- If the skill is already mapped elsewhere and Tom is reassigning, add `--move`.
+- **Read the exit code / stdout and close-loop on it verbatim.** Exit 0 (`OK:`/`NO-OP:`) →
+  confirm the assignment. Exit 2 (function not found — stdout lists known functions), 3
+  (already in another function — needs `--move`), or 4 (file error) → post that **real** message.
+  Never substitute a permission/"couldn't apply" excuse — this path cannot hit one.
+- The visuals/stack page don't regenerate here; the next daily `skill-map-refresh` run (7:30am
+  ET) picks up the corrected mapping. Say so in the close-loop. Audit intent: `skill-map-assign`.
+
+This branch exists because the LLM `Edit` path hallucinated a permission block on 2026-07-24
+and refused a write it was fully capable of; the script removes the model from the write path.
+
+---
+
 ### Generic taxonomy
 
 Decide what change is being requested. The taxonomy is open-ended — examples:
