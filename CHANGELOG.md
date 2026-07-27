@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-07-27] (Week of 2026-07-21)
+
+**Added:** None (word-bank pending categorization)
+**Removed:** None
+**Modified:**
+- diligence-qa -- template scaffold procedure condensed; inline script details moved to external reference file
+- draft-investment-memo -- memo skeleton detail collapsed to reference pointer; Step 2 condensed
+- finalize-diligence -- Final Assessment format and Notion write steps condensed to external reference-file pointers
+- intro-note-processor -- candidate identification (Step 2) and outreach draft (Step 7) condensed to external reference-file pointers
+- product-build-teardown -- added top-level step overview runbook spine; context-gathering steps condensed to external reference-file pointer
+- soi-portfolio-event -- SAFE vs priced detection section condensed to inline summary with full detail in external reference file
+**Total skills:** 41
+**Functions:** No changes
+
+---
+
 ## [2026-07-24] (Week of 2026-07-21)
 
 **Added:** intro-outreach-drafter (Portfolio Management), memo-workshop (Diligence Management)

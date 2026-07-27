@@ -128,229 +128,56 @@ a webhook-watched property, so the restore fires no jobs.
 
 ## Detecting SAFE vs priced (two layers)
 
-A round is a priced round only if BOTH layers agree; otherwise treat as SAFE.
-
-- **Layer 1 — Round Details text** (deterministic, done by `soi_generate.py`): `cap` ⇒ SAFE,
-  `post` ⇒ priced, an explicit `SAFE` anywhere ⇒ SAFE, `priced`/`equity round` ⇒ priced.
-- **Layer 2 — deal-doc materials** (corroboration, done here): inspect the Opp's **`Deal Docs`** property —
-  and resolve it via `find_cap_table.py` (above), NOT by eyeballing `Diligence Materials`, which routinely
-  does not hold the cap table. A cap table resolving at all is itself the strongest priced signal.
-  - **SAFE** signals: a SAFE agreement / post-money SAFE doc (often + a side letter only).
-  - **Priced** signals: **a pro-forma cap table** (dead giveaway), Stock Purchase Agreement (SPA),
-    Investor Rights Agreement (IRA), Right of First Refusal & Co-Sale (ROFR), Voting Agreement.
-
-**Scope — only ever edit in-SOI Opps.** Any Notion write (incl. the auto-correct below) is allowed ONLY on
-Opps whose Status is **Active Portfolio, Portfolio: Follow-On, or Exited**. NEVER modify a **Committed** Opp
-(or anything else) — Committed is out of SOI scope and may legitimately be a future priced round written as
-`post` (e.g. Signal7's Committed Seed FO at `$42m post`). Leave it alone.
-
-**Auto-correct rule (no confirm needed):** if an **in-scope** Opp shows **SAFE docs** in Layer 2 but Round
-Details says `post`, silently fix the label — patch Round Details `post → cap` in Notion (a SAFE is held at
-cost, so this is a label fix, not a valuation change). Conversely, if Layer 2 shows **priced docs / a pro-forma cap table**
-but Round Details says `cap`, do NOT silently flip it — that changes valuation, so go to B1 and
-**draft the mark for Tom's confirm**, noting the cap-vs-post conflict in the alert.
+A round is priced only if BOTH layers agree (Layer 1 — Round Details text via `soi_generate.py`; Layer 2 —
+deal-doc materials, where a pro-forma cap table resolved via `find_cap_table.py` is the dead giveaway);
+otherwise treat as SAFE. **Scope — any Notion write (including auto-correct) is allowed ONLY on in-SOI Opps
+(Active Portfolio / Portfolio: Follow-On / Exited). NEVER modify a Committed Opp.** Auto-correct is
+one-directional: SAFE docs but Round Details `post` → silently patch `post → cap` (cost-held, label-only, no
+confirm); priced docs / a pro-forma cap table but Round Details `cap` → do NOT silently flip (that changes
+valuation) → route to B1 and draft the mark for Tom's confirm. Full detail (both layers, doc signals, scope,
+auto-correct) in `references/safe-vs-priced-detection.md` — read it now before proceeding.
 
 ## Mode B — Tier 2 draft (webhook): priced round or exit
 
 ### B1 — Priced follow-on round (re-mark)
-A portfolio company raised a **priced** round; Inverted's SAFE(s) convert / the position re-marks off the
-new pro-forma cap table. Ownership is NO LONGER invested ÷ cap — it is Inverted's fully-diluted % from the
-cap table.
-
-1. **Resolve the cap table DETERMINISTICALLY — always, first, before any other step.** Never hunt by hand,
-   never eyeball the Notion `Diligence Materials` section (the cap table is normally NOT there — it lives in
-   the `Deal Docs` property, which points at Drive). Run:
-
-   ```
-   python3 ~/.claude/skills/soi-portfolio-event/find_cap_table.py "<Company>" --round "<Round>"
-   ```
-
-   It resolves against the Drive mount (`My Drive/Deal Docs/<Company>/<Round> (<Mon YYYY>)/`), which is the
-   store of record — Notion chips are just links into it, so the folder is complete where the property is
-   lossy. Best match prints first.
-
-   **On nonzero exit (no cap table): send this alert via send-alert, then STOP** — never stop silently
-   (Tom 2026-07-13), and never derive a mark from Notion fields, the deck, the round's headline post-money,
-   or any assumption. A priced mark comes off the cap table or it does not get made.
-
-   ```
-   📄 Cap table required — <Company> (<Round>)
-   Status flipped to <Status> with Round Details "<Round Details>" (priced), but no pro-forma cap table
-   resolves under Deal Docs/<Company>/. The SOI stays on hold at its last published state — no numbers
-   until the cap table lands.
-   → Drop it in Deal Docs/<Company>/<Round (Mon YYYY)>/ and the next event or daily sweep picks it up.
-   ```
-2. Read it and extract, **how to navigate the cap table**:
-   - **Resolve OUR entity row DETERMINISTICALLY from the Opp's `Fund` — never hardcode it, never eyeball the
-     sheet** (Tom 2026-07-13). The Opp says which fund is investing; that is what tells you which row in the
-     Excel is ours. The chain, all from data already on hand:
-
-     ```
-     Notion Opp `Fund`  ("Inverted 1️⃣")
-       -> fund_inputs.json `notion_fund_prefix`  ("inverted 1")      # same filter soi_generate.py uses
-       -> fund_inputs.json `fund_name`           ("Inverted Capital I, LP")  = the legal entity in the cap table
-     ```
-
-     ```
-     python3 ~/.claude/skills/soi-portfolio-event/find_entity_row.py "<cap table.xlsx>" --sheet "<pro-forma sheet>"
-     ```
-
-     It folds punctuation and the Roman/Arabic ordinal (`Inverted Capital I, L.P.` == `Inverted Capital 1, LP`),
-     requires **exactly one** row in the pro-forma sheet, and surfaces **near-misses** — an SPV, a placeholder,
-     or a sibling fund (`Inverted Capital II`) — which it refuses to substitute. Several rows in the
-     convertibles ledger are expected and fine (one per SAFE).
-
-     **On nonzero exit (no row, or ambiguous): alert Tom and STOP.** Reading another entity's row is the
-     highest-consequence misread in this flow — it marks our position off someone else's shares, and every
-     downstream gate still passes because the arithmetic is internally consistent. The cost tie-out gate is
-     the backstop (a foreign row won't reproduce our cost basis), but do not lean on it: resolve the row right.
-   - **Aggregate (headline):** read Inverted's **`Fully Diluted Ownership %`** and **total share count** in the
-     **PRO-FORMA section** (the post-round "cap table construction" columns that reflect the round once
-     closed — NOT the pre-round / current columns). Read the round's **price-per-share (PPS)** and
-     **post-money valuation**.
-   - **Per round (for per-round MOIC):** get **how many shares each of Inverted's rounds holds post-round**.
-     - **SAFEs convert into the new round** — for a SAFE round, find the shares it **converted into**, not a
-       notional count. Find the **convertibles/SAFE conversion ledger** (the tab where SAFEs convert) and
-       read Inverted's converted-share count. The fair value of that converted position = **converted shares
-       × the NEW round Price-Per-Share** (NOT the conversion price) — the gap between the conversion price
-       and the new PPS is the SAFE's markup, so per-round MOIC = `new PPS ÷ conversion price`.
-     - **Do not call the markup a "discount".** The **conversion price is `min(valuation-cap price,
-       discount price)`** and on a good round the **cap almost always binds** — the discount price (a % off
-       the new PPS) is the *higher* of the two, so it buys *fewer* shares and never engages. Read the
-       ledger's `Conversion Price` column; don't infer the mechanism from the presence of a discount term.
-       The SAFE marks up simply because its conversion PPS is below the new round's PPS.
-     - A direct new-money purchase = the shares bought in that round.
-     - Aggregate check: the entity's `Fully Diluted Shares` in the post-round cap table should equal the sum
-       of its rounds' (converted) shares.
-   - **Navigate by MEANING — cap-table formats vary widely** (sheet & column names differ by vendor/law
-     firm). Synonyms you'll see:
-     - SAFE conversion tab: `SAFE Conversion`, `Convertibles Ledger`, `Convertible Ledger`, `SAFE Schedule`.
-     - Converted-shares column: `Conversion Shares`, `Number of Conversion Shares`, `Shares (As Converted)`.
-     - Ownership: `Fully Diluted Ownership`, `FD %`, `As-Converted %`; shares: `Fully Diluted Shares`.
-     - The post-round view: `Pro Forma`, `Summary/Detailed Pro Forma`, or a pro-forma column block in the
-       cap table. If unsure which column is post-round, show Tom the candidates in the draft.
-   - Two real models to calibrate against (different layouts, same mechanics):
-     `~/Downloads/Outmarket Series Seed Pro Forma (Final).xlsx` and `~/Downloads/Suppli - Series A - Pro
-     Forma. (4923-2426-8178.4).xlsx`.
-3. Compute the proposed mark. **MOIC is always fair value ÷ cost basis — never hardcode it.**
-   - **Per round:** `round_fmv` = round's (converted) shares × PPS; `round_moic` = round_fmv ÷ that round's
-     invested cost.
-   - **Headline (company):** cost basis and fair value are the **sum of the round rows** —
-     `fmv` = Σ round_fmv = total shares × PPS; `cost` = Σ round invested; `MOIC` = fmv ÷ cost.
-   - **Cross-foot the aggregate two independent ways — they MUST match** (algebraically identical, so a
-     mismatch means a bad read — wrong shares, PPS, %, or post-money):
-     - **(A)** FD ownership % × post-money
-     - **(B)** Inverted total shares × PPS  (= Σ round_fmv)
-     - Agree within <0.5% → proceed. If not, do NOT propose a number — post both + the inputs and ask Tom
-       to reconcile.
-   - Write the mark to `fund_inputs.json` `priced_round_marks[Company]` as:
-     `{ "pps": <NEW round PPS>, "post_money": <$>, "ownership": <FD% decimal>, "total_shares": <n>,
-        "shares_by_round": { "<round_label>": { "shares": <converted shares>,
-                                                "conversion_pps": <the price THIS round converted AT> }, ... } }`
-     (round labels must match the SOI's, e.g. `Pre-Seed`, `Pre-Seed+`. A bare `<shares>` int is still accepted
-     for legacy marks, but always write the object form.)
-
-     **Always record BOTH prices per round — the old (conversion) PPS and the new round PPS** (Tom 2026-07-13).
-     They are what make every multiple reconstructible and auditable later:
-     `round multiple = pps ÷ conversion_pps`. `conversion_pps` is the ledger's **`Conversion Price`** column —
-     `min(valuation-cap price, discount price)` — NOT the new PPS and NOT the discount price. For a
-     **new-money** round, `conversion_pps` is simply the round's own PPS (so it marks at 1.00x, at cost).
-
-     **Cost basis is INVARIANT and is never written here.** It lives in Notion (`Inv @ Round`, one Opp per
-     round) and the generator reads it live. A round's cost is what we wired; it does **not** change when a
-     later round re-marks the position. That invariance is load-bearing: the generator's **cost tie-out gate**
-     uses it to validate the cap-table read — `shares × conversion_pps` must reproduce the round's cost
-     (1% tol). If it fails, you misread the share column (pre- vs post-round) or the wrong entity row. Never
-     "fix" a tie-out failure by editing `Inv @ Round` to match the cap table — the wire is the truth; the
-     read is what's wrong.
-
-     The generator then marks each round at shares × NEW pps, derives per-round + headline MOIC
-     (always fmv ÷ cost, never hardcoded), and re-runs the cross-foot + cost tie-out gates.
-4. Post a Slack alert (send-alert, GFM links) to #claude-alerts that **walks through the inputs and both
-   cross-foot methods**:
-
-   Structure with **bold section headers and bold headline values** (Tom 2026-07-13) — bold carries the
-   eye down the message on mobile; italics don't. One line per round, ` · ` separated (see send-alert's
-   "NO column-aligned tables"). Full math lives under METHODOLOGY at the bottom, not inline:
-
-   ```
-   📈 **<Company> — <Round> mark** (draft · reply **confirm** or adjust)
-
-   **ROUND**
-   $<raise> at $<post> post · PPS $<pps> · <cap table filename>
-
-   **OUR POSITION** — <entity> · <total shares> FD sh = **<A>%**
-   **<Round 1> (SAFE)** — $<cost> → $<fmv> · <X>× (conv $<conv_pps>, cap $<cap> binds)
-   **<Round 2>** ← new — $<cost> → $<fmv> · 1.00×
-   **Total** — $<cost total> → **$<fmv total> · <D>×**
-
-   **CHECKS**
-   FD% × post $<C1> ≈ sh × PPS $<C2> ✓ (<delta>%) · cost tie-outs ✓
-
-   **FUND**
-   Invested $<a>m → $<b>m · FMV $<a>m → $<c>m · MOIC <x>× → **<y>×**
-
-   **METHODOLOGY**
-   <one derivation line per round: shares × new PPS = FMV; tie-out shares × conv PPS = cost ✓>
-
-   Reply **confirm** to apply, or adjust: e.g. "ownership 6.2%" / "post-money 40m".
-   ```
-
-   Do NOT write anything yet. The parent message must carry a recognizable origin so the listener routes
-   the reply here (see "Listener wiring").
+A portfolio company raised a **priced** round; Inverted's SAFE(s) convert / the position re-marks off the new
+pro-forma cap table. Ownership is NO LONGER invested ÷ cap — it is Inverted's fully-diluted % from the cap
+table. Resolve the cap table deterministically via `find_cap_table.py` (**no cap table → send the "cap table
+required" alert, carry NO numbers, STOP**), resolve OUR entity row from the Opp's `Fund` via
+`find_entity_row.py` (**no row / ambiguous → alert Tom and STOP**), read the pro-forma FD% / total shares /
+PPS / post-money, and compute the mark (MOIC always fmv ÷ cost, never hardcoded). **Cross-foot the aggregate
+two independent ways — (A) FD% × post-money and (B) Inverted total shares × PPS — they MUST agree within
+<0.5%; if not, do NOT propose a number: post both + the inputs and ask Tom to reconcile.** The generator's
+**cost tie-out gate** (`shares × conversion_pps` must reproduce each round's cost, 1% tol) is the backstop;
+never "fix" a tie-out by editing `Inv @ Round`. Full procedure (cap-table navigation, mark object shape,
+`fund_inputs.json` write, the walk-through alert) in `references/mode-b-priced-and-exit.md` — read it now
+before proceeding.
 
 ### B2 — Exit (distribution)
-Status → Exited usually means cash returned to LPs (full or partial).
-
-1. Find the distribution amount (closing statement / wire confirmation email / Tom's note). If unknown,
-   alert and ask.
-2. Determine residual NAV still held after the distribution (0 if fully realized).
-3. Post a Slack alert walking through it:
-
-   ```
-   💸 Exit — <Company> distribution (reply in thread to confirm/adjust)
-   Cash distributed to LPs: $<amount>  (source: <wire/closing stmt>)
-   Residual NAV still held: $<residual>
-   Effect: DPI += <amount>/paid-in; total value = residual + distribution; MOIC = (residual+dist)/cost = <D>×
-   Reply "confirm" to apply, or give the correct amount / residual.
-   ```
+Status → Exited usually means cash returned to LPs (full or partial). Find the distribution amount, determine
+residual NAV still held (0 if fully realized), and post a Slack alert walking through DPI / total value / MOIC
+for Tom's in-thread confirm. Full procedure in `references/mode-b-priced-and-exit.md` — read it now before
+proceeding.
 
 ## Mode C — Apply on confirm (claude-alerts-listener branch)
 
 When Tom replies in the thread, the `claude-alerts-listener` "SOI mark confirm" branch dispatches here with
-the parent draft + his reply. Parse his decision:
-
-- **"confirm"** → apply the proposed values verbatim.
-- **adjustment** (e.g. "ownership 6.2%", "post-money 40m", "distribution 1.2m", "residual 0") → recompute
-  with the override (re-derive `fmv = ownership × post-money` if either changes) and apply.
-
-Apply with the engine (always `--dry-run` first, echo the diff), then rebuild:
-
-```
-# priced mark — per-round form (the engine cross-foots sum(shares)×pps vs --fmv, refuses >0.5% off)
-python3 ~/code/lp-portal/refresh_inputs.py [--dry-run] mark --company <C> \
-  --ownership <dec> --fmv <int> --pps <float> --post-money <int> --total-shares <int> \
-  --shares-json '{"<round label>": {"shares": <n>, "conversion_pps": <float>}, ...}'
-# exit / distribution
-python3 ~/code/lp-portal/refresh_inputs.py [--dry-run] distribution --company <C> --amount <int> --residual-fmv <int>
-cd ~/code/lp-portal && bash run.sh
-```
-(`--dry-run` is a GLOBAL flag — before the subcommand. On an ADJUSTED confirm the drafted share counts no
-longer hold: apply company-level — drop the per-round flags — and re-mark per-round off the corrected cap
-table later.)
-
-Then post a close-loop reply IN THE SAME THREAD: the applied values, the new company MOIC, and (if shown)
-the new fund DPI / TVPI. Deliver the rebuilt `~/Inverted_Capital_I_SOI.html`.
+the parent draft + his reply. Parse his decision — **"confirm"** applies the proposed values verbatim; an
+**adjustment** (e.g. "ownership 6.2%", "post-money 40m", "distribution 1.2m", "residual 0") recomputes with
+the override (re-derive `fmv = ownership × post-money` if either changes) and applies. Apply with the engine
+**always `--dry-run` first** (a GLOBAL flag — before the subcommand), echo the diff, then `bash run.sh`.
+**The priced `mark` command cross-foots `sum(shares)×pps` vs `--fmv` and refuses >0.5% off; it takes
+`--total-shares` plus the per-round `--shares-json`.** On an ADJUSTED confirm the drafted share counts no
+longer hold — apply company-level (drop the per-round flags) and re-mark per-round off the corrected cap table
+later. Full command forms + the close-loop reply in `references/mode-c-apply.md` — read it now before
+proceeding.
 
 ## Listener wiring (one-time)
 
-- **notion-webhook** (`~/code/notion-webhook/Code.js`): an SOI handler fires on Opportunity changes where
-  Fund = Inverted 1 AND Status ∈ {Active Portfolio, Portfolio: Follow-On, Committed, Exited} AND a
-  SOI-relevant property changed (Status, Round Details, Inv @ Round, 🕰️ Funding History). It **debounces**
-  (coalesce rapid edits) and enqueues a claude-job-queue job: Tier-1 rebuild by default; Tier-2 draft when
-  the round reads priced/equity or Status → Exited.
-- **claude-alerts-listener**: add a branch that recognizes this skill's draft parent messages (priced-round
-  / exit drafts) and dispatches the reply to `soi-portfolio-event` Mode C.
+One-time setup of the notion-webhook SOI handler (fires on Inverted-1 Opp changes with a SOI-relevant
+property change; debounces; enqueues Tier-1 rebuild or Tier-2 draft) and the claude-alerts-listener reply
+branch that dispatches confirms/adjustments to Mode C. Full procedure in `references/listener-wiring.md` —
+read it now before proceeding.
 
 ## Guardrails
 

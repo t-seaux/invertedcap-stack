@@ -75,24 +75,10 @@ python3 ~/.claude/templates/measure_reference.py \
 
 ## Step T: One-time template scaffold (DO ONCE, BEFORE FIRST RUN)
 
-Before Step 0 can succeed, the `[TEMPLATE] Diligence Q&A` Doc must exist in
-the Diligence root folder (`canonical_spec.DILIGENCE_ROOT_FOLDER_ID`).
-
-```bash
-python3 ~/.claude/skills/diligence-qa/scaffold_template.py
-```
-
-The script copies Tom's reference doc (`canonical_spec.REFERENCE_DOC_ID`),
-wipes its body, and writes a placeholder skeleton. It prints the new Drive
-ID — record it as `template_doc_id` in
-`~/.claude/templates/diligence-qa/reference.json` (NOT in canonical_spec —
-that constant is now derived from the manifest). Until `template_doc_id` is
-set, the per-run steps below will refuse.
-
-If the visual canon evolves (new logo, different header weights, additional
-section), update `reference_doc_id` in the manifest to point at the new
-canonical doc, re-run `measure_reference.py` to refresh the profile, trash the
-prior `[TEMPLATE]`, re-run the scaffold, and record the new `template_doc_id`.
+One-time scaffold of the `[TEMPLATE] Diligence Q&A` Doc — must exist before
+Step 0 can succeed; until `template_doc_id` is set in the manifest, the per-run
+steps refuse. Full procedure in `references/step-t-template-scaffold.md` — read
+it now before proceeding.
 
 ---
 
@@ -191,103 +177,21 @@ preserve:
 
 ## Step 4: Draft the question dict
 
-Emit JSON matching `QA_CONTENT_SCHEMA.md` — a flat list of `[label, question]`
-pairs per section, no subsections:
-
-```json
-{
-  "product":      [["The Wedge", "Which single workload do you lead every new clinic with, and why that one?"], ...],
-  "distribution": [["ICP Definition", "How precisely do you define the super-elastic small clinic?"], ...],
-  "market":       [...],
-  "team":         [...],
-  "other":        [...]
-}
-```
-
-The drafter MUST honor:
-
-- **One question per list entry.** No multi-question paragraphs.
-- **Short bold lead-in label** (1–3 words) per pair. Do NOT bold it or add a
-  trailing period — the builder runs `normalize_label()` and bolds it.
-- **Coverage minimum: 3 questions per mandatory section**
-  (`COVERAGE_MINIMUM_QUESTIONS`). Below that, find more open threads in Step 2
-  or drop the section entirely.
-- **All four sections render** — Product / Distribution / Market / Team are
-  mandatory inquiry surfaces per Tom's spec.
-- **Optional `other` catch-all** — questions that don't fit the four-bucket
-  framework go under the optional `other` key (renders as "Other", always
-  last). EXEMPT from the 3-question minimum; a single stray question is fine.
-  Omit the key when there are none.
-
-Save the draft to `/tmp/qa_factir.[Company].json` (the builder reads this path
-via `--content`).
-
-**Coverage minimum — validate HERE, at JSON emission (fail fast).** Before any
-Drive/doc work, run the deterministic count check on the saved JSON:
-
-```bash
-python3 - "$COMPANY" <<'EOF'
-import json, sys
-sys.path.insert(0, "/Users/tomseo/.claude/skills/diligence-qa")
-import canonical_spec as spec
-data = json.load(open(f"/tmp/qa_factir.{sys.argv[1]}.json"))
-fails = {s: len(data.get(s, [])) for s in spec.SECTION_ORDER
-         if len(data.get(s, [])) < spec.COVERAGE_MINIMUM_QUESTIONS}
-if fails:
-    sys.exit(f"coverage minimum FAIL {fails} — extend the section(s) per Step 2 "
-             f"before building the doc")
-print("coverage minimum: PASS")
-EOF
-```
-
-A failing section gets extended (back to Step 2 for more open threads) BEFORE
-the builder runs — do not build the doc and let the format guard catch it.
-The Step 6 format-guard G9 check stays in force as the post-build backstop.
+Draft the question dict — emit JSON matching `QA_CONTENT_SCHEMA.md` (flat
+`[label, question]` pairs per section), then **validate the coverage minimum
+(≥3 questions per mandatory section) at JSON emission (fail fast)** before any
+Drive/doc work; a failing section goes back to Step 2, and the Step 6
+format-guard G9 stays the post-build backstop. Full procedure in
+`references/step-4-question-dict.md` — read it now before proceeding.
 
 ---
 
 ## Step 5: Resolve subfolder, copy template, build the body
 
-### 5a. Get-or-create the per-Opp Diligence subfolder
-
-```python
-import requests
-import canonical_spec as spec
-
-resp = requests.post(spec.DRIVE_APPS_SCRIPT_URL, json={
-    "action":         "createFolder",
-    "folderName":     company_name,           # MUST be the Notion Opp name verbatim
-    "parentFolderId": spec.DILIGENCE_ROOT_FOLDER_ID,
-}, allow_redirects=True, timeout=60).json()
-opp_subfolder_id = resp["folderId"]
-```
-
-The Apps Script's `createFolder` is idempotent — if the folder already
-exists, it returns the existing one (`alreadyExisted: true`).
-
-### 5b. Run the builder
-
-`build_qa_doc.py` copies the logo-only template into the subfolder, inserts the
-whole body as one plain-text string, then styles every paragraph by computed
-character offset — date (bold), title (HEADING_1 bold), section headers
-(HEADING_2 italic), and each question (disc bullet, JUSTIFIED, 18pt indent,
-bold lead-in label). No `replaceAllText`, no markdown markers, no delete
-passes. It prints `doc_id` then `doc_url`.
-
-```bash
-python3 ~/.claude/skills/diligence-qa/build_qa_doc.py \
-    --company "$COMPANY" \
-    --subfolder "$OPP_SUBFOLDER_ID" \
-    --content "/tmp/qa_factir.$COMPANY.json"
-```
-
-The date and title are generated inside the builder — there is NO lede, NO
-placeholders, and NO subsection headers. Do not hand-apply any `batchUpdate`
-styling in this SKILL.md; all rules live in `build_qa_doc.py` driven by
-`canonical_spec.py`.
-
-To rebuild into an already-copied doc (e.g. after a guard failure), pass
-`--doc-id "$DOC_ID"` instead of `--subfolder`.
+Get-or-create the per-Opp Diligence subfolder (idempotent `createFolder`), then
+run `build_qa_doc.py` to copy the logo-only template into it and style every
+paragraph by computed character offset. Full procedure in
+`references/step-5-builder.md` — read it now before proceeding.
 
 ---
 

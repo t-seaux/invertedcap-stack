@@ -134,79 +134,32 @@ agnostic; only the flag values change per caller.
 
 ### A.2 — Footnote URL accuracy (RECOMMENDED, runs in seconds)
 
-For drafts that emit clickable `^N [label](url)` footnotes pointing at
-Notion pages or Drive files, run the URL/title accuracy check to catch
-the "label says X, URL points at Y" failure mode (finalize-diligence
-2026-05-23 ^37: labeled "Product Build Teardown" but the Drive URL
-resolved to "Preseed plan notes.pdf"):
-
-```bash
-python3 ~/.claude/skills/shared-references/footnote_url_check.py \
-    --draft "$DRAFT" \
-    [--footnotes-header 'Footnotes for this Section'] \
-    [--self-page-ids <hex32>,<hex32>]
-```
-
-Exit 0 = no Notion URL mismatches detected. Drive URLs emit a
-"MANUALLY VERIFY" list with `(label, url)` pairs (script can't fetch
-Drive titles without OAuth — operator confirms by clicking each).
-Exit 1 = at least one Notion footnote's label and target page title
-share zero content tokens — almost certainly a wrong URL.
-
-Pass `--self-page-ids` for the same reason as A.1: self-references
-(footnote points at the artifact's own page anchor describing an
-in-page section) exempt the label/title overlap requirement.
+For drafts that emit clickable `^N [label](url)` footnotes pointing at Notion
+pages or Drive files, run the URL/title accuracy check to catch the "label says
+X, URL points at Y" failure mode. Full procedure (invocation, exit-code meaning,
+`--self-page-ids` exemption) in `references/step-a-source-bundle.md`; **read it
+now before proceeding.**
 
 ### A.3 — Round-terms freshness (finalize-diligence + update-priors)
 
-For artifacts that state the round headline in an Overview / opening
-paragraph (finalize-diligence Final Assessment, update-diligence-priors
-Update blocks), compare the draft's round figures against the Opp page's
-canonical `Round Details` property. Catches stale draft numbers
-(finalize-diligence 2026-05-23: draft said `$2.5M total` while the round
-closed at `$2.3M`; caught as a partial in the audit but should fire here
-earlier):
-
-```bash
-python3 ~/.claude/skills/shared-references/round_terms_freshness_check.py \
-    --draft "$DRAFT" \
-    --opp-page-id <Notion Opportunity page ID> \
-    [--draft-section Overview]
-```
-
-Exit 0 = all Opp round figures appear in the draft section (extra
-figures in draft like Inverted check size emit a soft warning but
-don't fail).
-Exit 1 = at least one Opp figure is missing from the draft — likely
-a stale draft.
-
-Skip this check for artifacts that don't reference round terms
-(pre-mortem, product-build-teardown).
+For artifacts that state the round headline in an Overview / opening paragraph,
+compare the draft's round figures against the Opp page's canonical `Round
+Details` property to catch stale draft numbers. Skip for artifacts that don't
+reference round terms (pre-mortem, product-build-teardown). Full procedure
+(invocation, exit-code meaning) in `references/step-a-source-bundle.md`; **read
+it now before proceeding.**
 
 ### A.4 — Claims-to-verify pre-extraction (MANDATORY — proactive phantom-claim prevention)
 
-Before invoking the runner, extract from `$DRAFT` every factual sentence that
-carries an inline citation (`[N]`, `[N,M]`, `^N`, or `(per calibration §N)`
-style cites) **verbatim** — character-for-character, no paraphrase, no merging
-or splitting — and append the list to the END of `$SOURCES` as its own section:
-
-```markdown
-==== CLAIMS TO VERIFY (VERBATIM FROM DRAFT) ====
-
-- <verbatim cited sentence 1>
-- <verbatim cited sentence 2>
-```
-
-The judge prompt binds on this section: it anchors `claim_text` extraction on
-these sentences, so the judge only adjudicates claims actually present in the
-draft instead of fabricating its own framings (the phantom-extraction failure
-mode — upskill 2026-05-19, 3/3 partials were phantom `claim_text` the draft
-never contained). The list is a floor and an anchor, not a ceiling — the judge
-may still extract additional uncited entity-anchored claims per its inclusion
-criteria.
-
-This is prevention. The Step C phantom-claim_text grep below stays in force as
-belt-and-suspenders detection — do NOT remove or skip it because A.4 ran.
+Before invoking the runner, extract from `$DRAFT` every inline-cited factual
+sentence **verbatim** and append it to the END of `$SOURCES` as a `==== CLAIMS
+TO VERIFY (VERBATIM FROM DRAFT) ====` section, so the judge anchors `claim_text`
+extraction on real draft sentences instead of fabricating its own framings (the
+phantom-extraction failure mode). This is prevention; the Step C
+phantom-claim_text grep stays in force as belt-and-suspenders detection — do NOT
+remove or skip it because A.4 ran. Full procedure (exact extraction rules,
+section format) in `references/step-a-source-bundle.md`; **read it now before
+proceeding.**
 
 ---
 
@@ -260,60 +213,12 @@ reported untraced > 0.
 
 ### B.1 — Invoke the runner
 
-```bash
-python3 "$AUDIT_RUNNER" \
-  --draft   "$DRAFT" \
-  --sources "$SOURCES" \
-  --output  "$AUDIT_JSON" \
-  $CHUNK_FLAG    # bound by the B.2.0 chunking decision gate (forces --chunk-size 0 under 350KB)
-```
-
-Default model is `claude-sonnet-4-6` (1M context). Typical latency: 3-12 minutes
-un-chunked; 1-3 minutes per chunk when chunked.
-
-**Source-bundle chunking — auto-chunks above 350KB.** The runner auto-chunks at
-section boundaries (`==== … ====`) when sources exceed `AUTO_CHUNK_THRESHOLD`
-(350KB as of 2026-05-22; was 80KB historically — bumped after Sonnet 4.6's 1M
-context window). Each chunk is judged independently against the full draft;
-results are merged with a claim marked `traced` if ANY chunk found a source for
-it (positive evidence trumps absence in any single chunk).
-
-**Prefer un-chunked when bundles fit.** Sonnet 4.6's 1M context comfortably
-handles 400-500KB bundles in a single pass. Un-chunked is meaningfully more
-accurate than chunked for two reasons:
-
-1. **No cross-chunk merge gap.** When the FA cites content from one section and
-   the draft is in another, chunk-isolated judges can't see both at once. The
-   claim_text exact-match merge across chunks silently misses near-matches —
-   producing spurious untraced verdicts (Factir 2026-05-23: chunked v3 reported
-   6 untraced; un-chunked v4 against the same bundle reported 0 untraced + 1
-   phantom partial).
-2. **No claim duplication.** Chunked judges extract claims independently per
-   chunk, sometimes double-counting cross-section claims. Un-chunked dedupes
-   naturally (Factir v3 chunked = 52 claims; v4 un-chunked = 22 unique claims).
-
-The auto-chunk threshold remains for safety on >350KB bundles, but for typical
-diligence runs (50-400KB) pass `--chunk-size 0` explicitly to force a single
-un-chunked pass. Memory `feedback_audit_script_chunk_merge_gap` documents the
-failure mode.
-
-**Draft batching — auto-batches claim-heavy drafts (independent of source size).**
-Source chunking splits the *input* sources, but every judge call still emits
-*all* of the draft's claims, so a claim-heavy draft overflows the judge's
-output-token ceiling no matter how small the sources are. This is the Fair
-2026-07-20 failure: a 127.6KB / 81-claim draft's single-pass audit report
-overran the 32K output cap, crashed `claude --print`, and the full-audit retries
-blew the 3h job-queue wall-clock cap. The runner now auto-splits the DRAFT at
-`## ` section boundaries when it exceeds `DRAFT_AUTO_BATCH_THRESHOLD` (110KB,
-target 80KB/batch ≈ 50 claims), auditing each batch against the sources and
-concatenating the disjoint claim sets. Judge output ceiling is also raised to
-64K tokens. Batching is orthogonal to `--chunk-size`; both can apply. Force with
-`--draft-batch-size` (`-1` auto, `0` single-pass, `>0` explicit chars). A batch
-that produces zero audits is a coverage gap — the runner records it in
-`_failed_draft_batches` and the B.2 gate blocks publish on it (see B.2.2).
-
-Snapshot the pre-audit draft to `<ITER_SNAPSHOT_PREFIX>0.md` before the first
-audit so the original is preserved.
+Run `$AUDIT_RUNNER` against `$DRAFT` / `$SOURCES`, passing `$CHUNK_FLAG` bound by
+the B.2.0 chunking gate, and snapshot the pre-audit draft to
+`<ITER_SNAPSHOT_PREFIX>0.md` before the first audit. Full procedure (exact
+invocation, source-bundle chunking behavior, prefer-un-chunked rationale, draft
+batching / `_failed_draft_batches` behavior) in
+`references/step-b-audit-iteration.md`; **read it now before proceeding.**
 
 ### B.2 — HARD EXIT GATE (check after every audit run, iter1 included)
 
@@ -374,59 +279,24 @@ this loop on partials' behalf.
 ### B.2.1 — Un-chunked re-verification (MANDATORY when chunked + untraced > 0)
 
 Before entering the iteration loop in B.3, if the audit was chunked AND
-`untraced > 0`, re-run the audit ONCE with `--chunk-size 0` (forces un-chunked
-single pass). The chunked verdict on cross-section claims is unreliable per the
-chunk-merge gap; un-chunked is ground truth.
-
-```bash
-if [ "$UNTRACED" -gt 0 ] && [ "$(wc -c < $SOURCES)" -gt 350000 ]; then
-  python3 "$AUDIT_RUNNER" \
-    --draft   "$DRAFT" \
-    --sources "$SOURCES" \
-    --output  "${AUDIT_JSON%.json}.unchunked.json" \
-    --chunk-size 0
-  # Use the un-chunked result as authoritative
-  AUDIT_JSON="${AUDIT_JSON%.json}.unchunked.json"
-  UNTRACED=$(python3 -c "import json; print(json.load(open('$AUDIT_JSON'))['summary']['untraced'])")
-fi
-```
-
-This consumes one extra audit run (~3-12 min) but eliminates the
-chunk-merge false-positive class entirely. Factir 2026-05-23 result:
-chunked v3 had 6 untraced; un-chunked v4 same bundle had 0 untraced.
-All 6 were cross-section traceability artifacts.
-
-If un-chunked STILL reports untraced > 0, those are real findings —
-proceed to B.3 iteration loop.
+`untraced > 0` (bundle > 350KB), re-run the audit ONCE with `--chunk-size 0`
+(forces un-chunked single pass) and treat that as authoritative — the chunked
+verdict on cross-section claims is unreliable per the chunk-merge gap. If
+un-chunked STILL reports untraced > 0, those are real findings — proceed to B.3.
+Full procedure (exact re-run + `$AUDIT_JSON` reassignment) in
+`references/step-b-audit-iteration.md`; **read it now before proceeding.**
 
 ### B.2.2 — Failed-batch re-run (MANDATORY when `_failed_draft_batches` is non-empty)
 
-A non-empty `_failed_draft_batches` means one or more draft batches produced
-zero parseable audits — usually because a single `## ` section was still large
-enough to overflow the judge's output ceiling. Those claims are UNAUDITED, so
-the gate blocks publish regardless of `untraced`. Re-run ONCE with a halved
-`--draft-batch-size` to force the offending section into smaller batches:
-
-```bash
-if [ "$FAILED_BATCHES" != "0" ]; then
-  # Halve the per-batch target (default 80KB -> 40KB) to break the oversized
-  # section apart. This is orthogonal to $CHUNK_FLAG — keep passing that too.
-  python3 "$AUDIT_RUNNER" \
-    --draft   "$DRAFT" \
-    --sources "$SOURCES" \
-    --output  "$AUDIT_JSON" \
-    --draft-batch-size 40000 \
-    $CHUNK_FLAG
-  FAILED_BATCHES=$(python3 -c "import json; print(len(json.load(open('$AUDIT_JSON')).get('_failed_draft_batches', [])))")
-  UNTRACED=$(python3 -c "import json; print(json.load(open('$AUDIT_JSON'))['summary']['untraced'])")
-fi
-```
-
-If it STILL reports `_failed_draft_batches` after the halved re-run, a single
-section's claims genuinely can't fit one judge pass — do NOT publish clean.
-Surface it in the Slack publish-summary (append `⚠️ Audit incomplete: batches
-<list> unaudited — judge output overflow`) and stop; treat like residual
-untraced findings after the iteration cap (Step B.4 partial-publish discipline).
+A non-empty `_failed_draft_batches` means one or more draft batches produced zero
+parseable audits, so their claims are UNAUDITED and the gate blocks publish
+regardless of `untraced`. Re-run ONCE with a halved `--draft-batch-size` to break
+the offending section into smaller batches. If it STILL reports
+`_failed_draft_batches`, do NOT publish clean — surface `⚠️ Audit incomplete:
+batches <list> unaudited — judge output overflow` in the Slack publish-summary
+and stop (treat like residual untraced after the iteration cap). Full procedure
+(exact re-run) in `references/step-b-audit-iteration.md`; **read it now before
+proceeding.**
 
 ### B.3 — Iteration loop (only when the gate says "continue")
 
@@ -492,98 +362,17 @@ After resolving:
 
 ## Step C — Step 3.5 Partial-Claim Normalization (single-shot, source-grounded)
 
-### When this runs
-
-After the HARD EXIT GATE in Step B.2 resolves to "publish" (`untraced==0` OR
-`iter_count>=MAX_ITER`), but BEFORE the caller's publish step, check:
-
-```bash
-PARTIAL=$(python3 -c "import json; print(json.load(open('$AUDIT_JSON'))['summary']['partial'])")
-if [ "$PARTIAL" -gt 0 ]; then
-  # Run the normalization pass below, publish from $NORMALIZED_DRAFT
-  echo "normalization: $PARTIAL partial(s) to fix"
-else
-  # No partials — publish directly from $DRAFT
-  echo "normalization: skip (0 partial)"
-fi
-```
-
-### What it does
-
-Rewrites each partial claim to match the language of its own cited source.
-The audit JSON already contains `source_quote` (what the source says) and
-`notes` (the exact gap between draft and source) for every partial — no search
-needed, diagnosis is on disk.
-
-### What it does NOT do
-
-- No new web searches.
-- No new source bundle additions.
-- No re-audit afterwards.
-- No iteration.
-- No strengthening of the claim beyond what the cited source supports.
-
-### Procedure — ONE pass over all partials, not per-claim
-
-1. Load every partial record from `$AUDIT_JSON`:
-   ```bash
-   python3 -c "import json; print(json.dumps([c for c in json.load(open('$AUDIT_JSON'))['claims'] if c['verdict']=='partial'], indent=2))"
-   ```
-   Each record has `claim_text`, `source_quote`, `source_document`, `notes`.
-
-2. **Phantom-claim_text check (MANDATORY before any rewrite).** For each
-   partial, grep `$DRAFT` for the literal `claim_text`. If it's absent, the
-   judge fabricated the framing — log "judge fabricated claim_text — no
-   rewrite needed" and skip that claim. Do NOT trust audit JSON's claim_text
-   as ground truth about what the draft actually says. (Observed 2026-05-19
-   on upskill first-pass: 3/3 partials were phantom extractions; the draft
-   already matched source quotes verbatim.)
-
-3. Read `$DRAFT` once.
-
-4. For each surviving partial, locate the matching prose (literal grep) and
-   rewrite per the rule below.
-
-5. Apply all rewrites in a single edit. Save to `$NORMALIZED_DRAFT`.
-
-6. **Do NOT re-run the audit.** The final published draft is
-   `$NORMALIZED_DRAFT` when this step ran; otherwise `$DRAFT`. The caller's
-   publish step loads its content from the appropriate path — make this
-   selection explicit before the publish call.
-
-### The rewrite rule
-
-- **Wrong label, right number** → fix the label, keep the number. E.g., draft
-  says "$620B combined market"; source says "$620B recruiting, $637B
-  combined." Fix to "$620B recruiting market" (use the source's framing).
-- **Wrong stage/series, right round** → fix the stage. E.g., draft says
-  "Mercor Series A $100M at $2B"; source says "Series B." Fix to "Series B".
-- **Range overstates the data** → narrow to what the source supports. E.g.,
-  draft says "$11B–$16B per adjacent vertical (sales, deal orig, expert
-  networks, consumer)"; source says Sales=$11B, Deal Orig=$1.5B, Experts=$2.5B,
-  Consumer=$16B. Call out the two large verticals by name and drop the bogus
-  range, or drop the figure and name the verticals only.
-- **No salvageable rewrite** → drop the specific number, keep the directional
-  claim with the source citation ("sizable adjacent vertical market" + cite).
-  Never invent a substitute number.
-
-### Hard prohibitions in this step
-
-- Do not strengthen any claim beyond `source_quote`. If the source says
-  "~$600B," the draft must not say "$620B" — even if a different source you
-  remember says $620B. You are bound to what the audit attested to.
-- Do not add new citations. The bundle is closed.
-- Do not introduce hedge language ("approximately," "roughly") if the source
-  states the number flat. Match the source's register.
-- Do not delete more than the claim itself. Keep surrounding prose intact.
-
-### Why no re-audit
-
-Re-auditing reopens the loop the HARD EXIT GATE exists to prevent. The
-rewrite is source-quote-grounded — verifiable by
-`grep "<rewritten claim>" $NORMALIZED_DRAFT` followed by a literal compare
-against `source_quote`. That is the verification; a second LLM-judge pass adds
-latency without rigor.
+Runs after the HARD EXIT GATE in Step B.2 resolves to "publish" (`untraced==0`
+OR `iter_count>=MAX_ITER`), but BEFORE the caller's publish step, and ONLY when
+`audit.summary.partial > 0`: in a single source-grounded pass, rewrite each
+partial claim to match the language of its own cited source (`source_quote`
+already on disk in `$AUDIT_JSON`) and save to `$NORMALIZED_DRAFT` — no new web
+searches, no bundle additions, no re-audit, no iteration, no strengthening
+beyond what the source supports. The published draft is `$NORMALIZED_DRAFT` when
+this step ran, otherwise `$DRAFT`. Full procedure — the trigger check, the
+MANDATORY phantom-claim_text grep, the one-pass procedure, the rewrite rule, and
+this step's hard prohibitions — in
+`references/step-c-partial-normalization.md`; **read it now before proceeding.**
 
 ---
 

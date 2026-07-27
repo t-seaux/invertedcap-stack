@@ -94,47 +94,7 @@ Carry forward: `note_page_id`, `note_body`, `note_title`, `note_url`, `opp_page_
 
 ### Step 2: Identify intro candidates from the note
 
-Two parallel passes over `note_body`:
-
-**Pass 2a — Explicit mentions.** Regex/string-scan for phrases like:
-- `intro <Name>`, `introduce <Name>`, `connect you with <Name>`, `connect <Name>`
-- `bring in <Name>`, `loop in <Name>`
-- `I can put you in touch with <Name>`, `I'll reach out to <Name>`
-- LinkedIn URLs adjacent to a name
-- Bulleted/numbered lists of names following an "intros:" / "people to connect with:" header
-
-For each, capture `(name, surrounding context sentence, optional company/role hints from adjacent text)`.
-
-**Pass 2b — Implicit signals (LLM classification).** Pass the full `note_body` to a Sonnet call with this prompt:
-
-```
-Read this call note. Identify any intro commitments Tom made — places where Tom
-said he would connect the founder to a specific person, or where the conversation
-implies Tom would help bring in a coinvestor, customer, partner, downstream
-investor, or advisor as a follow-up.
-
-For each intro commitment, return JSON with:
-- name: the person Tom said he'd intro (or the descriptor if no name was given,
-  e.g. "head of growth at Stripe" — flag these as "unnamed")
-- type: one of "coinvestor", "customer", "partner", "downstream_investor",
-  "advisor", "other"
-- context: the verbatim sentence(s) from the note grounding this intro
-- explicit: true if a specific name was named, false if generic ("someone who
-  knows the SMB GTM playbook")
-
-Boundary examples:
-- "someone with growth marketing chops would be valuable" → SKIP (generic role,
-  no named person)
-- "I'll intro you to Sarah — she scaled growth at Stripe" → CAPTURE (named
-  person + commitment)
-
-Skip generic statements like "happy to help with intros down the road" with no
-specific person or type. Return empty array if no commitments found.
-```
-
-Merge 2a and 2b: for any name that appears in BOTH, prefer the LLM-typed entry (it has the type tag). Drop unnamed/generic entries — we can't act on "head of growth at Stripe" without a specific person.
-
-If the merged list is empty → log `no-intro-candidates` and exit 0 (silent, no Slack alert).
+Intent: run two parallel passes over `note_body` — explicit string-scan (2a) + implicit LLM classification (2b) — merge them, drop unnamed/generic entries, and exit silently if none remain. Full procedure in `references/step-2-candidate-identification.md` — read it now before proceeding.
 
 ### Step 3: Pull historical context for the Opportunity
 
@@ -220,67 +180,7 @@ The relation field expects a JSON array string (e.g. `"[\"https://www.notion.so/
 
 ### Step 7: Draft an outreach email per new Qualified person
 
-For each newly-Qualified person, save ONE Gmail draft. The draft is to the target person ONLY (not the founder — that's the double-opt-in stage handled later by `intro-draft-agent`). This is Tom asking the target if they're up for chatting with the company.
-
-**7a. Recipient resolution.** Use the person's `Email` from the People DB. If empty → skip the draft for this person, log `no-target-email`, surface in Slack alert.
-
-**7b. Subject line.** Universal format:
-```
-<opp_name> — would love to intro
-```
-The em-dash is actually an en-dash (`–`) per pinned `feedback_use_en_dash.md` — the file source uses `–`. Render as: `Inlets – would love to intro`.
-
-This phrasing is intentional: `would love to intro` is one of the canonical `OUTREACH_SUBJECT_PHRASES` recognized by `intro-outreach-agent`'s Gmail scanner (`intro-outreach-agent/SKILL.md`). When Tom sends this draft, the outreach scanner will detect it and flip the person from Qualified → Outreach automatically. **Do not customize the subject** — the universal phrasing is what makes the downstream automation work.
-
-**7c. Voice + structure templates.** Pull 3–5 of Tom's actual past outreach emails matching this candidate's `type`:
-
-```
-in:sent subject:"would love to intro" newer_than:180d
-```
-
-Filter the results by inferred type — for `coinvestor`, look for VC firm names in the recipient domain; for `customer`/`partner`, look for operator-style domains; for `downstream_investor`, similar to coinvestor but later-stage signals; for `advisor`, look for emails to senior individual contacts. Read the body of each match. Use them collectively as voice reference — not as a literal template, since Tom's emails vary.
-
-If fewer than 3 matches exist for the type, fall back to the broader `would love to intro` corpus as the voice reference.
-
-**7d. Body composition.** Write the body as a single short message — typically 3–5 sentences — that:
-1. Greets the target by first name (`Hi <First>,` — no comma vs. dash conventions; use a comma).
-2. Names the company and gives a one-sentence description sourced from the note + Opp context (the company's product/positioning, not a sales pitch).
-3. Names the connection between the company and the target — WHY this intro is interesting for the target specifically (the bucket-specific framing — see 7e).
-4. Asks if they're open to a quick chat with the founder(s), light-touch (`If you're open to it, happy to make the intro` / `lmk and I'll connect you both`).
-5. Signs `Tom`. No signature block (Gmail appends).
-
-Use en dashes (`–`), never em dashes (`—`). Don't use the "Sent from my iPhone" phrasing. Match Tom's casual lowercase-feel from the historical examples — not formal VC firm speak.
-
-**7e. Bucket-specific framing.** Type-conditional micro-template for sentence 3 of the body:
-
-- `coinvestor` — "We're [raising / closing] a [round size] [stage], [lead status], and I thought of you given [your focus on X / your check at Y / your portfolio overlap with Z]."
-- `customer` — "I think [Company] could be a fit for [target's company]'s [problem / workflow], and the founder [name] is sharp."
-- `partner` — "There's a clean integration / distribution angle with [target's company] that I think the founder would value getting your read on."
-- `downstream_investor` — "They're tracking towards a [Series A / B] in [rough timeline] and I'd love to put you on their radar early."
-- `advisor` — "Would love to get your read on [the specific area where target has expertise], and I think the founder would benefit from your perspective."
-- `other` — generic, lean on the note context.
-
-The framing should be GROUNDED in specific note content — don't invent product details. If the note doesn't contain enough material to write a confident sentence 3, leave the framing soft (`thought you two should know each other`) and surface in the Slack alert as `thin-context-draft` so Tom knows to thicken before sending.
-
-**7f. Save the draft.**
-```
-Tool: gmail_create_draft
-to: <target_email>
-subject: "<opp_name> – would love to intro"
-body: <composed body>
-```
-
-**7g. Idempotency check.** Before creating the draft, check Gmail drafts:
-```
-Tool: gmail_list_drafts
-```
-Scan subjects for an exact match on `<opp_name> – would love to intro` to `<target_email>`. If a draft already exists, skip — log `draft-already-exists`.
-
-Also check sent mail (caught in Step 4's Query B already, but a second cheap check):
-```
-in:sent subject:"<opp_name> – would love to intro" to:<target_email>
-```
-If a sent email exists, skip the draft AND skip adding to Qualified (the person is effectively at Outreach already; intro-outreach-agent's sweep handles it).
+Intent: for each newly-Qualified person, save ONE Gmail draft to the target only (recipient resolution 7a, universal `<opp_name> – would love to intro` subject 7b, voice templates 7c, body composition 7d, bucket-specific framing 7e, save 7f, and the 7g draft/sent idempotency check that skips duplicates). Full procedure in `references/step-7-outreach-draft.md` — read it now before proceeding.
 
 ### Step 8: Slack alert
 
@@ -337,29 +237,7 @@ So re-running this skill against the same note (e.g. meeting-note-processor's re
 
 ## Edge cases
 
-- **Note tagged to a portfolio Opportunity (post-investment) — process anyway.** Portfolio companies still get intros (customers, advisors, downstream investors). Active Portfolio / Committed / Connected / Scheduled / Track / Qualified / Outreach are all valid — process candidates normally. Only terminal statuses (Pass DNM / Pass Met / Pass Note Pending / Lost / NR / Missed / Exited) gate writes per Step 5.5 Gate 2.
-
-- **Multiple intros to the same person across different notes for the same Opp.** Idempotency in Step 6 handles this — second mention is a no-op since the person is already in Qualified.
-
-- **Tom committed to an intro but the target was named without a company in the note.** If People DB has a unique match by name → resolve and use. If multiple → mark ambiguous and surface in the alert.
-
-- **The same person across different Opportunities.** Each Opportunity gets its own evaluation — the same person can legitimately be Qualified for two Opps simultaneously. No cross-Opp dedup.
-
-- **Founder of the Opportunity itself shows up in the candidate list.** Skip — the founder is already on the Opp's `🏁 Founder(s)` relation, they shouldn't be a Qualified intro for their own company. Filter out anyone already in `🏁 Founder(s)` before Step 5.
-
-- **Mode B caller passes empty `opp_page_id`.** Skip silently per the skip condition above. The note's intros are unanchored without an Opp link — Tom can re-run Mode C manually once the Opp link is set.
-
----
-
-## Why universal subject line
-
-The subject `<Company> – would love to intro` is universal across all four intro types because:
-
-1. `intro-outreach-agent` scans Gmail sent mail for `OUTREACH_SUBJECT_PHRASES` (`would love to intro` is one). When Tom sends the draft, that scanner detects it and moves the person Qualified → Outreach automatically — no manual flip needed.
-2. Tom doesn't want to think about subject phrasing per-intro. The body carries the per-intro context.
-3. The downstream `intro-draft-agent` (double-opt-in step) uses a different subject format (`<Founder> (Company) / <Target> (Target Co)`) — there's no collision.
-
-Don't customize the subject. The voice variation lives in the body.
+Intent: per-branch handling for portfolio Opps, repeat mentions, company-less targets, same-person-across-Opps, the founder-of-the-Opp filter, and empty `opp_page_id`. Plus the rationale for the universal `– would love to intro` subject line. Full detail in `references/edge-cases-and-rationale.md` — read it now before proceeding when any of these branches applies.
 
 ---
 
