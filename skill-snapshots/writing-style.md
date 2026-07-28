@@ -22,7 +22,7 @@ A thin router. The real voice rules live in three sub-stylebooks:
 writing-style/
   pass-note/
     STYLE.md            ← canonical voice + scaffold + anti-patterns
-    EDIT_PATTERNS.md    ← Canonical Principles + Recent Edits (auto-fed by draft-feedback)
+    EDIT_PATTERNS.md    ← Style Canon + Recent Edits (auto-fed by draft-feedback)
     VOICE_EXAMPLES.md   ← from-scratch sends + voice analyses (auto-fed)
   outreach/
     STYLE.md
@@ -70,6 +70,6 @@ All three stylebooks share a few principles worth naming once:
 
 ## What NOT to do
 
-- Don't hand-edit `EDIT_PATTERNS.md` Recent Edits section — that's auto-fed by the `draft-feedback` processor. The Canonical Principles section above the divider IS hand-curated; promote patterns up from Recent Edits when they're durable.
+- Don't hand-edit `EDIT_PATTERNS.md` Recent Edits section — that's auto-fed by the `draft-feedback` processor. The Style Canon section above the divider IS hand-curated; promote patterns up from Recent Edits when they're durable.
 - Don't write `VOICE_EXAMPLES.md` entries by hand for pass-note or outreach — those are auto-fed by the draft-feedback pipeline. For letters-and-memos, manual logging is the only path.
 - Don't merge stylebooks. Each writing type's voice is calibrated to its register and audience. The three are deliberately separate.

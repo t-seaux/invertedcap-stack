@@ -31,6 +31,18 @@ Every scheduled agent or skill that needs to notify Tom MUST follow this file ra
 
 Why a webhook instead of the Slack MCP: posts show up as the `claude` bot, visually distinguishing Claude's scheduled alerts from both Apps Script automation (`google`) and Claude's interactive MCP messages (`tom`). Also removes the MCP-discovery flakiness that required a subprocess fallback.
 
+### Named channels (`--channel <name>`)
+
+`send.sh --channel <name>` resolves in order:
+
+1. **Webhook file** `.webhook_url_<name>` (same directory, mode 600) — a per-channel incoming webhook, if one was created in the `claude` app.
+2. **Token route** — `channels.conf` (`name=CHANNELID` lines, same directory) + the SOPS-encrypted bot token at `~/.claude/.slack-bot-token.enc`; posts via `chat.postMessage` as the same `claude` bot. **This is the default path for new channels** — no webhook creation needed, just add a `name=CHANNELID` line and make sure the bot is a member of the channel (it can create/join channels itself: `channels:manage`, `channels:join`, `groups:write` scopes, added 2026-07-27). Works for private channels.
+3. Neither resolves → warn on stderr and fall back to the default `#claude-alerts` webhook — an alert is never dropped on a missing route.
+
+Current named channels:
+
+- `personal-alerts` → `#personal-alerts` (private, `C0BKZ2L0BDK`) — personal-life alerts: word-bank weekly refresher, coop-finances monthly prompt + summaries, mademeals order alerts.
+
 ---
 
 ## How to send
@@ -159,7 +171,7 @@ Some alerts are pure summaries with no per-entity headers — just a title line 
 
 ## Guardrails
 
-1. **`#claude-alerts` ONLY.** The webhook is scoped to that channel — do not attempt to redirect. Do not try the Slack MCP as a fallback (it posts as `tom`, which defeats the bot-identity split).
+1. **Webhook channels ONLY.** Default is `#claude-alerts`; a skill may route to a named channel ONLY via `--channel <name>` with a webhook file that exists (see "Named channel webhooks"). Never attempt any other redirect, and do not try the Slack MCP as a fallback (it posts as `tom`, which defeats the bot-identity split).
 2. **Do NOT use iMessage, Beeper, Signal, or any other notification channel.**
 3. **One message per skill invocation.** Each calling skill produces at most one alert.
 4. **Failure handling:** if `send.sh` returns non-zero, append a one-line failure note to the calling skill's `audit-log/` directory (`[<ISO timestamp>] ERROR: send-alert failed — <stderr>`). Do NOT retry the POST, and do NOT fall back to another channel.

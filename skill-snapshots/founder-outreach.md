@@ -95,7 +95,7 @@ See memories `feedback_workshop_iteration_not_pass.md` and `feedback_gmail_draft
 
 **4. Read the outreach stylebook.**
 - `~/.claude/skills/writing-style/outreach/STYLE.md` — canonical scaffold + hyperlinks + formatting rules + personalization principle + anti-patterns. Read in full.
-- `~/.claude/skills/writing-style/outreach/EDIT_PATTERNS.md` — two sections: **Canonical Principles** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted outreach — apply as priors, then check the final draft against them). Read both sections in full.
+- `~/.claude/skills/writing-style/outreach/EDIT_PATTERNS.md` — two sections: **Style Canon** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted outreach — apply as priors, then check the final draft against them). Read both sections in full.
 - `~/.claude/skills/writing-style/outreach/VOICE_EXAMPLES.md` — full sent emails Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice. Use as ground truth — if your draft sounds nothing like these, recalibrate.
 
 Both files are auto-maintained by the `draft-feedback` pipeline (founder-taste/SYSTEM.md §15). Patterns are observations, not commands.

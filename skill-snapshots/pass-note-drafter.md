@@ -224,10 +224,35 @@ Before drafting, read the pass-note stylebook:
 
 - `~/.claude/skills/writing-style/pass-note/ANCHOR_EXAMPLES.md` — **read this FIRST and IN FULL, every run.** A small, curated set of Tom's gold-standard pass notes, each annotated with the specific dimensions to emulate (concision, clarity, the concern-with-an-off-ramp tonal move). When calibrating voice, structure, and tone, these anchors **outrank** the rolling `VOICE_EXAMPLES.md` and license compression of the canonical scaffold (e.g., a tighter feedback-framing line). Concision is a feature — emulate the *move*, then execute it fresh for the company at hand.
 - `~/.claude/skills/writing-style/pass-note/STYLE.md` — canonical voice + scaffold + anti-patterns. Read in full.
-- `~/.claude/skills/writing-style/pass-note/EDIT_PATTERNS.md` — two sections: **Canonical Principles** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted pass notes — apply as priors). Read both sections in full. (Re-introduce a recency/frequency cap on Recent Edits if the file ever grows large enough that drafts start coming out derivative or over-fit.)
+- `~/.claude/skills/writing-style/pass-note/EDIT_PATTERNS.md` — two sections: **Style Canon** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted pass notes — apply as priors). Read both sections in full. (Re-introduce a recency/frequency cap on Recent Edits if the file ever grows large enough that drafts start coming out derivative or over-fit.)
 - `~/.claude/skills/writing-style/pass-note/VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth, but the curated `ANCHOR_EXAMPLES.md` above takes precedence when they disagree.
+- `~/.claude/skills/founder-taste/PILLARS.md` — the recurring **substantive arguments** Tom reuses when passing (as distinct from the voice patterns above). Read in full, then see the selection rule below.
 
-Both files are auto-maintained by the `draft-feedback` pipeline (FRAMEWORK_PRD.md §13). Patterns are observations, not commands.
+**Selecting Argument Pillars — this governs the substance of the bullets.**
+The files above tell you how Tom *writes*; `PILLARS.md` tells you what he
+actually *argues*. Work it as a matching problem, not a checklist:
+
+1. Read each active Pillar's **Applies when** against the specific opportunity
+   and its diligence context. Deploy only genuine matches — typically **one to
+   three** across the whole note. Zero is a valid answer when nothing fits.
+2. Honor each Pillar's **Don't use when**. `P1 (Obvious category, capital is the
+   moat)` is the most over-represented in the corpus and the easiest to reach
+   for reflexively — it needs *named* well-funded entrants and real
+   capital-velocity dynamics, not a general sense that a market is competitive.
+3. Respect the family split, which is Style Canon rule 3 in operational form:
+   `market-pov` Pillars carry a real read on the company or market; `fit-pass`
+   Pillars own the constraint as Tom's own. Never manufacture one to dress up
+   the other. `endorsement` Pillars belong in the praise bullets.
+4. Pillars marked **Candidate** are single-sighting priors — weak evidence.
+   Use only on an unusually clean match.
+5. Use the framings as evidence of *how* Tom argues a Pillar, then make the
+   argument fresh for this company. **Never paste a quoted framing into a
+   draft** — a recycled sentence is the failure mode this file exists to avoid.
+6. When a Pillar supports it, prefer the off-ramp construction (`P4` is the
+   canonical example): name the concern, name the exact proof point that would
+   moot it, and name what clearing that bar would demonstrate.
+
+These files are auto-maintained by the `draft-feedback` pipeline (FRAMEWORK_PRD.md §13). Patterns are observations, not commands.
 
 **Priority order when sources disagree:** Tom's Pass Note Guidance (Step 3f) > call notes / transcripts > first-pass diligence doc > materials > Opportunity body description. Style Guide always governs voice; the priority order governs *substance* (which pass reason, which strengths to highlight, which tone to strike).
 

@@ -146,7 +146,7 @@ Triggered by `gmail-webhook` (`investor-update.js`) on inbound mail that passes 
 - Run the same artifact-level idempotency check (Step 4 — has this message already been incorporated into its period row?). If yes, log and exit without re-uploading the PDF.
 - Skip Step 1's portfolio-list query and per-company searches entirely — those exist for the scheduled mode.
 - Otherwise proceed through Steps 2–5 unchanged. The Slack alert in Step 5 is the single notification for this update — the webhook does not post its own alert in this path.
-- Single-message alert format (override Step 5's batch format): one line, same shape as a row in the batch — `📬 **<Company>** — "<subject or period>" — <PDF source>. <Notion page link>`. Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
+- Single-message alert format (override Step 5's batch format): one line, same shape as a row in the batch — `📬 **<Company>** — "<subject or period>" — <PDF source>. [<Company> update](https://www.notion.so/{page_id_no_dashes})`. The Notion link MUST be a GFM markdown link `[label](url)` — never a bare URL (a bare URL ships as plain, un-tappable text through the Block Kit converter). Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
 
 ### Mode C: Manual / Forwarded Email
 
@@ -663,7 +663,7 @@ If the original source was a Google Doc / Sheet (Case B in Step 3) AND a PDF was
 📬 PORTFOLIO UPDATES — YYYY-MM-DD
 
 **Portfolio**
-• **<Company>** — "<subject or period>" — <PDF source: original/email-converted>. <Notion page link>
+• **<Company>** — "<subject or period>" — <PDF source: original/email-converted>. [<Company> update](https://www.notion.so/{page_id_no_dashes})
 • _none this run_ (if empty)
 
 **Non-Portfolio (filtered)**
@@ -677,6 +677,7 @@ If the original source was a Google Doc / Sheet (Case B in Step 3) AND a PDF was
 
 Rules:
 - **Bold the company name** with double asterisks (GFM). The `send.sh` converter handles this correctly.
+- **The Notion page link MUST be a GFM markdown link** `[label](url)` (e.g., `[Quiet AI update](https://www.notion.so/3ab00beff4aa81cf857bd7b2a69e82d1)`) — never a bare URL. `send.sh`/`md_to_blocks.py` only linkifies `[text](url)`; a pasted bare URL ships as plain, un-tappable text in the Block Kit rich_text output. Use the canonical host `https://www.notion.so/{page_id_no_dashes}` — **never `app.notion.com/p/{id}`** (that form is not a resolvable page URL). Same page-id you write to the `Company`/created-page URL in Step 4.
 - Portfolio section = companies with Status in the Active Portfolio set (per the skill's Step 3 eligibility rule). Everything else goes under Non-Portfolio.
 - For each Non-Portfolio entry, include a one-line reason so Tom can see why it didn't land in Notion as a portfolio update (e.g., "Status: Scheduled — saved as Diligence Material instead", "Not in Opportunities DB").
 - The header uses the 📬 emoji, an em dash (—), and ISO date format. Example: `📬 PORTFOLIO UPDATES — 2026-03-06`.

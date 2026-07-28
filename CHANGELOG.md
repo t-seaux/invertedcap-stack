@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-07-28] (Week of 2026-07-28)
+
+**Added:** None (investing-style, safe-drafter pending categorization)
+**Removed:** None
+**Modified:**
+- pipeline-agent -- verdict indicator changed to colored-circle emoji (🟢/🟡/🔴); warm/cold classification now strictly by network-cache membership; send-detection v2 promotes existing Opp to Outreach at send time rather than creating a duplicate entry; Opp title format updated (parens around linked name)
+- founder-taste -- added Query Mode for direct answers to investing-style questions; Argument Pillars file (PILLARS.md) added to corpus
+- investor-update -- Notion page link in alerts now formatted as GFM markdown link for tap-to-open
+- neg1-enricher -- all Slack messages now route to #neg1-sourcing; eval note updated to v3 template; existing-Opp notice routing corrected
+- neg1-sourcing -- added wildcard extreme-signal pass to surfacing recipes; warm/cold now determined strictly by network-cache membership; recipe and wildcard fields added to candidate store
+- neg1-sourcing-listener -- Opp Status at draft time changed to Qualified (Outreach assigned at send); Opp title format updated (parens); eval note v3; close-loop reply format standardized; ledger append for pass verdicts corrected
+- pass-note-drafter -- added Argument Pillars selection step to match substantive arguments to each opportunity
+- soi-portfolio-event -- added SAFE document verification step before drafting; flags amount/cap mismatches between executed SAFE and Round Details; draft subject format updated
+**Total skills:** 41
+**Functions:** No changes
+
+---
+
 ## [2026-07-27] (Week of 2026-07-21)
 
 **Added:** None (word-bank pending categorization)

@@ -31,7 +31,7 @@ iCloud xlsx is the source of truth. Edit in place — no upload step needed. Dri
 
 Wired via `~/Library/LaunchAgents/com.tomseo.scheduled.coop-finances-prompt.plist` (to be created).
 
-Posts to `#claude-alerts` via `send-alert`:
+Posts to `#personal-alerts` via `send-alert` (`send.sh --channel personal-alerts`, since 2026-07-27):
 
 > 📒 **Coop finances — monthly drop**
 >
@@ -45,7 +45,7 @@ No processing happens here — just the prompt.
 
 ### Mode B — Webhook (Tom replies in thread with attachment)
 
-Routed through the existing `claude-alerts-listener` infrastructure (slack-retro-webhook → claude-job-queue → processor.py). The listener detects parent-message origin (this skill's monthly prompt) and dispatches to `coop-finances` with the attachment path.
+Routed through the existing `claude-alerts-listener` infrastructure (slack-retro-webhook → claude-job-queue → processor.py). Since 2026-07-27 the prompt thread lives in `#personal-alerts` (`C0BKZ2L0BDK`), which slack-retro-webhook routes to the same listener. The listener detects parent-message origin (this skill's monthly prompt) and dispatches to `coop-finances` with the attachment path.
 
 Required listener patch (one-time): pass attachment file IDs through to the job payload. Currently `claude-alerts-listener` reads reply text only.
 

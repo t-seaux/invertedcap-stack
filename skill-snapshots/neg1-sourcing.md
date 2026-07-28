@@ -23,7 +23,7 @@ Runs every Monday at 08:00 ET. Produces 2 reconnect + 8 cold outreach candidates
 
 Candidates no longer land in the -1 Scanner. Steps 2-3 (Notion row writes) are replaced by store upserts — for each verified candidate:
 ```bash
-python3 ~/.claude/scripts/decision-ledger/candidates.py upsert --json '{"li_url": "...", "name": "...", "city": "...", "current_role": "...", "current_company": "...", "type": "Warm ☀️|Cold 🧊", "source": "monday-sweep", "state": "pending"}'
+python3 ~/.claude/scripts/decision-ledger/candidates.py upsert --json '{"li_url": "...", "name": "...", "city": "...", "current_role": "...", "current_company": "...", "type": "Warm ☀️|Cold 🧊", "source": "monday-sweep", "recipe": "{candidate recipe field: A-F, or the wildcard_signal for wildcard rows; omit for warm/backfill rows}", "state": "pending"}'
 ```
 then IMMEDIATELY enqueue a per-candidate enrichment job — enrichment happens as names surface, never on a batch delay (Tom, 2026-07-16: "there shouldn't be a delay"):
 ```bash
@@ -39,8 +39,10 @@ The `Type` select in -1 Scanner uses these existing options (do not rename or ad
 
 | Option | Color | Meaning |
 |---|---|---|
-| **Warm ☀️** | orange | In-network reconnect — Tom has worked with or knows this person |
-| **Cold 🧊** | blue | Cold outreach — no prior relationship |
+| **Warm ☀️** | orange | The person EXISTS in the network cache (`~/.claude/scripts/network_cache.db`, `profiles.linkedin_url`) |
+| **Cold 🧊** | blue | Not in the network cache |
+
+**The warm/cold call is purely mechanical — network-cache membership, nothing else** (Tom, 2026-07-27: "warm is when someone exists in the network cache, cold is if not"). Check the cache by slug for EVERY candidate before upserting, whichever pass surfaced them — a cold-recipe search can surface someone who happens to be a connection (→ Warm ☀️), and downstream (enricher cards, digest sections) trusts the store `type` without re-deriving. Always write the exact strings `Warm ☀️` / `Cold 🧊` (never bare "Cold" — two 07-27 rows landed unstyled and broke string matching).
 
 Growth Tier and Timing Signal are intentionally NOT separate fields — that context is folded into the Eval Summary prose by neg1-enricher via CC Momentum + tenure overlap.
 
@@ -68,9 +70,13 @@ Each candidate object:
   "growth_tier":        "Scaled",           // Scaled | Emerging | Promising
   "timing_signal":      "Early",            // Early | Rising | Late | Unknown
   "arr_m":              300.0,              // null if unknown
-  "type":               "Warm ☀️"           // Warm ☀️ | Cold 🧊
+  "type":               "Warm ☀️",          // Warm ☀️ | Cold 🧊
+  "wildcard":           true,               // wildcard rows only (2 of the 8 cold — script _wildcard_pass)
+  "wildcard_signal":    "reps-employee-one" // which extreme-signal template surfaced them
 }
 ```
+
+Wildcard rows (implemented in the script since 2026-07-27, `_wildcard_pass` + `WILDCARD_QUERIES`) arrive with empty `role`/`company`/`function` — there is no target company; the Step 1.5 probe fills them. Upsert wildcard rows with `"source": "wildcard"` (NOT monday-sweep) and pass `"wildcard"` as the source arg to `enqueue-neg1-enrich.sh` — the ledger's quarterly wildcard-conversion review keys on that source value.
 
 If the script exits non-zero or returns 0 candidates total, skip to Step 4 (Slack alert) and report the failure.
 
@@ -85,6 +91,10 @@ For each **cold candidate**, call `contactout_enrich_linkedin_profile` with `pro
 **Verification criteria — both must pass:**
 1. **Profile exists**: the response returns a non-empty `full_name`. An empty/null name or an API error means the slug is a ghost → discard.
 2. **Company match**: the person's current employer (first `experience` entry with `is_current: true`, or the most recent entry) fuzzy-matches the candidate's `company` field. Use case-insensitive substring match — `"Morgan Stanley"` should not match `"Replit"`. If no current employer is present in the response, treat as mismatch → discard.
+
+**Capture from the probe (survivors):** set the candidate's `name` to the probe's `full_name`, and overwrite `role`/`company` with the probe's current title + employer — the probe data is live and properly cased, the search-derived values are often stale lowercase keywords. These captured values flow into the store upsert AND the Step 4 digest (Tom, 2026-07-27: real names, not slugs; proper-noun capitalization).
+
+**Wildcard rows verify existence-only:** they have no target company (the query described an arc, not an employer), so criterion 2 does not apply — a non-empty `full_name` passes, and the probe's current title/employer fill the empty `role`/`company`. Everything else (dedup, prefilters, store upsert, enqueue) is identical, except `source="wildcard"`.
 
 **On discard**: remove the candidate from the cold list and log: `[REJECTED] {url} — {reason}` (reason: "ghost URL" or "employer mismatch: expected {company}, got {actual_employer}"). Do not replace with a substitute — if fewer than 3 cold candidates survive, proceed with however many passed.
 
@@ -147,18 +157,24 @@ Write each row individually. If a row fails, log the error and continue to the n
 
 ## Step 1.5b — Cold-pass cohort recipes (archetype feeders)
 
-6 of the 8 cold slots draw from a WEEKLY ROTATING archetype recipe (RUBRIC.md §6 sourcing strategies) instead of generic role × tier search. Rotation by ISO week number mod 4:
+6 of the 8 cold slots draw from a WEEKLY ROTATING archetype recipe (RUBRIC.md §6 sourcing strategies) instead of generic role × tier search. **Implemented in `neg1_sourcing.py` since 2026-07-27** (`_recipe_pass` + `RECIPE_ROTATION`; before this the table was prose-only and every run shipped generic role × tier rows). Rotation by ISO week number mod 6; the run JSON carries `recipe` at top level and per-candidate, and the store upsert writes it to the `recipe` column (added same day) so the ledger can back-test recipe conversion like wildcard conversion:
 
-| Week | Recipe | Query shape |
+| Week | Recipe | Query shape (mechanism) |
 |---|---|---|
-| A | **FDDM** (Field-Derived Domain Mastery) | ex-implementation / CS / solutions operators, 2y+ tenure, at category-defining vertical cos (ServiceTitan, Procore, Toast, Veeva, Samsara, and Tier-1 vertical leaders from the Companies cache) |
-| B | **TCDM** (Technical-Commercial Dual Mastery) | FDE / solutions engineer / applied engineer at growth-stage B2B cos — hired technical, pulled customer-facing |
-| C | **Hypergrowth alumni** | early employees (joined pre-~150 HC) of Deal Digest best-in-class-tier companies, 2y+ tenure, now senior |
-| D | **Composite markers** | visible demotion-to-switch-disciplines / commercial→technical reinventors (Exa keyword search on transition language) |
+| A | **FDDM** (Field-Derived Domain Mastery) | implementation / CS / solutions operators at category-defining vertical cos — curated `FDDM_ANCHORS` list in code (the cache's category field can't express "vertical winner"; tier 1 also holds mature enterprises) (keyword role × company) |
+| B | **TCDM** (Technical-Commercial Dual Mastery) | FDE / solutions engineer / applied engineer at growth-stage B2B cos from the cache, tiers 1–2 — hired technical, pulled customer-facing (keyword role × company) |
+| C | **Hypergrowth alumni** | early employees of best-in-class companies, now senior — curated `HYPERGROWTH_ANCHORS` ≈ Deal Digest best tier, sync when the digest re-tiers (neural per-company query) |
+| D | **Composite markers** | visible demotion-to-switch-disciplines / commercial→technical reinventors (neural shape queries) |
+| E | **Take-It-Slow** (added 2026-07-27, Tom-gated) | high-reps operator in a visible patient exploration gap — advising/researching post-departure, no accelerator (neural shape queries) |
+| F | **Slope over y-intercept** (added 2026-07-27, Tom-gated) | elite-school young analyst who jumped from banking/PE/consulting into an unglamorous operating domain, ramping fast (neural shape queries; distinct from the young-infiltrator wildcard, which requires a public artifact) |
 
-**Doctrine coupling:** this table is the sourcing expression of RUBRIC.md §6 — it is NOT independently editable. When an archetype is added, revised, or retired in the rubric (human-gated), update this rotation in the same change. Recipes never drift from doctrine.
+If the recipe pass fills fewer than its slots, the generic role × tier pass backfills the remainder (backfilled rows carry no `recipe` value).
 
-**Wildcard slots (explore vs exploit):** every week, 2 of the 8 cold slots are reserved for candidates deliberately OUTSIDE all current archetypes but carrying ONE extreme signal the rubric respects on a shape it doesn't recognize (e.g. a 10-grade spike on Non-Linearity or Earned Reps in an arc that matches no recipe). Upsert with `source="wildcard"`. Purpose: archetype discovery — the doctrine-coupled recipes can only find shapes past taste already codified. Quarterly, review wildcard conversion in the ledger (`SELECT * FROM decisions WHERE label IN (SELECT name FROM candidates WHERE source='wildcard')`); 3+ wildcard drafts sharing a shape is a new-archetype candidate for the Casebook.
+**Doctrine coupling:** this table is the sourcing expression of RUBRIC.md §6 — it is NOT independently editable, and the code lists (`FDDM_ROLES/ANCHORS`, `TCDM_ROLES`, `HYPERGROWTH_ANCHORS`, `C_QUERY`, `D/E/F_QUERIES`) are part of it. When an archetype is added, revised, or retired in the rubric (human-gated), update this rotation AND the code in the same change. Recipes never drift from doctrine.
+
+**Wildcard slots (explore vs exploit):** every week, 2 of the 8 cold slots are reserved for candidates deliberately OUTSIDE all current archetypes but carrying ONE extreme signal the rubric respects on a shape it doesn't recognize (e.g. a 10-grade spike on Non-Linearity or Earned Reps in an arc that matches no recipe). Upsert with `source="wildcard"`. Purpose: archetype discovery — the doctrine-coupled recipes can only find shapes past taste already codified. **Implemented in the script since 2026-07-27** (`_wildcard_pass` — Exa neural templates in `WILDCARD_QUERIES`, 2 sampled per run, one candidate each, emitted first in the `cold` array with `wildcard: true` + `wildcard_signal`; before this the wildcard slots existed only in prose and every run shipped 8 recipe/generic cold rows). The template set was locked with Tom 2026-07-27 from a corpus study of his LP letters + investment memos + July 2026 LPAC deck — each template carries its grounding quote as a code comment. **7 active** (family-vertical-insider, moonlighter, young-infiltrator, wedge-strategy-writer, ant-pre-consensus, range-solo-builder, + nl-hard-crossing as the one deliberately OFF-corpus explore slot preserving true archetype discovery) and **2 parked in `WILDCARD_STRUCTURED_TODO`** (liquidity-decliner, scarred-alumnus — the same-day Exa eval returned 0 results for both: they are DERIVED timeline facts nobody narrates on a profile; build them as structured passes over the company cache × ContactOut departures, not as neural queries).
+
+**Wildcard search mechanics (2026-07-27 eval findings):** `_exa_search_wildcard` harvests BOTH profile URLs and `linkedin.com/posts/` URLs — a post narrating the shape in first person is the strongest match, and the author slug is embedded in the post URL. A coarse follower cap (`WILDCARD_MAX_FOLLOWERS`) drops obviously-famous profiles. **The Step 1.6 prefilter screen has two EXTRA kills for wildcard rows:** (1) already-legible people — famous OSS creators, founders of at-scale funded companies; the flip already happened and the -1 engine hunts pre-legibility (Q4 2025 letter: intercept "before they're 'found out'"); (2) performative build-in-public self-promoters whose narration lacks substance — post-derived candidates skew this way, and it is Tom's named anti-signal ("shameless chest-pounding"). Judge the arc, not the volume of narration. When adding an archetype-adjacent template or retiring one whose shape got codified into RUBRIC.md §6, edit `WILDCARD_QUERIES` — same human-gated doctrine coupling as the recipe table. Quarterly, review wildcard conversion in the ledger (`SELECT * FROM decisions WHERE label IN (SELECT name FROM candidates WHERE source='wildcard')`); 3+ wildcard drafts sharing a shape is a new-archetype candidate for the Casebook.
 
 All recipes still pass the ContactOut verification gate (Step 1.5) and the full rubric downstream — the recipe only shapes WHO enters the funnel.
 
@@ -178,30 +194,51 @@ The weekly reconnect pass samples the network; this step mines it. Source: `~/.c
 4. Rewrite the snapshot with current values.
 Cadence rationale: the cache refreshes quarterly (not monthly), so a monthly diff would compare static data 2 months out of 3. Quarterly-aligned, the diff catches a full quarter's role changes in one pass at zero marginal cost. If the snapshot predates the last refresh and the cache HAS moved, run; otherwise log "no cache movement since last diff" and skip.
 
+**C. Structured liquidity-decliner + scarred-alumnus pass (monthly, added 2026-07-27):**
+```bash
+/opt/homebrew/bin/python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py structured
+```
+Emits up to 4 UNVERIFIED candidates (2 per shape) from `"ex-{Company}"` headline searches over curated watchlists (`LIQUIDITY_WATCHLIST` — recent IPO/acquisition; `SETBACK_WATCHLIST` — public stumble/wind-down; both rotate least-recently-swept, state at `decision-ledger/structured_sweep_state.json`). These shapes are DERIVED timeline facts an Exa query can't verify — the probe step must do the math. **Verification (replaces the standard Step 1.5 criteria for these rows):** ContactOut `profile_only` probe, then keep ONLY if:
+- **liquidity-decliner:** experience array shows a real stint at the watchlist company ending AFTER its liquidity event (they stayed through it — leaving before doesn't count), AND the current seat is small/unknown/absent (roughly <100 HC, or between roles). The comfortable path was staying; they left.
+- **scarred-alumnus:** a 1y+ stint at the setback company overlapping its down chapter (they didn't bail at the first wobble), AND a current arc that reads as processing/rebuilding, not resume-laundering.
+Discard anything that fails — the "ex-{Co}" headline population is mostly ordinary alumni; expect to discard most. Survivors: upsert + enqueue with `source` and `recipe` = the shape name (`liquidity-decliner` / `scarred-alumnus`). Watchlists are hand-curated — refresh from Deal Digest when liquidity/setback events land.
+
+## Step 1.9 — QUARTERLY feedback review (first Monday after Jan/Apr/Jul/Oct — same trigger week as the departure diff)
+
+The loop-closer (added 2026-07-27 — until then the back-tests were specced in three places but had NO scheduled trigger; they ran never). On the first Monday after a quarter boundary, after the sweep completes, run the back-tests and post ONE review card to `#neg1-sourcing` (bot-token mode) for Tom to gate:
+
+1. **Wildcard conversion:** `SELECT c.name, c.recipe, c.state, d.decision, d.why FROM candidates c LEFT JOIN decisions d ON lower(c.name)=d.label WHERE c.source='wildcard'` — which templates produced drafts vs passes? 3+ drafts sharing a shape → propose a new Casebook archetype; 0 drafts from a template across 2 quarters → propose retiring it.
+2. **Recipe conversion:** same query keyed on `c.recipe IN ('A'..'F')` — which archetypes actually convert to `draft`? Propose anchor-list/query refinements.
+3. **Prefilter false-kill audit** (PREFILTERS.md Audit section): would any drafted/reached-out candidate have been killed by a current PF rule? Flag to Tom, never silently relax.
+4. **Calibration drift check:** neg1-enricher `--score-only --calibration-corpus` (CASEBOOK.md names) — flag any exemplar whose score moved ≥2 points from its canonical value.
+5. **Retro-corpus review:** read `founder-taste/DECISION_RETROS.md` entries from the quarter; propose which recurring nuggets deserve promotion into RUBRIC.md / PREFILTERS.md / recipe or wildcard queries (human-gated — proposals only, in the review card).
+
+The card ends with proposed changes as a checklist; Tom approves/vetoes in-thread and the listener applies approved items (doctrine-coupled edits: rubric + recipes + code mirrors in the same change). NOTHING auto-applies.
+
 ## Step 4 — Slack digest
 
 **Channel routing (gate in code):** if `~/.claude/skills/neg1-sourcing/.sourcing_channel_id` exists, post via `send-alert/md_to_blocks.py` in bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py` (prints the message `ts` — no webhook needed) — all sourcing surfaces live in `#neg1-sourcing` (this weekly digest of raw candidates + pipeline-agent Task 6's post-enrichment Reach Out ✅ cards). If the file does not exist, fall back to the default `send-alert` channel.
 
 Invoke the `send-alert` skill with the following message. Bodies are GFM markdown (see `send-alert/SKILL.md`) — `**bold**` becomes bold, `[label](url)` becomes a clickable link, `*single asterisks*` would render as italic so avoid them.
 
-**Format:**
+**Format (Tom's locked shape, 2026-07-27):**
 ```
-📡 **neg1 sourcing — {run_date}**
+📡 **-1 Sourcing Summary – Week of {run_date}**
 
 **Warm (2)**
-• [{name}]({linkedin_url}) — {role} @ {company} [{growth_tier} · {timing_signal}]
-• [{name}]({linkedin_url}) — {role} @ {company} [{growth_tier} · {timing_signal}]
+• [{Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier} · {timing_signal}]
+• [{Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier}]
 
 **Cold (8, incl. 2 wildcards — tag those rows `[wildcard]`)**
-• [{handle}]({linkedin_url}) — {role} @ {company} [{growth_tier}]
+• [{Full Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier}]
 • (8 rows)
-
-Rows written to -1 Scanner → Pending Enrichment. neg1-enricher picks up tonight.
 ```
 
-**Link-label rules:**
-- Warm rows: use the candidate's `name` as the link label (always populated for in-network reconnects).
-- Cold rows: use the LinkedIn handle as the link label — the path segment after `/in/` (e.g. `https://www.linkedin.com/in/jaswanthmadha` → `jaswanthmadha`). `name` is empty until neg1-enricher resolves it via ContactOut.
+- **Header is exactly** `-1 Sourcing Summary – Week of {run_date}` (en dash) — not "neg1 sourcing".
+- **Never render "Unknown"**: when `timing_signal` (or any bracket segment) is Unknown, omit that segment — `[Scaled · Unknown]` → `[Scaled]`.
+- **No footer line.** The "Rows upserted → Pending Enrichment / picks up tonight" closer is dropped (it was legacy wording anyway — v2 enrichment cards within minutes). The digest ends after the last candidate row (failure warning below is the only exception).
+- **Real names everywhere, never LinkedIn slugs**: warm rows use the cache `name`; cold rows use the `full_name` captured from the Step 1.5 ContactOut probe (every surviving cold candidate has one — a nameless probe is a discard).
+- **Proper-noun capitalization on every row**: title-case roles and companies ("Founding Engineer @ Extend", not "founding engineer @ Extend"). No lowercase search-keyword strings.
 
 **Section labels mirror the Notion `Type` options exactly** — `Warm` (not "Reconnect"), `Cold` (not "Cold Outreach"). Calibrated labeling everywhere.
 

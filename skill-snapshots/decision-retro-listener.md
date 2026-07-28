@@ -47,7 +47,7 @@ For each, run the single-item processor defined in the **Shared processing** sec
 
 Before running the processor, also check age:
 - Compute `age_days = now - prompted_at`
-- If `age_days > 7`: set `status = "no_retro"`, `completed_at = now`, `nugget_count = 0`, and skip the processor
+- If `age_days > 7`: set `status = "no_retro"`, `completed_at = now`, `nugget_count = 0`, skip the processor, **and still append a bare ledger row** (same command as step 3h, `--why "[no retro] prompt expired unanswered"`) — the decision is a fact even when the why was never given. A later reply can enrich it (upsert on label+decision).
 
 ### A4. Summary alert
 
@@ -281,7 +281,22 @@ For `scope == "neg1"`, prepend `-1:` to the Decision label:
 
 If a section header doesn't exist yet, add it alphabetically before appending.
 
-### 3h. Mark queue entry done
+### 3h. Append the ledger row (NEVER SKIP — added 2026-07-27)
+
+Every processed retro writes a decisions-table row via append_decision.py — this is the structured record the quarterly back-tests query. (Bug history: the ledger call lived only in the old conversational decision-retro path; when capture moved to this listener the call was dropped — zero pipeline decisions reached the ledger Jun 4 → Jul 27, and 38 bare rows had to be backfilled.)
+
+```bash
+python3 ~/.claude/scripts/decision-ledger/append_decision.py \
+  --label "{opp_name}" \
+  --decision {map: Pass (DNM)→pass-dnm, Pass (Met)→pass-met, Pass Note Pending→pass-met, Active Portfolio→invested, scope neg1→no-outreach} \
+  --date {today} --source {pipeline | "-1 scanner" for scope neg1} \
+  --verdict-raw "{queue decision string}" \
+  --why "{Tom's verbatim reply}"
+```
+
+Upsert semantics match on (label, decision) — if a bare backfilled row exists, this enriches it with the why. A `skipped` entry (Tom declined the retro) still writes the row with `--why "retro declined"` — the decision is a fact regardless.
+
+### 3i. Mark queue entry done
 
 Update the queue entry in place:
 

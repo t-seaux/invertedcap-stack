@@ -1,11 +1,11 @@
 ---
 name: claude-alerts-listener
-description: "Processes thread replies in #claude-alerts as feedback on Claude's scheduled-skill output. Tom posts free-form replies (e.g. \"drop Pershing Square from Tier 2\", \"stop including Round details\"); this skill reads the (parent alert, reply) pair, figures out what change is being requested, applies it across skill files / memory / Notion, and posts a close-loop reply in-thread. Webhook-only — invoked by claude-job-queue dispatching jobs from the slack-retro-webhook Cloudflare Worker."
+description: "Processes thread replies in #claude-alerts and #personal-alerts as feedback on Claude's scheduled-skill output. Tom posts free-form replies (e.g. \"drop Pershing Square from Tier 2\", \"stop including Round details\"); this skill reads the (parent alert, reply) pair, figures out what change is being requested, applies it across skill files / memory / Notion, and posts a close-loop reply in-thread. Webhook-only — invoked by claude-job-queue dispatching jobs from the slack-retro-webhook Cloudflare Worker."
 ---
 
 # Claude Alerts Listener
 
-When Tom replies to an alert in `#claude-alerts`, act on his feedback. Post a `Working on it...` reply as your very first action (Step 0 below) so Tom sees confirmation that this skill — not just the Worker — has picked up the job. Then do the work and post a close-loop reply.
+When Tom replies to an alert in `#claude-alerts` — or `#personal-alerts` (private, `C0BKZ2L0BDK`; personal-life alerts incl. the coop-finances monthly drop, routed here by slack-retro-webhook since 2026-07-27) — act on his feedback. Post a `Working on it...` reply as your very first action (Step 0 below) so Tom sees confirmation that this skill — not just the Worker — has picked up the job. Then do the work and post a close-loop reply.
 
 **Webhook-only.** No sweep mode, no manual mode. Invoked exclusively by the claude-job-queue processor dispatching jobs from `slack-retro-webhook`.
 
@@ -46,7 +46,7 @@ Requires `SLACK_USER_TOKEN` in env with `files:read` scope (same token used by t
 ## Unattended execution rules
 
 - NEVER ask questions in-session. Headless. If the reply is genuinely ambiguous, post a clarifying question **in the Slack thread** (via `post_close_loop.sh`) and exit.
-- NEVER fall back to other notification channels. Close-loop reply goes ONLY to the originating thread in `#claude-alerts`.
+- NEVER fall back to other notification channels. Close-loop reply goes ONLY to the originating thread (use `channel_id` from the args — `#claude-alerts` or `#personal-alerts`).
 - On failure, log to `audit-log/YYYY-MM-DD.log` and post a brief failure note in-thread (`⚠️ couldn't apply this — <one-line reason>`). Do not retry from this skill.
 - **Exit promptly.** Once Step 5 (audit log) is written, STOP. No re-reading edited files to verify, no "let me also check…", no exploring adjacent skills, no proactive cleanup of unrelated content. The Edit tool's success return IS the verification. The `claude --print` wrapper has a 600s ceiling — past runs have hit it after the work was already done, producing a false-positive ⚠️ failure alert on top of a successful run. Sequential Step 0 → 1 → 2 → 3 → 4 → 5 → exit. Nothing after Step 5.
 
@@ -98,7 +98,7 @@ Each branch fires on a specific parent-alert header (+ reply shape). Check them 
 3. **Three-way intro confirmation** — parent starts with `❓ Three-way intro signal from` or `📩 Three-way intro from`, AND Tom's reply confirms an intro (checked before the NEW DEAL branch; → flip resolved Opp Status to `Connected`). Procedure in `references/special-branches.md#special-branch-three-way-intro-confirmation` — read it now.
 4. **NEW DEAL opt-in / opt-out** — parent header contains `NEW DEAL` AND reply matches `/^\s*opt[\s-]?(in|out)\b\.?\s*$/i`. Procedure in `references/special-branches.md#special-branch-new-deal-opt-in--opt-out` — read it now.
 5. **SOI mark confirm** — parent header starts with `📈 Priced round —` or `💸 Exit —` (valuation-judgment mark; writes `fund_inputs.json` via the engine). Procedure in `references/special-branches.md#special-branch-soi-mark-confirm` — read it now.
-6. **SOI rebuild confirm (Tier 1 gate)** — parent header starts with `🧾 **SOI rebuild pending your confirm**` (Notion-derived recompute; no `fund_inputs.json` writes). Procedure in `references/special-branches.md#special-branch-soi-rebuild-confirm-tier-1-gate` — read it now.
+6. **SOI rebuild confirm (Tier 1 gate)** — parent header starts with the `🧾` emoji (Notion-derived recompute; no `fund_inputs.json` writes — wording after the emoji varies by event, e.g. `🧾 **LP Portal SOI Update: ...**` from soi-portfolio-event or `🧾 **SOI rebuild pending your confirm**` from the daily sweep fallback). Procedure in `references/special-branches.md#special-branch-soi-rebuild-confirm-tier-1-gate` — read it now.
 7. **Skill-map function assignment** — parent is a `skill-map-refresh` pending-categorization alert (header `🗺️`, body names an uncategorized skill) AND Tom's reply names a Function. Procedure in `references/special-branches.md#special-branch-skill-map-function-assignment` — read it now.
 
 ---

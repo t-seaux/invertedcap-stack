@@ -34,12 +34,27 @@ Candidates live in the candidate store (`python3 ~/.claude/scripts/decision-ledg
 - Include it in the eval note (step 3 below) as a `**Why drafted (Tom):**` line.
 Then execute:
 1. Run `founder-outreach` in **store mode** (inline — read that skill's store-mode block): Gmail draft from the store row, `set-state --gmail-draft-url`.
-2. **Create the Opportunity** — invoke `add-to-crm` with the canonical -1 pre-company field table (pipeline-agent Task 7 step 3b): Name `-1 [{Name}]({LI URL})`, Stage `Pre-Seed 💡`, Source Direct, Fund `Inverted 1️⃣`, Status `Outreach`, Description TBD, Contact = email, Website N/A, 🏁 Founder(s) = resolve/create People DB entry. This is when the person's employers get real Companies-DB treatment (add-to-crm handles it).
-3. **Create the eval note (keep the Opp body clean — Tom's rule):** a new page in the Notes DB (the database behind the Opp's `✍️ Notes` relation), title `-1 {Name}: Founder Eval` (colon convention), Category `Diligence`, related to the new Opportunity. Body: the Signals line, Eval Summary, full Eval Rationale, and framework connections (which lens the spike sits in, When-gate note if any). The Opportunity body itself gets NOTHING from scoring.
+2. **Create the Opportunity** — invoke `add-to-crm` with the canonical -1 pre-company field table (pipeline-agent Task 7 step 3b): Name `-1 ([{Name}]({LI URL}))` — **parens around the LINKED name** (Tom, 2026-07-27; validate with `validate_eval_note.py --opp-title "<Name md>"`), Stage `Pre-Seed 💡`, **Source(s) = the `Claude` source page** (relation to `0fb9a640-34fd-46f9-9347-68d590e69dc9` — Tom, 2026-07-27: "any candidate sourced through claude... set source as claude"; never `Direct` for engine-sourced candidates), Fund `Inverted 1️⃣`, **Status `Qualified` — NOT `Outreach`** (Tom, 2026-07-27, Nina Carriero: "it should be added to qualified; only if i actually reach out to her should you add to outreach" — a draft is not outreach; pipeline-agent Task 7 flips Qualified → Outreach at SEND time when it detects the email went out), Description TBD, Contact = email, Website N/A, 🏁 Founder(s) = resolve/create People DB entry. This is when the person's employers get real Companies-DB treatment (add-to-crm handles it).
+3. **Create the eval note (keep the Opp body clean — Tom's rule):** a new page in the Notes DB (the database behind the Opp's `✍️ Notes` relation), Category `Diligence`, related to the new Opportunity. **Title, body, and structure: render `~/.claude/skills/neg1-enricher/EVAL_NOTE_TEMPLATE.md` EXACTLY (v3, 2026-07-27) and run its validator harness (`validate_eval_note.py` on the fetched page markdown) until PASS before finishing** — title is `-1 ([{Name}]({LI URL})): Founder Eval` with the name linked. The Opportunity body itself gets NOTHING from scoring (no Signals line, no rec).
 4. `set-state --state drafted --notion-opp-url <opp url>`.
-5. Close-loop reply: draft link + Opp link, one line each.
+5. Close-loop reply — EXACT format (Tom, 2026-07-27, twice-corrected off the Nina Carriero reply — final):
+   ```
+   ✉️ **Drafted: -1 ({Name})**
+   [Gmail Draft]({draft url}) · [CRM Opp]({opp url}) · [Eval Note]({note url})
+   ```
+   Two lines total. Header: envelope emoji + the WHOLE line bolded, `Drafted: -1 ({Name})` shape. Second line: the three links dot-separated (` · `) on ONE line — NO bullets (Tom removed them same day). Labels are Title Case (Gmail Draft / CRM Opp / Eval Note). Links EMBEDDED in the label text, never bare URLs (bare Gmail URLs also trigger an ugly accounts.google.com unfurl — post with `unfurl_links: false`).
 
-**pass <why> (v2):** `set-state --state passed` + ledger append (scores/rec from store fields, not Notion) + retro logging exactly as below (nuggets to DECISION_RETROS.md; the raw reply is quoted in the ledger `why` — there is no Notion page to hold a Retro block pre-draft, and none is needed). No decision-retro queue registration (no scanner row → the 9:05am scan won't prompt).
+**pass <why> (v2):** `set-state --state passed` + ledger append + retro logging (nuggets to DECISION_RETROS.md; the raw reply is quoted in the ledger `why` — there is no Notion page to hold a Retro block pre-draft, and none is needed). No decision-retro queue registration (no scanner row → the 9:05am scan won't prompt).
+
+**Ledger append — RUN THIS COMMAND HERE, in v2, on every pass verdict.** (Bug 2026-07-27: the command template previously lived only in the RETIRED Notion-era section far below, so v2 runs skipped it — zero -1 decisions reached the ledger Jun 4 → Jul 27; ten were backfilled by hand. The quarterly back-tests — When-gate calibration, wildcard conversion, prefilter false-kill audit — all query this table; a pass that skips the ledger is invisible to every feedback loop.) Use STORE fields:
+```bash
+python3 ~/.claude/scripts/decision-ledger/append_decision.py \
+  --label "{store name}" --decision no-outreach --date {today} --source "-1 scanner" \
+  --verdict-raw "Pass (Tom)" --rubric-verdict {store pre_gate_rec: ✅→reach-out, 🤔/❌→pass} \
+  --scores '{store scores JSON}' --rubric-version "{current RUBRIC.md version}" \
+  --why "{Tom's verbatim reply}"
+```
+Omit `--scores` if the store row has none. `track`/`snooze` write NO ledger row (deferrals, not decisions); `draft` writes none here — the reach-out lands at SEND time via pipeline-agent Task 7.
 
 **Prefilter promotion (added 2026-07-20 — the top-of-funnel feedback loop):** after logging a pass, classify the reason:
 - **Category-level** — Tom excludes a SHAPE, not just this person: "you should not be flagging X", "never show me Y", "stop surfacing Z-shaped people", or a reason that plainly generalizes ("Carta is a stale unicorn; not much signal for folks working there"). → Append a new rule (or extend an existing one, e.g. add a company to PF-3's stale-unicorn list) in `~/.claude/skills/founder-taste/PREFILTERS.md`, with the verbatim quote + date as Source. If the rule is code-expressible, mirror it in `neg1_sourcing.py` (EXCLUDE_ROLES / FUND_NAME_RE / STALE_UNICORNS) in the same change — doctrine-coupled. Then note it in the close-loop reply: `→ promoted to prefilter ({rule id}): {one-clause rule}. Veto by replying here.`

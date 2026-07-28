@@ -111,18 +111,36 @@ a webhook-watched property, so the restore fires no jobs.
    **If neither the field nor the docs name anyone, leave it alone** — `soi_render_html.py:338`
    auto-renders "N/A" when the list is empty. Don't go hunting / fabricating: N/A is the right outcome
    when none are recorded.
-2. **Build the draft model without publishing:**
+2. **SAFE document verification (every SAFE round entering the SOI).** Don't take the round's economics
+   from Round Details on faith — ground them in the **executed** SAFE, tie the two together, and flag any
+   gap. Run `find_safe_docs.py "<Company>" --round "<Stage>"`, confirm the executed doc set (SAFE required;
+   side letter / term sheet if appropriate), pull investment amount + post-money cap from the executed SAFE,
+   compute `amount ÷ cap`, and tie it to `Inv @ Round` / Round Details `cap` / the ownership the generator
+   will render. Round Details must label a SAFE's number as **`cap`, never `post`** — if an in-SOI SAFE Opp
+   says `post`, apply the `post → cap` auto-correct (label-only, no confirm; see safe-vs-priced-detection).
+   Flag a missing/unexecuted doc (`📄`) or a mismatch (`🚨`) in the draft; never stop the draft
+   and never silently edit `Inv @ Round` on a round already in the SOI. Full procedure (completeness matrix,
+   executed-version check, tie-out, new-capture-vs-frozen authority) in
+   `references/safe-doc-verification.md` — read it now before proceeding. Skip for priced rounds (Mode B1).
+3. **Build the draft model without publishing:**
    `cd ~/code/lp-portal && python3 soi_generate.py --strict --out /tmp/soi_model_draft.json`
    (no `--sync-os` — no Notion writes before Tom confirms). Generator gates must pass; on gate failure
    alert the per-company errors and stop, exactly like run.sh does.
-3. **Compose the draft** per the conveying convention above: diff the draft model against
+4. **Compose the draft** per the conveying convention above: diff the draft model against
    `.last_snapshot.json` (labels/kinds mirror `soi_notify.flatten`), render the changed sections with
    `old → new` arrows, and include the company-modal block for the affected Opp. Header line MUST start
-   with `🧾 **SOI rebuild pending your confirm**` — claude-alerts-listener routes replies on it. End with:
-   `Reply **confirm** to publish, or fix Notion and this re-drafts.`
-4. **Post via send-alert and STOP.** Nothing is published, no snapshot is written. Tom's in-thread
+   with the `🧾` emoji, bolded, in the form `🧾 **LP Portal SOI Update: <Company> (<Stage>) <Event>**` —
+   claude-alerts-listener routes replies on the emoji alone, not the wording, so `<Event>` names the
+   actual trigger (Tom 2026-07-27), e.g.:
+   - `Entering Active Portfolio` — new Opp → Active Portfolio
+   - `SAFE Follow-On` — SAFE follow-on → Portfolio: Follow-On
+   - `<Old Status> → <New Status>` — any other Status change
+   - `Round Details Update` — Round Details / Inv @ Round edit
+
+   End with: `Reply **confirm** to publish, or fix Notion and this re-drafts.`
+5. **Post via send-alert and STOP.** Nothing is published, no snapshot is written. Tom's in-thread
    "confirm" → claude-alerts-listener "SOI rebuild confirm" branch runs `bash run.sh` (plain), which
-   publishes + deploys + updates the snapshot; its `📊 SOI updated` alert is the applied record.
+   publishes + deploys + updates the snapshot; its `📊 SOI Updated` alert is the applied record.
    Note: confirm publishes the LATEST Notion state (run.sh regenerates), not the drafted snapshot — if
    Notion moved again in between, the post-publish diff shows the final values.
 
