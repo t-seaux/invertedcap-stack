@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-07-29] (Week of 2026-07-28)
+
+**Added:** safe-drafter (Portfolio Management), investing-style (Research Management)
+**Removed:** None
+**Modified:**
+- draft-investment-memo -- idempotency search now omits `[WIP]` prefix to match both draft and finalized memos; auto-version message updated to reference `[WIP]` prefix in doc names
+- memo-workshop -- Step 0 search note clarifies that `[WIP]` prefix is on drafts, dropped on finalized memos
+- skill-map-refresh -- canonical mapping updated: safe-drafter added to Portfolio Management, investing-style added to Research Management
+**Total skills:** 41 visible (safe-drafter + investing-style promoted from pending)
+**Functions:** Portfolio Management +1 (safe-drafter), Research Management +1 (investing-style)
+
+---
+
 ## [2026-07-28] (Week of 2026-07-28)
 
 **Added:** None (investing-style, safe-drafter pending categorization)

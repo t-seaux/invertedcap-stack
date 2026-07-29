@@ -29,7 +29,8 @@ Opportunity in the canonical Drive folder
 (`1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`).
 
 Use `mcp__claude_ai_Google_Drive__search_files` with a query like
-`"[Company] - Investment Memo" parent:1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO` and
+`"[Company] - Investment Memo" parent:1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`
+(search without the `[WIP]` prefix so both draft and finalized memos match) and
 also scan the Opportunity's `Diligence Materials` property for any URL
 matching the memo Drive folder.
 
@@ -381,7 +382,7 @@ Per memory `feedback_first_pass_no_permission_prompts` — applies in full.
 ### Never auto-version
 
 If a memo already exists in the Drive folder, refuse. Do not create
-`[Company] - Investment Memo v2`, do not create a side-by-side draft, do
+`[WIP] [Company] - Investment Memo v2`, do not create a side-by-side draft, do
 not append to the existing doc. Tom will route edits through a future
 `update-investment-memo` skill.
 

@@ -24,7 +24,9 @@ formatting spec, and initial-draft pipeline live in `draft-investment-memo`.
 
 1. Find the memo Doc in the canonical Drive folder (`1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`):
    `search_files` with `parentId = '1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO'` and match
-   `[Company] - Investment Memo`. If Tom pasted a Doc URL, use that fileId directly.
+   `[Company] - Investment Memo` — match without the `[WIP]` prefix, since drafts are
+   named `[WIP] [Company] - Investment Memo` and finalized memos drop it. If Tom pasted
+   a Doc URL, use that fileId directly.
 2. Find the Notion Opportunity via `notion-search` on the company name.
 3. **If no memo Doc exists**, stop and offer to run `draft-investment-memo` instead — that skill
    owns initial drafts (and conversely refuses when a Doc already exists). Never create a new
