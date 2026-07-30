@@ -1,3 +1,14 @@
 {
-  "launchagent:com.tomseo.scheduled.investing-style-quarterly": "2026-07-28"
+  "launchagent:com.tomseo.scheduled.investing-style-quarterly": "2026-07-28",
+  "skill:feedback-outreach-drafter": "2026-07-30",
+  "skill:feedback-outreach-scanner": "2026-07-30",
+  "skill:inbound-deal-detect": "2026-07-30",
+  "skill:intro-draft-agent": "2026-07-30",
+  "skill:intro-note-processor": "2026-07-30",
+  "skill:intro-outreach-agent": "2026-07-30",
+  "skill:intro-resolution-agent": "2026-07-30",
+  "skill:log-intro": "2026-07-30",
+  "skill:neg1-promote": "2026-07-30",
+  "skill:outreach-decliner": "2026-07-30",
+  "skill:outreach-detector": "2026-07-30"
 }
