@@ -2,6 +2,17 @@
 
 ## [2026-07-30] (Week of 2026-07-28)
 
+**Added:** None
+**Removed:** None
+**Modified:**
+- investing-style -- restructured into a composite in Research Management; now carries the quarterly-refresh (scheduled) badge and expands in the Quick Reference to reveal the founder-taste corpus it derives from
+**Total skills:** 42
+**Functions:** Research Management -- investing-style promoted to composite (absorbs founder-taste; founder-taste home function remains Diligence Management)
+
+---
+
+## [2026-07-30] (Week of 2026-07-28)
+
 **Added:** pro-forma-round (Portfolio Management)
 **Removed:** None
 **Modified:** None

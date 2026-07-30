@@ -65,6 +65,7 @@ Scan the skills directory to build a complete inventory.
      | `retro-weekly-summary` | `decision-retro` |
      | `neg1-sourcing` | `neg1-sourcing` |
      | `neg1-sourcing-listener` | `neg1-sourcing-listener` |
+     | `investing-style-quarterly` | `investing-style` (propose-only quarterly Jan/Apr/Jul/Oct-15 refresh; human-gated, never publishes) |
 
    **Excluded LaunchAgents** — infrastructure-only agents that do not correspond to a skill and must NOT be rendered on the Platform Map or Quick Reference. Listed here so the Step 0 guardrail finds them and does not flag them as unclassified.
 
@@ -121,7 +122,7 @@ Scan the skills directory to build a complete inventory.
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan` |
 | Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan`, `intro-outreach-drafter`, `safe-drafter` |
 | Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste`, `question-bank`, `memo-workshop` |
-| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan`, `investing-style` |
+| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan`, `investing-style` (composite — absorbs `founder-taste`, whose home function is Diligence Management; see Composite breakdown), `launchagent:com.tomseo.scheduled.investing-style-quarterly` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)
 
@@ -180,6 +181,8 @@ Build three pending sets from the current run's inventory:
    - The Excluded Duplicates table
    - The Excluded — not a user-facing skill table
    - Any composite's `Composite breakdown` sub-skill list (Step 2)
+
+   **MANDATORY — check the Composite breakdown table before flagging anything.** The five sources above are OR'd: a skill mapped in ANY one of them is categorized and MUST NOT be surfaced. The `Composite breakdown` table (Step 2, header `| Composite | Sub-skill / workflow | Modes | One-liner |`) is source #5 — its 2nd column is the sub-skill name. It is easy to miss because its column header is "Sub-skill / workflow", not "Skills", so a scan that only reads the `| Function | Skills |` tables will wrongly flag every composite sub-skill. On 2026-07-30 this exact omission produced a false-positive "11 skills not in canonical mapping" alert for the pipeline-agent / intro-agent / diligence-agent sub-skills (`neg1-promote`, `outreach-detector`, `outreach-decliner`, `inbound-deal-detect`, `log-intro`, `intro-outreach-agent`, `intro-draft-agent`, `intro-resolution-agent`, `intro-note-processor`, `feedback-outreach-drafter`, `feedback-outreach-scanner`) — all of which ARE mapped there. Extract the full 2nd-column set from the Composite breakdown table and subtract it before computing pending skills.
 
 2. **Pending LaunchAgents** — every active LaunchAgent matching `com.tomseo.scheduled.*` from `launchctl list` that is NOT in the Scheduled mapping table AND NOT in the Excluded LaunchAgents table.
 
@@ -264,7 +267,7 @@ Skills that are orchestrator-style composites — one pill on the map that absor
 .sm-sk.sm-sched.sm-composite { box-shadow: 2px 2px 0 0 rgba(130, 128, 121, 0.5), 2px 2px 0 0.5px #a8a7a2; }
 ```
 
-**Composites** (as of 2026-04-23, updated): `pipeline-agent`, `intro-agent`, and `diligence-agent`. Each expands in the Quick Reference to show the complete universe of actual workflows under its umbrella — webhook handlers, canonical skills, scheduled wrappers (merged into their canonical skill row), and manual triggers. See the "Composite breakdown" table below for the full sub-skill list per composite.
+**Composites** (as of 2026-04-23, updated): `pipeline-agent`, `intro-agent`, `diligence-agent`, and `investing-style`. Each expands in the Quick Reference to show the complete universe of actual workflows under its umbrella — webhook handlers, canonical skills, scheduled wrappers (merged into their canonical skill row), and manual triggers. `investing-style` is the odd one out — a concept composite, not an orchestrator: the parent pill is the quarterly Investing Style Doc refresh (Scheduled badge from the `investing-style-quarterly` wrapper, per the delegation-merge rule) and its drawer surfaces the `founder-taste` corpus that the Doc is derived from. See the "Composite breakdown" table below for the full sub-skill list per composite.
 
 On the Platform Map, composites receive the `sm-composite` class producing the stacked-card shadow. Their absorbed sub-pills remain visible on the map if they're semantically distinct skills (e.g., `materials-handler`, `draft-feedback` remain separate pills in the Pipeline Management column even though they also appear under `pipeline-agent`'s Quick Reference expansion). Composite = "has an expansion drawer in Quick Reference", NOT "these pills disappear from the map".
 
@@ -397,6 +400,7 @@ Each sub-row renders its own fused mode pill (most sub-rows light only one cell 
 | `diligence-agent` | `pass-note-sent` | W | Tom-sent pass note email → flips opp to Pass (Met) + archives email body to Notes DB. |
 | `diligence-agent` | `pass-note-drafter` | S+M | Drafts personalized pass notes for "Pass Note Pending" opps. Voice-tuned. |
 | `diligence-agent` | `first-pass-diligence` | S+M | Inverted Lens scoring → Notion memo + PDF + Signal alert. 0–5 parallel workers per sweep. |
+| `investing-style` | `founder-taste` | M | Taste corpus + synthesis engine for "what's my investing style / why do I pass"; the substrate the quarterly Investing Style Doc is derived from. Home function is Diligence Management; also read by neg1-enricher, decision-retro, pass-note-drafter, first-pass-diligence, et al. |
 
 **Delegation merge rule**: scheduled-task wrappers in `~/.claude/scheduled-tasks/*/` that just delegate to a canonical skill in `~/.claude/skills/*/` are NOT rendered as separate sub-rows. Instead, their mode coverage (Sweep) is folded into the canonical skill's fused pill. Example: `intro-outreach` scheduled wrapper → merged into `intro-outreach-agent` canonical row (which gets S cell lit).
 
