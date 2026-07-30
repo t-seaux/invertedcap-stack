@@ -1,0 +1,4 @@
+---
+name: pro-forma-round
+description: Model a hypothetical (pro forma) financing round for an existing portfolio position. Fixed output contract — company level: ownership, value, and MOIC both blended and by round; fund level: gross MOIC and TVPI. Handles option-pool top-ups, follow-on checks in the modeled round, and dilution decomposition. Trigger when Tom says "calculate pro forma position/ownership/returns for [company]", "contemplate a pro forma round [terms] for [company]", "what's my MOIC if [company] raises [X] on [Y]", "model a round for [company]", "pro forma [company] at [valuation]", "how does a [X] on [Y] round move my fund returns", "what if we put another [amount] into [company]'s round", or any variant asking how a hypothetical round for a portfolio company changes his position or fund returns profile. Manual-only — conversational analysis, writes nothing anywhere unless Tom separately asks.
+---
