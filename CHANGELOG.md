@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026-07-30] (Week of 2026-07-28)
+
+**Added:** pro-forma-round (Portfolio Management)
+**Removed:** None
+**Modified:** None
+**Total skills:** 42
+**Functions:** Portfolio Management +1 (pro-forma-round)
+
+---
+
 ## [2026-07-29] (Week of 2026-07-28)
 
 **Added:** safe-drafter (Portfolio Management), investing-style (Research Management)
