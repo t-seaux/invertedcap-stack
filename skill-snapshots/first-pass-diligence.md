@@ -183,8 +183,13 @@ MANISH (founder + CTO of [Company], ex-Google, owns engineering architecture)' \
 ```
 
 Cost: ~$0.03–$0.05 per 75KB transcript at Haiku 4.5. Latency: ~20–30 seconds serialized
-per transcript (parallelize across transcripts to bound wall-clock at the slowest single
-call). The labeled output is `[TOM]:` / `[SONIA]:` / `[MANISH]:` / `[UNKNOWN]:` prefixed
+per transcript. **Run each relabel call synchronously in the foreground with an explicit
+timeout — NEVER via `run_in_background: true`.** Inside a subagent, backgrounded children
+die silently when the subagent's turn yields (0-byte output, no process, no error) and
+the run hangs on a wait that never fires — Fair 2026-07-29 incident; memory
+`feedback_subagent_background_jobs_die_silently`. Serial foreground calls are the
+default; if a single very long transcript would exceed the 600s Bash timeout, split it
+into halves and relabel the halves serially. The labeled output is `[TOM]:` / `[SONIA]:` / `[MANISH]:` / `[UNKNOWN]:` prefixed
 per turn. UNKNOWN is reserved for genuinely ambiguous backchannel turns ("yeah", "right")
 where Haiku couldn't infer — these are non-blocking in the downstream attribution lint.
 

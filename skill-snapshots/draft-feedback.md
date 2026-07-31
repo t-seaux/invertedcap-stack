@@ -70,7 +70,7 @@ Schema:
 
 ```json
 {
-  "skill": "founder-outreach" | "pass-note-drafter",
+  "skill": "founder-outreach" | "pass-note-drafter" | "intro-outreach-drafter" | "intro-draft-agent" | "feedback-outreach-drafter" | "talent-scan" | "intro-note-processor",
   "messageId": "<gmail persistent hex id>",
   "threadId": "<gmail thread id>",
   "recipient": "<email>",
@@ -102,10 +102,17 @@ Drive Desktop syncs to the cloud within seconds. See each drafter's SKILL.md (St
 
 Match key is the **persistent Gmail message ID**, which is stable across subject/recipient/body edits (Gmail just flips DRAFT → SENT labels on send, the message ID doesn't change).
 
-**Track 2 — from-scratch mode (no snapshot).** Apply subject heuristic:
+**Track 2 — from-scratch mode (no snapshot).** Apply subject heuristic. **Canonical mapping lives in
+code:** `processor.py` `SUBJECT_SKILL_RULES` / `skill_for_subject()` — the webhook classifier must
+mirror it (update both together when adding an email type):
 
 - `Subject: Introducing Inverted Capital` → `skill = founder-outreach`
 - `Subject: ... - Inverted follow up` (not a Re: or Fwd:) → `skill = pass-note-drafter`
+- `Subject: ... – would love to intro` → `skill = intro-note-processor` (→ `intro-offer`)
+- `Subject: Thoughts on ...` → `skill = feedback-outreach-drafter` (→ `feedback-outreach`)
+- `Subject: Intro to ... (descriptor)?` (ends with a parenthetical) → `skill = intro-outreach-drafter` (→ `intro-outreach`)
+- `Subject: Intro to [Founder] @ [Company]?` (no parenthetical, has `@`) → `skill = talent-scan` (→ `talent-outreach`)
+- `Subject: [A] (Co) / [B] (Co)` (double-opt-in shape) → `skill = intro-draft-agent` (→ `intro-connect`)
 
 Match → queue:
 
@@ -130,7 +137,7 @@ Both tracks write to `draft-feedback-queue/<sent_msg_id>.json` in Drive.
 
 For each queue entry:
 
-- **diff mode:** read sent + draft, call `claude --print` with diff prompt, append delta patterns to the appropriate `writing-style/<type>/EDIT_PATTERNS.md` (skill→type mapping in `processor.py` `PATTERN_FILES`: `founder-outreach`→`outreach`, `pass-note-drafter`→`pass-note`).
+- **diff mode:** read sent + draft, call `claude --print` with diff prompt, append delta patterns to the appropriate `writing-style/<type>/EDIT_PATTERNS.md`. Full skill→type mapping in `processor.py` `PATTERN_FILES`: `founder-outreach`→`founder-cold-outreach`, `pass-note-drafter`→`pass-note`, `intro-outreach-drafter`→`intro-outreach`, `intro-draft-agent`→`intro-connect`, `feedback-outreach-drafter`→`feedback-outreach`, `talent-scan`→`talent-outreach`, `intro-note-processor`→`intro-offer`.
 - **from-scratch mode:** read sent text only, call `claude --print` with voice analysis prompt, append full sent + analysis to the appropriate `writing-style/<type>/VOICE_EXAMPLES.md`.
 
 After successful processing:
@@ -146,12 +153,28 @@ Apps Script `purgeOldSnapshots` runs daily (manual trigger setup required), tras
 
 ## Drafter consumption
 
-Each drafter (`founder-outreach`, `pass-note-drafter`) reads both pattern files at runtime:
+Each email drafter reads both pattern files in its stylebook at runtime:
 
 - `EDIT_PATTERNS.md` — accumulated deltas. "What does Tom typically cut, simplify, reorder?" Apply as priors.
 - `VOICE_EXAMPLES.md` — canonical from-scratch sends. "What does Tom's voice look like when he writes alone?" Use as ground truth.
 
-Drafters explicitly do this in their respective Step 4 (founder-outreach) / Step 5 (pass-note-drafter).
+`founder-outreach` (Step 4) and `pass-note-drafter` (Step 5) do this explicitly; the newer email
+drafters (`intro-outreach-drafter`, `intro-draft-agent`, `feedback-outreach-drafter`, `talent-scan`,
+`intro-note-processor`) read their stylebook (`writing-style/<type>/{STYLE,EDIT_PATTERNS,VOICE_EXAMPLES}.md`)
+before finalizing.
+
+## Wiring status for the newer email types (fully wired 2026-07-30)
+
+All seven email types are wired end-to-end:
+
+1. **Processor** — `PATTERN_FILES` + `SUBJECT_SKILL_RULES`/`skill_for_subject()` cover every email
+   stylebook.
+2. **Webhook subject classifier** — `classifyFromScratch()` in `~/code/gmail-webhook/Code.js` mirrors
+   `SUBJECT_SKILL_RULES` (deployed v179, 2026-07-30). When adding an email type, update BOTH the
+   processor rules and the webhook classifier, then deploy via `push_via_api.py` (never clasp).
+3. **Diff-mode snapshots** — all seven drafters create drafts via
+   `~/.claude/scripts/gmail-create-draft.py --skill <drafter>`, which writes the draft + snapshot
+   atomically, so Tom's edits feed each stylebook's `EDIT_PATTERNS.md` via diff mode.
 
 ## Manual invocation
 

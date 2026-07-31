@@ -8,48 +8,15 @@ description: >
 
 Draft feedback outreach notes (also known as backchannel notes) — diligence feedback request emails to expert contacts in Tom's network, using materials from the Notion opportunity to populate the company blurb and tailor the questions. Then log each recipient on the opportunity's `📣 Pending Feedback` relation field.
 
-## Email Format (from screenshot reference)
+## Email Format
 
-### Subject line template
-```
-Thoughts on [Company Name] ([one-line company descriptor])?
-```
-Example: `Thoughts on Clusia (AI for financial compliance and payment operations)?`
-
-### Body structure
-```
-Hey [First Name],
-
-Hope you're well (and hoping this isn't too much of an out-of-the-blue note)! I'm digging into a [Stage] opportunity and figured you'd have a gut take. Company blurb below.
-
-No worries if this isn't interesting or a priority atm – that in and of itself is a helpful market signal – but would you happen to have any quick reactions to the questions below? Happy to jump on a call (or text thread) to discuss live if easier:
-
-* [Question 1]
-
-* [Question 2]
-
-* [Question 3]
-
-Best,
-Tom
-
---
-
-About [Company Name] ([website or "website N/A"])
-
-**[Company] is building [core product description — one bold sentence.]** [Supporting context: who the customers are, what problem they face, how data/workflow is fragmented.]
-
-**[Company] orchestrates this work.** [How the product works: what it ingests, what it automates, what the customer doesn't need to do.]
-
-[Team line: "The company is co-founded by [Founder 1], [brief background], and [Founder 2], [brief background]."]
-```
-
-### Tone and style notes
-- Warm but not sycophantic. The opener is casual ("Hope you're well") but businesslike.
-- "That in and of itself is a helpful market signal" is a fixture — keep it.
-- Questions should be sharp and specific, not open-ended. Each question should own a distinct dimension of the thesis (e.g., problem severity, AI substitution viability, GTM/category dynamics). Avoid repeating the same frame across questions.
-- The company blurb lives below the signature, separated by `--`. It reads as an appendix, not part of the letter itself.
-- The blurb should be 3–5 sentences max. Bold the core value proposition sentence and the product mechanism sentence. End with a one-line team note.
+**Canonical voice + format live in the corpus: `~/.claude/skills/writing-style/feedback-outreach/STYLE.md`.**
+Read `STYLE.md` + `EDIT_PATTERNS.md` + `VOICE_EXAMPLES.md` in that folder before finalizing every
+draft. The stylebook owns the subject-line form, the full body scaffold (opener → market-signal
+fixture → sharp questions → `Best, Tom` → `--` → italic `About [Company]` blurb), the question-craft
+rules, the blurb rules, the relationship-based opener variants, and the voice register. Do not
+re-specify the format here — the stylebook is the single source. The Step 6 HTML rules below are
+drafter-only rendering mechanics.
 
 ---
 
@@ -152,14 +119,24 @@ The fact that Tom reached out to this specific person implies the relevance — 
 
 ### Step 6: Create Gmail draft(s)
 
-Use the Gmail MCP (`gmail_create_draft`) to create one draft per recipient. Fields:
-- **To**: recipient email (from Step 1)
-- **From**: `tom@invertedcap.com`
-- **Subject**: `Thoughts on [Company] ([descriptor])?`
-- **Body**: full email as HTML (see formatting rules below)
-- **contentType**: always `text/html`
+Create one draft per recipient **AND write the draft-feedback snapshot atomically** via
+`~/.claude/scripts/gmail-create-draft.py` (same helper as `founder-outreach` Step 7 — draft +
+snapshot in one shot, so Tom's edits feed `writing-style/feedback-outreach/EDIT_PATTERNS.md` via
+diff mode). Per recipient, write two scratch files — the HTML body (formatting rules below) and a
+plain-text snapshot body (strip tags; end at `Tom` + the `--`/About blurb; no signature block) —
+then:
 
-Create each draft independently.
+```
+~/.claude/scripts/gmail-create-draft.py \
+  --to <recipient email from Step 1> \
+  --subject "Thoughts on [Company] ([descriptor])?" \
+  --html-body-file /tmp/<scratch>.html \
+  --snapshot-text-file /tmp/<scratch>.txt \
+  --skill feedback-outreach-drafter
+```
+
+Exit code 0 = both writes succeeded; non-zero = that recipient's draft failed (don't fall back to a
+snapshot-less MCP draft). Create each draft independently.
 
 #### HTML Formatting Rules
 

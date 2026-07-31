@@ -54,20 +54,11 @@ This sub-workflow sits between Outreach and Made. It does NOT move anyone betwee
 
 ## Tom's Intro Email Format
 
-This is the EXACT format Tom uses for double-opt-in intro emails. Follow it precisely.
-
-### Subject Line
-
-Format: `[Founder name(s)] ([Company]) / [Target first name] ([Target company])`
-
-- The **founders** (people asking for the intro) come FIRST in the subject — Tom wants it clear who needs to do the scheduling work.
-- Use **"FIRST NAME (COMPANY NAME)"** format for each person. No titles, no last names in the parenthetical.
-- Multiple founders on the same side are joined with " & ".
-
-**Examples:**
-- 1 founder, 1 target: `Nishant (Quiet AI) / Brian (Inspiren)`
-- 2 founders, 1 target: `Nishant & Jackson (Quiet AI) / Brian (Inspiren)`
-- 1 founder, 2 targets: `Nishant (Quiet AI) / Brian (Inspiren) & Lauren (Blueland)`
+**Canonical voice + format live in the corpus: `~/.claude/skills/writing-style/intro-connect/STYLE.md`.**
+Read `STYLE.md` + `EDIT_PATTERNS.md` + `VOICE_EXAMPLES.md` in that folder before finalizing every
+draft. The stylebook owns the subject-line form, the handoff line, the **optional vouch line** (a one-
+line earned vouch Tom often appends after the handoff), the 1:1-vs-multi-party variants, and all
+formatting rules. Only the operational specifics below (recipient resolution) are drafter-only.
 
 ### Recipients
 
@@ -77,34 +68,11 @@ All parties go in the **To** field:
 
 Use their actual email addresses. If a founder's email isn't in the People DB, check the Opportunity's `Contact` field.
 
-### Body
+### Body & signature
 
-The body follows a tight template. The key variable is whether it's a 1:1 intro (1 founder : 1 target) or a multi-party intro (>2 total people).
-
-**1:1 intro** (exactly 2 people total — 1 founder + 1 target):
-```
-You both have context so [Founder first name] - will let you take it from here!
-
-Tom
-```
-
-**Multi-party intro** (3+ people total — multiple founders, multiple targets, or both):
-```
-You all have context so [Founder first name(s), comma-separated] - will let you take it from here!
-
-Tom
-```
-
-The founder(s) are named in the body because THEY need to schedule the follow-up. The intro target is NOT named in the body instruction.
-
-**Examples:**
-- 1:1: `You both have context so Nishant - will let you take it from here!\n\nTom`
-- 2 founders + 1 target: `You all have context so Nishant, Jackson - will let you take it from here!\n\nTom`
-- 1 founder + 2 targets: `You all have context so Nishant - will let you take it from here!\n\nTom`
-
-### Signature
-
-Tom's signature is appended automatically by Gmail. Do NOT include a signature block in the draft body. Just end with `Tom`.
+Draft the handoff line (and the optional vouch line) per `writing-style/intro-connect/STYLE.md` — it
+carries the 1:1 vs multi-party handoff forms, the vouch-line rule, and the "no typed signature (Gmail
+auto-appends)" rule. Do not re-specify the body format here; the stylebook is the single source.
 
 ## Opportunity Scope (IMPORTANT)
 
@@ -240,13 +208,26 @@ For each opt-in where no existing draft/sent email is found:
    - All founder emails + the opt-in person's email
    - Join with ", " for the To field
 
-4. **Create the Gmail draft:**
+4. **Create the Gmail draft AND write the draft-feedback snapshot atomically** via
+   `~/.claude/scripts/gmail-create-draft.py` (same helper as `founder-outreach` Step 7 — it creates
+   the draft through the gmail-webhook `createDraft` endpoint and writes the snapshot to
+   `_system/draft-snapshots/<hex>.json` in one shot, so Tom's edits feed
+   `writing-style/intro-connect/EDIT_PATTERNS.md` via diff mode).
+
+   Write two scratch files first: the HTML body (Gmail-native `<div>` lines), and the plain-text
+   snapshot body (strip tags; the connect email has no signature block to exclude — end at `Tom`).
+
    ```
-   Tool: gmail_create_draft
-   to: "<founder1_email>, <founder2_email>, <target_email>"
-   subject: "<formatted subject>"
-   body: "<formatted body>"
+   ~/.claude/scripts/gmail-create-draft.py \
+     --to "<founder1_email>, <founder2_email>, <target_email>" \
+     --subject "<formatted subject>" \
+     --html-body-file /tmp/<scratch>.html \
+     --snapshot-text-file /tmp/<scratch>.txt \
+     --skill intro-draft-agent
    ```
+
+   Stdout is one JSON line with `messageId` / `draftUrl`. Exit code 0 = both writes succeeded;
+   non-zero = treat the whole step as failed (do not fall back to a snapshot-less MCP draft).
 
 5. **Mark the thread so a deleted draft is never recreated (MANDATORY).** Apply the `Intro Drafted` Gmail label to the contact's **opt-in / outreach reply thread** (the `threadId` of their reply — NOT the new draft, which Tom may delete). Create the label first if it doesn't exist (`list_labels` → `create_label "Intro Drafted"`), then `label_thread`. This durable marker is exactly what the Step 2 deleted-draft guard reads on the next run: once set, this intro is drafted-once-forever — the auto-drafter will not redraft it even after Tom deletes the draft.
 

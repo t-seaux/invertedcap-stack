@@ -180,41 +180,20 @@ The full workflow is: talent-scan surfaces candidates → Tom sends the shortlis
 - **Only the opted-in candidates.** Respect the founder's picks exactly — skip anyone they passed on (e.g. Coverbase's Clarence opted in on Raymond Kim + Will Damron, passed on AJ "given how recently he joined" — so only Raymond + Will get drafts). If Tom says one is "already drafted," skip it.
 - **Fill the To field** with the candidate's email — fetch via `contactout_enrich_linkedin_profile` (`profile_only=false`) to the extent it resolves; leave blank only if no email is found.
 - **One draft per candidate.** No personal signature in the body — Tom's Mail client appends his signature on paste/send.
+- **Create each draft via `~/.claude/scripts/gmail-create-draft.py --skill talent-scan`** (not the Gmail MCP) — the helper creates the draft AND writes the draft-feedback snapshot atomically, so Tom's edits feed `writing-style/talent-outreach/EDIT_PATTERNS.md` via diff mode. Write the HTML body + a plain-text snapshot body (strip tags, no signature) to scratch files, pass `--html-body-file` / `--snapshot-text-file`. Exit code 0 = success; non-zero = that candidate's draft failed (don't fall back to a snapshot-less MCP draft). If a candidate's email is unresolved, skip the draft (the helper requires `--to`) and surface the name to Tom instead.
 
-**Template** (match voice/tone exactly — warm, brief, genuinely low-pressure):
-
-- **Subject:** `Intro to [Founder] @ [Company]?`
-- **Body:**
-  ```
-  Hey [First name],
-
-  Hope you're well! Apologies for the out-of-the-blue note, but would you have any
-  interest in connecting with [Founder](founder LinkedIn) @ [Company](company site)
-  (a portfolio company).
-
-  The company's building out their [GTM / engineering] team and you came up in
-  conversation. More on the company below and JD [here](role JD link) in case of
-  interest. Though zero pressure... no worries if not interesting / not the right time.
-
-  Best,
-  Tom
-
-  --
-
-  [company blurb block — left purple border, border-left:3px solid #8B5CF6]
-  What is [Company]?
-  [1-2 sentence what-it-does] :
-  1. [Value prop 1 — bold lead-in]: …
-  2. [Value prop 2 — bold lead-in]: …
-  3. [Value prop 3 — bold lead-in]: …
-  ```
-- **Links:** Founder name → founder LinkedIn; Company → company website; "here" → the JD for *that candidate's* role (Enterprise AE JD for senior AEs, the eng JD for engineers, etc.).
-- **Team phrasing:** "GTM team" for AE/sales roles, "engineering team" for eng roles.
-- **Company blurb:** reuse the company's canonical one-pager blurb verbatim (Tom maintains it). Coverbase's, for reference: "Third-party risk management (TPRM) involves more admin than risk mitigation. Coverbase is a TPRM copilot that automates 90% of third-party risk assessments using AI:" + (1) Automate data collection (2) AI gap analysis (3) Conduct continuous diligence.
+**Canonical voice + format live in the corpus: `~/.claude/skills/writing-style/talent-outreach/STYLE.md`.**
+Read `STYLE.md` + `EDIT_PATTERNS.md` + `VOICE_EXAMPLES.md` in that folder before finalizing every
+candidate draft. The stylebook owns the subject-line form (`Intro to [Founder] @ [Company]?`), the
+soft-ask body, the `you came up in conversation` sourcing line, role-based team phrasing (GTM vs
+engineering), the JD link rule, the purple-left-border blurb block, the reconnect-preamble variant,
+and the low-pressure register. Do not re-specify the template here — the stylebook is the single
+source. (Still respect the founder's candidate picks and the one-draft-per-candidate / To-field rules
+above.)
 
 ## Follow-ups (only if Tom asks)
 
-- **Draft intro notes** — a short warm note to the candidate or an ask-for-referral note to an exemplar. Match `writing-style/outreach/STYLE.md`. Never send; leave as a Gmail draft.
+- **Draft intro notes** — a short warm note to the candidate (match `writing-style/talent-outreach/STYLE.md`) or an ask-for-referral note to an exemplar (match `writing-style/founder-cold-outreach/STYLE.md`). Never send; leave as a Gmail draft.
 - **Enrich a candidate** — ContactOut via the `neg1-enricher` primitives or `contactout_enrich_linkedin_profile` for email + full tenure.
 - **Log against a portfolio Opp** — if the hiring company is a portfolio Opp and Tom wants a record, note the candidates in the Opp (confirm first — writes to Notion).
 

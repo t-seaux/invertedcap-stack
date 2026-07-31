@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-07-31] (Week of 2026-07-28)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- draft-feedback -- expanded to cover all seven email types (founder-cold-outreach, intro-outreach, intro-connect, feedback-outreach, talent-outreach, intro-offer, pass-note); webhook classifier and processor rules documented as a synchronized pair; newer email types now also read writing-style feedback loop via diff mode
+- founder-outreach -- writing-style stylebook path renamed from `outreach/` to `founder-cold-outreach/` to match the expanded multi-type corpus naming convention
+- intro-outreach-drafter -- now creates Gmail drafts via gmail-create-draft.py with atomic snapshot write, feeding the intro-outreach stylebook via diff mode; reads all three stylebook files (STYLE, EDIT_PATTERNS, VOICE_EXAMPLES)
+- talent-scan -- replaced inline email template with intro-outreach stylebook reference; creates outreach drafts via gmail-create-draft.py with atomic snapshot write; template now lives in writing-style/talent-outreach/
+- draft-investment-memo -- added guardrail for blue bullet glyphs in Appendix when bulleted list items are fully hyperlinked (delete+recreate paragraph bullets required; keep unlinked leading char)
+- first-pass-diligence -- added hard rule to run transcript relabeling synchronously; backgrounded children die silently inside subagents (2026-07-29 incident)
+- update-diligence-priors -- added hard rule to run all long-running scripts (relabeling, audit runner, PDF builder) synchronously with generous explicit timeouts; no run_in_background anywhere in this skill (2026-07-29 incident)
+- research-agent -- removed Dodge & Cox from scan universe; added Brasada Capital Management, Janus Henderson (all funds), Moon Capital Management, SouthernSun Asset Management (all funds)
+**Total skills:** 44
+**Functions:** No changes (note: pro-forma-round visible in Portfolio Management since 2026-07-30 run; canonical mapping entry pending formalization)
+
+---
+
 ## [2026-07-30] (Week of 2026-07-28)
 
 **Added:** None

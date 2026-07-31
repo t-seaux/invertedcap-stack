@@ -55,7 +55,6 @@ These are firms/investors Tom actively tracks. Search for each by name. Organize
 | Li Lu / Himalaya Capital | Letters (rare but notable), published speeches |
 | Mohnish Pabrai / Pabrai Investment Funds | Annual meeting transcripts, occasional published commentary |
 | GMO (Jeremy Grantham) | Quarterly letters, "Viewpoints" series, bubble-related memos |
-| Dodge & Cox | Quarterly investment perspectives |
 | Gotham Asset Management (Joel Greenblatt) | Published commentary (infrequent) |
 | Vulcan Value Partners (C.T. Fitzpatrick) | Quarterly letters |
 | Bronte Capital (John Hempton) | Blog posts (long-form, investigative) |
@@ -188,6 +187,7 @@ Tom has reviewed and rejected these firms — they are **not interesting** for h
 - Aristotle Capital Management (all funds — Aristotle Core Equity Fund, etc.)
 - Artisan Partners (all funds — Mid Cap Fund, etc.)
 - Baron Capital (all funds — Baron Asset Fund, etc.)
+- Brasada Capital Management
 - Broyhill Asset Management
 - ByteTree
 - Carillon Tower Advisers (incl. Carillon Eagle Mid Cap Growth Fund)
@@ -200,6 +200,7 @@ Tom has reviewed and rejected these firms — they are **not interesting** for h
 - Greystone Capital
 - Henchmen Partners
 - Hotchkis & Wiley (all funds)
+- Janus Henderson (all funds — Forty Fund, etc.)
 - JB Global Capital
 - Jensen Investment Management (all funds — Jensen Quality Mid Cap Fund, etc.)
 - Laughing Water Capital
@@ -207,11 +208,13 @@ Tom has reviewed and rejected these firms — they are **not interesting** for h
 - Longleaf Partners (Southeastern Asset Management — all funds: Longleaf Partners Fund, Small-Cap Fund, International Fund, etc.)
 - Matrix Asset Management
 - Montaka Global Investments
+- Moon Capital Management
 - Nightview Capital
 - Polen Capital (all strategies — 5Perspectives Small Growth Strategy, etc.)
 - Praetorian Capital
 - Right Tail Capital
 - Rowan Street Capital
+- SouthernSun Asset Management (all funds — SMID Cap Strategy, etc.)
 - Value Guinea (GVI)
 - Wedgewood Partners
 - Weitz Investment Management (all funds — Weitz Large Cap Equity Fund, etc.)

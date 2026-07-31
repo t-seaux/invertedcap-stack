@@ -95,9 +95,15 @@ For each named person, in order:
    the correct address — surface the one on file and invite a correction.)
 
 ### Step 3 — Draft the note (per recipient)
-Read `writing-style/intro-outreach/STYLE.md` and follow it exactly, including the correct **variant by
-intro type** (portco / non-portco company / person, and the purpose-tuned relevance line). One Gmail
-**draft** per recipient via `create_draft` (never send):
+Read `writing-style/intro-outreach/STYLE.md` (+ `EDIT_PATTERNS.md` + `VOICE_EXAMPLES.md`) and follow it
+exactly, including the correct **variant by intro type** (portco / non-portco company / person, and the
+purpose-tuned relevance line). One Gmail **draft** per recipient via
+`~/.claude/scripts/gmail-create-draft.py --skill intro-outreach-drafter` (never send) — the helper
+creates the draft AND writes the draft-feedback snapshot atomically, so Tom's edits feed
+`writing-style/intro-outreach/EDIT_PATTERNS.md` via diff mode. Write the HTML body + a plain-text
+snapshot body (strip tags; no signature) to scratch files, pass `--html-body-file` /
+`--snapshot-text-file`; exit code 0 = success, non-zero = that recipient's draft failed (don't fall
+back to a snapshot-less MCP draft). Draft rules:
 - Subject per STYLE: `Intro to [Subject] ([plain-English of what they do])?` (e.g. "Intro to Rengo (AI for investment firms)?").
 - `htmlBody`: `<div>`-line HTML; ask line links the subject person to LinkedIn and the company to its site;
   the verbatim blurb at the bottom under an italic `About [Subject]` header, first sentence bold, company

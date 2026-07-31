@@ -220,6 +220,18 @@ invocation, source-bundle chunking behavior, prefer-un-chunked rationale, draft
 batching / `_failed_draft_batches` behavior) in
 `references/step-b-audit-iteration.md`; **read it now before proceeding.**
 
+**HARD RULE — invoke the runner SYNCHRONOUSLY (foreground), never with
+`run_in_background: true`.** When this audit runs inside a subagent, backgrounded
+children can die silently the moment the subagent's turn yields — 0-byte output
+file, no process, no error surfaced — and the run hangs forever on a wait that
+never fires. Foreground with a generous explicit Bash timeout (up to the 600000ms
+max; the runner routinely takes several minutes on large bundles). If a single
+invocation would genuinely exceed the max timeout, use the B.2.0 chunking gate to
+shrink the per-call work rather than backgrounding. A visible timeout/error beats
+a silent zombie wait. Incident: Fair 2026-07-29 (update-diligence-priors run) —
+backgrounded audit + relabel jobs all died at spawn; run hung 2+ hours. Memory:
+`feedback_subagent_background_jobs_die_silently`.
+
 ### B.2 — HARD EXIT GATE (check after every audit run, iter1 included)
 
 ```bash

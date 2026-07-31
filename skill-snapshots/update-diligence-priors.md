@@ -151,6 +151,20 @@ The labeled transcripts feed the deterministic attribution-mismatch check in Ste
 lint and prevent the class of error where Tom's reframings end up attributed to the
 founder. See memory `feedback_transcript_speaker_attribution_to_tom`.
 
+**HARD RULE — run every long-running script in this skill SYNCHRONOUSLY (foreground).**
+This applies to `relabel_transcript.py`, `verify_speaker_attribution.py`,
+`bundle_completeness_check.py`, the Step 4.5 audit runner, `update_priors_lint.py`,
+the PDF builder, and `pdf_format_guard.py`. Never launch them with
+`run_in_background: true` — when this skill runs inside a subagent, backgrounded
+children can die silently the moment the subagent's turn yields (0-byte output file,
+no process, no error surfaced), leaving the run stuck on a wait that never fires.
+Foreground with a generous explicit timeout (relabeling a very long transcript can
+need up to 600s; split the transcript in halves and run the halves serially if one
+call would exceed that). A visible timeout/error you can react to always beats a
+silent zombie wait. Incident: Fair 2026-07-29 — relabel + audit jobs backgrounded
+from the update-priors subagent all died at spawn; run hung 2+ hours. Memory:
+`feedback_subagent_background_jobs_die_silently`.
+
 If the current conversation contains information Tom has shared directly (e.g., "I just learned
 that..." or forwarded content), treat that as new information too.
 

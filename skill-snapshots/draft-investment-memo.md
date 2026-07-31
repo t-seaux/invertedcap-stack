@@ -115,7 +115,16 @@ the canonical set is:
    indents, table chrome, and section layout exactly. `canonical_spec.py`
    and the template were baked from its publish run, so the harness output
    IS Factir formatting — verify against the doc itself on the Step 6d
-   spot-check.
+   spot-check. **Black bullet glyphs in the Appendix (AgentBay lesson,
+   2026-07-28):** when a bulleted list item is entirely a hyperlink, the
+   bullet glyph inherits the link's blue into `paragraph.bullet.textStyle`
+   and renders blue. Prevent it by keeping the leading zero-width space (or
+   any unlinked char) as the paragraph's first run; if blue glyphs appear
+   anyway, `createParagraphBullets` alone will NOT reset them — you must
+   `deleteParagraphBullets` then `createParagraphBullets` over the same
+   ranges (two separate batches; bullet ops don't shift text indices).
+   Verify post-publish: walk table cells, check no `bullet.textStyle`
+   carries link-blue foregroundColor.
    [Doc](https://docs.google.com/document/d/1uDluLfFs7Qc7vONpIrwOptnDCARTXQF-23G4Ui6Vt90/edit)
 2. **Tuor** (Feb 2026) — heaviest structural weight alongside Factir
 3. **Signal7** (Nov 2025)

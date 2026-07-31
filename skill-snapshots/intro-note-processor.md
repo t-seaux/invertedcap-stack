@@ -127,6 +127,7 @@ For each candidate from Step 2:
    - `previously-declined` → drop
 3. Cross-check against Query A (prior notes) — if the candidate was named in a prior note for the same Opp BUT is NOT in any of the four lifecycle fields, that's a corner case worth surfacing in the alert (`prior-mention-but-untracked`). Still process them this run.
 4. Cross-check against Query B (past sent emails) — if a sent email exists addressed to this person about this Opp BUT they're not in any lifecycle field, surface as `outreach-sent-but-untracked` and skip this skill's draft step (intro-outreach-agent's sweep should pick it up). Don't add to Qualified — they're effectively already at Outreach.
+5. **Subject-agnostic sent-check (MANDATORY).** Query B only catches canonical outreach subjects — Tom often intros manually with free-form subjects ("Re-intro'ing! …", "X <> Y", inline replies). For each candidate with a resolved email, also run `in:sent (to:<email> OR cc:<email>) newer_than:90d` and inspect hits for this Opp (founder/`Contact` email as co-recipient, or Opp corroboration in subject/body). Dual-recipient hit → intro already Made: drop with `intro-already-sent`, skip both the Qualified write and the draft. Single-recipient hit about this Opp → treat as `outreach-sent-but-untracked` per point 4. Full rule: `shared-references/intro-lifecycle-contract.md`, Pre-Draft Sent-Check section.
 
 ### Step 5: Resolve each candidate in the People DB
 
@@ -210,6 +211,7 @@ Conventions:
   - `⚠️ not in People DB — please add` — surfaced for Tom; one-line context line follows
   - `⚠️ thin-context-draft — review before sending` — draft was saved but framing is soft
   - `⏭️ already in <stage> — no action` — dedup hit
+  - `⏭️ intro already sent — no action` — subject-agnostic sent-check found Tom's own send (dual-recipient = Made); Made relation should be updated by the scanner or manually
   - `⚠️ ambiguous People DB match — please clarify` — multiple candidates with same name
   - `⚠️ no email on file — add to People DB or send manually` — found in DB but no `Email` field
 - For `[draft]` link: Gmail draft URLs follow `https://mail.google.com/mail/u/0/#drafts/<draft_id>`. Use the draft ID returned by `gmail_create_draft`.
