@@ -58,15 +58,35 @@ For each name provided by Tom:
 
 1. Search the **People DB** in Notion (`collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`) using `notion-search` with the person's name. If found, fetch the full People page and retrieve the `Email` field.
 2. If the email field is blank, use `contactout_enrich_person` with full name as a fallback.
-3. **If the person is NOT found in the People DB at all**, create a new People DB entry before proceeding. Follow the field mapping from the `add-to-contacts` skill at `/Users/tomseo/.claude/skills/add-to-contacts/SKILL.md`:
-   - Use `contactout_enrich_person` (with name + company/context if available) to get email and profile data
+3. **If the person is NOT found in the People DB at all**, create a new People DB entry before proceeding. **✅ Auto-creation is authorized here — do not stop and ask.** Tom explicitly named this person as someone to get feedback from, so the relationship is already established and there is no judgement call left for him (confirmed 2026-07-31). The Slack heads-up below replaces the approval gate rather than preceding it. Follow the field mapping from the `add-to-contacts` skill at `/Users/tomseo/.claude/skills/add-to-contacts/SKILL.md`:
+   - **Email IS a strong key** (as of the 2026-07-31 MCP fix). `contactout_email_to_linkedin(email)` returns the LinkedIn URL directly, and `contactout_enrich_person(email=…)` now returns Name / Headline / Company / LinkedIn / Location correctly. Both were broken before that date — `email_to_linkedin` 404'd on every call, and `enrich_person` rendered `Company: [object Object]`. If you see either symptom again, the MCP has regressed.
+   - **Best chain:** `contactout_email_to_linkedin(email)` → `contactout_enrich_linkedin_profile(url)` for the full profile (headline, location, seniority, complete experience history). `enrich_person` is fine for a quick identity check.
+   - For *current* employer trust the profile's `is_current` experience entry over any cached Notion value — Notion rows go stale (Anthony Chen's row still showed a 2017 Flexport title in July 2026).
    - Use `contactout_enrich_linkedin_profile` if a LinkedIn URL is available to get full profile data
-   - Populate: Name, Email, LI, Company, Role, Category, City, State — per the field rules in add-to-contacts
+   - Populate: Name, Email, LI, Company, Role, Category, City, State — per the field rules in add-to-contacts. **Never skip the lookup for speed** — that hard rule still binds; what changed is only whether Tom is asked first.
    - Create via `notion-create-pages` with `data_source_id: 1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`
    - Use the newly created page's ID for the `📣 Pending Feedback` relation in Step 7
-4. If ContactOut returns nothing and the person can't be found or created, flag to Tom and skip that recipient.
+   - **Post a Slack heads-up via `send-alert` to `#claude-alerts`** for every row created:
 
-Note: LinkedIn URLs are NOT needed for recipients — only for founders in the company blurb (see Step 3).
+     > 👤 Created People DB entry: **[Name]** ([email])
+     > Reason: feedback outreach on **[Company]** — not previously in People DB
+     > Enriched: [LinkedIn URL | "⚠️ no ContactOut match — needs manual enrichment"]
+     > [Company] · [Role] · [City]
+     > → [Notion People page URL] · [Opportunity URL]
+     > ↩️ Reply with their LinkedIn URL and I'll enrich the row.
+
+     The header MUST start with `👤 Created People DB entry` — `claude-alerts-listener` special
+     branch 8 keys on that string to route Tom's LinkedIn-URL reply back into enrichment. The
+     `↩️` line is required whenever enrichment came back empty, and harmless otherwise (a reply
+     also lets Tom correct a wrong ContactOut match). Always include the People page URL — the
+     listener needs it to find the row.
+
+     Batch multiple creations from one run into a single message rather than one alert per person.
+     When batching, keep one `→ [People page URL]` line per person so the listener can
+     disambiguate which row a reply refers to.
+4. If every ContactOut lookup comes back empty, **still create the row** with the name and email you have, and say so explicitly in the Slack heads-up so Tom knows it needs manual enrichment. Only skip the recipient entirely if you have neither a usable name nor an email.
+
+Note: LinkedIn URLs are not needed at all in this skill — not for recipients, and (as of 2026-07-31) not for founders either, since the blurb no longer carries a team line (see Step 3).
 
 ### Step 2: Pull diligence materials from the Notion opportunity
 
@@ -88,7 +108,12 @@ Using the materials from Step 2, write a 3–5 sentence company blurb following 
 - Sentence 2: Customer context — who uses this, what's broken in their world today.
 - Sentence 3 (bold): "[Company] orchestrates/solves this." — the mechanism.
 - Sentence 4: Optional supporting detail (no SQL, no engineering lift, etc.).
-- Sentence 5: Team line.
+
+**No founder / team line.** Do NOT close the blurb with who is behind the business — no names, no
+pedigree, no LinkedIn links. The recipient is being asked to judge the *business*, and founder
+background invites them to evaluate the bet instead of the merits (and can bias the answer). End the
+blurb at the product. Confirmed preference, 2026-07-31 — supersedes the team line shown in the
+STYLE.md worked example.
 
 ### Step 4: Draft the diligence questions
 
@@ -100,20 +125,16 @@ Write 2–3 sharp questions tailored to this specific opportunity. Each question
 
 Draw on the thesis as understood from memos, transcripts, and the opportunity page. The questions should signal that Tom has done work.
 
-### Step 5: No personalization line
+### Step 5: No personalization line, no stage
 
 Do NOT add a line referencing where the recipient works or their background (e.g., "given your time at X" or "given your work at Y"). This reads as filler. The opener should simply be:
 
-> "I'm digging into a [stage] opportunity and figured you'd have a gut take."
+> "I'm digging into an investment opportunity and figured you'd have a gut take."
 
-Where [stage] maps from the opportunity's Stage field as follows:
-- Pre-Seed 💡 → "pre-seed"
-- Seed 🌾 → "seed"
-- Seed+ 🛣️ → "seed"
-- Series A 🏎️ → "Series A"
-- Series B 📈 → "Series B"
-- Growth 🚀 → "growth"
-- Any other / unknown → "early-stage"
+**Never name the round or stage** — not "pre-seed", not "seed", not "Series A". The ask is about the
+merits of the **commercial** opportunity, not the investment one; financing details are irrelevant to
+that question and the Stage field must not be read into the opener. `an investment opportunity` is the
+canonical phrasing (`a company` is an acceptable alt). Confirmed preference, 2026-07-31.
 
 The fact that Tom reached out to this specific person implies the relevance — it does not need to be stated.
 
@@ -138,6 +159,18 @@ then:
 Exit code 0 = both writes succeeded; non-zero = that recipient's draft failed (don't fall back to a
 snapshot-less MCP draft). Create each draft independently.
 
+**Exit code 4 = blocked by the writing-style gate** (`~/.claude/scripts/style_gate.py`, added
+2026-07-31). This is a HARD, deterministic gate that runs before the Gmail POST, so nothing is
+created — there is no draft to clean up. It encodes this stylebook's mechanical invariants: the
+market-signal fixture, the `--` + `About` blurb, en-dash-only prose, no round/stage named, no
+founder name or LinkedIn link, and a response menu naming `voice note`. **Fix the draft and re-run
+— do not reach for `--force`.** `--force` exists only for a deliberate, explained exception and
+records `styleGateBypassed: true` in the snapshot.
+
+The gate exists because "read STYLE.md before finalizing" is an instruction the model can skip, and
+did (2026-07-31). It is the executable copy of the stylebook — when STYLE.md changes, update
+`style_gate.py` in the same commit.
+
 #### HTML Formatting Rules
 
 Always send as `text/html`. Use **`<div>` blocks, NOT `<p>`** — Gmail's native compose emits `<div>content</div>` with `<div><br></div>` for blank lines, and `<p>` adds excess top margin that visibly inflates spacing compared to Tom's regular emails. Confirmed against rendered diff 2026-05-12.
@@ -154,10 +187,11 @@ Always send as `text/html`. Use **`<div>` blocks, NOT `<p>`** — Gmail's native
 ```
 
 Key formatting rules:
-- Founder name(s), when included in the blurb, are hyperlinked to their LinkedIn URLs using `<a href="..." style="color:#1155CC">`
+- **No founder names and no founder LinkedIn links in the blurb** (Step 3). No Founder(s)-relation or
+  ContactOut lookup is needed for this skill at all — the blurb ends at the product.
 - The "About [Company]" header is italicized with `<em>`
 - Body prose uses en dashes (`–`) only — never em dashes (`—`)
-- LinkedIn URLs: retrieve from the opportunity's Founder(s) relation pages in Notion (People DB). If a LinkedIn URL is not found in the DB, use `contactout_enrich_person` with the founder's full name and company to attempt a lookup. If ContactOut also returns nothing, leave the founder name as plain text (no hyperlink) and note to Tom that a LinkedIn URL could not be verified. Never infer or guess a LinkedIn slug.
+- The two blurb lead sentences are bold (`<strong>`)
 
 ### Step 7: Update `📣 Pending Feedback` relation on the opportunity
 

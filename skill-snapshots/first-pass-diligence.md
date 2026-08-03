@@ -224,9 +224,24 @@ The Diligence Materials field may contain five types of sources. Identify each b
 or file extension and use the corresponding access method:
 
 **Type 1: Google Drive PDFs** (`drive.google.com/file/d/{FILE_ID}/...`)
-Use the PDF MCP tool `read_pdf_bytes` with the download URL format:
-`https://drive.google.com/uc?export=download&id={FILE_ID}`. This works without Chrome
-authentication for files shared to Tom's account.
+Download locally, then classify before choosing an extraction path — this routes text-based
+PDFs to free local extraction instead of paying vision tokens on `read_pdf_bytes` for material
+that doesn't need it:
+
+```bash
+curl -sL "https://drive.google.com/uc?export=download&id={FILE_ID}" -o $WORKSPACE/material_{FILE_ID}.pdf
+python3 ~/.claude/skills/shared-references/classify_pdf.py $WORKSPACE/material_{FILE_ID}.pdf
+```
+
+- `pdf_type: "text_based"` (confidence ≥ 0.8, `has_encoding_issues: false`) → extract locally:
+  `pdftotext -layout $WORKSPACE/material_{FILE_ID}.pdf -`. Use that text directly; skip
+  `read_pdf_bytes` entirely.
+- Anything else (`scanned`, `image_based`, `mixed`, low confidence, or encoding issues) →
+  fall back to `read_pdf_bytes` on the local file, same as before.
+- If the `curl` download fails (auth wall, virus-scan interstitial for large files), skip
+  straight to `read_pdf_bytes` with the original download URL format:
+  `https://drive.google.com/uc?export=download&id={FILE_ID}`. This works without Chrome
+  authentication for files shared to Tom's account.
 
 **Type 2: Google Docs** (`docs.google.com/document/d/{DOC_ID}/...`)
 Use `google_drive_fetch` with the document ID.
@@ -285,9 +300,13 @@ and flag it as a gap in the Sources section.
 
 **Type 4: DocSend links** (`docsend.com/view/...`)
 Read the `docsend-to-pdf` skill (`**/docsend-to-pdf/SKILL.md`) and follow its instructions
-to convert the DocSend document to a local PDF. Once converted, read the resulting PDF with
-`read_pdf_bytes` using the local file path. DocSend data rooms (multi-document links) should
-have each document converted individually.
+to convert the DocSend document to a local PDF. Once converted, classify it with the same
+helper as Type 1: `python3 ~/.claude/skills/shared-references/classify_pdf.py <local_path>`.
+DocSend PDFs are screenshot compilations and will almost always classify as `scanned` or
+`image_based` — route those to `read_pdf_bytes` as before. On the rare `text_based` result
+(confidence ≥ 0.8, no encoding issues), extract locally with `pdftotext -layout <local_path> -`
+instead and skip `read_pdf_bytes`. DocSend data rooms (multi-document links) should have each
+document converted and classified individually.
 
 **Type 5: Video files** (`.mp4`, `.mov`, `.m4v`, `.webm` — typically product demos, recorded
 calls, founder pitches uploaded to Notion or Drive)

@@ -120,7 +120,7 @@ Scan the skills directory to build a complete inventory.
 |---|---|
 | Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `neg1-sourcing-listener`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share` |
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan` |
-| Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan`, `intro-outreach-drafter`, `safe-drafter` |
+| Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan`, `intro-outreach-drafter`, `safe-drafter`, `pro-forma-round` |
 | Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste`, `question-bank`, `memo-workshop` |
 | Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan`, `investing-style` (composite — absorbs `founder-taste`, whose home function is Diligence Management; see Composite breakdown), `launchagent:com.tomseo.scheduled.investing-style-quarterly` |
 
@@ -191,6 +191,9 @@ Build three pending sets from the current run's inventory:
 For each pending item, also capture:
 - Where it was discovered (file path / LaunchAgent label / handler name)
 - The earliest run date it was first seen pending — stored in `skill-snapshots/_pending.json` in the GitHub repo as `{ "<item>": "YYYY-MM-DD", ... }`. On first detection, record today's date; on subsequent runs, preserve the original date so the alert can show "pending since X". Remove entries from `_pending.json` when the item becomes categorized.
+- **A recommended Function** (pending *skills* only). Read the skill's `SKILL.md` description and infer the single best-fit Function from the canonical set — the visible functions (Pipeline / Intro / Portfolio / Diligence / Research Management) or the hidden buckets (Fund Ops, Admin). Admin is the catch-all for utility/subroutine/personal-automation skills with no standalone user-facing workflow. Pick exactly one; this is a recommendation, not a final placement, so a confident best guess is expected rather than a "doesn't fit" punt.
+
+**Pending-items alert format (the recommend-then-confirm ask):** In the Step 7 alert, every pending *skill* line must state the recommendation and invite a one-word confirm — e.g. `• `pro-forma-round` (pending since 2026-07-30) → Recommend: **Portfolio Management**. 👍 / "confirm" to accept, or name another Function.` The goal is that Tom can just reply 👍 or "confirm" and the [[claude-alerts-listener]] Skill-map function-assignment branch applies the recommended Function. Do NOT phrase these as a bare discrepancy ("not yet in the mapping table") with no recommendation — always lead with the recommended Function. Pending LaunchAgents / webhook handlers keep the plain flag (no Function recommendation applies to them).
 
 **Recomputation discipline (mandatory)**: Every run MUST recompute the three pending sets from scratch against the CURRENT mapping tables in this SKILL.md, then reconcile with the existing `_pending.json`:
 
@@ -633,7 +636,7 @@ If running from `run-all`, suppress this alert (the orchestrator handles consoli
 - **GitHub push fails**: Retry once. If still failing, save the HTML file locally and alert Tom to push manually.
 - **PNG render fails**: Skip PNG update but still push HTML. Note the failure in the alert.
 - **No changes detected**: Report cleanly and exit — do not regenerate or push stale content.
-- **New skill doesn't fit a function**: Flag it in the alert for Tom to assign manually. Do not add it to the visuals.
+- **New skill doesn't fit a function**: Still recommend the closest-fit existing Function in the alert (per the Step 0.5 recommend-then-confirm format) so Tom can confirm or redirect with one word — do NOT punt with a bare "assign manually" and no recommendation. Never invent a *new* Function without Tom's approval. Do not add it to the visuals until it's assigned.
 
 ---
 

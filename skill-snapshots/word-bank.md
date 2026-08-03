@@ -21,16 +21,16 @@ Trigger: "add to word bank [X]", "add [X] to word bank", "word bank: [X]", "word
 
 ### Steps
 
-1. **Parse the input.** Extract the word(s) or short phrase(s). Tom may pass several at once (comma/line separated) — process each. If Tom included the sentence or context he saw it in, keep that verbatim for the `Seen in:` field.
+1. **Read `word_bank.md` and dedup FIRST — mandatory, every time, before writing anything.** This is a hard gate, not a mid-flow check. Read the whole file and scan for each incoming word (match on the base word regardless of part-of-speech or casing). If a word is already present: do **not** add a duplicate — tell Tom it's already in the bank (with its `Added` date), and if his new definition/context differs, offer to update the existing entry instead. Only words that clear this check proceed to the build/prepend steps. Never prepend before this read has happened.
 
-2. **Build the entry** for each word:
+2. **Parse the input.** Extract the word(s) or short phrase(s). Tom may pass several at once (comma/line separated) — process each. If Tom included the sentence or context he saw it in, keep that verbatim for the `Seen in:` field.
+
+3. **Build the entry** for each word:
    - **Part of speech** — `(pos)`, listing **every** part of speech the word can function as, comma-separated: `(n.)`, `(v.)`, `(adj.)`, `(adv.)`, e.g. `(n., adj.)` — not just the primary sense.
    - **Definition** — one concise sentence. Precise, plain, no dictionary padding. If the word has multiple senses, give the sense that fits Tom's context (or the most common sense, and note the others in half a clause only if genuinely useful).
    - **Example** — one natural sentence that shows the word in use. Prefer a sentence rooted in Tom's world (venture, funds, founders, writing, markets) when it reads naturally — the point is for him to be able to reuse it. Otherwise a clear general sentence. Do **not** reuse the `Seen in` sentence as the example; write a fresh one.
    - **Added** — today's date, `YYYY-MM-DD` (use the current date from context).
    - **Seen in** — only if Tom gave the source/context. Omit entirely otherwise.
-
-3. **Dedup.** Read `word_bank.md` first. If the word is already present, don't add a duplicate — tell Tom it's already in the bank (with its date) and, if his new definition/context differs, offer to update the existing entry instead.
 
 4. **Prepend** the new entry (or entries) directly under the `<!-- entries below -->` marker so newest sits at the top. **Exact entry shape** (3 lines; use this format verbatim for both the file and the reply):
 

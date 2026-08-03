@@ -45,7 +45,16 @@ In both sub-modes the queue payload includes `personId` and `oppCandidateIds` (�
   1. If `oppCandidateIds.length > 1`, disambiguate by reading the thread's earliest sent message and haystack-matching its subject + body-head against the candidate opp names. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
   2. Apply Step 2's "Processing matches" sub-steps (read full thread, sanity-check it's a feedback outreach thread, classify the reply) exactly as written. The classification rubric (substantive vs acknowledgment/deferral) lives in Step 2 — do not restate it here.
 - Run Steps 3-5 (note creation OR append + remove from Pending Feedback if substantive) exactly as in scheduled mode.
-- **Skip Step 6's scheduled-scan summary.** Emit a single-line run-log entry: `single-message feedback-reply: <person> on <opp> — <classification> → <action>`. No standalone Slack alert in webhook mode.
+- **Skip Step 6's scheduled-scan summary.** Emit the single-line run-log entry: `single-message feedback-reply: <person> on <opp> — <classification> → <action>`. Then, **only if the reply classified as substantive**, post the **Reply-logged confirmation** (below) via `send-alert` to `#claude-alerts`. This is the standing behavior Tom asked for 2026-08-01 — substantive inbound feedback written to Notion is confirmed immediately, not just rolled up in the next Diligence Agent daily digest (the digest still lists it too). Fire the confirmation only AFTER the Notion write succeeds, so it is a genuine "it's logged" signal; if the write failed, alert the failure instead.
+- **Deferrals get NO Slack alert** (Tom confirmed 2026-08-01 — substantive only). A "will revert EOW / traveling / circle back" reply is logged to the note as usual but stays silent on Slack; it still surfaces in the daily digest. Only the substantive classification pings.
+
+**Reply-logged confirmation.** Header MUST start with `💬` (not a `claude-alerts-listener` reserved emoji — no listener action is wanted here, it is FYI-only). Send via `send-alert`:
+
+> 💬 Feedback logged — **[Opp Company]**: [Person Name] ([Person Company]) on [subject — founder name or company gut-take]
+> [1–2 sentence excerpt of the substantive reply verbatim]
+> Note: [Notion feedback-note URL] · Opp: [Notion Opp URL]
+
+Substantive replies only — the note URL points at the feedback note the reply was written into (created-from-scratch or appended), so Tom is one click from the logged record.
 
 Idempotency at queue layer (key = `feedback-reply-{messageId}`); skill does not re-check.
 
@@ -55,9 +64,66 @@ Idempotency at queue layer (key = `feedback-reply-{messageId}`); skill does not 
 - `mode` (required) — literal string `'sent'`
 - `messageId` (required) — Gmail message ID of Tom's outbound feedback ask
 - `threadId` (required) — Gmail thread ID (almost always a fresh thread, but pass through anyway)
-- `recipientEmail` (required) — the resolved-and-PF recipient's email address
-- `personId` (required) — Notion People DB page ID, pre-resolved by webhook gate
-- `oppCandidateIds` (required) — array of Opportunity page IDs where this person sits in `📣 Pending Feedback`. Webhook gate guarantees length ≥ 1. The webhook ALSO ran the `feedback-ask-intent` LLM classifier (Haiku → Sonnet escalation) before enqueueing, so the body is already confirmed as a feedback ask — do not re-classify intent.
+- `recipientEmail` (required) — the resolved recipient's email address
+- `recipientName` (optional) — display name parsed from the `To`/`Cc` header; present mainly on the founder-backchannel path, where it seeds contact creation
+- `personId` (required **unless** `needsPersonCreate` is true) — Notion People DB page ID, pre-resolved by webhook gate
+- `needsPersonCreate` (optional, default false) — see "Founder-backchannel path" below
+- `oppCandidateIds` (required) — array of Opportunity page IDs where this person sits in `📣 Pending Feedback`. Webhook gate guarantees length ≥ 1. The webhook ALSO ran an LLM classifier before enqueueing, so the body is already confirmed — do not re-classify intent.
+
+#### Founder-backchannel path (`needsPersonCreate: true`)
+
+Added 2026-07-31. Set by `feedback-founder-backchannel.js` when Tom writes an ad-hoc backchannel
+asking about a FOUNDER (subject is the founder's name — `Re: Avery Alchek`, `Nipun Jasuja
+reference`) rather than a company gut-take. Two things differ from the normal outbound path:
+
+1. **`personId` is null** — the recipient has no People DB row, so the webhook could not write the
+   `📣 Pending Feedback` relation (a relation needs a page id). The webhook deliberately does NOT
+   mint the row itself; creation happens here, where the enrichment tooling lives.
+
+   **✅ AUTO-CREATION IS AUTHORIZED ON THIS PATH — do not stop and ask Tom.** This is a deliberate
+   carve-out from the usual "surface a new contact to Tom" norm (cf. `neg1-promote`, which never
+   creates People rows). The justification is that Tom *explicitly and deliberately* emailed this
+   person asking for feedback, so the relationship is already established — there is no judgement
+   call left for him to make. Confirmed by Tom 2026-07-31. **Post a Slack heads-up after creating**
+   (see below); the notification replaces the approval gate, it does not precede it.
+
+   **Resolution chain.** The email is the one thing always known, and since the 2026-07-31 MCP fix
+   it is a *strong* key:
+   1. `contactout_email_to_linkedin(recipientEmail)` → LinkedIn URL.
+   2. `contactout_enrich_linkedin_profile(url)` → full profile (headline, location, seniority,
+      complete experience history).
+   3. If step 1 finds nothing, `contactout_enrich_person(email=…)` returns Name / Company /
+      LinkedIn / Location and is enough for a usable row.
+   4. For *current* employer trust the profile's `is_current` experience entry over cached values.
+   5. Populate Name, Email, LI, Company, Role, Category, City, State per the field rules in
+      `add-to-contacts/SKILL.md`. **Never skip the lookup for speed** — that hard rule still binds;
+      what changed is only whether Tom is asked first, not whether enrichment runs.
+   5. If every lookup comes back empty, still create the row with the name + email you have, and say
+      so explicitly in the Slack message so Tom knows it needs manual enrichment.
+
+   Then add the new page to the Opp's `📣 Pending Feedback` relation — read the existing array and
+   write the FULL merged array back, since relation writes are a full replace.
+
+   **Slack heads-up (required whenever a row was created).** Send via `send-alert` to
+   `#claude-alerts`:
+
+   > 👤 Created People DB entry: **[Name]** ([email])
+   > Reason: feedback outreach on **[Company]** — not previously in People DB
+   > Enriched: [LinkedIn URL | "⚠️ no ContactOut match — needs manual enrichment"]
+   > [Company] · [Role] · [City]
+   > → [Notion People page URL] · [Opportunity URL]
+   > ↩️ Reply with their LinkedIn URL and I'll enrich the row.
+
+   The header MUST start with `👤 Created People DB entry` — `claude-alerts-listener` special
+   branch 8 keys on that exact string to route a LinkedIn-URL reply back into enrichment, and the
+   People page URL is how it locates the row. Include the `↩️` line whenever enrichment was empty.
+
+2. **`oppCandidateIds` has exactly one entry**, resolved deterministically off the founder's name
+   (People row → Contact email → Active Opp, or a `-1 (Founder Name)` title). No disambiguation
+   needed — but do confirm the resolved Opp is still `Active` before writing.
+
+When `needsPersonCreate` is false the recipient was already promoted onto `📣 Pending Feedback` by
+the webhook; behave exactly as the normal outbound path.
 
 **Behavior:**
 - **Skip Step 0** — the webhook already resolved (person, candidate opps).
@@ -72,7 +138,10 @@ Idempotency at queue layer (key = `feedback-reply-{messageId}`); skill does not 
 - **Do NOT remove the person from `📣 Pending Feedback`.** Outbound = note created; PF removal happens only when substantive feedback arrives (Step 5, triggered on the inbound reply later).
 - **Skip Step 6's scheduled-scan summary.** Emit a single-line run-log entry: `single-message feedback-outreach-sent: <person> on <opp> — note created`. No standalone Slack alert.
 
-Idempotency at queue layer (key = `feedback-outreach-sent-{messageId}-{personId}`); skill does not re-check.
+Idempotency at queue layer (key = `feedback-outreach-sent-{threadId}-{personId|recipientEmail}`);
+skill does not re-check. Keyed on **threadId**, not messageId — Gmail fires multiple webhooks for the
+same outreach thread, and messageId-keying once produced duplicate `[PENDING]` notes (Gilad Rom /
+Factir, 2026-05-12). Falls back to the lowercased recipient email when `personId` is null.
 
 ## Step 0: Build the Pending Feedback Contact List from Notion
 

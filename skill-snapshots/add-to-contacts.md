@@ -39,6 +39,45 @@ Behavior:
 5. Apply the unattended-execution guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md` — never ask, skip-and-log on missing data, always reach Slack with a result line.
 6. On completion, post a single-line Slack alert via `send-alert` describing what was filled in.
 
+## Mode C (email): BCC-to-contacts queue
+
+When invoked with `{mode: "email", messageId, threadId, alias}`, Tom BCC'd (or forwarded) an email to `tom+contact@invertedcap.com` to capture its counterparty into the People DB. The gmail-webhook `add-contact-inbound` handler already archived the message (label `contact-add`, skipped inbox) and enqueued this job via claude-job-queue. This runs **fully unattended** — apply the guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md`: never ask, skip-and-log on missing data, always reach Slack with a result line.
+
+### Step C1 — Read the message and identify who to add
+
+1. Fetch the message with the Gmail MCP (`get_message` by `messageId`; use `get_thread` on `threadId` if you need surrounding context — e.g. a one-line forward with the real content below). Read the From / To / Cc headers, the signature block, and the body (including any forwarded/quoted original).
+2. **Determine the external counterparty/counterparties** — the person or people this email is *about*, whom Tom wants captured. This depends on how Tom used the alias:
+   - **Tom replied/sent and BCC'd the alias** → the counterparties are the external **To/Cc recipients** (the people Tom is corresponding with).
+   - **Tom forwarded a received email to the alias** → the counterparty is the **original sender** of the forwarded message (read it out of the forwarded `From:` line or the quoted header block), plus any other external people quoted on it.
+   - When ambiguous, use judgment on who the human of interest is; the signature block and who's being addressed by name usually make it obvious.
+3. **Exclude, always:**
+   - Tom's own addresses: `tom@invertedcap.com`, `tom@dashfund.co`, `thomas.seo@outlook.com`, and the capture alias `tom+contact@invertedcap.com` itself.
+   - Automated / non-human senders: `no-reply`/`noreply`, `notifications@`, `mailer-daemon`, `updates@`, `news`/`newsletter@`, `alerts@`, `support@`, calendar-invite senders, and obvious list/blast addresses.
+4. **Add ALL remaining external people** (Tom's confirmed default). If there are several, process each; if there are none after exclusions, skip-and-log and still post a Slack line saying so.
+
+### Step C2 — Enrich, dedup, and create-or-update each person
+
+For **each** identified person, run the standard person pipeline from this skill:
+
+1. **Enrich** — start from the email address (and name from the header/signature). Call `contactout_email_to_linkedin` / `contactout_enrich_person` to resolve the LinkedIn URL, then follow Step 1's ContactOut → Sales Nav → **web-search fallback** ladder to fill Role, Company, City/State, and photo. Cache raw ContactOut payloads per Step 1.5. Honor "exhaust web search before leaving a field blank."
+2. **Signature/body as ground truth** — the email signature and body are Tom-adjacent context: a title, company, or direct-domain email in the signature overrides stale ContactOut per the "Tom-supplied fields override ContactOut" rule. Infer Company from a custom-domain email when it disagrees with ContactOut's current position.
+3. **Dedup** — run the `workspace_search` dedup (see "Dedupe before create"). 
+   - **Match found → UPDATE in place** (`notion-update-page`): fill only blank/stale fields, add the newly-found email to the row if missing, set the icon if unset. Do not archive-and-recreate in unattended mode.
+   - **No match → CREATE** a fresh row per Step 4 (including the `touch /tmp/.addcontacts-bypass` gate marker and the icon).
+4. Populate Category, City, State, and set the icon exactly as in the manual flow.
+
+### Step C3 — One consolidated Slack alert
+
+After processing everyone, post a **single** `send-alert` message summarizing the run — one line per person with the action taken and a Notion link, e.g.:
+
+```
+📇 Contacts (BCC) — 2 processed
+• Created: Jane Okafor (Series A, Stripe) — <notion link>
+• Updated: Marco Ruiz (added email + role) — <notion link>
+```
+
+If nothing was actionable (only Tom / automated senders), still post a short line so the queue run is never silent. Never send a separate alert per person.
+
 ## Fields to Populate
 
 | Field | Type | Source Priority | Notes |
@@ -92,6 +131,28 @@ The user might say something like "add Matt Heiman from Mercury to contacts — 
 Extract whatever is provided directly. If a LinkedIn URL is not given but enough context exists to
 search for one, offer to look the person up on LinkedIn to fill in gaps — but don't block on it.
 Create the entry with whatever information is available.
+
+**Web-search fallback — REQUIRED when ContactOut is thin (never leave fields blank without trying):**
+When there's no LinkedIn URL and ContactOut returns little or nothing (no role, no location, no photo —
+common for people known only by a work email cc'd on a thread), do NOT create a stub and stop. Run a
+web search to fill Role, City/State, LinkedIn URL, and photo before writing:
+1. Search `"{Full Name}" {Company}` (e.g. via WebSearch). For someone at a fund/company, their firm's
+   own team/bio page and their LinkedIn are usually the top hits.
+2. Fetch the firm's team/bio page (WebFetch) — it's authoritative for the exact **title** and usually
+   carries the **LinkedIn URL** and a **profile photo image URL** (set that as the page icon). Prefer
+   the firm page's title verbatim over a search-snippet paraphrase if they differ.
+3. Derive **City/State** from the firm's HQ / the person's stated location (e.g. a person at an NYC-only
+   firm → City "New York", State "NY"). Map to metro per Step 3.
+4. Only leave a field blank after the search genuinely comes up empty — and say so in the report.
+
+Tom's standing expectation: exhaust web search before punting a field back to him. Don't give up after
+one approach (ContactOut alone) — try the firm page, LinkedIn, and a plain name+company search.
+
+**Why:** 2026-07-31 — Adam Piasecki (adam@primary.vc) was cc'd on an email with no LinkedIn URL;
+ContactOut returned only the name. The row was created with Role/City/State blank and handed back to
+Tom, who pushed back: "if not available you need to do a web search to find and fill it… you can't just
+give up before you try more approaches." A single WebSearch + WebFetch of primary.vc surfaced the title
+(Senior Associate, Physical AI), LinkedIn, NYC location, and photo.
 
 **Screenshot or forwarded email:**
 Parse the image or email text for name, company, role, email, location. If a LinkedIn URL is visible,

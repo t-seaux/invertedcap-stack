@@ -201,7 +201,7 @@ tail ~/Library/Logs/draft-feedback-processor.log
 ## Important rules
 
 - **Never send anything.** This skill only reads sent mail and writes local pattern files.
-- **Match by persistent Gmail message ID, not by subject/recipient/threadId.** The message ID survives every edit a draft can undergo (subject change, recipient change, wholesale body rewrite). All three corner cases are handled gracefully.
+- **Match by persistent Gmail message ID, not by subject/recipient/threadId.** The message ID survives every edit a draft can undergo (subject change, recipient change, wholesale body rewrite) — **but only when the send happens in Gmail itself** (web or the Gmail app). Sending from a non-Gmail client (Apple Mail on macOS/iOS, Outlook) composes a *new* message over IMAP/SMTP and discards the Gmail-side draft, so the ID changes and diff mode silently degrades to from-scratch. See the client-mismatch row in Failure modes.
 - **From-scratch heuristic is intentionally narrow** (exact outreach subject + pass-note suffix). Better to under-capture than to falsely capture personal emails as voice signal.
 - **Extracted patterns are durable, raw archives are bulk.** `EDIT_PATTERNS.md` and `VOICE_EXAMPLES.md` are committed to skills directory; raw archives live in Drive and may rotate.
 - **Patterns are observations, not commands.** Drafters read them as "what Tom has done" — apply as priors, not rigid rules. Tom's voice is contextual.
@@ -217,6 +217,7 @@ tail ~/Library/Logs/draft-feedback-processor.log
 | Snapshot orphaned (Tom never sent) | Auto-purged at 30 days via `purgeOldSnapshots` |
 | Subject heuristic false positive | Worst case: a non-outreach email gets logged to `VOICE_EXAMPLES.md`. Manually delete the entry. |
 | Webhook missed entirely | Apps Script `last_history_id` advances on every notification; if a notification is somehow lost, the next one's history list will catch the missed message |
+| **Draft edited but sent from a non-Gmail client** (Apple Mail, Outlook) | Message ID changes and the original draft is deleted, so no snapshot match. Falls through to from-scratch mode — which is **worse than losing the delta**: a lightly-edited Claude draft gets filed in `VOICE_EXAMPLES.md` as "Tom's voice when he writes alone," corrupting ground truth. Detect via the `apple-mail-*` / `dir="auto"` markers in the sent `htmlBody`. Observed 2026-07-31 (Fair → Paul Drinkwater). **Not yet fixed** — proposed remedy is a fallback match on recipient + fuzzy subject + send-time proximity to an unconsumed snapshot, demoting to from-scratch only when that also misses. |
 
 ## Relationship to `writing-style`
 

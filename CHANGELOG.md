@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-08-03] (Week of 2026-07-28)
+
+**Added:** remote-session-cleanup (pending categorization — recommend Admin)
+**Removed:** None
+**Modified:**
+- add-to-contacts -- added BCC email capture mode (Mode C): BCC to a capture alias enqueues unattended contact creation via claude-job-queue; improved ContactOut enrichment chain using email-to-linkedin + enrich-linkedin-profile
+- claude-alerts-listener -- Skill-map function-assignment branch now accepts bare confirms (👍 / "confirm" / "yes" / "lgtm") in addition to explicit function names; added contact enrichment retry branch routing LinkedIn URL replies back into People DB row enrichment
+- draft-feedback -- added client-mismatch detection: drafts sent via non-Gmail clients (Apple Mail, Outlook) produce a new message ID rather than sending the existing draft, causing silent fallthrough to from-scratch mode; behavior documented as a known failure mode
+- feedback-outreach-drafter -- auto-creation of People DB entries for new recipients now authorized without pre-approval gate; ContactOut enrichment chain improved; founder team line removed from email body
+- feedback-outreach-scanner -- adds immediate Slack confirmation for substantive feedback replies; adds founder-backchannel path for recipients not yet in the People DB (needsPersonCreate flag)
+- first-pass-diligence -- PDF classification step added: text-based decks route to local extraction to avoid unnecessary vision tokens; scanned and image PDFs fall through to the previous read path
+- skill-map-refresh -- pro-forma-round formally added to Portfolio Management canonical mapping; pending-items alert format updated to lead with a Function recommendation and invite a one-word confirm
+- word-bank -- dedup check moved to mandatory first step before any file write; parse-input step now follows the dedup gate to prevent accidental duplicates
+**Total skills:** 44
+**Functions:** No changes
+
+---
+
 ## [2026-07-31] (Week of 2026-07-28)
 
 **Added:** None
