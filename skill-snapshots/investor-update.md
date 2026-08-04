@@ -651,6 +651,48 @@ If the original source was a Google Doc / Sheet (Case B in Step 3) AND a PDF was
 
 **General rule (all cases):** Any URL in the email/message body that represents a material or demo — Loom, YouTube, product demo, slide deck, external doc, or similar — should also be added to Artifacts via the headless helper, in addition to living in the page body. Use a short descriptive label derived from the surrounding context (e.g., section header or founder's description). The Artifacts field is the canonical index of everything substantive attached to an update entry.
 
+## Step 4.6: Detect and link job postings to the Jobs property
+
+Founders frequently drop a hiring link into an investor update ("we're looking for a Founding Engineer", "join us", a bare `jobs.ashbyhq.com/...` or `{company}.notion.site/{Role}-at-{Company}-...` link). When one is found, link it directly to the Opportunity's **`Jobs`** Files property — this replaces the manual step Tom was doing by hand (e.g. the Factir "Founding Engineer" chip).
+
+**Detection — scan the email/message body** (and, for Cases A/B/D, the artifact text already read per the "read the saved artifact" step above — job links live in decks/docs too). Both conditions must hold for a candidate URL:
+
+1. **Hiring-intent language near the link** — "hiring", "we're looking for", "open role(s)/position(s)", "join us"/"join the team", "come build with us", or a bare role title used as a link caption ("Founding Engineer", "Head of X", "VP of X").
+2. **A URL that's plausibly a job posting** — known ATS/job-board domains (`jobs.ashbyhq.com`, `*.greenhouse.io` / `job-boards.greenhouse.io`, `jobs.lever.co`, `apply.workable.com`, `*.breezy.hr`, `wellfound.com/jobs/...`, `linkedin.com/jobs/view/...`, `indeed.com/viewjob...`), a `{company}.notion.site` page whose slug reads as a role posting, or a `/careers` or `/jobs` path on the company's own domain.
+
+**Capture — snapshot to PDF, then Drive, then link (same shape as every other artifact in this skill).** Don't link the live URL directly: job postings get edited/taken down, and the archived snapshot is what makes the chip durable. Derive `<Role Title>` from the surrounding text (preferred) or the URL slug if the body doesn't name it plainly.
+
+1. **Render the live posting to PDF** via Chrome headless, pointed straight at the URL (same binary/flags as the Case C email-body render, but the target is the live page, not a local HTML file). ATS pages (Ashby, Greenhouse) are often JS-rendered — `--virtual-time-budget` gives the page time to paint before the snapshot is taken:
+   ```bash
+   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+     --headless --disable-gpu --no-pdf-header-footer \
+     --virtual-time-budget=8000 \
+     --print-to-pdf="/tmp/<Company> - Jobs - <Role Title>.pdf" \
+     "<job_posting_url>"
+   ```
+   If the resulting PDF is blank or trivially thin (a few KB — the JS never painted, or the page bot-gated the headless UA), skip the Drive upload and fall back to linking the live URL directly as the chip (Step 3 below) rather than archiving a broken snapshot.
+2. **Upload to Drive** — reuse the company's subfolder under the `Investor Updates` parent (the same `folderId` resolved/created in Step 3 for this run) via the Drive Upload Apps Script. Name the file `[Company] - Jobs - [Role Title].pdf`.
+3. **Link the Drive file to the `Jobs` property on the Opportunity page:**
+   ```bash
+   python3 ~/.claude/scripts/notion_files_property.py \
+     --page-id <opportunity_page_id> \
+     --prop "Jobs" \
+     --url "<drive_file_url>" \
+     --label "<Company> - <Role Title> JD"
+   ```
+   (Fallback case from step 1: pass the live job-posting URL in place of the Drive URL.)
+4. **Also chip the same Drive file onto `Artifacts` on this run's Company Updates row** — the row created/upserted in Step 4, same as any other artifact from this update (Step 4.5's pattern):
+   ```bash
+   python3 ~/.claude/scripts/notion_files_property.py \
+     --page-id <company_updates_row_id> \
+     --prop "Artifacts" \
+     --url "<drive_file_url>" \
+     --label "<Company> - <Role Title> JD"
+   ```
+   Same label, same URL, two different pages — `Jobs` on the Opportunity is the durable "current openings" surface; `Artifacts` on the Company Updates row is the dated record of what this specific update contained. Both chips are cheap (the helper is idempotent) and neither substitutes for the other.
+
+One pass per distinct job link — the helper is idempotent on URL, so re-processing the same update (or a later update that repeats the same link) is a no-op. Skip silently if no hiring link is found — this step doesn't force a match.
+
 ## Step 5: Report Results
 
 **Notification channel:** All alerts (success, non-portfolio, misclassification review) MUST be delivered via the `send-alert` skill at `/Users/tomseo/.claude/skills/send-alert/SKILL.md` — pipe the GFM body through `~/.claude/skills/send-alert/send.sh`. This posts as the `claude` bot identity (the canonical channel for LLM-synthesized alerts; distinct from `tom` MCP and `alerts` Apps Script).
@@ -666,6 +708,10 @@ If the original source was a Google Doc / Sheet (Case B in Step 3) AND a PDF was
 • **<Company>** — "<subject or period>" — <PDF source: original/email-converted>. [<Company> update](https://www.notion.so/{page_id_no_dashes})
 • _none this run_ (if empty)
 
+**Jobs Linked**
+• **<Company>** — [<Role Title>](<drive_or_live_url>) → `Jobs` field
+• (omit section entirely if Step 4.6 found no hiring links this run)
+
 **Non-Portfolio (filtered)**
 • **<Company>** — "<subject>" — <reason filtered> (e.g., Status: Scheduled → saved as Diligence Material; or Not in Opportunities DB — personal newsletter)
 • (omit section if empty)
@@ -679,6 +725,7 @@ Rules:
 - **Bold the company name** with double asterisks (GFM). The `send.sh` converter handles this correctly.
 - **The Notion page link MUST be a GFM markdown link** `[label](url)` (e.g., `[Quiet AI update](https://www.notion.so/3ab00beff4aa81cf857bd7b2a69e82d1)`) — never a bare URL. `send.sh`/`md_to_blocks.py` only linkifies `[text](url)`; a pasted bare URL ships as plain, un-tappable text in the Block Kit rich_text output. Use the canonical host `https://www.notion.so/{page_id_no_dashes}` — **never `app.notion.com/p/{id}`** (that form is not a resolvable page URL). Same page-id you write to the `Company`/created-page URL in Step 4.
 - Portfolio section = companies with Status in the Active Portfolio set (per the skill's Step 3 eligibility rule). Everything else goes under Non-Portfolio.
+- **Jobs Linked** section only appears when Step 4.6 actually added a chip this run — never an empty placeholder row. Link the chip's own URL (Drive snapshot, or the live posting on the render-failure fallback), not the Opportunity page.
 - For each Non-Portfolio entry, include a one-line reason so Tom can see why it didn't land in Notion as a portfolio update (e.g., "Status: Scheduled — saved as Diligence Material instead", "Not in Opportunities DB").
 - The header uses the 📬 emoji, an em dash (—), and ISO date format. Example: `📬 PORTFOLIO UPDATES — 2026-03-06`.
 - Internal sub-agent summary (returned to orchestrator) can be more verbose — include Gmail thread IDs, PDF paths, match attempts — but the Slack body stays to the format above.
