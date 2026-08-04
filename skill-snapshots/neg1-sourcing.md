@@ -221,7 +221,7 @@ The card ends with proposed changes as a checklist; Tom approves/vetoes in-threa
 
 Invoke the `send-alert` skill with the following message. Bodies are GFM markdown (see `send-alert/SKILL.md`) — `**bold**` becomes bold, `[label](url)` becomes a clickable link, `*single asterisks*` would render as italic so avoid them.
 
-**Format (Tom's locked shape, 2026-07-27):**
+**Format (Tom's locked shape, 2026-07-27; Deep Sweep section added 2026-08-03):**
 ```
 📡 **-1 Sourcing Summary – Week of {run_date}**
 
@@ -232,9 +232,14 @@ Invoke the `send-alert` skill with the following message. Bodies are GFM markdow
 **Cold (8, incl. 2 wildcards — tag those rows `[wildcard]`)**
 • [{Full Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier}]
 • (8 rows)
+
+**Deep Sweep ({N})**
+• [{Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier} · {timing_signal}]
+• (one row per monthly deep-sweep / departure-diff candidate)
 ```
 
 - **Header is exactly** `-1 Sourcing Summary – Week of {run_date}` (en dash) — not "neg1 sourcing".
+- **Deep Sweep section (first Mondays only):** on the first Monday of the month, Step 1.75 also runs and produces `source='network-deep-sweep'` (WHAT-lens deep sweep) and `source='departure-trigger'` (departure diff) rows. List **every such row from THIS run** under **Deep Sweep ({N})**, N = the count, using the Warm row format (they upsert as `type="Warm ☀️"` — include `timing_signal` when present). On every other week no monthly rows exist — **omit the entire section** (header and all), never render an empty `Deep Sweep (0)`. Rationale: the weekly digest must be the single complete index of everyone sourced this week — deep-sweep candidates get individual `#neg1-sourcing` cards too, but without this section they never appear in the roundup and are easy to miss (they were silently absent from the 2026-08-03 summary — 5 rows).
 - **Never render "Unknown"**: when `timing_signal` (or any bracket segment) is Unknown, omit that segment — `[Scaled · Unknown]` → `[Scaled]`.
 - **No footer line.** The "Rows upserted → Pending Enrichment / picks up tonight" closer is dropped (it was legacy wording anyway — v2 enrichment cards within minutes). The digest ends after the last candidate row (failure warning below is the only exception).
 - **Real names everywhere, never LinkedIn slugs**: warm rows use the cache `name`; cold rows use the `full_name` captured from the Step 1.5 ContactOut probe (every surviving cold candidate has one — a nameless probe is a discard).
