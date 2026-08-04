@@ -10,6 +10,7 @@ Scans Gmail for feedback outreach activity over the past 12 hours, using the Not
 
 1. **Sent scan** — detects newly sent feedback outreach emails and creates per-person Notion feedback notes
 2. **Reply scan** — detects replies from feedback contacts, appends feedback to existing notes, and removes the person from `📣 Pending Feedback` only when substantive feedback has been received
+3. **Manual reconciliation** (sweep only, Step 2c) — detects feedback Tom entered into a note by hand (phone-call notes, pasted text threads), then drops `[PENDING]` and clears the relation, since no Gmail or transcript event ever fires for those
 
 ## Key IDs
 
@@ -132,7 +133,7 @@ the webhook; behave exactly as the normal outbound path.
   1. If `oppCandidateIds.length > 1`, disambiguate by reading the sent message's subject + body-head and haystack-matching against the candidate opp names. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
   2. Read the full sent message to extract subject, recipient name/email, send date, and the **complete verbatim body**.
   3. Sanity check: skim the body to confirm it reads as a feedback ask (mentions the opp company name, asks for input/take/perspective, or contains diligence questions). The LLM gate is the primary trust signal, but a second pass here is cheap insurance against misclassification.
-  4. Deduplication check: fetch the Opp page and inspect its `✍️ Notes` relation array against `[PENDING] [Company]: [First Name] [Last Name]` (with or without the `[PENDING]` prefix). If a match exists, exit 0 — the scheduled sweep or a prior webhook run already logged it.
+  4. Deduplication check: fetch the Opp page and inspect its `✍️ Notes` relation array for a note titled with this person — giver-first `[First Name] [Last Name] ([Their Company]): [Subject]` or legacy `[Company]: [First Name] [Last Name]`, with or without the `[PENDING]` prefix. If a match exists, exit 0 — the scheduled sweep or a prior webhook run already logged it.
 - Run Step 3 (create the per-person `[PENDING]` note) exactly as in scheduled mode, using the sent-message body as the outreach note body and `## Response — [No reply yet]` placeholder.
 - Set the new note's `Opportunity` relation to the resolved Opp page URL on creation — Notion bidirectional sync then auto-links it into the Opp's `✍️ Notes` array.
 - **Do NOT remove the person from `📣 Pending Feedback`.** Outbound = note created; PF removal happens only when substantive feedback arrives (Step 5, triggered on the inbound reply later).
@@ -192,9 +193,9 @@ This catches cases where Tom emailed a personal address that differs from the on
 For each sent email found:
 1. Read the full message to extract: subject, recipient name and email, send date, and the **complete verbatim email body** — every line, including opener, questions, and company blurb. You will paste this directly into the note in Step 3.
 2. **Sanity check**: Skim the email body to confirm it's a feedback outreach (contains diligence questions, a company blurb, or references the opportunity). Skip unrelated emails to the same person (e.g., a scheduling email).
-3. **Deduplication check**: Fetch the opportunity page and inspect its `✍️ Notes` relation array. For each note URL in that array, fetch the note page and check its title against both prefixed and unprefixed forms:
-   - `[PENDING] [Company]: [First Name] [Last Name]`
-   - `[Company]: [First Name] [Last Name]`
+3. **Deduplication check**: Fetch the opportunity page and inspect its `✍️ Notes` relation array. For each note URL in that array, fetch the note page and check its title (with or without the `[PENDING]` prefix) against both the current giver-first form and the legacy company-first form:
+   - `[First Name] [Last Name] ([Their Company]): [Subject]` (current)
+   - `[Company]: [First Name] [Last Name]` (legacy, pre-2026-08-03)
    If a title match exists, skip — do not create a duplicate. This approach reads from the Opportunity page itself (updated atomically at note-creation time) rather than relying on Notion's search index, which may not reflect pages created in the same or immediately prior scanner run.
 4. If no matching note exists in the relation, proceed to create one (Step 3).
 
@@ -226,12 +227,32 @@ For each inbox message found:
 3. **Classify the reply** — this determines downstream actions:
    - **Substantive feedback**: The person shares actual opinions, market reactions, answers to diligence questions, or relevant observations about the opportunity. This counts as feedback received.
    - **Acknowledgment / deferral**: The person says they'll respond later ("I'll send notes soon", "give me a few days", "will get back to you after vacation"). This does NOT count as feedback received — the person remains pending, even though they replied.
-4. Search for an existing note for this person + opportunity by fetching the opportunity page and inspecting its `✍️ Notes` relation array. Check each linked note's title against both `[PENDING] [Company]: [First Name]...` and `[Company]: [First Name]...` forms. This is the same relation-based check used in Step 1 — do not use Notion search here.
+4. Search for an existing note for this person + opportunity by fetching the opportunity page and inspecting its `✍️ Notes` relation array. Check each linked note's title (prefixed or unprefixed) against both the giver-first `[First Name] [Last Name] ([Their Company]): ...` and legacy `[Company]: [First Name]...` forms. This is the same relation-based check used in Step 1 — do not use Notion search here.
 5. If a note exists — append the reply under `## Response — [Date]` (Step 4).
 6. If no note exists yet — create the full note now using the thread's sent message as the outreach note body and the reply as the response (Step 3 + Step 4 together).
 7. **After appending the reply**, act based on classification:
    - **Substantive feedback**: remove `[PENDING]` from the note title (Step 4b) and remove this person from `📣 Pending Feedback` (Step 5).
    - **Acknowledgment / deferral**: keep `[PENDING]` in the title and keep the person in `📣 Pending Feedback`. Log the acknowledgment in the note so there's a record, but treat them as still outstanding.
+
+---
+
+## Step 2c: Reconcile Manually-Entered Feedback (scheduled sweep only)
+
+Gmail replies (Step 2) and Zoom transcripts (meeting-note-processor Step 4b) have automated paths, but feedback sometimes arrives OUTSIDE both — a phone call whose notes Tom types directly into the Notion note, or a text thread he pastes in by hand. Nothing fires on a manual Notion edit, so the note stays `[PENDING]` and the person stays in `📣 Pending Feedback` forever. This step closes that gap. (Origin: Paul Drinkwater / Fair, 2026-08-03 — phone-call notes manually added, stale `[PENDING]` + stale relation both needed hand-cleanup.)
+
+Run this in **scheduled sweep mode only** (skip in webhook Modes B-inbound/B-outbound — they're single-event handlers).
+
+For each person still in the Step 0 contact list AFTER Steps 1–2 ran (i.e., no inbound reply resolved them this sweep):
+1. Find their existing note via the Opp's `✍️ Notes` relation (same title-matching as Step 2.4). No note → nothing to reconcile; skip.
+2. If the note's title still carries `[PENDING]`, fetch the note body and check for substantive content the scanner did NOT write:
+   - A populated `## Call Notes — [Date]` section (non-empty body under the heading)
+   - A populated `## Response — [Date]` section whose content the sweep/webhook didn't append (manual paste)
+   - Any other dated section with actual feedback content (raw text thread, voice-note transcription, etc.)
+3. Classify that content with the same substantive-vs-deferral standard as Step 2.3. Scheduling chatter, empty placeholder headings, or "will call you Monday" content is NOT substantive — leave pending.
+4. If substantive: run Step 4b (drop `[PENDING]`) and Step 5 (remove from `📣 Pending Feedback`). Do NOT rewrite, reformat, or summarize the manual content — Tom's notes stay exactly as he typed them.
+5. Count these in the Step 6 summary under **Manually-resolved (reconciled)**.
+
+Inverse-drift guard: if a note's title has NO `[PENDING]` prefix but the person is still in `📣 Pending Feedback` (e.g., Tom dropped the prefix by hand), treat the unprefixed title as the substantive signal — verify the body isn't empty placeholders, then run Step 5 to clear the relation.
 
 ---
 
@@ -251,13 +272,17 @@ Use only the People DB data fetched in Step 0 — do not look up or infer inform
 
 ### Page title
 
-All new notes start as `[PENDING]` — feedback has not been received yet:
+All new notes start as `[PENDING]` — feedback has not been received yet. **Giver-first convention (Tom, 2026-08-03):** the person PROVIDING the feedback comes first, then the subject:
 
 ```
-[PENDING] [Company]: [First Name] [Last Name] ([Current Company]) Feedback
+[PENDING] [First Name] [Last Name] ([Current Company]): [Company] Feedback
 ```
 
-Example: `[PENDING] Clusia: Jeff Green (Hatch Bank) Feedback`
+Example: `[PENDING] Jeff Green (Hatch Bank): Clusia Feedback`
+
+Two subject variants, chosen from the outreach email's intent:
+- **Business/market feedback** (reactions to the company, market, product — the common case): subject = the Opp company name, trailing word **Feedback**. `Jeff Green (Hatch Bank): Clusia Feedback`
+- **Personal/professional reference on a person** (backchannel on a founder or individual): subject = that person's name, trailing word **Reference**. `Anthony Chen (FreightStack AI): Avery Alchek Reference`
 
 The `[PENDING]` prefix is removed only when substantive feedback arrives (Step 4b).
 
@@ -300,7 +325,7 @@ The pre-write dedup check at Step 1.3 / Mode B Step 4 reads the Opp's `✍️ No
 
 Procedure:
 1. Re-fetch the Opp page's `✍️ Notes` array.
-2. For each note URL in the array, fetch and inspect the title. Build the list of notes whose title matches either `[PENDING] [Company]: [First Name] [Last Name]` or `[Company]: [First Name] [Last Name]` for the SAME `(Company, First Name, Last Name)` triple you just wrote.
+2. For each note URL in the array, fetch and inspect the title. Build the list of notes whose title matches this person + subject in any recognized form — giver-first `[First Name] [Last Name] ([Their Company]): [Subject]` or legacy `[Company]: [First Name] [Last Name]`, prefixed or unprefixed — for the SAME `(Company, First Name, Last Name)` triple you just wrote.
 3. If exactly one match exists (your own write), done — exit normally.
 4. If two or more matches exist, you raced a peer. Apply the deterministic tiebreaker: **keep the note with the EARLIEST `Created` timestamp; archive every other matching note and remove its URL from the Opp's `✍️ Notes` array.** Earliest-wins means both racers converge on the same survivor without coordination.
 5. Archive via the Notion REST API: `PATCH /v1/pages/{pageId}` with `{"archived": true}`. The token decryption pattern is the same one `~/.claude/scripts/network_sync_notion.py` uses (`cd ~/code/notion-backup && SOPS_AGE_KEY_FILE=... python3 -c "from export import get_token; ..."`). Do NOT skip this step — leaving the duplicate as a live `[PENDING]` note pollutes the Opp's Notes feed.
@@ -313,7 +338,7 @@ This guard makes Step 3 self-healing under concurrent writes. The gmail-webhook 
 
 ## Cross-skill: meeting-note-processor handles the email-then-call case
 
-If Tom hops on a Zoom with a feedback giver AFTER the `[PENDING]` stub has been created (call transcript becomes the substantive feedback instead of an email reply), `meeting-note-processor` Step 4b detects the stub on the linked Opp, ports the outreach context into the meeting note, archives the stub, renames the meeting note to this skill's `[Company]: [Person] ([Their Company]) Feedback` convention, and removes the person from `📣 Pending Feedback`. No action needed here — the scanner's prefix-based dedup at Step 1.3 / Step 2.4 will recognize the renamed meeting note on any subsequent inbound reply and append rather than re-create.
+If Tom hops on a Zoom with a feedback giver AFTER the `[PENDING]` stub has been created (call transcript becomes the substantive feedback instead of an email reply), `meeting-note-processor` Step 4b detects the stub on the linked Opp, ports the outreach context into the meeting note, archives the stub, renames the meeting note to this skill's giver-first `[Person] ([Their Company]): [Company] Feedback` convention, and removes the person from `📣 Pending Feedback`. No action needed here — the scanner's prefix-based dedup at Step 1.3 / Step 2.4 will recognize the renamed meeting note on any subsequent inbound reply and append rather than re-create.
 
 ---
 
@@ -331,8 +356,8 @@ When a reply is detected (Step 2) and a note already exists:
 
 If the reply is classified as **substantive feedback**, update the note title to remove the `[PENDING]` prefix using `notion-update-page` with `command: update_properties`:
 
-- Before: `[PENDING] Clusia — Jeff Green (Hatch Bank) Feedback`
-- After: `Clusia — Jeff Green (Hatch Bank) Feedback`
+- Before: `[PENDING] Jeff Green (Hatch Bank): Clusia Feedback`
+- After: `Jeff Green (Hatch Bank): Clusia Feedback`
 
 Do NOT remove the prefix for acknowledgments or deferrals — those people are still pending.
 
@@ -359,6 +384,7 @@ Return a structured summary for the Diligence Agent orchestrator:
 ### Feedback Outreach Scanner
 - **New notes created**: [count] — [list: Person (Company) → Opportunity]
 - **Replies logged**: [count] — [list: Person → Opportunity, note whether substantive or deferral]
+- **Manually-resolved (reconciled)**: [count] — [list: Person → Opportunity, source (call notes / manual paste)]
 - **Removed from Pending Feedback**: [count] — [list: Person → Opportunity]
 - **Still pending (deferral/ack only)**: [count] — [list: Person → Opportunity]
 - **Already existed / skipped**: [count]
