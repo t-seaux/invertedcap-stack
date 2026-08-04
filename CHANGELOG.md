@@ -1,5 +1,20 @@
 # Changelog
 
+## [2026-08-04] (Week of 2026-08-04)
+
+**Added:** log-company-blurb (pending categorization — recommend Diligence Management)
+**Removed:** None
+**Modified:**
+- feedback-outreach-scanner -- manual feedback reconciliation (Step 2c): detects hand-entered notes, reconciles [PENDING] prefix; giver-first note title convention (2026-08-03); Mode B-outbound founder-backchannel path added when recipient has no People DB row
+- founder-outreach -- Step 3 dedup rewritten: full SWEEP of recipient's drafts on every run (not single tracked hex); safe ordering: snapshot → create → Notion point → delete others → verify; prevents duplicate drafts from blind retry
+- investor-update -- Step 4.6 added: detect and link job postings in portfolio updates; Chrome headless PDF render → Drive upload (company subfolder) → Jobs property on Opp + Artifacts on Company Updates row
+- neg1-sourcing -- Deep Sweep section added to Step 4 Slack digest: on first Mondays, source='network-deep-sweep' and source='departure-trigger' rows appear under Deep Sweep ({N}); Step 1.9 quarterly feedback review documented
+- neg1-sourcing-listener -- draft verb v2: Opp created directly via notion-create-pages (avoids 600s timeout; 2026-08-03 Charlie Schwartz incident); Source field fix (Claude relation, not Direct); Status → Qualified; Opp dedup before create; ledger append bug fixed
+**Total skills:** 44
+**Functions:** No changes
+
+---
+
 ## [2026-08-03] (Week of 2026-07-28)
 
 **Added:** remote-session-cleanup (pending categorization — recommend Admin)
