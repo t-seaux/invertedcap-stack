@@ -63,13 +63,14 @@ Skip the Slack-summary step; respond inline instead.
 
 ### 1. Read canonical artifact
 
-Open the iCloud xlsx directly with openpyxl (path above). No download step.
+Open the iCloud xlsx directly with openpyxl (path above). No manual download step — but if the file hasn't been touched recently, iCloud may have evicted it to a cloud-only placeholder, and openpyxl will fail with `OSError: [Errno 11] Resource deadlock avoided` / `BadZipFile: File is not a zip file`. Fix: run `brctl download "<path>"` once before opening, then retry the read.
 
 ### 2. Parse input
 
 - CSV: standard Citi export shape (Status, Date, Description, Debit, Credit). Filter to `Cleared` rows.
 - Reserve screenshot (PNG/JPG): OCR'd inline via vision — extract (date, type, amount, running balance) tuples. Validate against the running balance.
 - Reserve xls: openpyxl read.
+- Reserve CSV: `update_pl.py --reserve-csv` auto-detects shape — either the lightweight `date,type,amount,balance` format, or the same Citi export shape as the operating CSV (DEFAULT_1519 exports in Citi shape in practice; the script filters to `Cleared` rows with "INTEREST" in the description).
 
 ### 3. Dedupe against existing rows
 
