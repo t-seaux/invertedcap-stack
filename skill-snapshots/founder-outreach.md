@@ -80,14 +80,17 @@ One of: person's name, LinkedIn URL, or Notion page URL.
 
 **2. Run the precondition check** (above). Halt with a clear refusal message if anything is missing.
 
-**3. Handle existing drafts (delete-old-after-Notion-points-to-new).**
-Gmail's `create_draft` does NOT dedupe. **Whenever a NEW draft is created (i.e., not editing an existing draft in place), the old draft MUST be deleted** so Tom's drafts folder shows one canonical draft per recipient. The webhook smartening shipped to `gmail-webhook` v73+ (2026-04-28) makes this safe: the pass-detection pipeline now compares the deleted draft's hex against the Notion row's current `Gmail Draft URL` — if they don't match, the discard event is recognized as orphan cleanup and ignored.
+**3. Handle existing drafts — dedup by SWEEP, not by a single tracked hex.**
+Gmail's `create_draft` does NOT dedupe, and create is **non-idempotent**: a retry or a re-invocation of this skill for the same recipient mints a brand-new draft. So dedup must NOT rely on remembering one "old hex" — a duplicate born from a retry is untracked and would survive. (This is exactly how two `Introducing Inverted Capital` drafts to one recipient appeared on 2026-08-03.) The rule is a **full sweep**: after the canonical draft exists and Notion points to it, delete EVERY other draft to that recipient.
 
-Sequencing matters — this is the safe ordering:
-1. Call `mcp__claude_ai_Gmail__list_drafts` with `query: "to:{email}"` to detect existing drafts.
-2. Create the NEW draft first (Step 7) and capture its persistent hex (Step 8).
-3. **Update Notion's `Gmail Draft URL` to the NEW hex (Step 10).** This MUST happen before the deletion. The webhook's URL-match check reads Notion at the time the deletion event is processed; if Notion still points to the OLD hex when the delete fires, the smartening sees a "match" and treats it as a real Tom-discard.
-4. Only THEN delete the prior draft via `/Users/tomseo/.claude/skills/shared-references/delete-gmail-draft.sh <old_hex>`. The webhook fires `messageDeleted(old_hex)`, looks up Notion, sees URL contains NEW hex (not OLD) → mismatch → skip-not-active-draft → no spurious pass.
+**Non-idempotent create — never blind-retry.** If `gmail-create-draft.py` (Step 7) errors or times out, do NOT immediately re-run it. First call `mcp__claude_ai_Gmail__list_drafts` with `query: "to:{email}"` to check whether the draft actually landed; only create if none exists. A blind retry is the single most common way a second draft is born.
+
+Safe ordering (the Notion-before-delete sequencing still matters for the webhook's pass-detection):
+1. `mcp__claude_ai_Gmail__list_drafts` `query: "to:{email}"` — snapshot existing drafts BEFORE creating.
+2. Create the NEW canonical draft (Step 7); capture its persistent hex (Step 8).
+3. **Point Notion's `Gmail Draft URL` at the NEW hex (Step 10) BEFORE any deletion.** The gmail-webhook pass-detection reads Notion when the delete event lands; if Notion still points at an old hex, the discard is misread as a real Tom-pass.
+4. `list_drafts` `to:{email}` AGAIN, then delete **every hex ≠ the canonical hex** via `/Users/tomseo/.claude/skills/shared-references/delete-gmail-draft.sh <hex>` — not just the one you happened to track. The webhook sees each `messageDeleted(hex)`, finds Notion pointing at the canonical hex → mismatch → orphan cleanup → no spurious pass.
+5. **Verify, then surface on failure.** Re-`list_drafts` `to:{email}`. If anything other than the canonical hex remains, the delete SILENTLY FAILED — `delete-gmail-draft.sh` is a Chrome UI automation (osascript Discard-click), not an API delete, so it fails quietly when Chrome isn't focused / "JavaScript from Apple Events" is off / accessibility is denied. Do NOT assume success: post a `send-alert` note — "{N} duplicate draft(s) to {email} couldn't be auto-removed — delete the extras in Mail." Tom cannot otherwise tell the sweep didn't hold.
 
 **Edit-in-place exception (future):** if the skill ever uses Gmail's `users.drafts.update` API to mutate an existing draft in place, no deletion is needed (and the webhook smartening also handles the same-batch `messagesAdded(DRAFT)` companion event). Today the skill uses `create_draft` only, so this path is not yet active.
 
