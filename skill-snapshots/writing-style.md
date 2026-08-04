@@ -11,7 +11,7 @@ description: >-
   (candidate/hire outreach; talent-scan); pass-note (founder pass notes; pass-note-drafter);
   deal-decline ("sit this one out" deal-share declines; ad-hoc); lp-raise-outreach (prospective-LP
   raise notes + forwardable note; ad-hoc); reference-request (cold founder reference-check asks;
-  ad-hoc). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose,
+  ad-hoc); portco-ask-forward (Fwd: of a portco's ask + casual cover note; ad-hoc). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose,
   investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish",
   or "refine" any prose or email — infer the type from context and route to the matching stylebook.
   Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right
@@ -40,6 +40,7 @@ writing-style/
   deal-decline/      STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← "sit this one out" deal-share declines
   lp-raise-outreach/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← prospective-LP raise notes + forwardable note
   reference-request/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← cold founder reference-check asks
+  portco-ask-forward/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES  ← Fwd: of a portco's ask + casual cover note
   # ── LONG-FORM ──
   letters-and-memos/ STYLE + VOICE_EXAMPLES                   ← LP letters, memos, pre-mortems, etc.
 ```
@@ -71,10 +72,28 @@ the end-to-end flow; the stylebook is its voice source.
 | **Founder pass note** | Declining a founder warmly | `pass-note/` | `pass-note-drafter` |
 | **Deal-share decline** | "Sit this one out" reply to an investor who forwarded a deal/co-invest | `deal-decline/` | — (ad-hoc) |
 | **LP raise outreach** | Prospective-LP note — final close, remaining allocation, soft ask; incl. the forwardable-note sub-form | `lp-raise-outreach/` | — (ad-hoc) |
-| **Reference request** | Cold ask to someone in a founder's orbit for a diligence reference call | `reference-request/` | — (ad-hoc) |
+| **Reference request** | Cold ask to someone in a founder's orbit for a diligence reference call. Trigger phrases: "draft reference [request/outreach] notes for [Founder]", "reach out to folks for [Founder]'s references", "founder reference [check/call] emails", "doing references on [Founder]" | `reference-request/` | — (ad-hoc) |
+| **Portco ask forward** | `Fwd:` of a portco's request (vendor search, customer lead, partnership) to a contact who might be the fit or can route it onward — short casual cover note, forward carries the substance | `portco-ask-forward/` | — (ad-hoc) |
 
 If a request is a NEW email shape not in this table, see **"Log a new email form"** below — don't
 force-fit it into the nearest stylebook.
+
+## Signature — global rule for EVERY short-form email
+
+**Always append Tom's signature** to any Gmail draft created via the API (`create_draft` /
+`update_draft`), for ALL stylebooks above, using the exact canonical block at
+`shared-references/gmail-signature.md` (plaintext + HTML). Gmail's native signature only
+auto-appends inside the client — API-created drafts land signature-less otherwise. Confirmed
+2026-08-03 on the reference-request batch and now the default everywhere. This overrides any
+"no signature — Gmail auto-appends" language still lingering in an individual stylebook.
+
+**Two documented exceptions — do not add a signature here:**
+- `intro-connect` — the bare hand-off shape (`You both have context so [X] – will let you take it
+  from here!`) has no `Best, Tom` closer at all; a signature would look bolted on.
+- `pass-note` — explicitly and repeatedly rules out the signature block (STYLE.md fixture #14),
+  which reads as a deliberate calibrated voice choice (warm personal decline), not the auto-append
+  misconception the other stylebooks were written under. Flagged to Tom 2026-08-03, not yet
+  overridden — ask before changing.
 
 ## Routing logic (all writing, not just email)
 
@@ -89,6 +108,10 @@ If genuinely ambiguous, ask Tom which type. **Never guess between long-form and 
 have very different conventions. Within short-form email, if two use-cases are close (e.g. intro-interest
 vs candidate outreach), disambiguate on *who the recipient is and what's being offered*: a connection
 to a founder as a customer/investor → `intro-outreach`; as a hire for a portco → `talent-outreach`.
+`intro-outreach` and `portco-ask-forward` share the same spirit — connecting someone in Tom's
+network to a portfolio company — and differ only in vehicle: a portco-originated ask email Tom can
+forward (the forward carries the substance) → `portco-ask-forward`; Tom initiating with no
+forwardable artifact (formal note + About-blurb) → `intro-outreach`.
 
 ## "Log to writing style" trigger
 
@@ -147,6 +170,11 @@ All stylebooks share a few principles worth naming once:
   voice is contextual — what's right for an LP letter isn't right for a pass note.
 - **`EDIT_PATTERNS` is corrective signal; `VOICE_EXAMPLES` is positive ground truth.** Different
   cognitive cues — don't merge them.
+- **Sibling stylebooks share tone, not format.** (Tom, 2026-08-03, on intro-outreach vs
+  portco-ask-forward.) When two forms serve the same spirit through different vehicles, the voice
+  hallmarks (hedged fit, candid mechanism-naming, apologetic openers, easy outs) are valid priors
+  across both — but the scaffold/format rules never transfer. A thin corpus can borrow tone from
+  its sibling; it can't borrow structure.
 - **Em dashes (`—`) only in signatures and as rhetorical pauses in long-form prose. En dashes (`–`)
   elsewhere.** A Tom invariant across every stylebook.
 - **Never send — Gmail draft only.** Every email stylebook produces a draft; sending stays with Tom.
