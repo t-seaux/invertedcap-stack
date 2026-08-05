@@ -35,13 +35,19 @@ Query the Opportunities DB for all opportunities whose `📣 Pending Feedback` r
 > **Why 30 hours:** The agent runs on a ~10-hour cadence (8am and 6pm ET). A 30-hour lookback creates a 20-hour overlap between consecutive runs, so any contact added near a run boundary — or during a run's own execution window — is always caught by the next run. The draft-once dedup check below prevents double-drafting regardless of overlap.
 
 1. Fetch the opportunity page and read the current `📣 Pending Feedback` array.
-2. For each person in the array, run a **draft-once dedup check** across all of Gmail (including Trash and Spam):
+2. For each person in the array, run a **draft-once dedup check**. Two gates — a hit on **either** means skip.
 
-   **Any trace exists (sent, draft, or previously-deleted draft):**
-   Search `subject:"Thoughts on [Company]" to:[person email] in:anywhere`
-   → If ANY match returns (in sent, drafts, or trash), skip. The outreach has already been handled — either sent, awaiting Tom's send, or Tom deleted the draft as a terminal signal (meaning he reached out through another channel or decided not to pursue this contact).
+   **Gate A — the Opp's `✍️ Notes` relation (authoritative).** Read the relation directly and match this person's note title with or without the `[PENDING]` prefix, in both the giver-first and legacy company-first forms. This is the cross-path interlock required by `shared-references/feedback-note-format.md` ("Every path checks the Opp's `✍️ Notes` relation — not Notion search, the index lags same-run writes"). A note exists whether Tom sent, hasn't sent yet, or deleted the draft, so this holds draft-once semantics without depending on Gmail state.
 
-   **No trace anywhere:**
+   **Gate B — Gmail trace, across all of Gmail including Trash and Spam.** Match **either** subject form, because `📣 Pending Feedback` has two writers using different conventions:
+   - `subject:"Thoughts on [Company]" to:[person email] in:anywhere` — this skill's own outreach.
+   - `subject:"[Founder name] reference" to:[person email] in:anywhere` — a **reference request** Tom sent by hand.
+
+   → If ANY match returns (sent, drafts, or trash), skip. The outreach has already been handled — either sent, awaiting Tom's send, or Tom deleted the draft as a terminal signal (he reached out another way, or decided not to pursue this contact).
+
+   > **Why Gate B must check both forms (fixed 2026-08-04).** `gmail-webhook/feedback-founder-backchannel.js:294` promotes reference-request recipients into this same `📣 Pending Feedback` relation, and `founderNameFromSubject` (`:77-80`) keys on the `"[Name] reference"` subject shape. But `addToPendingFeedback` (`:206-222`) patches ONLY the relation — it creates no `✍️ Notes` entry. So a person Tom had already emailed a reference request to showed up in `📣 Pending Feedback` with no note (Gate A misses) and no `Thoughts on…` thread (the old single-form Gate B missed). The scan concluded "no trace anywhere" and drafted a second, off-topic ask to someone he'd already contacted about that deal — repeating every scan until he sent or deleted it. No crash or timeout required; this is purely a dedup-key scoping bug.
+
+   **No trace in either gate:**
    → Add to the drafting queue for this opportunity.
 
    **Why draft-once semantics:** Presence in `📣 Pending Feedback` is sticky — the relation persists after the initial draft. Without checking Trash, a deleted draft would keep getting re-created on every scan. Treating draft deletion as terminal collapses the loop: Tom drafts, decides (send / manual reach-out / skip), the record ends there.
@@ -209,46 +215,19 @@ The `📣 Pending Feedback` relation field must be updated by passing a **JSON a
 
 This is the same pattern used by the intro-agent skill for `👓 Intros (Qualified)`.
 
-### Step 8: Create Per-Person Feedback Note in Notion (on response only)
+### Step 8: Create the per-person `[PENDING]` feedback note in Notion (AT DRAFT TIME)
 
-Do NOT create a Notion note when drafts are sent. A note is created only when a specific person replies with feedback.
+Create the placeholder note now, when the outreach is drafted — NOT deferred until a reply. (The older "note only on response" rule was wrong and caused the two flows to drift; corrected 2026-08-04, Avery Alchek / Fair reference batch.)
 
-When a reply is received (either Tom flags it or a Gmail scan surfaces it), create a new Notes DB page for that person's feedback using `notion-create-pages` with `data_source_id: e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`.
+**Read `~/.claude/skills/shared-references/feedback-note-format.md` before creating the note — it is the canonical contract** (title format, the required `[PENDING]` prefix, section order — **`## Response` comes BEFORE `## Outreach Note`** — the People-mention header, grounding rules, dedup, and the `[PENDING]`-removal lifecycle). Do NOT restate the format here; follow that file exactly so the paths cannot diverge again. `feedback-outreach-scanner` owns the runtime lifecycle (Steps 3–5).
 
-**Page title:** `[Company] — [First Name] [Last Name] ([Company Name]) Feedback`
-Example: `Clusia — Jeff Green (Verde Tech Ventures) Feedback`
+Create the note with `notion-create-pages` (`data_source_id: e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`), Category `Diligence`, `Opportunity` relation → the Opp, then link it on the Opp's `✍️ Notes` relation (fetch current array, append, write back in one call).
 
-**Page content structure:**
-```
-<mention-page url="[Notion People DB URL]"/> ([LinkedIn](LI URL)) — [Role], [Company]. [1-2 sentence background].
+**Dedup / no double-notes:** the scanner's own outbound handler (`feedback-outreach-sent-detect`) runs when Tom later sends the draft; its dedup reads the Opp's `✍️ Notes` and matches the title with-or-without the `[PENDING]` prefix, so it recognizes the note this step created and exits without duplicating. That mutual dedup is what keeps the manual-draft path and the webhook path consistent — never add a second, differently-shaped note.
 
----
+**Removal is automated — do not strip `[PENDING]` by hand** unless Tom asks. The scanner removes it (and clears `📣 Pending Feedback`) only on *substantive* feedback; deferrals stay pending.
 
-## Response — [Date]
-
-[Verbatim or lightly cleaned response — no editorializing]
-
----
-
-## Outreach Note — [Date sent]
-
-[The plain-text body of the outreach email sent to this specific person —
-opener, questions, and company blurb]
-```
-
-Format rules:
-- Use `<mention-page url="[Notion People DB URL]"/>` to create a direct mention/link to the person's People DB page — this renders as their name in Notion
-- Follow immediately with `([LinkedIn](LI URL))` as a hyperlinked URL placeholder
-- Background is 1-2 sentences reflecting the person's current primary role and 1-2 prior relevant roles. Always verify against their LinkedIn profile (via ContactOut enrichment if needed) — do not rely solely on the People DB Company/Role fields as these may be stale. Use the add-to-contacts primary role rules: full-time day job takes precedence over side activities
-- No location line
-- Response section always comes before the Outreach Note
-- Both sections are dated
-
-After creating the page, link it to the opportunity via the `✍️ Notes` relation using the JSON array string pattern — fetch the current `✍️ Notes` array first, append the new page URL, and write the full array back in a single call.
-
-If the same person sends a follow-up reply later, append it to their existing note using `notion-update-page` with `command: update_content` — do not create a second page.
-
-Also update the respondent's email in the People DB if a different address was used in the reply than what was on file.
+Also update the respondent's email in the People DB if a later reply uses a different address than what was on file.
 
 ### Step 9: Confirm to Tom
 

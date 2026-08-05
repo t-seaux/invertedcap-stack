@@ -289,6 +289,18 @@ If any intros couldn't be processed (e.g., ambiguous company match, duplicate de
 - [Person Name] — couldn't find matching Opportunity for "[Company Name]". Please clarify.
 ```
 
+## Reference Contacts Are Not Intro Targets (MANDATORY PRE-WRITE GATE)
+
+Before creating any People row or writing to ANY intro lifecycle relation, determine whether the contact came from a **reference sheet / reference check** rather than an intro request. If so, this skill writes NOTHING — references belong on the Opp's `📣 Pending Feedback` relation (owned by `feedback-outreach-drafter` / `feedback-outreach-scanner`, which creates the `[PENDING]` note), never in `👓/☎️/✉️/🚫`.
+
+Tells (any one is sufficient):
+- The founder supplied the names as references/backchannel ("as promised here are a few references", "here are some folks who can speak to me", a list of name + email + phone), or the thread is a reference/diligence-check thread.
+- The people are being contacted to speak **about** the founder, rather than being introduced **to** the founder.
+
+**Never harvest contacts out of QUOTED / forwarded text.** Only treat people as intro targets when they appear in Tom's own newly-written prose or in the actual To/CC of the message. A reply whose quoted history contains a name+email list is not an intro request for those people, even when Tom's own text expresses genuine intro intent about *someone else*.
+
+When this gate trips: create nothing, write nothing, and surface `reference contacts detected — routed to Pending Feedback, not intro relations` in Needs Review. *(2026-08-04 miss: Tom replied "Let me ping a few of my founders now. Will intro v shortly" to Avery Alchek's reference email — the intro intent referred to Tom's OWN portfolio founders, but the four references quoted below (Blake Mandell, Eric Rosenfeld, Paula Lauris, Justin Budlow) were created as People rows and written into Fair's `👓 Intros (Qualified)`.)*
+
 ## Duplicate Detection & Full Lifecycle Check
 
 Before adding a person to `👓 Intros (Qualified)`, check ALL FOUR lifecycle fields on the Opportunity — not just Qualified and Made. Tom often moves faster than the scan cycle, so by the time you detect a new intro request, Tom may have already reached out, gotten a reply, and even completed the double-opt-in intro email. The full lifecycle state needs to be reconciled before writing anything.

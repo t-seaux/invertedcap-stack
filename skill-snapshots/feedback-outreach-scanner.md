@@ -196,7 +196,9 @@ For each sent email found:
 3. **Deduplication check**: Fetch the opportunity page and inspect its `✍️ Notes` relation array. For each note URL in that array, fetch the note page and check its title (with or without the `[PENDING]` prefix) against both the current giver-first form and the legacy company-first form:
    - `[First Name] [Last Name] ([Their Company]): [Subject]` (current)
    - `[Company]: [First Name] [Last Name]` (legacy, pre-2026-08-03)
-   If a title match exists, skip — do not create a duplicate. This approach reads from the Opportunity page itself (updated atomically at note-creation time) rather than relying on Notion's search index, which may not reflect pages created in the same or immediately prior scanner run.
+   If a title match exists, skip — do not create a duplicate. This approach reads from the Opportunity page itself (Step 3 now writes the `Opportunity` relation atomically inside the create call, so the array is authoritative the instant a note exists) rather than relying on Notion's search index, which may not reflect pages created in the same or immediately prior scanner run.
+
+   **Also check for orphans.** A note left unlinked by a pre-atomic-era run (or a dropped relation write) is absent from the array and will not be caught above, producing a duplicate. Additionally run the Step 3b **orphan sweep** (`notion-search` over the Notes DB, `workspace_search`, matching title + empty `Opportunity` relation) before deciding to create. If an orphan match exists, do not create a second note — repair the orphan instead by writing its missing `Opportunity` relation, then proceed as if it were found normally.
 4. If no matching note exists in the relation, proceed to create one (Step 3).
 
 ---
@@ -270,50 +272,37 @@ Use only the People DB data fetched in Step 0 — do not look up or infer inform
 - `Company` and `Role` fields — use exactly as they appear in the DB; if blank, leave blank
 - Background sentence: write only what can be grounded in the DB fields; if there's insufficient data, omit the background rather than fabricating it
 
-### Page title
+### Page title + content structure
 
-All new notes start as `[PENDING]` — feedback has not been received yet. **Giver-first convention (Tom, 2026-08-03):** the person PROVIDING the feedback comes first, then the subject:
+**Canonical contract: `~/.claude/skills/shared-references/feedback-note-format.md`. Read it and follow it exactly** — title (giver-first, `[PENDING]` prefix, Feedback-vs-Reference subject variants), body layout (`## Response — [No reply yet]` before `## Outreach Note — [Date sent]`), People-DB grounding rules, and the no-page-icon rule all live there. Do not restate them here; that duplication is what caused the 2026-08-04 drift with `feedback-outreach-drafter`.
 
-```
-[PENDING] [First Name] [Last Name] ([Current Company]): [Company] Feedback
-```
-
-Example: `[PENDING] Jeff Green (Hatch Bank): Clusia Feedback`
-
-Two subject variants, chosen from the outreach email's intent:
-- **Business/market feedback** (reactions to the company, market, product — the common case): subject = the Opp company name, trailing word **Feedback**. `Jeff Green (Hatch Bank): Clusia Feedback`
-- **Personal/professional reference on a person** (backchannel on a founder or individual): subject = that person's name, trailing word **Reference**. `Anthony Chen (FreightStack AI): Avery Alchek Reference`
-
-The `[PENDING]` prefix is removed only when substantive feedback arrives (Step 4b).
-
-### Page content structure
-
-```
-<mention-page url="[Notion People DB URL]"/> ([LinkedIn](LI URL)) — [Role], [Current Company]. [1-2 sentence background, grounded in People DB only — omit if data is insufficient].
-
----
-
-## Response — [No reply yet]
-
----
-
-## Outreach Note — [Date sent]
-
-[Complete verbatim body of the outreach email copied from Gmail — opener, questions, company blurb, every line. Do not summarize or use a placeholder.]
-```
+This skill owns the runtime **lifecycle** around that format: creation timing (Step 3), the race guard (Step 3b), reply append + `[PENDING]` removal (Step 4/4b), and `📣 Pending Feedback` clearing (Step 5).
 
 If a reply already exists at note-creation time (Step 2 case), populate the Response section immediately with the **complete verbatim reply text** (same raw-text rule as the outreach note — do not summarize or rewrite) and apply the classification logic to determine whether to keep `[PENDING]` in the title.
 
-### Page icon
+### Link to opportunity — set the relation ATOMICALLY in the create call
 
-Do NOT set a Claude icon (or any icon) on feedback response notes. The content of these pages is raw third-party text — Tom pastes verbatim replies and the outreach body is copied directly from Gmail. Setting the Claude icon would falsely imply Claude authored the content. Leave the page icon blank.
+**Set the `Opportunity` relation inside the `notion-create-pages` properties object, in the SAME call that creates the page.** It is a synced relation pair: writing `Opportunity` on the note automatically populates the Opp's `✍️ Notes`. One call, no window in which an unlinked note can exist.
 
-### Link to opportunity
+```
+properties: {
+  "Name": "[PENDING] ...",
+  "Category": "Diligence",
+  "Opportunity": ["https://app.notion.com/p/<opp-page-id>"]
+}
+```
 
-After creating the note:
-1. Search the Opportunities DB for the company name to get the opportunity page.
-2. Fetch the current `✍️ Notes` array from the opportunity page.
-3. Append the new note's URL and write the full array back as a JSON array string in a single call.
+Resolve the Opp page id BEFORE creating: in webhook modes use the `oppCandidateIds` arg (the gate guarantees ≥ 1 — never re-search); in sweep/manual mode resolve it in Step 0 alongside the contact list. **If the Opp id cannot be resolved, do NOT create the note** — abort and alert. A note with no Opp is worse than no note (see the orphan trap below).
+
+> **Never use the old two-step pattern** (create the page, then separately fetch + rewrite the Opp's `✍️ Notes` array). That second write is a separate failure point, and when it fails the note is **orphaned** — and an orphan is invisible to BOTH the dedup check (Step 1.3 / Mode B Step 4) and the Step 3b race guard, because both read the Opp's `✍️ Notes`. The guard designed to clean up duplicates cannot see the exact object it needs to clean up. **Canonical incident 2026-08-04:** the B-outbound handler created `[PENDING] John Hor (Box): Avery Alchek Reference` at 16:44:20 with no `Opportunity` relation, one minute after a manually-created note for the same person. Dedup didn't see the manual note's peer; Step 3b didn't see its own orphan; the duplicate survived until Tom spotted it in the UI.
+
+### Verify the link before exiting (fail loud, never silent)
+
+Immediately after the create call:
+1. Re-fetch the new note page and read its `Opportunity` relation.
+2. If it is non-empty → proceed to Step 3b.
+3. If it is **empty**, the atomic write silently dropped the relation. Retry once with `notion-update-page` (`command: update_properties`, `Opportunity: ["<opp-url>"]`), then re-fetch again.
+4. If it is STILL empty after the retry, **do not exit 0**. Emit run-log `feedback-note-orphaned: <person> on <opp> — note <url> has no Opportunity relation` and post a `⚠️` alert via `send-alert` naming the note URL, so the orphan is surfaced to Tom the same run rather than discovered weeks later. An unlinked note must never be left silently in the DB.
 
 ---
 
@@ -326,6 +315,7 @@ The pre-write dedup check at Step 1.3 / Mode B Step 4 reads the Opp's `✍️ No
 Procedure:
 1. Re-fetch the Opp page's `✍️ Notes` array.
 2. For each note URL in the array, fetch and inspect the title. Build the list of notes whose title matches this person + subject in any recognized form — giver-first `[First Name] [Last Name] ([Their Company]): [Subject]` or legacy `[Company]: [First Name] [Last Name]`, prefixed or unprefixed — for the SAME `(Company, First Name, Last Name)` triple you just wrote.
+2b. **Orphan sweep — the Opp array is not sufficient on its own.** A peer note whose `Opportunity` relation failed to write does NOT appear in the array, so steps 1–2 are blind to exactly the object this guard exists to remove. Additionally run `notion-search` against the Notes DB (`data_source_url: collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`, `content_search_mode: "workspace_search"`) for the note title, and add to the match list any result that (a) matches the same person + subject in any recognized form, prefixed or unprefixed, and (b) has an **empty `Opportunity` relation**. Orphans count as peers for the tiebreaker below, and archiving them needs no `✍️ Notes` removal — they were never in the array.
 3. If exactly one match exists (your own write), done — exit normally.
 4. If two or more matches exist, you raced a peer. Apply the deterministic tiebreaker: **keep the note with the EARLIEST `Created` timestamp; archive every other matching note and remove its URL from the Opp's `✍️ Notes` array.** Earliest-wins means both racers converge on the same survivor without coordination.
 5. Archive via the Notion REST API: `PATCH /v1/pages/{pageId}` with `{"archived": true}`. The token decryption pattern is the same one `~/.claude/scripts/network_sync_notion.py` uses (`cd ~/code/notion-backup && SOPS_AGE_KEY_FILE=... python3 -c "from export import get_token; ..."`). Do NOT skip this step — leaving the duplicate as a live `[PENDING]` note pollutes the Opp's Notes feed.
@@ -349,7 +339,7 @@ When a reply is detected (Step 2) and a note already exists:
 1. Fetch the existing note page to confirm current content.
 2. Use `notion-update-page` with `command: update_content` to insert the response.
 3. If the `## Response — [No reply yet]` section is blank, replace it with the **complete verbatim reply text** under `## Response — [Date]`. Do not summarize, paraphrase, or rewrite the reply into third person — paste the raw email text exactly as received (stripping only quoted prior messages).
-4. If a response already exists (prior reply), append a new `## Response — [Date]` block after the existing one — do not overwrite. Same verbatim rule applies.
+4. If a response already exists (prior reply), insert a new `## Response — [Date]` block **ABOVE** the existing one — do not overwrite, and do not append below. The page is **reverse-chronological: newest input on top**, so the oldest event (`## Outreach Note`) always sits last (Tom, 2026-08-04). Same verbatim rule applies. If the new block shares a date with an existing one, disambiguate both with a parenthetical channel tag — `## Response — August 4, 2026 (reference call)` above `## Response — August 4, 2026 (email)`.
 5. Also update the respondent's email in the People DB if the reply came from a different address than what is on file.
 
 ### Step 4b: Remove [PENDING] prefix when substantive feedback arrives

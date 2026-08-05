@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-08-05] (Week of 2026-08-04)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- pipeline-agent -- Connected-detection tightened: Source-only thread match no longer sufficient (deal's own founder/company signals required); portfolio-domain counterparty guard prevents false flips from portfolio-correspondent threads surfaced via shared Sources
+- add-to-crm -- four-step dedup with Source Thread ID gate (deterministic SQL, runs first before semantic searches); completeness check before skipping in-progress duplicates (resumes partial runs that were killed mid-materials-attach)
+- neg1-sourcing-listener -- replaced append-on-success idempotency with write-ahead claim system (handled.py claim/done/skip); stale-claim handling for crashed mid-run jobs; prevents double-execution across sweep and webhook
+- add-to-contacts -- international State field now requires "N/A" instead of blank (creation gate enforces); City/State derived from current role experience entry, not profile-header location field
+- materials-handler -- added in-flight claim label applied before first Drive upload; stale chip repair for same-named Drive file replacements (old chip points to trashed object, now repaired)
+- intro-agent -- reference-contact gate: names from reference check threads must not be written to intro lifecycle relations; no-harvest-from-quoted-text gate: contacts in quoted/forwarded history are not intro targets
+- feedback-outreach-drafter -- two-gate dedup (Opp's Notes relation first, then Gmail checking both subject-form variants including reference-request subject); feedback note created at draft time, not deferred to reply
+- feedback-outreach-scanner -- orphan note sweep added before create (catches unlinked notes from pre-atomic writes); Opportunity relation set atomically inside the create call (eliminates unlinked-note window)
+**Total skills:** 44
+**Functions:** No changes
+
+---
+
 ## [2026-08-04] (Week of 2026-08-04)
 
 **Added:** log-company-blurb (pending categorization — recommend Diligence Management)

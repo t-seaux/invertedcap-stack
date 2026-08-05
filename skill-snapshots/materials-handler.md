@@ -227,6 +227,13 @@ The chip-add helper (`notion_files_property.py`) takes `--prop "Deal Docs"` or `
 
 The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `gmail.modify` scope (the Gmail MCP does not). Multiple message IDs in one call are fine; the label is created if it doesn't exist. Label only after writes complete — labeling before writes risks marking a message processed when the run actually failed.
 
+**`claude/materials-processing` — the in-flight claim (added 2026-08-04).** Apply this label **immediately before Step 3's first Drive upload**, and drop it when the terminal outcome label goes on in Step 4.7.
+
+- It does **NOT** satisfy the read-gate in point 1. A message carrying only `materials-processing` **stays in the working set**, exactly like `materials-failed`. That preserves the rule above: a run that died mid-flight must never look successful.
+- What it changes is the *posture* of the next run. `materials-processing` present without `materials-processed` means a prior attempt died between the first upload and the outcome label. Before uploading, **check Drive for the files this run would create and read the Opp's existing chips**, then upload only what is genuinely missing and repair any stale chip per Step 4.7. Do not blind re-upload.
+
+> **Why a third label instead of moving the existing one.** Drive uploads (Step 3) are non-idempotent and land minutes before the only durable record (the outcome label, Step 4.7) — the gap spans conversion and Chrome work. Moving the outcome label earlier would close the duplicate window but reintroduce precisely the bug this skill already guards against: marking a failed run processed. A separate in-flight label makes "started" and "finished" independent facts, so a dead run leaves a tombstone that triggers verification rather than either a blank (duplicate work) or a false success (lost work). This skill has no sweep of its own, but `add-to-crm` Step 6 and `pipeline-agent` Task 5 both re-find unlabeled messages by Gmail search — a second producer is always live.
+
 **Mode-specific notes:**
 - **Mode B (webhook):** working set = all messages in the inbound `threadId`. Apply this gate as the first thing after Step 0 / Status Guard.
 - **Mode C (manual / delegated):** working set = Step 2's Gmail search hits, deduped by messageId. Apply this gate immediately after Step 2, before any Drive uploads or processing.
@@ -514,7 +521,16 @@ Note in the Step 5 summary: extracted (with the value written) / no-match (deck 
 
 ## Step 4.7: Apply the Outcome Label (`claude/materials-processed` / `claude/materials-failed`)
 
-After processing for a message completes, apply the outcome label per the rules in Step 2.5: `claude/materials-processed` only when ALL items landed (chips on the property, page body, Contact/Round Details updates if applicable — or explicit logged fallback notations), `claude/materials-failed` when any item fatally failed so the message stays retry-visible. This closes the idempotency loop in **all modes** — Mode B, Mode C manual, and delegated invocations from `pipeline-agent` / `add-to-crm`. Without this step, a follow-up run against the same Opp re-finds the same email in Gmail search and re-processes it, creating duplicate Drive uploads and duplicate chips (the canonical-filename dedup in `notion_files_property.py` catches the chip duplication, but the wasted Drive uploads remain).
+After processing for a message completes, apply the outcome label per the rules in Step 2.5: `claude/materials-processed` only when ALL items landed (chips on the property, page body, Contact/Round Details updates if applicable — or explicit logged fallback notations), `claude/materials-failed` when any item fatally failed so the message stays retry-visible. **Remove `claude/materials-processing` at the same time** — the in-flight claim is resolved either way. This closes the idempotency loop in **all modes**: Mode B, Mode C manual, and delegated invocations from `pipeline-agent` / `add-to-crm`. Without this step, a follow-up run against the same Opp re-finds the same email in Gmail search and re-processes it, creating duplicate Drive uploads and duplicate chips.
+
+**Repair stale chips before labelling (added 2026-08-04).** If any `notion_files_property.py add_link` call in this run returned `"skipped": true` **with `"stale_chip": true`**, do not treat it as a no-op. That result means a chip with the same canonical filename already exists but points at a *different* URL — which is what happens when the Drive Upload Apps Script **replaces** a same-named file: the old file is trashed and the replacement gets a new fileId, so the chip is now a dead link to a trashed object. Repair it with the two verified primitives, then continue:
+
+```bash
+python3 ~/.claude/scripts/notion_files_property.py remove-link --page-id <opp> --prop "Diligence Materials" --url "<existing_url from the result>"
+python3 ~/.claude/scripts/notion_files_property.py add-link    --page-id <opp> --prop "Diligence Materials" --url "<new url>" --label "<label>"
+```
+
+A plain `"skipped": true` **without** `stale_chip` is the genuine no-op (identical URL already present) — leave it alone. Note this corrects an earlier claim in this file that canonical-filename dedup "catches the chip duplication": it prevents a *duplicate* chip, but in the replace case it does so by leaving the *stale* one in place, which is worse because it looks fine until Tom clicks it.
 
 ## Step 5: Report Summary
 

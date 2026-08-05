@@ -220,9 +220,13 @@ specific category rather than N/A.
 The City field is a select with pre-existing options. If the person's city matches an existing option,
 use it. If not, it's fine to create a new option — Notion will handle that automatically.
 
-**State:** 2-letter US abbreviation (NY, CA, IL, etc.). For international locations, leave blank.
+**State:** 2-letter US abbreviation (NY, CA, IL, etc.). For international locations, set the literal string `N/A` — not blank (the creation gate below rejects empty values; `N/A` is how you record "deliberately not applicable").
+
+> **Derive City/State from the CURRENT role, not the profile header.** ContactOut's top-level `location` is frequently just `"United States"` or a stale metro. Read the `is_current` experience entry's `locality` instead — that's the person's actual working location today. (Jake Hirschberg, 2026-08-04: profile `location` = "United States", but his current `Principal, eCommerce Sales Strategy` entry reads `Los Angeles, California` — all his *prior* Box roles were New York. Header-only reading would have produced a blank or a wrong city.)
 
 ### Step 4: Create the Notion Page
+
+> **Completeness is enforced in code — you cannot ship a partial row.** The `gate-db-creation.sh` hook DENIES any People row whose `Company`, `Role`, `Category`, `City`, `State`, or `LI` is empty. There is no "fill it in later." Exhaust the enrichment ladder first — `contactout_enrich_person` → `contactout_enrich_linkedin_profile` → **`contactout_search_people` (job_title + company)** → WebSearch person + company → the company's team/bio page — and mine signals already in hand (phone area code, email domain, current-role locality). A 404 from one ContactOut endpoint is NOT the end of the ladder: `contactout_enrich_person` and `email_to_linkedin` both 404'd on `jhor@box.com`, yet `contactout_search_people` found the profile, photo, location and full history immediately. Only if a value is genuinely unobtainable after all of that, set the literal string `"N/A"` so the gap is explicit and visible rather than silently blank. Added 2026-08-04 after John Hor / Jake Hirschberg shipped with blank City/State/LI.
 
 **Before the `notion-create-pages` call, run `touch /tmp/.addcontacts-bypass`** to set the hook bypass marker. A PreToolUse hook at `~/.claude/hooks/gate-db-creation.sh` blocks all direct writes to the People data source unless this marker is fresh (≤5 min old). The marker auto-expires, so no cleanup is needed. If the hook denies a call with "Direct creation of Notion People-DB rows is gated", that's the signal you forgot this step.
 

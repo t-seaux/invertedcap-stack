@@ -136,7 +136,30 @@ Invoked by claude-job-queue with args `{mode: "webhook", channel_id, thread_ts, 
 
 **Step 4 — audit log.** Append one line per action to `~/.claude/scheduled-tasks/neg1-sourcing-listener/audit-log/YYYY-MM-DD.log` via `mkdir -p` + `tee -a` (per SHARED_SAFETY.md): `[ts] WRITE: {verb} {Name} neg1:{short8} → {action taken}`.
 
-**Idempotency:** record processed `reply_ts` values in `~/.claude/skills/neg1-sourcing-listener/handled.json` (append-only array). Skip any reply already present — the sweep and the webhook must not double-fire. Check BEFORE Step 3, write AFTER successful execution.
+**Idempotency — write-ahead, via `handled.py`. Never hand-edit `handled.json`.**
+
+The ledger is claimed BEFORE any side effect and finalized after, so a job that dies mid-run leaves a tombstone instead of a blank. Writing the record only on success is what caused the Charlie Schwartz double-draft (2026-08-03): the webhook job was killed at its timeout after creating the draft but before recording it, so the sweep saw an unhandled reply and drafted again. Same failure class as the "search before create, never blind-retry" rule above.
+
+Run these in order. **`claim` must happen before Step 3 touches Gmail or Notion:**
+
+```bash
+H=~/.claude/skills/neg1-sourcing-listener/handled.py
+python3 $H claim <reply_ts> --by webhook|sweep --job-id <job_id>   # BEFORE executing
+# ... Step 3 actions ...
+python3 $H done <reply_ts> --action "<what landed: draft id, opp id, state>"
+python3 $H skip <reply_ts> --action "SKIP: <reason>"                # for no-op replies
+```
+
+Act on the exit code — do not ignore it:
+
+| Exit | Meaning | Do |
+|---|---|---|
+| `0` | no prior record | proceed |
+| `10` | already done/skipped | stop, no state changes |
+| `30` | another runner holds a live claim | back off, exit quietly |
+| `20` | **stale claim — a prior run died mid-execution** | see below |
+
+On `20`, side effects may be **partially applied**. Do NOT re-run blind. First verify what actually landed: check the store row's `notion_opp_url`, and search Gmail drafts for this candidate. Then `claim --force` (records the dead job's id as `superseded_stale_claim`), complete only the missing steps, and **surface the partial state to Tom in the close-loop reply** — an interrupted run is exactly the case where a silent auto-fix hides a duplicate.
 
 ## Mode A: Scheduled sweep (daily reconciliation)
 
@@ -144,7 +167,7 @@ Catches replies the webhook missed (Worker down, route not yet added, Slack even
 
 1. `slack_read_channel` on `#neg1-sourcing`, lookback `$RUN_LOOKBACK_HOURS` (default 24h; 72h Mondays).
 2. For each message containing a `[neg1:...]` fingerprint, `slack_read_thread` and collect Tom's replies (user-ID check; ignore bot messages).
-3. For each reply whose `ts` is NOT in `handled.json`: run Mode B Steps 1-4 on it.
+3. For each reply, run `handled.py check <ts>` and branch on the exit code per the Idempotency table above (`0` → run Mode B Steps 1-4, claiming first; `10`/`30` → skip silently; `20` → verify-then-repair, and report it). Never decide by grepping `handled.json` directly — the status field, not mere presence, is what distinguishes a completed run from a dead one.
 4. Single-line summary via `send-alert` ONLY if any actions were taken: `📡 -1 sourcing sweep: {N} replies processed ({verbs})`. Silent when idle.
 
 ## Hard rules
