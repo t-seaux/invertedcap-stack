@@ -129,7 +129,6 @@ These are institutional research voices that publish substantive, publicly acces
 
 | Firm / Author | What to look for |
 |---|---|
-| J.P. Morgan Private Bank — Michael Cembalest | "Eye on the Market" notes (frequent, data-rich, publicly available at privatebank.jpmorgan.com/nam/en/o/eotm/). Search: `"Eye on the Market" OR "Michael Cembalest"`. Also check the EOTM landing page directly via WebFetch. |
 | Goldman Sachs — "Top of Mind" | Thematic deep-dives (irregular, publicly available when published). Search: `Goldman Sachs "Top of Mind"` |
 | Morgan Stanley — Global Investment Committee | Published outlooks and strategy notes. Search: `Morgan Stanley "Global Investment Committee" letter OR outlook` |
 | Citadel Securities — Global Macro Strategy | Thematic macro/markets pieces in the "Global Macro Strategy" series at citadelsecurities.com/news-and-insights/global-macro-strategy/. Direct landing page check is highest-signal: WebFetch `https://www.citadelsecurities.com/news-and-insights/?series=global-macro-strategy`. If WebFetch 403s (Citadel may block bots), fall back to `site:citadelsecurities.com "global macro strategy"` via WebSearch. |
@@ -147,7 +146,7 @@ These are CEO-authored annual letters from firms whose voice carries broad marke
 
 | Person / Organization | What to look for |
 |---|---|
-| Michael Mauboussin (Morgan Stanley / Counterpoint Global) | Research reports, published papers |
+| Michael Mauboussin (Morgan Stanley / Counterpoint Global) | **Consilient Observer** series (his primary output, co-authored with Dan Callahan) plus standalone research reports/papers. The series has a predictable landing page — check it directly: the listing at `https://www.morganstanley.com/im/en-us/individual-investor/insights/series/consilient-observer.html`, and individual pieces at `.../insights/consilient-observer/<slug>.html` with a matching PDF at `.../publication/thought-leadership/consilient-observer/article_<slug>_ltr.pdf`. Search: `Mauboussin "Consilient Observer" [current month] [current year]` and `site:morganstanley.com consilient-observer [current year]`. ⚠️ **morganstanley.com is Akamai bot-gated — WebFetch/headless will 403.** Do NOT conclude "nothing published" from a 403. Fall back to WebSearch and read the title + publish date straight from result snippets; surface the PDF link even when the body can't be fetched. To extract full body text, drive the real (non-headless) Chrome via `osascript` + `document.body.innerText` on the HTML page. Publishes ~monthly. |
 
 ### Venture Capital (Secondary Priority)
 
