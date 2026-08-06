@@ -242,6 +242,10 @@ Rules:
 
 ### 3f. Log raw retro to the source page
 
+> **Guard first — this append is not idempotent (added 2026-08-04).** Fetch the page and check whether a `## Retro (YYYY-MM-DD)` heading bearing **today's date** is already present. If it is, a prior run already wrote this — skip 3f and continue to 3g. Never append a second block.
+>
+> Why: 3f and 3g are blind appends, but the record marking this entry done is the `status` flip in 3i. A run killed between 3f and 3i leaves the entry at `prompted`, so the daily Mode A sweep re-processes it and appends a **second** `## Retro` block to the page plus a **duplicate of every nugget** in `DECISION_RETROS.md` — the corpus the quarterly back-tests query. Content guards make 3f/3g idempotent by construction, which is stronger than a claim-and-verify ledger: a re-run becomes a plain no-op rather than something needing repair.
+
 Append to the source page via `notion-update-page`:
 
 ```
@@ -281,6 +285,8 @@ For `scope == "neg1"`, prepend `-1:` to the Decision label:
 
 If a section header doesn't exist yet, add it alphabetically before appending.
 
+> **Guard per nugget — not per run (added 2026-08-04).** Before appending each entry, read `DECISION_RETROS.md` and skip that entry if its exact line (`- **YYYY-MM-DD · <Name> · <Decision>** — <nugget text>`) is already present. Check **per nugget**, not once for the whole batch: a run killed part-way through 3g wrote some nuggets and not others, and a batch-level check would either skip the missing ones or duplicate the written ones. Per-line matching lets a re-run complete exactly the remainder.
+
 ### 3h. Append the ledger row (NEVER SKIP — added 2026-07-27)
 
 Every processed retro writes a decisions-table row via append_decision.py — this is the structured record the quarterly back-tests query. (Bug history: the ledger call lived only in the old conversational decision-retro path; when capture moved to this listener the call was dropped — zero pipeline decisions reached the ledger Jun 4 → Jul 27, and 38 bare rows had to be backfilled.)
@@ -298,18 +304,16 @@ Upsert semantics match on (label, decision) — if a bare backfilled row exists,
 
 ### 3i. Mark queue entry done
 
-Update the queue entry in place:
+**Run the script — never hand-edit `queue.json`:**
 
-```json
-{
-  ...,
-  "status": "completed",
-  "completed_at": "<ISO-8601 now>",
-  "nugget_count": <total across all taxonomy arrays>
-}
+```bash
+python3 ~/.claude/skills/decision-retro/queue_append.py set-status \
+  --opp-id {opp_id} --status completed --nugget-count {total across all taxonomy arrays}
 ```
 
-Save `queue.json` atomically (write tmp, rename).
+Exit 0 = flipped (or already `completed`, which is a safe no-op); exit 2 = `opp_id` not in the queue, which means something upstream is wrong — report it rather than writing the file by hand.
+
+> **Why this is a script (2026-08-04).** Both producers mutate `queue.json`: this listener flips entries to `completed` while the sweep appends new ones. Hand-editing meant a read-modify-write with no lock, so a concurrent pair silently lost one update — and a lost `completed` flip re-opens the entry for the sweep, which then duplicates the 3f block and every 3g nugget. `set-status` holds the same `flock` as the append path and writes atomically. Atomic rename alone prevents corruption but not lost updates; the lock is what prevents those.
 
 ---
 
