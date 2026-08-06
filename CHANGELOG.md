@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-08-06] (Week of 2026-08-04)
+
+**Added:** add-contact-inbound (Pipeline Management — BCC-to-contacts webhook gate; surfaces existing webhook handler as a named skill on the platform map)
+**Removed:** None
+**Modified:**
+- research-agent -- expanded coverage for a key research source: added predictable landing-page fetch pattern, search terms, and explicit bot-gate workaround guidance; Chrome osascript fallback documented for Akamai-gated sites
+- memo-workshop -- broadened context load to include LP letters and LPAC framework deck; updated memo-type annotation guidance for voice examples corpus
+- skill-map-refresh -- pending-items alert format expanded: LaunchAgent and webhook-handler pending items now carry recommended resolutions alongside skill pending items; recommend-then-confirm pattern applies to all three classes
+- claude-alerts-listener -- updated Skill-map function-assignment branch; feedback and categorization handling refined
+- decision-retro-listener -- Mode B-summary sub-flow: weekly retro summary posts now route to feedback-handling flow mirroring claude-alerts-listener; framework write gate requires explicit Tom authorization
+- inbound-deal-detect -- skill definition refined; trigger and delegation logic clarified
+- intro-draft-agent -- description and mode documentation updated
+- intro-resolution-agent -- resolution logic and mode documentation updated
+**Total skills:** 45
+**Functions:** Pipeline Management +1 (add-contact-inbound)
+
+---
+
 ## [2026-08-05] (Week of 2026-08-04)
 
 **Added:** None
