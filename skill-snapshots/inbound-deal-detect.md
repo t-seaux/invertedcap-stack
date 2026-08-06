@@ -186,8 +186,14 @@ For each company in `companies[]` (use the array index `i`, zero-based):
 }
 ```
 
-  - For `companies.length === 1`: omit `idempotencySuffix` (or set it to `""`) and omit `batchContext` (or set it to `null`). Behavior matches the pre-fan-out single-company path exactly.
-  - For `companies.length >= 2`: set `idempotencySuffix` to `"-<i>"` (e.g. `"-0"`, `"-1"`, ...) so each enqueued job dedups independently at the queue layer (`add-to-crm-<messageId>-0`, `add-to-crm-<messageId>-1`, ...). Set `batchContext` to `{ "total": <companies.length>, "index": <i> }` so `add-to-crm` can surface "(2 of 4 from David Talpalar digest)" in its Slack alert.
+  - **`idempotencySuffix` is ALWAYS `"-<slug>"` derived from the company NAME — never from the loop index, and never omitted.** Slug = company name lowercased, non-alphanumeric runs collapsed to a single hyphen, trimmed to 40 chars (`"Acme AI, Inc."` → `"acme-ai-inc"`). Apply this identically whether there is one company or ten, so the key is `add-to-crm-<messageId>-<slug>` in every case.
+  - For `companies.length >= 2`: additionally set `batchContext` to `{ "total": <companies.length>, "index": <i> }` so `add-to-crm` can surface "(2 of 4 from David Talpalar digest)" in its Slack alert. `batchContext` is presentation only — **it must never feed the idempotency key.**
+
+  > **Why the key is name-derived (changed 2026-08-04).** The suffix used to be the array index (`-0`, `-1`, …), with the single-company case using a bare `add-to-crm-<messageId>` and no suffix. Both are LLM-output-dependent, so the key space shifted between runs and the queue's dedup silently stopped protecting anything:
+  > - Run 1 classifies 1 company → enqueues bare `add-to-crm-<msgId>`, then dies. Run 2 classifies 2 → enqueues `-0` and `-1`. Neither collides with the bare key, so **the first company gets two `add-to-crm` jobs → two Opportunities.**
+  > - Run 1 classifies `[Playground, Watchful]` and enqueues `-0`=Playground, then dies. Run 2 orders them `[Watchful, Playground]` → `-0` now dedups against Playground's old key, so **Watchful is silently dropped and never logged**, while `-1`=Playground enqueues a second time.
+  >
+  > A name-derived slug is stable across re-classification regardless of count or ordering, which is what makes step 3's "a retry of this skill won't double-enqueue the successful ones" actually true — and step 3 explicitly permits partial fan-out with a later retry, so it depends on that being true. **Migration note:** this changes the key shape, so a message enqueued under an old bare/index key before 2026-08-04 and re-routed afterwards could enqueue once more. Changed while the queue was empty (`counts: queued=0`), and `add-to-crm`'s Source-Thread-ID dedup gate now backstops it regardless.
 
   For referrer cases (forwarded-from-Tom-with-inner-mismatch, forwarded-from-referrer), include `referrerEmail` / `referrerName` at the top level — the webhook passed them as args.
 
