@@ -185,5 +185,15 @@ Tags should be short: `format-tweak`, `denylist-edit`, `notion-update`, `memory-
 ## Notes
 
 - **Bot identity for posting back:** the close-loop reply posts as the `claude` Slack app via the bot token at `~/.claude/skills/claude-alerts-listener/.bot_token` (mode 600). Do NOT use the Slack MCP for the close-loop — that posts as `tom`, which defeats the whole point of the bot identity split.
-- **Idempotency:** if the queue file gets reprocessed (rare but possible), the listener should be safe — most edits are idempotent (adding to a deny-list, updating a Notion property). For non-idempotent actions, check the thread first: if the close-loop reply is already in the thread, exit 0 with audit note.
+- **Idempotency — read the reactions, not the thread text (revised 2026-08-04).** Most edits are idempotent (adding to a deny-list, setting a Notion property) and re-running them is harmless. The dangerous ones are the **non-idempotent** branches — above all NEW DEAL opt-in/opt-out, which calls `create_draft` on the referrer's thread. Before any such branch, read the reactions on Tom's reply and act on them:
+
+  | Reactions on Tom's reply | Meaning | Do |
+  |---|---|---|
+  | ✅ present | a prior run completed | exit 0 with an audit note |
+  | 👀 present, no ✅ | **a prior run started and died mid-branch** | side effects may be partially applied — verify before acting (for NEW DEAL: `list_drafts` on the referrer's thread and reuse any existing draft instead of creating a second), finish only the remainder, and say so in the close-loop |
+  | neither | fresh | proceed normally |
+
+  Step 0 already writes 👀 **before any work**, so the tombstone has existed all along — nothing ever read it. Add ✅ when Step 4's close-loop is posted, so the two reactions form a claim/complete pair.
+
+  > **Why the old rule didn't hold.** It said to check whether the close-loop reply is already in the thread. But the close-loop is posted at **Step 4, after** the Step 3 side effect — so a run that died between creating the Gmail draft and posting the close-loop leaves no close-loop, and the guard cheerfully concludes "proceed." It was structurally blind to the exact failure it needed to catch. Not hypothetical: a `claude-alerts-listener` job was killed at its 600s timeout on 2026-06-18, and D1 lease reclaim re-runs a job under the same id whenever `/complete` doesn't land. A duplicate here is a **second outbound draft on a third party's thread** — the same artifact as the Charlie Schwartz double-draft.
 - **Don't reply for ack-only feedback:** if Tom says "thanks" or "good catch" with no actionable content, still post a close-loop reply (`✅ noted, no change needed`) so he knows you read it. Tom said he won't send filler replies, so this branch is rare.
