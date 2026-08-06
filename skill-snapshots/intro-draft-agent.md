@@ -62,9 +62,12 @@ formatting rules. Only the operational specifics below (recipient resolution) ar
 
 ### Recipients
 
-All parties go in the **To** field:
-- All founder(s) of the portfolio company
-- The intro target (the person who opted in)
+Split To vs Cc by **who is doing the favor** — the party granting their time to chat goes in **Cc**; the party they're doing the favor for is the primary **To** recipient. Tom's rule, verbatim: *"in a double opt-in connect, the person who is doing the other the favor to chat should be cc'd."*
+
+- **To**: the ask-side party — normally the founder(s) of the portfolio company, who are being introduced to someone taking the time to chat with them.
+- **Cc**: the favor-giver — normally the intro target (the person who opted in to grant the chat). Illustrative example: Lauren, taking the time to chat with Nipun and Mounir, is cc'd while Nipun and Mounir are in To.
+
+The opt-in target → Cc, founder(s) → To is the default mapping for this skill's flow. Only flip it if the favor direction is genuinely reversed (a founder is the one granting time to the target). Multiple people on one side all go in that side's field.
 
 Use their actual email addresses. If a founder's email isn't in the People DB, check the Opportunity's `Contact` field.
 
@@ -198,15 +201,15 @@ For each opt-in where no existing draft/sent email is found:
    - Get founder first names from the roster
    - Get the Opportunity name
    - Get the target person's first name and company
-   - Format: `[Founder(s)] ([Company]) / [Target first name] ([Target company])`
+   - Format: `[Requester(s)] ([Company]) / [Granter first name] ([Granter company])` — the party requesting the time (To-side, normally the founders) comes first, then ` / `, then the party granting their time (Cc-side, the opt-in target). Matches the To/Cc split. See `writing-style/intro-connect/STYLE.md`.
 
 2. **Determine the body** — "both" vs "all" is decided by the TOTAL number of people being connected (everyone on the intro besides Tom = founder(s) + target(s)). Tom's rule, verbatim: *"when I'm making an intro to one person it's **you both** have context; but if I'm introing someone to multiple it's **you all** have context."* "both" is grammatically valid only for exactly two people.
    - **Exactly 2 people** (one person introduced to one person — the common case): `You both have context so [founder first name(s)] - will let you take it from here!\n\nTom`
    - **3 or more people** (introduced to multiple, or 2+ founders): `You all have context so [founder first name(s)] - will let you take it from here!\n\nTom`
 
-3. **Determine recipients:**
-   - All founder emails + the opt-in person's email
-   - Join with ", " for the To field
+3. **Determine recipients** (see the **Recipients** section above for the To/Cc split):
+   - **To** = the ask-side party's email(s) — normally all founder emails. Join multiple with ", ".
+   - **Cc** = the favor-giver's email — normally the opt-in person's email (the one granting the chat). Join multiple with ", ".
 
 4. **Create the Gmail draft AND write the draft-feedback snapshot atomically** via
    `~/.claude/scripts/gmail-create-draft.py` (same helper as `founder-outreach` Step 7 — it creates
@@ -219,12 +222,15 @@ For each opt-in where no existing draft/sent email is found:
 
    ```
    ~/.claude/scripts/gmail-create-draft.py \
-     --to "<founder1_email>, <founder2_email>, <target_email>" \
+     --to "<founder1_email>, <founder2_email>" \
+     --cc "<target_email>" \
      --subject "<formatted subject>" \
      --html-body-file /tmp/<scratch>.html \
      --snapshot-text-file /tmp/<scratch>.txt \
      --skill intro-draft-agent
    ```
+
+   `--cc` is the favor-giver (normally the opt-in target). Omit it only in the rare reversed-favor case where the target belongs in `--to`.
 
    Stdout is one JSON line with `messageId` / `draftUrl`. Exit code 0 = both writes succeeded;
    non-zero = treat the whole step as failed (do not fall back to a snapshot-less MCP draft).
@@ -241,7 +247,7 @@ Provide a clear summary:
 ### Drafts Created:
 - **Brian (Inspiren)** → Nishant & Jackson (Quiet AI)
   Subject: "Nishant & Jackson (Quiet AI) / Brian (Inspiren)"
-  Recipients: nishant@tryquiet.ai, jackson@tryquiet.ai, brian@inspiren.com
+  To: nishant@tryquiet.ai, jackson@tryquiet.ai — Cc: brian@inspiren.com (opted in to chat)
 
 ### Skipped (draft or sent email already exists):
 - **Dan Li** → Quiet AI — intro email already sent
