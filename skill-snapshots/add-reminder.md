@@ -19,20 +19,28 @@ not a calendar event.
 
 ## Primary path — Apple Reminders (via AppleScript)
 
-Create the reminder in the macOS Reminders app with `osascript`. Default list is the
-default Reminders list; use a `remind me on <date>` due date only if Tom names a day,
-otherwise create it with no alarm (a plain to-do for "today").
+Create the reminder in the macOS Reminders app with `osascript`. Default list is
+**"Tasks"** (Tom's default Reminders list).
+
+**ALWAYS set an all-day due date** — a reminder with no due date does NOT appear in the
+Calendar app's reminders row, which is where Tom looks for it. Default the due date to
+**today**; use another day only if Tom names one.
+
+Today (default) — capture the new reminder and set its `allday due date` to today:
 
 ```bash
-osascript -e 'tell application "Reminders" to make new reminder with properties {name:"Send Shivan $15"}'
+osascript -e 'tell application "Reminders" to set myR to make new reminder with properties {name:"Send Shivan $15"}' -e 'tell application "Reminders" to set allday due date of myR to (current date)'
 ```
 
-With a due date (only when Tom names one — build the date string, do NOT use
-`current date` since it's nondeterministic; construct from `currentDate` in context):
+A named future day — build the date string from `currentDate` in context:
 
 ```bash
-osascript -e 'tell application "Reminders" to make new reminder with properties {name:"Text Sydney", due date:date "Friday, August 8, 2026 9:00:00 AM"}'
+osascript -e 'tell application "Reminders" to make new reminder with properties {name:"Text Sidney", allday due date:date "Friday, August 8, 2026"}'
 ```
+
+Use `allday due date` (date only) rather than `due date` (adds a timed alarm) unless Tom
+asks for a specific time. Scope any lookups to `list "Tasks"` — iterating all lists is
+slow and can time out.
 
 **One reminder per item.** Batch the `osascript` calls in one turn for multiple items.
 

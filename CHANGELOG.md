@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-08-07] (Week of 2026-08-04)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- feedback-outreach-scanner -- tightened deduplication from title-string match to (person, Opp) identity; added merge-not-create for multiple outreach emails to the same person; added multi-stub consolidation when a single call covers both a reference ask and a feedback ask
+- memo-workshop -- added guardrail for character-style inheritance in Docs API replaceAllText; added warning that replacements starting on hyperlinked text extend the link across the full replacement span
+- research-agent -- added Chrome-based technique for confirming same-day pieces (listing page in real browser) and extracting full PDF body via same-origin fetch from an authenticated tab
+**Total skills:** 45
+**Functions:** No changes
+
+---
+
 ## [2026-08-06] (Week of 2026-08-04)
 
 **Added:** add-contact-inbound (Pipeline Management — BCC-to-contacts webhook gate; surfaces existing webhook handler as a named skill on the platform map)

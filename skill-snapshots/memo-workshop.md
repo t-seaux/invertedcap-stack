@@ -126,9 +126,13 @@ verbatim self-citation source. Then ask where Tom wants to start.
 - **List-item + image traps (locked 2026-08-05, AgentBay session)** — the harness's range markers
   only match plain PARAGRAPHs, so `replace_range` CANNOT target text inside bullets/numbered
   items ("Start marker not found"); edit list items via direct Docs API batchUpdate (SA auth per
-  `gdocs_replace_text.py`). When doing so: (a) `insertText` inherits the character style at the
-  insertion index — after any insert, explicitly set bold true on lead-ins AND bold false on
-  bodies, never assume; (b) consecutive numbered pillars must share ONE list via a single
+  `gdocs_replace_text.py`). When doing so: (a) `insertText` AND `replaceAllText` inherit the
+  character style at the insertion index / the match's FIRST character — after any insert,
+  explicitly set bold true on lead-ins AND bold false on bodies, never assume; NEVER begin a
+  find string on linked or specially-styled text (the replacement takes that style across its
+  full length — a find starting on a hyperlink turns the whole replacement into one giant link);
+  after any replace that overlaps a link, strip links from the affected sentence and re-apply
+  them on their exact anchors; (b) consecutive numbered pillars must share ONE list via a single
   `createParagraphBullets` spanning all of them, then apply the canonical indents from
   `canonical_spec.py` `THESIS.pillar_paragraph` (`number_*` keys: 18pt start / 0pt first-line) —
   the Docs preset default (36/18) is wrong; (c) NEVER `replace_section` a section containing an

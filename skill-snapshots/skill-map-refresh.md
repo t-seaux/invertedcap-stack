@@ -76,6 +76,7 @@ Scan the skills directory to build a complete inventory.
      | `network-quarterly-refresh` | Infrastructure — quarterly Exa re-enrich + re-embed of LinkedIn cache; feeds `network` skill |
      | `company-sync` | Infrastructure — monthly Python sync of Companies DB → Notion cache + Exa enrich + embed; feeds `company-scan` skill |
      | `company-quarterly-refresh` | Infrastructure — quarterly full re-enrich + re-embed of company cache; feeds `company-scan` skill |
+     | `voice-examples-sync` | infrastructure sync agent — no user-facing skill, syncs voice examples corpus |
 
    **Event** — the skill's primary trigger is now a Gmail webhook handler (Apps Script `gmail-webhook` project, invoked via Pub/Sub push) rather than a cron sweep. A skill is Event when its primary inbound/outbound detection happens in response to a Gmail lifecycle event. Handlers roll up into their parent skill per the table below; only the parent skill is rendered, not the handler.
 
@@ -131,7 +132,7 @@ These functions are tracked internally for completeness but do NOT appear in ANY
 | Function | Skills | Why hidden |
 |---|---|---|
 | Fund Ops | `mmf-to-lp-calc`, `cpa-report` | Operational fund accounting -- not part of the deal/research workflow |
-| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `weekly-backup`, `design-language`, `writing-style`, `office-cleaning-expense`, `mademeals-weekly-order`, `meeting-note-processor`, `coop-finances`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh`, `share-skills`, `lp-portal-allowlist`, `word-bank`, `remote-session-cleanup`, `data-health`, `log-company-blurb` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense` and `mademeals-weekly-order` are LaunchAgent-driven personal-life automations (expense logging, meal orders). `weekly-backup` (formerly `nightly-backup`) is the Monday 3am ET LaunchAgent (`com.invertedcap.weekly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to backup repos + SA-key rotation; lives in `~/.claude/local-agents/weekly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. `share-skills` regenerates the sanitized public skill bundle for external sharing — meta-utility over the skill corpus itself. |
+| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `weekly-backup`, `design-language`, `writing-style`, `office-cleaning-expense`, `mademeals-weekly-order`, `meeting-note-processor`, `coop-finances`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh`, `share-skills`, `lp-portal-allowlist`, `word-bank`, `remote-session-cleanup`, `data-health`, `log-company-blurb`, `add-reminder` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense` and `mademeals-weekly-order` are LaunchAgent-driven personal-life automations (expense logging, meal orders). `weekly-backup` (formerly `nightly-backup`) is the Monday 3am ET LaunchAgent (`com.invertedcap.weekly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to backup repos + SA-key rotation; lives in `~/.claude/local-agents/weekly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. `share-skills` regenerates the sanitized public skill bundle for external sharing — meta-utility over the skill corpus itself. |
 
 > **Alias — "other" ≡ Admin**: `Admin` is the catch-all bucket for utility / subroutine / personal-automation skills. When Tom answers a categorization prompt with "other" (or "misc" / "utility"), that means `Admin` — assign it there directly, do NOT re-ask.
 
@@ -215,7 +216,7 @@ Carry-forward without re-validation is a bug: an item that has since been added 
 
 **Surfacing rule**: All pending items MUST appear in the Step 7 alert on every run where any pending set is non-empty, even if the regenerate/push flow was skipped by the no-change gate. The alert is the only daily signal — silence here means Tom never categorizes them.
 
-**Idempotency**: This step writes/reads `_pending.json` but does NOT push it unless other changes also trigger a push. To avoid the situation where pending items "disappear" because no push happens, persist `_pending.json` to GitHub on EVERY run where the pending set changes (additions or removals), even when no other Step 6 push would fire. Use a separate single-file `mcp__github__create_or_update_file` call for this case — keep the push minimal so no-op days stay cheap.
+**Idempotency**: This step writes/reads `_pending.json` but does NOT push it unless other changes also trigger a push. To avoid the situation where pending items "disappear" because no push happens, persist `_pending.json` to GitHub on EVERY run where the pending set changes (additions or removals), even when no other Step 6 push would fire. In that pending-only case, still make it **one** commit via the Step 6 path (`push_stack.sh` will stage just the changed `_pending.json` and push once) — do **not** spin up a separate per-file commit. A one-file commit is fine; a *stampede of* one-file commits is what breaks the Pages deploy (see Step 6's HARD RULE).
 
 ---
 
@@ -606,15 +607,29 @@ Maintain a running `CHANGELOG.md` in the `t-seaux/invertedcap-stack` repo that r
 
 ## Step 6: Push to GitHub
 
-Push the following to the `t-seaux/invertedcap-stack` repository (main branch) in a single commit:
+> **HARD RULE — ONE COMMIT, ONE PUSH. NEVER push file-by-file.**
+> GitHub Pages "pages build and deployment" is concurrency-grouped: every push to `main` starts a deploy and a newer deploy *cancels* the in-flight one. On 2026-08-06 this step pushed **12 commits in ~35 seconds** (one file per commit) — it spawned 12 Pages deploys, 11 were cancelled, and the survivor never got a clean "success" from the Pages backend and **timed out after 10 minutes** (`Timeout reached, aborting!`). The /stack page did not update that day. So: stage EVERY changed artifact and push it in exactly ONE commit. Do **not** loop `mcp__github__create_or_update_file` over the files. Do **not** give `_pending.json`, `CHANGELOG.md`, or any single snapshot its own commit.
+
+**Preferred path — the deterministic push script.** Write all regenerated artifacts into the local clone at `~/code/invertedcap-stack`, then run the helper, which stages everything and makes exactly one commit + push (works regardless of which GitHub MCP tools are attached):
+
+```
+~/.claude/skills/skill-map-refresh/push_stack.sh "<commit message>"
+# or, for a multi-line message:
+~/.claude/skills/skill-map-refresh/push_stack.sh -F /tmp/skillmap_commit_msg.txt
+```
+
+It no-ops cleanly (exit 0, no commit) when nothing changed, and rebases-then-retries once on a non-fast-forward. That is the only push this step should perform.
+
+**Artifacts that go in the single commit:**
 
 1. `stack-page.html` -- The responsive HTML file
 2. `stack-map.png` -- The Platform Map PNG
 3. `quick-ref.png` -- The Quick Reference PNG
 4. `CHANGELOG.md` -- The running changelog
-5. `skill-snapshots/<skill-name>.md` -- One file per visible skill, containing the current SKILL.md content. These are the diff baseline for the next run's modification detection (Step 0). Push only the snapshots that changed plus any new skills' snapshots; do not re-push unchanged snapshots.
+5. `skill-snapshots/<skill-name>.md` -- One file per visible skill, containing the current SKILL.md content. These are the diff baseline for the next run's modification detection (Step 0). Only the changed/new snapshots need staging; unchanged ones produce no diff and are harmless.
+6. `skill-snapshots/_pending.json` -- The pending-categorization ledger (Step 0.5), when it changed.
 
-Use the `mcp__github__push_files` tool to push all files in a single commit. Commit message format:
+**Fallback (only if not using the script):** use a single `mcp__github__push_files` call containing ALL of the above files at once — never per-file. Commit message format (same for both paths):
 
 ```
 Update skill map visuals -- [DATE]
