@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026-08-10] (Week of 2026-08-10)
+
+**Added:** None (deal-doc-drafter pending categorization)
+**Removed:** safe-drafter (Portfolio Management — replaced by deal-doc-drafter, which extends SAFE generation with term sheet generation and Drive version-event handling)
+**Modified:** None
+**Total skills:** 44
+**Functions:** Portfolio Management -1 (safe-drafter removed)
+
+---
+
 ## [2026-08-07] (Week of 2026-08-04)
 
 **Added:** None
