@@ -105,12 +105,24 @@ Iterate `Diligence Materials`. For each entry use the right access method:
 Note that the first-pass diligence PDF will also typically be linked here —
 read it once via whichever access path resolves it.
 
-### 1d. Read all 5 reference memos in the Drive folder (weighted by recency)
+### 1d. Read all reference memos in the Drive folder (weighted by recency)
 
-List and read every memo in `1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`. As of 2026-07
+List and read every memo in `1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`. As of 2026-08
 the canonical set is:
 
-1. **Factir** (May 2026) — newest, and THE canonical formatting exemplar
+0. **AgentBay** (Aug 2026) — newest, and the modern THESIS template: numbered
+   two-item setup (risks callout + investing-style framing), then six pillars
+   mapped one-to-one onto the LPAC framework names (Solution Shape,
+   Self-Reinforcing Moat, Multi-Act Sequencing, Founder Shape, Company-Building
+   Style, Opportunity Cost) under underlined "On the Business" / "On the
+   Founder(s)" dividers, each pillar opening with an italic slide-quote block
+   (bold-roman label, 1pt black left bar). It also embeds full-page landscape
+   LPAC slide pages (API-invisible objects — see memo-workshop trap (e); never
+   text-edit across them). Weight it heaviest for thesis STRUCTURE and voice;
+   its slide embeds are LPAC-era-specific — replicate only if the deal's
+   pillars map onto current LPAC frameworks.
+   [Doc](https://docs.google.com/document/d/1DWJv6K1gWY6FiBZNjhA3Wv3NXriQmn4q3lyJffTii4I/edit)
+1. **Factir** (May 2026) — THE canonical FORMATTING exemplar
    (Tom-confirmed 2026-07-17): match its margins, logo placement, bullet
    indents, table chrome, and section layout exactly. `canonical_spec.py`
    and the template were baked from its publish run, so the harness output
@@ -134,11 +146,11 @@ the canonical set is:
    plain-bold title, no `Appendix` H1 wrapper) — **do not replicate** the Oun
    formatting
 
-The structure and formatting have evolved. When the most recent two memos
-(Tuor, Signal7) diverge from the older three, **follow the recent pattern**.
-Specifically: 3 thesis pillars is the modern norm, but do not constrain
-yourself to 3 — if the first-pass surfaces more (Oun has 5), use what the
-analysis warrants. Numbering is optional. Bolded lead-ins are mandatory.
+The structure and formatting have evolved. When the most recent memos
+(AgentBay, Factir) diverge from the older ones, **follow the recent pattern**.
+Specifically: pillar count follows what the analysis warrants (3-4 was the
+pre-AgentBay norm; AgentBay runs six LPAC-mapped pillars). Numbering is
+optional. Bolded lead-ins are mandatory.
 
 The memos are also the source of framework vocabulary and cross-portfolio
 cross-references. Build a `{company → file URL → frameworks expressed}`

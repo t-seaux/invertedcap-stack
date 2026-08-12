@@ -346,26 +346,34 @@ Spawn with `Task` tool.
    - **Awaiting your call (CUMULATIVE — the standing queue):** `candidates.py list --state surfaced` (rows WITH `card_ts`) → name, days open (today − updated_at), Slack thread permalink (`https://inverted-capital.slack.com/archives/C0BHT40PTEZ/p{card_ts minus the dot}`); append `— implicit pass in {14−N}d` when N ≥ 10.
    - **Today's decisions (POINT-IN-TIME — only rows whose state changed TODAY, `updated_at = today`):** drafted today (name + Gmail draft link), passed today (name + one-clause reason from the ledger `why`), tracked today (name + re-surface date), sent today (Task 7 detections → Reached Out). NEVER a cumulative roster of past drafts/passes/tracks.
    - `list --state pending` older than 2h → count only, when non-zero. `archived` never reported.
-6. The Notion-scanner instructions below are RETIRED (DB deleted 2026-07-16; archive at ~/.claude/data/neg1_scanner_archive.json) — historical documentation only, never query.
+6. **Which of the steps below are dead, precisely** (corrected 2026-08-11 — the old blanket "everything below is RETIRED" note was both wrong and ineffective; sub-agents kept executing step 1 and 404ing every night from at least 2026-07-29 through 2026-08-11):
+   - **DEAD — never execute:** step 1 (Notion `-1 Scanner` query) and the `notion-update-page` / `Status = Enriched` bullets inside step 2. The DB was deleted 2026-07-16; archive at `~/.claude/data/neg1_scanner_archive.json`. Both collection IDs (`…80a5-923b-000b83921fa3`, `…8041-90e0-ff3f0e0dbff5`) return 404.
+   - **LIVE — still authoritative:** steps **2b** (card format), **2c** (implicit-pass sweep), **2d** (re-surface sweep). Bullets 2–4 above point directly at them. Do not delete them.
 
-**Goal**: Two sub-passes over the -1 Scanner database. (1) Enrich + score rows with `Status = Pending Enrichment` (or empty Status) and land them at `Status = Enriched` — NO drafting; Tom triages Enriched rows himself via the **Request Draft** button. (2) Sweep rows sitting in `Status = Draft Requested` (button presses the notion-webhook missed, or whose founder-outreach job failed) and invoke `founder-outreach` on each.
+**Goal**: Enrich + score unenriched candidate-store rows and surface each as a card. NO drafting — Tom triages cards in `#neg1-sourcing` and replies `draft` to request one.
 
-Status flow context: `Pending Enrichment` → `Enriched` (this task) → `Draft Requested` (Tom's button; fires founder-outreach via notion-webhook in real time) → `Draft Ready` (set by founder-outreach) → `Reached Out` / `Passed`. Gate values shared with the webhook live in `~/.claude/skills/shared-references/triggers/founder-outreach.json` — read it, don't inline.
+State flow (candidate store — the Notion Status vocabulary below is historical): `pending` → `surfaced` (this task posts the card) → `drafted` (founder-outreach, via Tom's `draft` reply) → `reached-out` / `passed`; `tracked` for snoozes. Gate values shared with the webhook live in `~/.claude/skills/shared-references/triggers/founder-outreach.json` — read it, don't inline.
+
+> The **Request Draft** button and the `Pending Enrichment → Enriched → Draft Requested → Draft Ready` Notion Status flow are RETIRED (2026-07-16) along with the DB that held them.
 
 **Steps**:
 
-1. **Query -1 Scanner for pending rows.** Use `notion-search` with `data_source_url: "collection://32c00bef-f4aa-80a5-923b-000b83921fa3"`. Filter for rows where:
-   - `Status = Pending Enrichment` OR `Status` is empty
-   - `LI` (LinkedIn URL) is populated
+1. **Query the candidate store for pending rows.** ⛔ NOT Notion — the `-1 Scanner` DB is deleted (see bullet 6 above).
+
+   ```bash
+   python3 ~/.claude/scripts/decision-ledger/candidates.py list --state pending
+   ```
+
+   Each line is one JSON row. Keep rows where `li_url` is populated AND the enrichment outputs are still empty (`eval_summary` / `signals_line` / `rec`). Skip rows whose `created_at` is under ~2 hours old — a per-candidate enrich job is probably still in flight (this task is the reconciliation backstop, not the primary path).
 
    **Cap at 10 rows per run** to bound ContactOut credit consumption (enrichment + Company Search + online research per row). If more exist, process the 10 oldest and note the remainder were deferred.
 
 2. **For each detected row, enrich + score**: read `/Users/tomseo/.claude/skills/neg1-enricher/SKILL.md` and follow its Steps 1–5 in Task 6 mode (do NOT chain to founder-outreach):
-   - Call `contactout_enrich_linkedin_profile` on the row's `LI` value
-   - Resolve Companies relations (Step 3 — dedup by Domain, create/backfill as needed, respect Last Enriched skip rule)
-   - Update the existing -1 Scanner row via `notion-update-page` (Step 4 Update path)
-   - Apply the rubric (Step 5) — writes Signals line, Working Description, Claude Rec, Eval Summary
-   - Set `Status = Enriched` (per neg1-enricher Step 6 Task 6 mode)
+   - Call `contactout_enrich_linkedin_profile` on the row's `li_url` value
+   - Resolve Companies relations (Step 3 — dedup by Domain, create/backfill as needed, respect Last Enriched skip rule). The **Companies** DB is live; only the `-1 Scanner` DB is gone.
+   - Write results back to the store with `candidates.py upsert --li <url> --json '{…}'` — **not** `notion-update-page`
+   - Apply the rubric (Step 5) — writes `signals_line`, `working_desc`, `rec`, `eval_summary`
+   - `candidates.py set-state --li <url> --state surfaced` once the card is posted (step 2b)
 
 2b. **Surface EVERY candidate to `#neg1-sourcing`** (Tom, 2026-07-20 — every candidate gets its own individual card regardless of verdict; no consolidated batch notification): for each row enriched in THIS run, post ONE candidate card, in its own separate Slack message, to the `#neg1-sourcing` Slack channel — post via `send-alert/md_to_blocks.py` in bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py` (prints the message `ts` — no webhook needed). Do **not** use the generic `send-alert` skill for this card — its webhook is fixed to `#claude-alerts` and will misroute it (the 2026-07-20 bug: cards were landing in `#claude-alerts` one-per-candidate instead of `#neg1-sourcing`). Card format (Tom's mock, locked 2026-07-16; verdict line added 2026-07-20 now that Second Look/Pass cards also post — labeled bullets):
    ```
@@ -383,7 +391,7 @@ Status flow context: `Pending Enrichment` → `Enriched` (this task) → `Draft 
 
 2d. **Re-surface sweep (watchlist)**: `candidates.py due-resurface` (tracked rows whose date arrived). For each: re-post the step 2b card with the Timing bullet reading `**Timing.** Open – track period elapsed ({original date} → today); {what changed if the row's Company relations show news, else "no visible change"}`, then `set-state --state surfaced --card-ts <new ts>` (clears it from due-resurface). Same channel-id gate as 2b.
 
-2c. **Implicit-pass sweep (ledger only — NEVER touches Notion Status)**: query the same data source for rows where `Status ∈ {Enriched, Draft Ready}` and `Last Enriched` is more than **14 days** ago. Each is a revealed-preference soft pass — the candidate surfaced and Tom chose not to act. For each, parse the Signals line scores + Claude Rec exactly as in Task 7 step 3c and run:
+2c. **Implicit-pass sweep (ledger + store)**: `candidates.py list --state surfaced`, keep rows WITH `card_ts` set (a judgment was actually requested; archive-migrated uncarded rows are `state=archived` and exempt) whose `updated_at` is more than **14 days** ago. Each is a revealed-preference soft pass — the candidate surfaced and Tom chose not to act. For each, parse the store row's `signals_line` scores + `rec` exactly as in Task 7 step 3c, run the ledger append below, then `candidates.py set-state --li {li_url} --state passed`. (Rewritten in store terms 2026-08-11 — the old text still said "query the same data source … Status ∈ {Enriched, Draft Ready} … Last Enriched", all Notion-era vocabulary against the deleted DB, despite being declared LIVE in bullet 6.)
    ```bash
    python3 ~/.claude/scripts/decision-ledger/append_decision.py \
      --label "{Name}" --decision no-outreach --date {today} \
@@ -391,13 +399,13 @@ Status flow context: `Pending Enrichment` → `Enriched` (this task) → `Draft 
      --scores '{...}' --rubric-verdict {reach-out|pass} \
      --rubric-version {frontmatter version} --retro-ref "{row URL}"
    ```
-   Idempotent: `append_decision.py` upserts on (name, decision), so daily re-runs refresh the same row. Leave the Notion row untouched — Tom can still act later, and Task 7's ledger step supersedes the implicit row if he does. Non-fatal on error.
+   Idempotent: `append_decision.py` upserts on (name, decision), so daily re-runs refresh the same row. Tom can still act later — a subsequent `draft` reply supersedes the implicit pass (Task 7's ledger step + the dedup-vs-seen rule handle it). Non-fatal on error.
 
-3. **Draft Requested sweep**: query the same data source for rows with `Status = Draft Requested`. The webhook normally handles these within ~1–2 min of the button press, so anything still sitting here after a scheduled-run interval is a missed event or failed job. For each: read `/Users/tomseo/.claude/skills/founder-outreach/SKILL.md` and run its webhook mode against the row (drafts regardless of Claude Rec; unscored rows get reset to `Pending Enrichment` + Slack alert per that skill's webhook-mode rules). founder-outreach sets `Status = Draft Ready` on success.
+3. ~~**Draft Requested sweep**~~ — **DEAD (2026-08-11).** There is no `Draft Requested` state in v2: the Request Draft button is retired, and drafting fires inline when Tom replies `draft` on a card (neg1-sourcing-listener → founder-outreach store mode). The old sweep queried the deleted Notion DB for a status that no longer exists anywhere. Do not execute; nothing replaces it.
 
 4. **Guardrails**:
-   - Skip rows where `LI` is malformed or not a LinkedIn URL — flag in summary
-   - If ContactOut returns no data, mark the row's `LI Profile Summary` = `"[enrichment failed: no ContactOut data]"`, leave Status at `Pending Enrichment`, and skip scoring for that row
+   - Skip rows where `li_url` is malformed or not a LinkedIn URL — flag in summary
+   - If ContactOut returns no data, leave the row at `state=pending` with `eval_summary` unset and note `"[enrichment failed: no ContactOut data]"` in the run summary — do NOT invent scores (there is no `LI Profile Summary` field in the store)
    - Respect Company dedup + Last Enriched skip rule — credit-saving
 
 5. **Return concise summary (under 500 chars)**: rows enriched (names + primary company + peak signal + Claude Rec), drafts swept (names + Gmail draft URL), rows skipped with reason, deferred count if cap hit.
@@ -411,7 +419,7 @@ Spawn with `Task` tool.
 - Ledger: append_decision.py `--decision reached-out` with scores/rec from the store row (same flags as step 3c below); pass the row's `draft_why` as `--why` when populated + delete any implicit-pass row (supersede rule below).
 - **NO CRM bridge here** — in v2 the Opportunity was already created at draft time by neg1-sourcing-listener (`notion_opp_url` on the row). Optionally confirm the Opp exists; if it's somehow missing, fall back to step 3b's add-to-crm table.
 - **Trashed-draft detection (v2):** for each `state=drafted` row where the sent-scan finds nothing AND the Gmail draft no longer exists (`list_drafts` query `to:{email}` has no draft matching the stored `gmail_draft_url` hex): Tom trashed the draft = a pass decision. `set-state --state passed`, ledger `no-outreach` (verdict-raw "Draft trashed", scores/rec from the store), and post a one-line reply in the candidate's card thread (md_to_blocks bot-token mode with `SLACK_THREAD_TS={card_ts}`): `Draft trashed — logged as a pass. Reply with a one-line why to teach the taste engine.` The listener captures any reply as the pass reason.
-- The scanner-row instructions below are RETIRED (DB deleted 2026-07-16) — historical only. Chris Angove, the last in-flight row, was migrated to the store (state=drafted).
+- **Which of the steps below are dead, precisely** (corrected 2026-08-11): **step 1 is DEAD** — the Notion `-1 Scanner` query 404s (DB deleted 2026-07-16) and there are **zero** in-flight scanner rows; Chris Angove, the last one, was migrated to the store (`state=drafted`). Use the v2 store query above instead. **Steps 2, 3b and 3c are LIVE** — the bullets above reference them by number (sent-mail scan, add-to-crm fallback table, ledger flags). Do not delete them. Prior to this correction the section was labelled "still valid only for pre-2026-07-16 scanner rows in flight", which read as conditionally-live and kept getting executed against an empty set.
 
 **Goal**: Detect when Tom has SENT one of the drafted outreach notes (not just saved the draft).
 
@@ -421,23 +429,24 @@ Spawn with `Task` tool.
 
 **Steps**:
 
-1. **Query -1 Scanner for rows in Draft Ready state.** Use `notion-search` with `data_source_url: "collection://32c00bef-f4aa-80a5-923b-000b83921fa3"`. Filter for rows where:
-   - `Status = Draft Ready`
-   - `Email` is populated
-   - `Gmail Draft URL` is populated (confirms Mode 2 ran)
+1. **Query the candidate store for drafted rows.** ⛔ NOT Notion — the `-1 Scanner` DB is deleted and this query 404s (see the v2 bullets above).
 
-   Extract each row's: Notion page ID, Name, Email, Last Enriched date.
+   ```bash
+   python3 ~/.claude/scripts/decision-ledger/candidates.py list --state drafted
+   ```
+
+   Keep rows where `email` is populated AND `gmail_draft_url` is populated (confirms a draft was actually created). Extract each row's: `li_url` (stable key), `name`, `email`, `updated_at` (use in place of the old `Last Enriched` date for the `after:` bound in step 2).
 
 2. **Scan Gmail sent mail** for outreach notes sent to these candidates. For each row, run a targeted query:
-   `in:sent -is:draft to:{email} subject:"Introducing Inverted Capital" after:{Last Enriched date}`. The `-is:draft` is mandatory — drafts can leak into `in:sent` thread results and treating a draft as a send misclassifies the row.
+   `in:sent -is:draft to:{email} subject:"Introducing Inverted Capital" after:{row updated_at date}`. The `-is:draft` is mandatory — drafts can leak into `in:sent` thread results and treating a draft as a send misclassifies the row.
    
    If any results are returned, the outreach was sent. Fuzzy match: also accept variations like "Intro to Inverted Capital", "Inverted Capital — intro", etc. If the subject starts with "Re:" or "Fwd:", treat as a reply, NOT an initial send.
 
 3. **For each detected send**:
 
-   **a) Update -1 Scanner row**:
-   - `Status = Reached Out`
-   - Append to `Reach Out?` (or similar text field): `"Sent on {date} — see Gmail {sent_message_id}"` for audit
+   **a) Update the candidate store row** (⛔ NOT the deleted -1 Scanner):
+   - `python3 ~/.claude/scripts/decision-ledger/candidates.py set-state --li {li_url} --state reached-out`
+   - The send is self-auditing via Gmail; there is no `Reach Out?` text field in the store. If an audit note is wanted, it belongs in the decision ledger (`append_decision.py --why`), not here.
 
    **b) Invoke `add-to-crm` to create a pre-company Opportunity** with these exact pre-populated fields:
 
@@ -445,18 +454,18 @@ Spawn with `Task` tool.
    |---|---|
    | **Name** (title) | `-1 ([{Founder First Name} {Founder Last Name}]({LI URL}))` — **parens around the linked name** (Tom, 2026-07-27); the name is clickable to LinkedIn. Example: `-1 ([Greg Reiner](https://linkedin.com/in/gregreiner))`. Validate: `validate_eval_note.py --opp-title "<Name md>"` |
    | **Stage** | `Pre-Seed 💡` |
-   | **Source(s)** | `["https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9"]` — the **Claude** source page (Tom, 2026-07-27: every candidate sourced through the engine gets Source = Claude) |
+   | **Source(s)** | `["https://www.notion.so/07500beff4aa8213a8f801cfa3cb9a12"]` — the **Claude** source page (Tom, 2026-07-27: every candidate sourced through the engine gets Source = Claude). ⚠️ NOT `0fb9a640…` — that is **Direct**'s page, the exact 2026-08-03 copy-paste bug documented in neg1-sourcing-listener/SKILL.md; it survived here until the 2026-08-11 review |
    | **Support** | leave unset (Tom's "N/A" — no relation populated; the default Support relation is intentionally blank for -1 promotions) |
    | **Fund** | `Inverted 1️⃣` |
    | **Status** | `Qualified` at draft-time creation (Tom, 2026-07-27) — Task 7's v2 send detection flips Qualified → `Outreach`; only in THIS legacy at-send bridge path may the row be created directly at `Outreach` |
    | **Description** | `TBD` |
-   | **Contact** | Founder's email from the -1 Scanner row's `Email` field |
+   | **Contact** | Founder's email from the store row's `email` field |
    | **Website** | `N/A` |
-   | **🏁 Founder(s)** | Resolve or create a People DB entry for the founder (reuse the LI URL + email from the -1 Scanner row), then set the relation |
-   | **-1 Scanner** | Set the relation to the source -1 Scanner page URL. This creates the bidirectional bridge — from the Opportunity you can navigate back to the -1 Scanner entry, and the reciprocal `Opportunity` relation on the -1 Scanner side auto-populates |
+   | **🏁 Founder(s)** | Resolve or create a People DB entry for the founder (reuse `li_url` + `email` from the store row), then set the relation |
+   | ~~**-1 Scanner**~~ | **DEAD (2026-08-11)** — the relation's target DB is deleted; do not set it. The store row's `notion_opp_url` (written back via `set-state --notion-opp-url`) is the only bridge now |
    | **Followed Up** | `__NO__` |
 
-   This is the "bridge" — the candidate now lives in both -1 Scanner (for sourcing history) and Opportunities (for pipeline tracking), connected via the bidirectional relation. The -1 prefix in the title visually marks these as "pre-company" opportunities until the founder reveals a company name, at which point Tom manually renames.
+   The bridge is now one-directional: the store row carries `notion_opp_url` back to the Opportunity (sourcing history lives in the store + ledger). The -1 prefix in the title visually marks these as "pre-company" opportunities until the founder reveals a company name, at which point Tom manually renames.
 
    **c) Log to the decision ledger**: parse the per-signal ratings from the row's `Signals` compact line `NL:{n} · Reps:{n} · Rigor:{n|U} · Ant:{n} · Int:{n} · Rng:{n} · rec:{✅|🤔|❌}` (0-10 numbers; U = unobservable; legacy rows may carry H/M/L letters; `rec` = the PRE-gate auto-rec) into a JSON dict `{"Non-Linearity": 5, ...}` (use the H/M/L word when no number is present), map `Claude Rec` to `reach-out` / `pass`, then run:
    ```bash
@@ -476,7 +485,7 @@ Spawn with `Task` tool.
    ```
 
 4. **Guardrails**:
-   - Only run for rows in `Status = Draft Ready` — never demote rows in other states
+   - Only run for store rows in `state=drafted` — never demote rows in other states
    - If the candidate has already been promoted to Opportunity (detect via dedup search on the `-1 {Name}` title OR by checking a flag), skip the add-to-crm call to avoid duplicates
    - If Gmail search returns ambiguous results (multiple threads, or subject doesn't match), flag in summary for manual review rather than assuming
 

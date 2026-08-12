@@ -193,7 +193,7 @@ above.)
 
 ## Follow-ups (only if Tom asks)
 
-- **Draft intro notes** — a short warm note to the candidate (match `writing-style/talent-outreach/STYLE.md`) or an ask-for-referral note to an exemplar (match `writing-style/founder-cold-outreach/STYLE.md`). Never send; leave as a Gmail draft.
+- **Draft intro notes** — a short warm note to the candidate (match `writing-style/talent-outreach/STYLE.md`) or an ask-for-referral note to an exemplar (match `writing-style/neg1-cold-outreach/STYLE.md`). Never send; leave as a Gmail draft.
 - **Enrich a candidate** — ContactOut via the `neg1-enricher` primitives or `contactout_enrich_linkedin_profile` for email + full tenure.
 - **Log against a portfolio Opp** — if the hiring company is a portfolio Opp and Tom wants a record, note the candidates in the Opp (confirm first — writes to Notion).
 

@@ -141,7 +141,12 @@ verbatim self-citation source. Then ask where Tom wants to start.
   paragraph between them (canonical_spec `THESIS.empty_separator`: indent 0/0, no bullet) — insert
   `\n` at the next item's start, then `deleteParagraphBullets` + zero indents on the new empty
   paragraph; numbering continues across the gap when the items share a listId. Never leave numbered
-  items butted together.
+  items butted together; (e) some embedded objects are API-INVISIBLE — they surface only as U+E907
+  placeholder chars in plain textRuns (absent from both `inlineObjects` and `positionedObjects`).
+  The AgentBay full-page LPAC slides render this way. Deleting or replacing across those chars
+  destroys the object with no API way to restore it — never run text ops spanning them; (f)
+  per-section landscape IS API-visible after all: `sectionStyle.flipPageOrientation` (read it to
+  find slide sections; it round-trips through updateSectionStyle).
 - Support `log to writing style` checkpoints via the `writing-style` skill.
 
 ## What NOT to do

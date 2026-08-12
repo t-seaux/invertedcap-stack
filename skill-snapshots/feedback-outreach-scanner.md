@@ -15,7 +15,7 @@ Scans Gmail for feedback outreach activity over the past 12 hours, using the Not
 ## Key IDs
 
 - **Opportunities DB:** `fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`
-- **Feedback Scanner View URL:** `https://www.notion.so/tomseo/10e00beff4aa80ac8edadd62469d6b63?v=b646ee99c012402b9bb2fa70cc738daf` (custom view dedicated to feedback outreach — verified 2026-04-17 to return populated `📣 Pending Feedback` relations). Do NOT use `?v=31400beff4aa80fdb2e0000c1b6ae673` — that is the general pipeline Agent View, not the feedback view, and will return opportunities with no pending feedback.
+- **Feedback Scanner View URL:** `https://www.notion.so/tomseo/10e00beff4aa80ac8edadd62469d6b63?v=3b900beff4aa81d3ad6e000ca843b97f` — the **`📣 Pending Feedback (scanner)` view, filtered to `📣 Pending Feedback IS NOT EMPTY` and nothing else**. Every row it returns has a real pending-feedback person; there are no false positives to skip. Do NOT use `?v=b646ee99c012402b9bb2fa70cc738daf` (the old view) — its filter is an **OR** (`👓 Intros (Qualified)` OR `☎️ Intros (Outreach)` OR `📣 Pending Feedback`), so it also returns opportunities that match only on their Intros relations with **empty** Pending Feedback — including active portcos, which then surfaced as blank-person "feedback outreach" items (2026-08-11 incident: AgentBay/Coverbase/Decisionly/Fair/Rengo). Do NOT use `?v=31400beff4aa80fdb2e0000c1b6ae673` either — that is the general pipeline Agent View.
 - **People DB:** `1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`
 - **Notes DB:** `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`
 
@@ -148,9 +148,9 @@ Factir, 2026-05-12). Falls back to the lowercased recipient email when `personId
 
 This is the foundation of the scanner. Instead of searching Gmail for a specific subject pattern, we resolve the universe of people we're looking for from Notion.
 
-Use `notion-query-database-view` with the **Feedback Scanner View** at `https://www.notion.so/tomseo/10e00beff4aa80ac8edadd62469d6b63?v=b646ee99c012402b9bb2fa70cc738daf`. This custom view surfaces opportunities associated with feedback outreach. For each result, inspect the `📣 Pending Feedback` relation field — if the key is absent from the JSON or the array is empty, skip (feedback is already resolved or out of scope). If populated, proceed.
+Use `notion-query-database-view` with the **`📣 Pending Feedback (scanner)` view** at `https://www.notion.so/tomseo/10e00beff4aa80ac8edadd62469d6b63?v=3b900beff4aa81d3ad6e000ca843b97f`. This view is filtered to `📣 Pending Feedback IS NOT EMPTY` and nothing else, so **every row it returns already has a populated Pending Feedback relation** — there is no OR-filter noise to skip. Still re-read the relation array per row (you need its contents anyway), but a row appearing here is by definition in scope.
 
-Do NOT use the general pipeline Agent View (`?v=31400beff4aa80fdb2e0000c1b6ae673`) for this step — past runs did and returned 9 opportunities with 0 populated Pending Feedback relations.
+Do NOT fall back to the old OR view (`?v=b646ee99c012402b9bb2fa70cc738daf`) or the general pipeline Agent View (`?v=31400beff4aa80fdb2e0000c1b6ae673`) — both return opportunities with empty Pending Feedback (matched on Intros relations), which is exactly what produced blank-person portco false positives.
 
 For each opportunity returned:
 1. Fetch the `📣 Pending Feedback` relation array — this contains People DB page URLs.

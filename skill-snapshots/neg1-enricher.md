@@ -26,7 +26,35 @@ Enrichment + evaluation primitive for pre-founder candidates. Takes a LinkedIn U
 
 **Slack routing — EVERY message, every mode (HARD RULE — Tom, 2026-07-27: "all -1 enrich stuff should not run through claude alerts"):** every Slack message this skill emits — candidate cards, Step-0 existing-Opp notices, failure notes, anything — posts to `#neg1-sourcing` via bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py`. NEVER invoke the generic `send-alert` skill from this skill for any message type — its webhook is fixed to `#claude-alerts`. This generalizes the 2026-07-20 card-routing fix to ALL surfaces: on 2026-07-27 a Step-0 "existing Opp found" notice and a per-job "run complete" summary both leaked to `#claude-alerts` because only the card had explicit routing. If `.sourcing_channel_id` is unreadable, skip the post and record the message in the audit log — do not fall back to any other channel.
 
-**Step 0 (preflight) — existing-Opportunity check.** BEFORE enriching, search the Opportunities DB (`fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`) for an existing Opp on this person — query the candidate's name AND their LinkedIn URL (founder relations + title link both carry it). If an Opp already exists (any status), the person is already in the pipeline, so the enrichment must NOT stop at a candidate-store row + Slack card. Instead: run the full enrichment/scoring, then land the framework output as a **Notes-DB note tagged to that Opp** — a `-1 {Name}: Founder Eval` page in the Notes DB with the Opportunity relation set (same shape neg1-sourcing-listener produces at draft time; the Opp *body* stays clean — Tom's rule). Still upsert the store row for ledger continuity, but the tagged note is the deliverable Tom reads. Post ONE compact notice to `#neg1-sourcing` (bot-token mode per the Slack routing rule above — never `#claude-alerts`): existing-Opp context, verdict + signals line, and links to the Founder Eval note + Opp. Only when NO Opp exists do you follow the default card-only path below. (Tom, 2026-07-16: "when you neg1 enrich you should check to see if there's an opportunity entry. If so you should create a new note with the enrichment and tag it to the opp.")
+**Step 0 (preflight) — existing-Opportunity check. STOP if one exists; write NOTHING to Notion.**
+BEFORE enriching, search the Opportunities DB for an existing Opp on this person — query the
+candidate's name AND their LinkedIn URL (founder relations + title link both carry it).
+
+**If an Opp exists (any status): abort the run.** Do not score, do not create a note, do not post a
+card. Log the skip and stop — the person is already in the pipeline and the -1 engine exists to find
+people who are not. Post nothing unless this was a MANUAL invocation ("run a founder eval on X"), in
+which case reply with the existing Opp link so Tom knows why nothing was produced.
+
+**Only when NO Opp exists** do you follow the default card-only path below.
+
+**IDs:** `fab5ada3-5ea1-44b0-8eb7-3f1120aadda6` is the Opportunities *data source* id — correct for
+the Notion MCP. The REST API needs the *database* id `5fa871c765d74251b8f96b63f248ef25`; passing the
+data-source id to REST returns a 404 that reads exactly like a permissions error. `neg1_sourcing.py`
+mirrors this gate in code as `_already_in_pipeline`.
+
+> **Supersedes the 2026-07-16 auto-note rule.** This step used to say: if an Opp exists, run the full
+> enrichment and land a `-1 {Name}: Founder Eval` note tagged to that Opp automatically. **Tom
+> reversed that 2026-08-11: "when I say add (ie the opposite of pass) that's when you can enrich by
+> adding a note."** The eval note is the product of an affirmative decision, not a side effect of the
+> person happening to already be in the CRM. It is now written in exactly one place — the
+> `draft`/`add` branch of neg1-sourcing-listener — which restores the rule the rest of this skill
+> already states: nothing lands in Notion until Tom says so.
+>
+> This carve-out was live and firing: on 2026-08-11 an eval note was auto-created for Stanley Huang,
+> who has had an Opportunity since 2025-03-06. He reached the enricher only because the sourcing
+> dedup gate had been dead since 2026-07-16 (it queried the deleted -1 Scanner and swallowed the
+> 404), so two separate defects had to line up — and the visible result was an unrequested Notion
+> write. Both are fixed; this stop is the second layer.
 
 **Eval-note format (v3 — locked off Tom's hand-edited Nina Carriero note, 2026-07-27; applies wherever the eval note is written, incl. neg1-sourcing-listener's draft-time note):**
 

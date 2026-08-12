@@ -152,6 +152,7 @@ The trigger discriminates on **content type** (deck/memo/data room), not **trans
 - Google Drive file URLs (`drive.google.com/file/d/<id>/view`) and Drive folder URLs (`drive.google.com/drive/folders/<id>`)
 - DocSend (`docsend.com/view/<id>` or data rooms `/view/s/`)
 - Dropbox share links to single files
+- Papermark (`papermark.com/view/...`, `*.papermark.io/view/...`) — email-gated image deck; captured to a Drive PDF (see below), not linked as-is
 - Brieflink (`brieflink.com/...`), Pitch.com (`pitch.com/...`), Canva (`canva.com/...`), Figma decks (`figma.com/deck/...`, `figma.com/file/...`)
 - Notion-hosted pages used as decks (`notion.site/...`)
 - Raw PDF URLs hosted anywhere (`<host>/.../*.pdf`)
@@ -166,6 +167,8 @@ The only thing that does NOT count is a generic company-website link (`unicornsn
 2. **Foreign Google Drive URLs (e.g. a founder's or referrer's own Drive)** — DO NOT re-upload to Tom's Drive at this step; the URL gets linked as-is in Step 6. To read content for field extraction: `curl -sL "https://drive.google.com/uc?export=download&id=<fileId>" -o /tmp/<slug>.pdf` (extract `<fileId>` from the URL between `/file/d/` and `/view`), check the output is a PDF not an HTML interstitial (`file /tmp/<slug>.pdf`), then `pdftotext -layout`. If `curl` returns the virus-scan interstitial (small file is HTML), fall back to Chrome: navigate to the Drive file URL and `get_page_text` against the rendered viewer.
 
 3. **DocSend URLs** — convert to PDF via `docsend-to-pdf` skill (Python `requests` + `Pillow`), then `pdftotext`. Same skill handles data room URLs (`/view/s/`).
+
+3b. **Papermark URLs (`papermark.com/view/…`)** — do NOT WebFetch (returns only Papermark's marketing shell). Capture the slides to a Drive PDF per `/Users/tomseo/.claude/skills/shared-references/papermark-deck-capture.md`, then read the captured slide PNGs for field extraction (round, valuation, HQ, founders, product). Interactive GUI only; in headless/webhook runs, link the Papermark URL as-is and proceed with what the email gave you. (Step 6 / materials-handler runs the same reference to produce the final linked PDF — pass it the captured file so it isn't re-done.)
 
 4. **Link-only / non-convertible decks (Brieflink, Pitch, Figma, Canva, Notion.site)** — use `WebFetch` with a content-extraction prompt: `"What round size, valuation, HQ, founder names, and product description does this deck/memo state? Quote verbatim where possible. Return 'NO_DATA' for any field with no explicit signal."`. WebFetch is the right tool — works headless, works in unattended/webhook contexts. JS-only SPAs may return empty; if so, note in the page body and proceed with what the email gave you.
 
@@ -341,6 +344,7 @@ The materials-handler skill will determine whether Chrome is available and execu
 - Gmail attachments → Apps Script endpoint → saves directly to Diligence folder → link in Notion property + body
 - DocSend links → Python PDF conversion → Drive upload → link in Notion
 - Direct file URLs (Google Drive, Dropbox, raw PDF) → Drive upload or direct linking
+- **Papermark URLs (`papermark.com/view/…`)** → captured to a Drive PDF (screenshot each slide → `img2pdf` → Drive) and the Drive file linked in Diligence Materials, with any prior Papermark chip removed. See `shared-references/papermark-deck-capture.md`. (Interactive GUI only; headless falls back to link-as-is.)
 - **Third-party deck-sharing URLs (brieflink.com, pitch.com, etc.)** → no PDF conversion attempted; link the URL as-is in the Notion Diligence Materials property field
 - Notion page body Diligence Materials section (append or create)
 - Notion Diligence Materials property field (Chrome-only) — populated for ALL deck/material URLs, not just converted PDFs. The property field is Tom's actionable surface; never skip it just because the URL didn't fit a PDF-conversion path.

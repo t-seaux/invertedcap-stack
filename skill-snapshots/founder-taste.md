@@ -70,11 +70,14 @@ characterizing any of them.
   fabricated. The cache itself is NOT excluded: it is the freshest memo source in
   the system and is bridged into `documents` by
   `lp_letter_cache.py bridge-memos`.
-- **The AgentBay memo.** Its thesis section is an unwritten placeholder
-  (`[Thesis pillars - to be drafted with Tom]`). Per Tom's standing rule, a `[WIP]`
-  memo is not citable. Exclude it from taste extraction until it is finished.
-  This leaves **6 usable investment memos**: Oun Homes, Quiet AI, Rengo, Signal7,
-  Tuor, Factir.
+- ~~**The AgentBay memo.**~~ No longer excluded — finalized 2026-08-10 (`[WIP]`
+  dropped, cache synced). It is now the freshest and most framework-explicit
+  taste artifact: its six thesis pillars map one-to-one onto the LPAC lens names
+  (Solution Shape, Self-Reinforcing Moat, Multi-Act Sequencing, Founder Shape,
+  Company-Building Style, Opportunity Cost). That makes **7 usable investment
+  memos**: Oun Homes, Quiet AI, Rengo, Signal7, Tuor, Factir, AgentBay.
+  (AgentBay has no hindsight retro yet — it joins the memo corpus, not the
+  memo-vs-retro delta set.)
 
 Scale the read to the question. "Why do I pass" needs Pillars plus pass rows;
 "what's my taste" needs the ledger's invest rows and retros too. Don't read all

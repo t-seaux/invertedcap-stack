@@ -302,7 +302,9 @@ Conversion path:
 4. **Final fallback — alert.** If both paths fail (proxy returns `Source file not accessible by dashfund identity`), surface a one-line Slack alert via `send-alert` asking Tom to download the PDF and forward it back. Do NOT create the Notion page yet.
 
 Name the resulting PDF: `[Company] - [Mon] [YYYY] Update.pdf` (e.g., `Quiet AI - Jan 2026 Update.pdf`).
-Upload the PDF to the company's subfolder on Drive via the **Drive Upload Apps Script** (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`). When the original was a native Google Doc/Sheet, link BOTH the original (or the copied) file URL and the generated PDF URL in the Artifacts property at Step 4.5 — the Signal7 Financial Plan precedent.
+Upload the PDF to the company's subfolder on Drive via the **Drive Upload Apps Script** (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`). When the original was a native Google Doc/Sheet, link BOTH the original (or the copied) file URL and the generated PDF URL in the Artifacts property at Step 4.5.
+
+> **🧮 Spreadsheets diverge from the naming + render rules above — read `~/.claude/skills/shared-references/spreadsheet-artifact-convention.md` first.** For a Google Sheet / `.xlsx` (financial plan, model, cap table), the two chips keep the **source file's own name** — `<original filename>.pdf` and `<original filename> (Sheets)` — not the `[Company] - [Mon] [YYYY] ...` shape, and the PDF comes from a native Drive `files.export`, never weasyprint. The paragraph above governs Google **Docs**. Precedent: Signal7 – Jul 2026 (`S7_2026_Financial_Plan_New Revised`), 2026-08-11.
 
 ### Case D: Email contains a Google Slides link (typically board decks)
 

@@ -130,6 +130,7 @@ If NOT running via run-all, read the `send-alert` skill and send. Organize by **
 ```
 
 Rules:
+- **Never list a company under Feedback Outreach with zero resolved people.** The `• Feedback outreach:` line requires a real `<Person Name>` from a populated `📣 Pending Feedback` relation. If the scanner returns a company with no resolvable pending-feedback person (blank parens), **drop it entirely** — do not print it. A company with empty parens is an artifact of a stale/OR view, not an action item (2026-08-11 incident: AgentBay/Coverbase/Decisionly/Fair/Rengo portcos surfaced as blank-person feedback items). The scanner now reads a Pending-Feedback-only view, so this should not recur — but keep the guard as a backstop.
 - **Bold the opportunity name** with double asterisks (standard markdown). Never use Slack mrkdwn single-asterisks — they render as italic, not bold.
 - Only include the sub-scanner lines that apply to that opportunity. If a Clusia-only run produced zero pass-note activity on Clusia, omit the pass-note line rather than writing `n/a`.
 - If all 3 sub-scanners produced zero activity, send a single-line body: `Steady state — 0 writes across all 3 diligence sub-scanners.`

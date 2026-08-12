@@ -2,13 +2,13 @@
 name: neg1-sourcing-listener
 description: >-
   Processes Tom's replies to candidate cards in #neg1-sourcing — the Slack go / no-go surface for -1 (pre-founder)
-  sourcing. Verb grammar on card threads: "draft" (flip row to Draft Requested → notion-webhook fires founder-outreach,
-  Gmail draft lands in ~2 min), "pass <why>" (Status Passed + decision-ledger row + reason logged as retro nuggets),
-  "track" / "snooze" (sets Re-surface date, default one quarter; card re-posts when it arrives), "more" (posts the full Eval Summary +
-  Breakdown into the thread). (A) Scheduled sweep — daily reconciliation over recent card threads, catches replies
+  sourcing. Verb grammar on card threads, all against the CANDIDATE STORE (candidates.py; the -1 Scanner Notion DB
+  is deleted): "draft" (invokes founder-outreach store mode inline → set-state drafted, Gmail draft lands in ~2 min),
+  "pass <why>" (set-state passed + decision-ledger row with the why), "track" / "snooze" (set-state tracked +
+  resurface date, default one quarter; card re-posts when it arrives), "more" (posts the full eval_summary +
+  breakdown into the thread). (A) Scheduled sweep — daily reconciliation over recent card threads, catches replies
   the webhook missed. (B) Webhook — invoked via claude-job-queue when the slack-retro-webhook Worker routes a
-  #neg1-sourcing thread reply. Never sends email — drafting happens via the existing Draft Requested pathway, and
-  Tom sends by hand from Gmail. Not user-facing in webhook mode. Distinct from decision-retro-listener
+  #neg1-sourcing thread reply. Never sends email — Tom sends by hand from Gmail. Not user-facing in webhook mode. Distinct from decision-retro-listener
   (#decision-retros) and claude-alerts-listener (#claude-alerts).
 ---
 
@@ -80,10 +80,22 @@ Parsed from Tom's thread reply on a candidate card (case-insensitive, first toke
 
 | Verb | Aliases | Action |
 |---|---|---|
-| `draft [<why>]` | ANY affirmative-pursuit word: yes, pursue, go, reach out, let's do it, send it, in, 👍 as text — the class is open, not a fixed list | Draft + CRM birth (v2 block above); optional `<why>` = positive taste signal, logged like pass reasons |
+| `draft [<why>]` | **`add`**, **`load`** — Tom's own words for the affirmative, see notes below; plus ANY affirmative-pursuit word: yes, pursue, go, reach out, let's do it, send it, in, 👍 as text — the class is open, not a fixed list | Draft + CRM birth (v2 block above); optional `<why>` = positive taste signal, logged like pass reasons |
 | `pass <why>` | no, skip | Status → `Passed` + ledger row + `<why>` logged as retro |
 | `track <dur>` | snooze, watch, hold, later | Set `Re-surface` date (default 3mo — one quarter; accept `3mo`/`6mo`/`12mo`/`1y`) |
 | `more` | details, breakdown | (Courtesy verb, not shown on the card footer) Post full Eval Summary + Signals line into the thread |
+
+**`load` is also a full alias of `draft` (Tom, 2026-08-11): "(also load should be an alias btw)"** — runs the complete draft branch identically to `add` and `draft`.
+
+**`add` is a full alias of `draft` (Tom, 2026-08-11): "when I say add (ie the opposite of pass)
+that's when you can enrich by adding a note."** It runs the complete draft branch — Gmail draft,
+Opportunity, AND the Founder Eval note. Two consequences worth stating plainly:
+1. **`add` is the ONLY trigger for the eval note, together with the other draft aliases.** The
+   neg1-enricher used to auto-create that note whenever a candidate already had an Opportunity;
+   that carve-out is retired (see neg1-enricher Step 0). The note is now the product of Tom's
+   affirmative decision and is written in exactly one place — this branch.
+2. **`add` does draft an email.** Tom chose the full-alias reading over a CRM-only one when asked
+   directly on 2026-08-11. So "add" is not a quiet filing action; treat it as pursuit.
 
 Cards carry NO verb legend (dropped 2026-07-16 — the grammar lives in the pinned channel legend); the only footer line is the `[neg1:<short-id>]` fingerprint. The listener parses free text regardless.
 
@@ -101,16 +113,25 @@ Invoked by claude-job-queue with args `{mode: "webhook", channel_id, thread_ts, 
 
 **Step 0 — ack.** Add a 👀 reaction to Tom's reply (quiet confirmation the job picked up; the bot token at `~/.claude/skills/claude-alerts-listener/.bot_token` has `reactions:write`). If the reaction fails, log and continue. Close-loop thread replies throughout this skill use md_to_blocks.py bot-token mode with `SLACK_THREAD_TS={thread_ts}`.
 
-**Step 1 — resolve the card.** `slack_read_thread` on `thread_ts`. The parent message is the candidate card; extract the `[neg1:<short8>]` fingerprint AND the candidate name from the card's first line. Resolve the -1 Scanner row by searching the data source (`collection://32c00bef-f4aa-80a5-923b-000b83921fa3`) by Name, then VERIFY the page UUID starts with `<short8>`. **Never resolve by short-id alone** — 8-char Notion prefixes collide (see decision-retro's Important rules). If name+prefix don't agree, post an error reply and exit.
+**Step 1 — resolve the card.** `slack_read_thread` on `thread_ts`. The parent message is the candidate card; extract the `[neg1:<slug>]` fingerprint AND the candidate name from the card's first line. In v2 the fingerprint is the **LinkedIn vanity slug**, not a Notion UUID prefix. Resolve against the **candidate store**:
+
+```bash
+python3 ~/.claude/scripts/decision-ledger/candidates.py get --li "https://linkedin.com/in/<slug>"
+```
+
+If that returns nothing (stored URLs vary in host/trailing slash), fall back to `candidates.py list` and match client-side on `li_url` containing `<slug>`. **Then VERIFY the row's `name` agrees with the name on the card** — resolve on slug + name together, never slug alone. If they disagree, post an error reply and exit.
+
+> ⛔ **Do NOT query the `-1 Scanner` Notion DB** (`collection://32c00bef-f4aa-80a5-923b-000b83921fa3`) — deleted 2026-07-16, returns 404. This step said to search it by Name and verify a Notion page-UUID prefix; both the source and the fingerprint semantics were stale. Corrected 2026-08-11 alongside `pipeline-agent` Tasks 6/7, `neg1-sourcing` Step 3, and `neg1-enrichment-sweep` Step 1.
 
 **Step 2 — parse the verb** (grammar above) from `text`.
 
 **Step 3 — execute:**
 
 - **draft**:
-  - If Status is already `Draft Ready`: don't re-request — reply with the existing `Gmail Draft URL` from the row.
-  - If Status is `Reached Out` or `Passed`: reply that the row is terminal; take no action.
-  - Otherwise flip Status → `Draft Requested` via `notion-update-page` (this is exactly the Request Draft button pathway; founder-outreach webhook mode drafts regardless of Claude Rec — Tom's "draft" IS the override).
+  > ⛔ The Notion verbs below Step 1's redirect are retired with the DB (2026-08-11) — execute against the STORE:
+  - If `state` is already `drafted`: don't re-draft — reply with the existing `gmail_draft_url` from the row.
+  - If `state` is `reached-out` or `passed`: reply that the row is terminal; take no action.
+  - Otherwise invoke `founder-outreach` **store mode** inline on the row (drafts regardless of `rec` — Tom's "draft" IS the override); it writes `gmail_draft_url` back and the state flips to `drafted`.
   - Close-loop reply: `🫡 Draft requested for {Name} — Gmail link lands via alert in ~2 min.`
   - No ledger row here — the reach-out is logged at SEND time by pipeline-agent Task 7 (a requested draft Tom never sends must not count as a decision).
 

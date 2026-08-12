@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-08-12] (Week of 2026-08-10)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm — added Papermark deck capture: Papermark-gated image decks are now converted to Drive PDFs in interactive sessions instead of linked as-is
+- diligence-agent — added guard preventing empty-person feedback outreach entries from surfacing (portcos with no resolved Pending Feedback person are now dropped)
+- feedback-outreach-scanner — switched to a Pending-Feedback-only Notion view; prior OR-filter view returned portcos with empty feedback, producing false-positive outreach items
+- founder-outreach — renamed stylebook reference from founder-cold-outreach to neg1-cold-outreach; added canonical trigger "draft -1 note"; added mirror-trigger distinction for founders who already have a company (routes to newco stylebook)
+- materials-handler — added Papermark deck support: Papermark viewers now screencaptured and Drive-uploaded as PDFs (interactive sessions only; headless falls back to link-as-is)
+- neg1-enricher — changed preflight behavior: now aborts silently when the candidate already has a pipeline Opportunity (removed prior auto-note creation on Opp-exists path)
+- neg1-sourcing — supply model rewritten: employer-tier eligibility is now a ranking signal, not a hard gate; eligible candidate pool expanded from ~10 to ~180 per run
+- neg1-sourcing-listener — added "add" and "load" as full aliases of the "draft" verb, each triggering the complete draft-plus-Opportunity-plus-eval-note branch
+**Total skills:** 44
+**Functions:** No changes
+
+---
+
 ## [2026-08-10] (Week of 2026-08-10)
 
 **Added:** None (deal-doc-drafter pending categorization)

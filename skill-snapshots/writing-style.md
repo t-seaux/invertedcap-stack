@@ -3,8 +3,9 @@ name: writing-style
 description: >-
   Central router for Tom's writing-style corpus — the canonical voice + structural rules live in
   writing-style/<type>/STYLE.md; this entry point picks the right sub-stylebook. Two families.
-  SHORT-FORM EMAIL (one stylebook per use-case, each read by its drafter): founder-cold-outreach
-  (cold founder -1 outreach; founder-outreach); intro-outreach (first-touch "open to connecting?" note;
+  SHORT-FORM EMAIL (one stylebook per use-case, each read by its drafter): neg1-cold-outreach
+  (cold founder -1 outreach; founder-outreach); newco-cold-outreach (cold outreach to a founder who
+  ALREADY has a company; ad-hoc); intro-outreach (first-touch "open to connecting?" note;
   intro-outreach-drafter); intro-offer (casual "would love to intro" from-a-call note;
   intro-note-processor); intro-connect (double-opt-in connect email; intro-draft-agent);
   feedback-outreach (diligence backchannel request; feedback-outreach-drafter); talent-outreach
@@ -30,7 +31,8 @@ skill is a thin router plus two maintenance triggers ("log to writing style", "l
 ```
 writing-style/
   # ── SHORT-FORM EMAIL (one stylebook per use-case) ──
-  founder-cold-outreach/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES ← cold founder (-1) outreach
+  neg1-cold-outreach/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES ← cold founder (-1) outreach
+  newco-cold-outreach/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES ← cold founder WITH a company
   intro-outreach/    STYLE (+ EDIT_PATTERNS/VOICE as they accrue) ← first-touch "open to connecting?"
   intro-offer/       STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← casual "would love to intro" (from a call)
   intro-connect/     STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← double-opt-in connect email
@@ -63,7 +65,8 @@ the end-to-end flow; the stylebook is its voice source.
 
 | Email use-case | When it applies | Stylebook | Drafter |
 |---|---|---|---|
-| **Cold founder (-1) outreach** | Introducing Inverted Capital to a pre-founder, anchored on a spike signal | `founder-cold-outreach/` | `founder-outreach` |
+| **Cold founder (-1) outreach** | Introducing Inverted Capital to a pre-founder, anchored on a spike signal. **Trigger: "draft -1 note [for X]"** | `neg1-cold-outreach/` | `founder-outreach` |
+| **Cold founder (NewCo) outreach** | Cold note to a founder who ALREADY has a company and is on other people's radar (investors included). Same subject as the `-1` template; hook is "Have heard great things…" or "Came across {Company} via…". Never mentions the round; ships with no personalization slot. **Trigger: "draft newco note [for X]"** | `newco-cold-outreach/` | — (ad-hoc) |
 | **First-touch intro-interest** | "Would you be open to connecting with [X]?" — formal note with an About-blurb appendix, gauging interest before a formal intro (customer / investor / advisor / hire variants) | `intro-outreach/` | `intro-outreach-drafter` |
 | **Warm "would love to intro" offer** | Casual, from-a-call note offering to intro someone to a company's founders — canonical subject `[Company] – would love to intro` | `intro-offer/` | `intro-note-processor` |
 | **Double-opt-in connect** | Both sides said yes — the actual intro that wires them together | `intro-connect/` | `intro-draft-agent` |
@@ -105,7 +108,16 @@ When invoked for an ad-hoc draft/edit, infer the destination:
 | LP letter, investment memo, pre-mortem, first-pass diligence, investor update, or any long-form analytical prose | `letters-and-memos/{STYLE,VOICE_EXAMPLES}.md` |
 
 If genuinely ambiguous, ask Tom which type. **Never guess between long-form and short-form** — they
-have very different conventions. Within short-form email, if two use-cases are close (e.g. intro-interest
+have very different conventions. **The two cold-founder stylebooks disambiguate on one fact: does the
+recipient already have a company?** No → `neg1-cold-outreach` (the `-1` template: engine-surfaced,
+empty personalization slot). Yes → `newco-cold-outreach` (human/public sourcing, no mention of the
+round, ships finished with no slot). They share the subject `Introducing Inverted Capital`, the
+opener sentence, and the close verbatim, so **the hook sentence is the only reliable discriminator** —
+"You were surfaced by an admittedly janky, homegrown tool" vs. "Have heard great things about
+{Company}…" / "Came across {Company} via {source}" (all three newco radar variants count). Never classify these two on subject, or on the language their MO paragraphs still share
+("pre-idea, pre-team", "non-obvious").
+
+Within short-form email, if two other use-cases are close (e.g. intro-interest
 vs candidate outreach), disambiguate on *who the recipient is and what's being offered*: a connection
 to a founder as a customer/investor → `intro-outreach`; as a hire for a portco → `talent-outreach`.
 `intro-outreach` and `portco-ask-forward` share the same spirit — connecting someone in Tom's

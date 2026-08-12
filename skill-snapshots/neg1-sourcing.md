@@ -13,7 +13,7 @@ triggers:
 
 # neg1-sourcing — Weekly Pre-Founder Sourcing Sweep
 
-Runs every Monday at 08:00 ET. Produces 2 reconnect + 8 cold outreach candidates (2 wildcards) from Tier 1–3 high-growth companies, writes them to -1 Scanner, and sends a Slack digest. neg1-enricher picks them up automatically via the `Pending Enrichment` queue.
+Runs every Monday at 08:00 ET. Produces 2 reconnect + 8 cold outreach candidates (2 wildcards) from Tier 1–3 high-growth companies, upserts them to the candidate store (`state=pending`), enqueues per-candidate enrichment jobs, and sends a Slack digest. (The old -1 Scanner / `Pending Enrichment` queue wording is retired — DB deleted 2026-07-16.)
 
 **Unattended execution guard:** never ask questions, never halt waiting for input. If a step fails, skip it, log the error, and continue. Always reach the Slack alert even if some rows failed to write.
 
@@ -45,6 +45,59 @@ The `Type` select in -1 Scanner uses these existing options (do not rename or ad
 **The warm/cold call is purely mechanical — network-cache membership, nothing else** (Tom, 2026-07-27: "warm is when someone exists in the network cache, cold is if not"). Check the cache by slug for EVERY candidate before upserting, whichever pass surfaced them — a cold-recipe search can surface someone who happens to be a connection (→ Warm ☀️), and downstream (enricher cards, digest sections) trusts the store `type` without re-deriving. Always write the exact strings `Warm ☀️` / `Cold 🧊` (never bare "Cold" — two 07-27 rows landed unstyled and broke string matching).
 
 Growth Tier and Timing Signal are intentionally NOT separate fields — that context is folded into the Eval Summary prose by neg1-enricher via CC Momentum + tenure overlap.
+
+---
+
+## Supply model (rewritten 2026-08-11)
+
+**Warm / reconnect pass — employer tier-eligibility is a RANKING SIGNAL, not a gate.** Tom,
+2026-08-11: *"having folks work on the companies in tier eligible companies shouldn't be a hard
+rule."* The pass used to INNER JOIN the network cache against tier-eligible Companies DB rows. That
+read as doctrine but measured as a data-coverage artifact: of 364 network profiles passing the role
+whitelist and prefilters, only **10** cleared the gate, and **301 were invisible purely because
+their employer is not in the Companies DB at all** — including people at Anthropic, Cursor,
+Perplexity, Figma, Rippling, Mercury, Vanta, Harvey, Sierra and Notion. It also cut against the
+thesis: requiring a legible employer is backwards for an engine that wants people *before* they are
+legible, and it made a stealth or unknown employer — a strong -1 marker — disqualifying.
+
+The pass now scans the whole cache and orders by rank band:
+
+| Band | Meaning |
+|---|---|
+| 0–2 | Employer is tier-eligible, growth_tier 1 / 2 / 3 |
+| 3 | Employer **not in the Companies DB** — never evaluated; stealth/early is a positive marker |
+| 4 | Employer in the DB but not tier-eligible — assessed, did not qualify |
+
+Only `RECONNECT_COUNT` are taken per run, so the ranking (not a gate) is what holds quality: the
+tier-eligible bands are exhausted first and the long tail behind them is real supply rather than
+nothing. Admissible pool went 10 → 181. Quality now rests on the exclusion layer — funds (PF-1),
+institutions (PF-13), mature enterprises (PF-4), stale unicorns (PF-3), founder seats (PF-10),
+non-NA (PF-11) — so **that layer is load-bearing in a way it was not before**; see PREFILTERS.md
+"Rule expansions of 2026-08-11".
+
+**THE DEAL DIGEST IS THE ONLY SANCTIONED COMPANY LIST (Tom, 2026-08-11, closing rule):** *"apart
+from the few -1 founders you're filtering explicitly from the deal digest, you should not be going
+after a fixed list of companies."* A digest write-up is Tom's own curation event; a Companies DB row
+is not (*"there are so not so great companies in the company db"*). Everything company-anchored —
+the `COLD_SLOTS_COMPANY = 3` reserved pass and recipe C — now sources from `deal-digest-cache.json`.
+Recipes A and B lost their anchors entirely and match on arc shape instead.
+
+**Cold slot split.** `COLD_SLOTS_COMPANY = 3` of the 8. Tom: *"this is a cold outreach engine too,
+so i don't mind you flagging folks I'm not connected to yet at those companies."* Composition:
+
+| Week | Digest-anchored | Company-free (Step 1.55) |
+|---|---|---|
+| A, B, D, E, F | 3 of 8 | **5 of 8** |
+| C | 6 of 8 | 2 of 8 |
+
+The engine is now taste-driven by default and list-driven only where Tom explicitly curated the
+list. It previously ran ONLY on recipe shortfall,
+so the 2026-08-11 run gave it 1 slot of 8 while recipe D took 5 — and **3 of those 5 died on
+prefilters** (the run's other two kills were a wildcard row and the generic backfill; an earlier
+draft of this line said "4 of 5" and was wrong — D also produced the run's two strongest names,
+Brendan Joyce and Abhishek Pawar). Current split: **2 wildcard + 3 recipe + 3 company-anchored**,
+with the company-anchored pass also absorbing any recipe shortfall so an underfilled recipe week
+still ships a full digest.
 
 ---
 
@@ -102,6 +155,49 @@ For each **cold candidate**, call `contactout_enrich_linkedin_profile` with `pro
 
 ---
 
+## Step 1.55 — Archetype adjudication (COMPANY-FREE rows only; added 2026-08-11)
+
+**Applies to every candidate NOT sourced from a company anchor** — recipe D/E/F rows and wildcard
+rows. Company-anchored rows (generic cold pass, recipes A/B/C) skip this step: their employer is
+already a vetted quality signal, which is the entire point of anchoring.
+
+**Why this exists.** Tom, 2026-08-11: *"some candidates should absolutely come from the high flying
+companies in our cache, but the rest could be folks who meet my founder taste / archetypes without
+necessarily coming from a static list of companies in my cache."* The company-free half is the only
+half that can outgrow the cache — but it had NO quality gate. A neural Exa hit went straight from
+search to ContactOut verification to enqueue, with nothing ever asking *does this arc actually match
+an archetype?* That is why recipe D shipped a Bain consultant, a JPM treasury-sales analyst and a
+25-year finance-ops manager on 2026-08-11: the queries matched narrative vocabulary, and no step
+downstream checked the arc.
+
+**The mechanism — cheap recall net, then judgment.** This is the pattern that worked on the
+2026-08-11 demotion-to-switch mining: a loose detector for RECALL, then an agent reading the actual
+arc for PRECISION. Four rule-based iterations there went 4/4 → 1/4 → 2/4 → 0/4 true positives, while
+LLM adjudication over the same recall net cleanly separated real crossings from acquihire landings
+and fraternity presidencies. Rules cannot express these archetypes; reading the arc can.
+
+**Procedure.** After the Step 1.5 ContactOut probe (which already returns the full `experience[]`),
+for each company-free candidate read `~/.claude/skills/founder-taste/RUBRIC.md` §5 (six signals) and
+§6 (four archetypes + the Tuor composite) and judge the ARC — not the headline, not the search
+snippet:
+1. Which archetype, if any, does this arc read on? Name it, or answer "none".
+2. What is the concrete evidence in `experience[]`? Cite the roles and dates.
+3. Known false-positive shapes to reject explicitly — all observed on 2026-08-11:
+   - **Founder-artifact** — a "Co-Founder / CEO / CTO" line followed by a lower title is usually an
+     acquihire landing or a return to the person's own craft, not a signal.
+   - **Direction-blindness** — an arc that touches both commercial and technical domains but travels
+     the WRONG way (engineering → consulting reads as "crossed into engineering" to a text matcher).
+   - **Student-title inflation** — fraternity/club presidencies and student consulting clubs read as
+     senior commercial seats.
+   - **Narrative-only match** — the profile *talks* about a pivot but the arc does not show one.
+4. **Kill anything that reads on no archetype.** Log `[NO-ARCHETYPE] {name} — {one clause}` to the
+   audit log. These are NOT named in the digest's Filtered-out section — that section is for
+   prefilter (PF) kills, where a *rule* may be wrong. A no-archetype kill means the search was
+   loose, which is expected for a wide recall net and not something Tom needs to adjudicate.
+
+Survivors carry their archetype read into the store upsert, so the enricher and the quarterly
+back-test can compare *sourced-as* against *scored-as*.
+
 ## Step 1.6 — Prefilter screen (Tom-taught hard disqualifiers)
 
 Read `~/.claude/skills/founder-taste/PREFILTERS.md` and screen every surviving candidate (warm AND
@@ -111,9 +207,9 @@ heuristic, STALE_UNICORNS); this pass catches what code can't express — judgme
 cached role reads as an investor seat" or "this employer is past its window per the momentum field".
 
 On a kill: drop the candidate, do NOT upsert or enqueue, and log `[PREFILTERED] {name/url} — {rule id}: {one clause}`
-to the audit log ONLY. Prefiltered candidates get NO card and NO mention in the Slack digest or any
-alert (Tom, 2026-07-20: "prefiltered folks shouldn't be revealed in alert") — the audit log is the
-sole record of the kill.
+to the audit log ONLY. Prefiltered candidates get NO individual card, but ARE named as one-liners in the
+digest's "Filtered out" section (Step 4 — that section explicitly superseded the 2026-07-20
+never-reveal ruling); the audit log carries the full rule-id detail.
 
 ---
 
@@ -125,13 +221,29 @@ For each candidate, look up the company in the Companies DB to get the Notion pa
 
 ---
 
-## Step 3 — Create -1 Scanner rows
+## Step 3 — Upsert candidates to the store
 
-For each candidate, create a new row in the -1 Scanner database (`32c00bef-f4aa-80a5-923b-000b83921fa3`) using `notion-create-pages`.
+> ⛔ **Execute the v2 block at the top of this file, NOT the legacy table below.** The `-1 Scanner`
+> Notion DB was **deleted 2026-07-16** — `notion-create-pages` against
+> `32c00bef-f4aa-80a5-923b-000b83921fa3` (or `32c00bef-f4aa-8041-90e0-ff3f0e0dbff5`) returns **404**,
+> so this step wrote nothing on every weekly run until it was corrected on 2026-08-11. The identical
+> failure was found the same day in `pipeline-agent` Tasks 6/7 and `neg1-enrichment-sweep`; see
+> [[feedback_skill_authoring]] "Retiring a data source".
 
-**Before creating:** dedup check — search the database by `LI` url. If a row with that LinkedIn URL already exists, skip creation and note it in the audit log.
+**Do this:**
 
-**Field mapping:**
+```bash
+python3 ~/.claude/scripts/decision-ledger/candidates.py upsert --json '{"li_url": "...", "name": "...", "city": "...", "current_role": "...", "current_company": "...", "type": "Warm ☀️|Cold 🧊", "source": "monday-sweep", "recipe": "...", "state": "pending"}'
+~/.claude/scripts/enqueue-neg1-enrich.sh "<li_url>" "monday-sweep" "<name>"
+```
+
+**Dedup:** read the store, not Notion — `candidates.py get --li <url>`. If a row exists, skip and
+note it in the audit log.
+
+**Field mapping — LEGACY REFERENCE ONLY.** The table below describes the deleted Notion DB's
+properties. It survives because the *semantics* still map onto store columns (`name`, `li_url`,
+`current_role`, `city`, `current_company`, `type`, `email`) and because `Type` values are keyed on
+by neg1-enricher. Do not execute it as a write.
 
 | -1 Scanner field | Value | Notes |
 |---|---|---|
@@ -147,11 +259,11 @@ For each candidate, create a new row in the -1 Scanner database (`32c00bef-f4aa-
 
 **Do not populate:** Growth Tier, Timing Signal, Claude Rec, Eval Summary, Online Presence, Work History, School(s), Experience Summary, LI Profile Summary, or any other field — neg1-enricher handles evaluation; growth/timing context flows in via CC Momentum.
 
-Write each row individually. If a row fails, log the error and continue to the next.
+Upsert each candidate individually. If one fails, log the error and continue to the next.
 
-**After writing rows — chain to enrichment:**
-- **Manual / interactive mode**: immediately invoke `neg1-enricher` on each successfully written row (pass the LinkedIn URL). Do not wait for confirmation. Enrichment runs sequentially per row.
-- **Scheduled mode** (unattended): skip the chain — pipeline-agent Task 6 picks up `Pending Enrichment` rows on its evening run. Do not block the scheduled run on enrichment.
+**After upserting — chain to enrichment:**
+- **Both modes**: immediately run `enqueue-neg1-enrich.sh` per candidate (see the v2 block). Enrichment happens as names surface, never on a batch delay — cards post to `#neg1-sourcing` within minutes.
+- `pipeline-agent` Task 6 is the daily **reconciliation backstop** for `state=pending` rows older than ~2 hours (missed or failed jobs) — not the primary path, and no longer keyed on a `Pending Enrichment` Notion status.
 
 ---
 
@@ -161,14 +273,71 @@ Write each row individually. If a row fails, log the error and continue to the n
 
 | Week | Recipe | Query shape (mechanism) |
 |---|---|---|
-| A | **FDDM** (Field-Derived Domain Mastery) | implementation / CS / solutions operators at category-defining vertical cos — curated `FDDM_ANCHORS` list in code (the cache's category field can't express "vertical winner"; tier 1 also holds mature enterprises) (keyword role × company) |
-| B | **TCDM** (Technical-Commercial Dual Mastery) | FDE / solutions engineer / applied engineer at growth-stage B2B cos from the cache, tiers 1–2 — hired technical, pulled customer-facing (keyword role × company) |
-| C | **Hypergrowth alumni** | early employees of best-in-class companies, now senior — curated `HYPERGROWTH_ANCHORS` ≈ Deal Digest best tier, sync when the digest re-tiers (neural per-company query) |
-| D | **Composite markers** | visible demotion-to-switch-disciplines / commercial→technical reinventors (neural shape queries) |
+| A | **FDDM** (Field-Derived Domain Mastery) | **NO company anchor** — neural queries for the person: implementation / CS / solutions operators who onboarded hundreds of customers in one industry. Employer may be unknown to us; the domain reps are the signal. Gated by Step 1.55 |
+| B | **TCDM** (Technical-Commercial Dual Mastery) | **NO company anchor** — neural queries for the person: hired to write code, pulled customer-facing because customers asked for them by name. Gated by Step 1.55 |
+| C | **Legible-company alumni** | early employees of companies Tom has WRITTEN UP, now senior — anchors from the Deal Digest cache (~575, weighted by growth evidence + recency). **The only company-anchored recipe** (neural per-company query) |
+| D | **Composite markers** | range-as-reluctant-stretch only — hired technical, pulled customer-facing (1 neural query). **Behavior 1 (demotion-to-switch-disciplines) is PARKED as a structured pass, `D_STRUCTURED_TODO`** — see below |
 | E | **Take-It-Slow** (added 2026-07-27, Tom-gated) | high-reps operator in a visible patient exploration gap — advising/researching post-departure, no accelerator (neural shape queries) |
 | F | **Slope over y-intercept** (added 2026-07-27, Tom-gated) | elite-school young analyst who jumped from banking/PE/consulting into an unglamorous operating domain, ramping fast (neural shape queries; distinct from the young-infiltrator wildcard, which requires a public artifact) |
 
 If the recipe pass fills fewer than its slots, the generic role × tier pass backfills the remainder (backfilled rows carry no `recipe` value).
+
+**Recipe A dropped its company anchor entirely, 2026-08-11 — there is no list to maintain.** The
+progression of Tom's calls that day: *"this shouldn't be rigidly based on 10 hardcoded names... that
+list should be open and fluid"* → *"meh i dont think you need to maintain a list at all"* → the
+decisive one:
+
+> *"keep it open! if there is evidence that they're at a company that we haven't heard of yet, but
+> that from that experience they've built serious domain expertise, that's in scope"*
+
+**FDDM is a property of the PERSON, not the employer.** Requiring a recognizable company measured
+legibility rather than domain reps — the same bug as the reconnect pass's tier-eligible JOIN and
+recipe C's `growth_tier` gate, all three found the same day. An unknown vertical-software company
+that put an operator in front of hundreds of customers produces the walking-encyclopedia effect just
+as well as a famous one, and intercepting those people *before* the employer becomes legible is the
+whole premise of the engine.
+
+A now runs company-free neural queries (`A_QUERIES`) through Step 1.55 adjudication, like D/E/F.
+**The adjudicator must judge domain-expertise evidence in the arc — implementation/CS tenure,
+customer volume, consistency within one industry — and must NOT require a recognizable employer.**
+The old `FDDM_ANCHORS` list, `FDDM_ROLES`, and a briefly-lived `fddm_anchors.json` are all deleted.
+
+**Recipe C's anchor pool is DERIVED from the Deal Digest, 2026-08-11 — 12 hardcoded names → ~575.**
+Tom: *"wait just 12? i feel like the pool needs to be bigger"*, then *"nope — not companies db..
+companies featured in deal digest are legible companies. there are so not so great companies in the
+company db."* **Legibility = Tom wrote the company up in a Deal Digest.** That is a curation event;
+a Companies DB row is not (1,210 rows covering everything ever tracked — passed deals, portfolio,
+incidental names). `_hypergrowth_anchors()` now reads `deal-digest-cache.json` and returns a
+weighted shuffle: growth evidence parsed from the digest bullets ("6x YoY", "$0 to $8M in 6 months")
+plus mention recency and repeat mentions RANK the pool, they do not gate it — a digest company with
+no stated multiple is still legible and still worth mining for alumni. Fund/accelerator/institution
+exclusions are load-bearing here since there is no tier gate.
+
+Two measured facts behind the change: 11 of the 12 old hardcoded anchors were not even in the
+tier-eligible pool (several — Figma, Flexport, Airtable, Scale AI — are past their window), and
+gating on `growth_tier` filtered for *"has been processed"* rather than quality: 377 companies carry
+momentum commentary but were never tiered, locking out Databento, Blacksmith, Dust.tt, Aikido,
+Retell and Kumo. Same class of bug as the reconnect pass's tier-eligible JOIN, found the same day.
+The old list survives as `HYPERGROWTH_SEED`, used only if the digest cache is unreadable.
+
+**Recipe D was cut back 2026-08-11 — a mechanism change, not an archetype change.** The D archetype
+(RUBRIC.md §6, Composite case: Tuor) decomposes into two observable behaviors. Behavior 2
+(range-as-reluctant-stretch) stays a neural query and works: the hybrid end-state is narrated on
+profiles, because people literally title themselves "Forward Deployed Engineer". Behavior 1
+(demotion-to-switch-disciplines — a seniority DROP and a discipline CHANGE at the same transition)
+does not work as a text query and has been parked as `D_STRUCTURED_TODO` in the script, alongside
+`WILDCARD_STRUCTURED_TODO`'s liquidity-decliner and scarred-alumnus, for exactly the same reason:
+**it is a derived timeline fact that nobody narrates on a profile.** You compute it by diffing
+seniority across consecutive `experience[]` entries.
+
+Five formulations were tested live on 2026-08-11 with every top result probed via ContactOut. Naming
+the technical end-state returns pure technical ICs (Exa weights the common phrase, drops the rare
+clause). Naming the title drop alone returns engineering-management→IC, where the discipline never
+changes — not the archetype. Leading with the rare commercial phrase returns bootcamp
+career-changers with no Earned Reps. The queries being replaced were worse still: they re-surfaced
+candidates Tom had already passed on (Steven Morrisroe, 2026-08-10). D's freed slots flow to the
+company-anchored pass, which is vetted. **The archetype is unchanged and still doctrine — only the
+retrieval mechanism was wrong.**
 
 **Doctrine coupling:** this table is the sourcing expression of RUBRIC.md §6 — it is NOT independently editable, and the code lists (`FDDM_ROLES/ANCHORS`, `TCDM_ROLES`, `HYPERGROWTH_ANCHORS`, `C_QUERY`, `D/E/F_QUERIES`) are part of it. When an archetype is added, revised, or retired in the rubric (human-gated), update this rotation AND the code in the same change. Recipes never drift from doctrine.
 
@@ -236,7 +405,39 @@ Invoke the `send-alert` skill with the following message. Bodies are GFM markdow
 **Deep Sweep ({N})**
 • [{Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier} · {timing_signal}]
 • (one row per monthly deep-sweep / departure-diff candidate)
+
+**Filtered out ({N})**
+• [{Name}]({linkedin_url}) — {plain-English reason}
+• (one row per prefilter kill this run; omit the section entirely when N = 0)
 ```
+
+**The Filtered-out section (Tom, 2026-08-10 — SUPERSEDES the 2026-07-20 "never reveal" ruling).**
+Prefilter kills still get **no individual card** — that part is unchanged — but they are now named
+here with the rule that killed them. Tom's reasoning: "the more you surface the more reactions you
+get from me," and a prefilter kill is exactly where a *rule* may be wrong rather than the candidate.
+A silently starved funnel is invisible to him; a named list is one line he can react to. A reply
+naming someone in this section is a valid signal to relax or narrow the cited rule — route it like
+any card reply. Keep to one line per person and never expand into card anatomy.
+
+**EVERY name on this digest carries an embedded LinkedIn link** — both the carded names and the
+filtered-out ones (Tom, 2026-08-10: "embed LI profiles to each name"). Always `[Name](full-url)`,
+never a bare URL and never an unlinked name; this is the same standing rule that governs every
+candidate/contact list on a Tom-facing surface. Prefer the canonical `www.linkedin.com/in/{slug}`
+form even when the row was surfaced under a country subdomain. (An earlier draft of this section
+said not to link filtered-out profiles on the theory that an audit surface differs from a candidate
+surface — that was wrong and Tom reversed it the same day: he wants to click straight through to
+judge whether the rule misfired.)
+
+**Blank line between every section — the digest is NOT a card.** Cards ban blank lines (they emit
+`\n\n` spacers and break the tight bullet block); the digest requires them between sections, exactly
+as the format above shows. Do not carry the card rule over here — that mistake shipped a wall-of-text
+summary on 2026-08-10 and Tom had to ask for the breaks back.
+
+**NEVER print the PF-id on this surface** (Tom, 2026-08-10: "Don't need PF number. Just tell me the
+reason in plain English"). Same rule as the W1/W2/W3 ban on card Timing bullets: rule ids are
+internal machinery and mean nothing to him at a glance. Write the disqualifying fact itself —
+"already a founder; runs his own seed-stage company, $7.5M raised", not "PF-10". The rule id stays
+in the local audit log and the store row, where the back-test reads it.
 
 - **Header is exactly** `-1 Sourcing Summary – Week of {run_date}` (en dash) — not "neg1 sourcing".
 - **Deep Sweep section (first Mondays only):** on the first Monday of the month, Step 1.75 also runs and produces `source='network-deep-sweep'` (WHAT-lens deep sweep) and `source='departure-trigger'` (departure diff) rows. List **every such row from THIS run** under **Deep Sweep ({N})**, N = the count, using the Warm row format (they upsert as `type="Warm ☀️"` — include `timing_signal` when present). On every other week no monthly rows exist — **omit the entire section** (header and all), never render an empty `Deep Sweep (0)`. Rationale: the weekly digest must be the single complete index of everyone sourced this week — deep-sweep candidates get individual `#neg1-sourcing` cards too, but without this section they never appear in the roundup and are easy to miss (they were silently absent from the 2026-08-03 summary — 5 rows).
@@ -252,7 +453,7 @@ If some rows failed to write, append:
 ⚠️ {N} row(s) failed — see audit log.
 ```
 
-Prefilter kills (Step 1.6) are NEVER mentioned in the digest — audit log only.
+Prefilter kills (Step 1.6) get no individual card; they appear as one-line entries in the digest's "Filtered out" section (audit log carries full detail).
 
 Do **not** append a "Type options pending" warning — Warm ☀️ / Cold 🧊 are the canonical options; if a row fails to write with one of those values, treat it as a real failure and bump the failed counter.
 

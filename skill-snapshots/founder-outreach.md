@@ -3,12 +3,14 @@ name: founder-outreach
 description: >-
   Drafting primitive for pre-founder (-1) candidates — store mode is the default: invoked inline by
   neg1-sourcing-listener when Tom replies draft to a #neg1-sourcing card. Reads the candidate-store row
-  (candidates.py get), generates a Gmail draft per writing-style/founder-cold-outreach/STYLE.md anchored on the spike signal,
+  (candidates.py get), generates a Gmail draft per writing-style/neg1-cold-outreach/STYLE.md anchored on the spike signal,
   writes the draft URL back to the store, and writes the Drive snapshot for draft-feedback voice learning.
   Never sends. NO Notion reads/writes in this skill — the listener owns Opportunity + eval-note creation at
   draft time. Refuses unscored rows (missing eval_summary/signals_line/email → run neg1-enricher first).
-  Manual triggers: "draft outreach for [name]", "draft for [name]". The -1 Scanner DB and Request Draft button
-  are RETIRED (2026-07-16).
+  Manual triggers: "draft -1 note [for name]" (canonical), "draft outreach for [name]", "draft for [name]".
+  ONLY for pre-founders with no company yet — the mirror trigger "draft newco note [for name]" is for founders
+  who ALREADY started something and routes to writing-style/newco-cold-outreach/ (ad-hoc, no drafter skill).
+  The -1 Scanner DB and Request Draft button are RETIRED (2026-07-16).
 ---
 
 # Founder Outreach
@@ -45,7 +47,7 @@ Trigger gate values shared with the webhook producer live in `~/.claude/skills/s
 
 ## Reference file (must read at invocation)
 
-- `~/.claude/skills/writing-style/founder-cold-outreach/STYLE.md` — cold email template (subject, body scaffolding, hyperlinks, formatting rules, personalization-paragraph structure, anti-patterns)
+- `~/.claude/skills/writing-style/neg1-cold-outreach/STYLE.md` — cold email template (subject, body scaffolding, hyperlinks, formatting rules, personalization-paragraph structure, anti-patterns)
 
 ## Precondition check — refuse if unscored
 
@@ -66,7 +68,9 @@ Before doing anything, verify the target row is fully evaluated. Required popula
 
 ## Trigger phrases
 
-"draft outreach for [name]", "draft cold email for [name]", "draft for [name]", "create outreach draft", "run founder-outreach".
+**"draft -1 note [for name]"** (canonical, 2026-08-11), "draft outreach for [name]", "draft cold email for [name]", "draft for [name]", "create outreach draft", "run founder-outreach".
+
+**Mirror trigger — NOT this skill:** "draft newco note [for name]" is for a founder who has ALREADY started a company, and routes to `writing-style/newco-cold-outreach/` (ad-hoc, no drafter skill). This skill's `-1` scaffold tells the recipient Tom invests "ahead of incorporation", which is loudly wrong for someone who already incorporated. If the target has a company, stop and use the NewCo stylebook.
 
 Explicitly NOT triggered by: "score [name]", "score the new -1 entries", "run founder scoring", "score this profile", or any enrichment-intent phrase. Those route to `neg1-enricher`.
 
@@ -97,13 +101,13 @@ Safe ordering (the Notion-before-delete sequencing still matters for the webhook
 See memories `feedback_workshop_iteration_not_pass.md` and `feedback_gmail_draft_persistent_id.md`.
 
 **4. Read the outreach stylebook.**
-- `~/.claude/skills/writing-style/founder-cold-outreach/STYLE.md` — canonical scaffold + hyperlinks + formatting rules + personalization principle + anti-patterns. Read in full.
-- `~/.claude/skills/writing-style/founder-cold-outreach/EDIT_PATTERNS.md` — two sections: **Style Canon** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted outreach — apply as priors, then check the final draft against them). Read both sections in full.
-- `~/.claude/skills/writing-style/founder-cold-outreach/VOICE_EXAMPLES.md` — full sent emails Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice. Use as ground truth — if your draft sounds nothing like these, recalibrate.
+- `~/.claude/skills/writing-style/neg1-cold-outreach/STYLE.md` — canonical scaffold + hyperlinks + formatting rules + personalization principle + anti-patterns. Read in full.
+- `~/.claude/skills/writing-style/neg1-cold-outreach/EDIT_PATTERNS.md` — two sections: **Style Canon** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted outreach — apply as priors, then check the final draft against them). Read both sections in full.
+- `~/.claude/skills/writing-style/neg1-cold-outreach/VOICE_EXAMPLES.md` — full sent emails Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice. Use as ground truth — if your draft sounds nothing like these, recalibrate.
 
 Both files are auto-maintained by the `draft-feedback` pipeline (founder-taste/SYSTEM.md §15). Patterns are observations, not commands.
 
-**5. Build the personalization paragraph** (per writing-style/founder-cold-outreach/STYLE.md "Personalization paragraph — structure"). The anchor is the **spike signal** already identified in `Signals` (+ body Eval Rationale) — do not re-derive it. Pull the specific evidence cited in the breakdown for that peak signal, rewrite in Tom's voice.
+**5. Build the personalization paragraph** (per writing-style/neg1-cold-outreach/STYLE.md "Personalization paragraph — structure"). The anchor is the **spike signal** already identified in `Signals` (+ body Eval Rationale) — do not re-derive it. Pull the specific evidence cited in the breakdown for that peak signal, rewrite in Tom's voice.
 
 Sketches by peak signal:
 - Peak Non-Linearity: `"Your path caught my eye – [specific function-to-function crossing and why it's unusual]."`
@@ -113,9 +117,9 @@ Sketches by peak signal:
 - Peak Intentionality: `"The way you [specific counter-consensus move — demotion to switch, walked past a kingmaker, turned down accelerator] stood out."`
 - Peak Range: `"The [technical-to-commercial / commercial-to-technical] arc at [company] caught my eye – [specific cross-fertilization detail]."`
 
-Follow the career-signal-sentence + no-agenda-frame structure in writing-style/founder-cold-outreach/STYLE.md exactly.
+Follow the career-signal-sentence + no-agenda-frame structure in writing-style/neg1-cold-outreach/STYLE.md exactly.
 
-**6. Build full email per writing-style/founder-cold-outreach/STYLE.md** (exact scaffolding, hyperlinks, formatting rules). See writing-style/founder-cold-outreach/STYLE.md for the template block, hyperlink map, signature whitespace, and quote rules.
+**6. Build full email per writing-style/neg1-cold-outreach/STYLE.md** (exact scaffolding, hyperlinks, formatting rules). See writing-style/neg1-cold-outreach/STYLE.md for the template block, hyperlink map, signature whitespace, and quote rules.
 
 **7. Create the Gmail draft AND write the snapshot atomically** via `~/.claude/scripts/gmail-create-draft.py`. This single helper replaces the prior three steps (mcp create_draft → list_drafts → manual snapshot Write). It posts to the gmail-webhook `createDraft` endpoint, returns the persistent hex `messageId`, and writes the snapshot to `_system/draft-snapshots/<hex>.json` in one shot. The two writes can no longer decouple — if the snapshot fails, the helper exits non-zero and you MUST treat the whole step as failed.
 
@@ -159,7 +163,7 @@ Exit code 0 = both writes succeeded. Exit codes 1/2/3 = failure — abort the ro
 - **Never redraft if `Status` is `Reached Out` or `Passed`.** Idempotence prevents clobbering Tom's actions.
 - **Never draft an auto-passed row from a bare manual trigger.** Webhook mode (Request Draft button) and the neg1-enricher manual chain are the two sanctioned overrides — both draft regardless of Claude Rec.
 - **Pull personalization from `Signals` (+ body Eval Rationale), not from scratch.** The breakdown already captures the spike signal and evidence — the draft's job is to render that in Tom's voice.
-- **No pattern-match declarations.** Per writing-style/founder-cold-outreach/STYLE.md anti-patterns.
+- **No pattern-match declarations.** Per writing-style/neg1-cold-outreach/STYLE.md anti-patterns.
 - **En dashes in all prose.** Per Tom's voice preference (memory: feedback_use_en_dash).
 - **Report concisely.** Summary table for batches. 3-4 lines max for singletons.
 
@@ -169,7 +173,7 @@ Exit code 0 = both writes succeeded. Exit codes 1/2/3 = failure — abort the ro
 
 The -1 Scanner status pipeline: `Pending Enrichment` → `Enriched` → `Draft Requested` → `Draft Ready` → `Reached Out` / `Passed`.
 
-`pipeline-agent` Task 6 enriches + scores pending rows via `neg1-enricher` and leaves them at `Enriched` — it does NOT draft. Drafting is Tom-initiated: he reviews the scored row and presses the **Request Draft** button (Status → `Draft Requested`), which fires this skill in webhook mode within ~1–2 min. Task 6's sweep also picks up any `Draft Requested` rows the webhook missed. All paths — manual, webhook, sweep — use the same writing-style/founder-cold-outreach/STYLE.md scaffolding and the same Notion update logic.
+`pipeline-agent` Task 6 enriches + scores pending rows via `neg1-enricher` and leaves them at `Enriched` — it does NOT draft. Drafting is Tom-initiated: he reviews the scored row and presses the **Request Draft** button (Status → `Draft Requested`), which fires this skill in webhook mode within ~1–2 min. Task 6's sweep also picks up any `Draft Requested` rows the webhook missed. All paths — manual, webhook, sweep — use the same writing-style/neg1-cold-outreach/STYLE.md scaffolding and the same Notion update logic.
 
 Manual invocation via trigger phrase is for:
 - On-demand drafting when Tom is already in a chat session (skips the button round-trip)

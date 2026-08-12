@@ -180,6 +180,7 @@ Classify each relevant email's materials into **delivery categories** (how to fe
 - **DocSend link** (URL matching `docsend.com/view/`)
 - **Direct file URL** (Google Drive share link, Dropbox link, raw PDF URL)
 - **Data room link** (DocSend `/view/s/` or similar multi-doc container)
+- **Papermark deck** (URL matching `papermark.com/view/` or `*.papermark.io/view/`) — email-gated image deck. **Convert to a Drive PDF** via screenshot-capture (Step 3F), NOT linked as-is. Interactive GUI only; headless/webhook runs fall back to link-only.
 - **Link-only / non-convertible** (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, **Brieflink (`brieflink.com`)**, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
 
 **Destination category** (drives Step 4 chip routing — see "Property Routing" below):
@@ -329,6 +330,12 @@ Use this path when the source email includes a live product demo — typically a
 7. **Detection signal** — look for an `app.*` / `demo.*` / `staging.*` URL in proximity to lines starting `Login:`, `Username:`, `User:`, `Email:`, `Password:`, `PW:`, `Pass:` (case-insensitive). Skip the path entirely if no credentials are present — that's a Step 3E case.
 8. **Slack redaction** — when a demo chip is referenced in ANY Slack alert text, redact the password as `pw: ***` (login email may stay). The full credential appears only in the Notion chip label.
 
+### 3G: Papermark Decks (`papermark.com/view/…`) — capture to PDF, don't link as-is
+
+Papermark viewers are email-gated image decks whose share links expire. Snapshot the slides into a durable Drive PDF instead of linking the gated URL. **Follow `/Users/tomseo/.claude/skills/shared-references/papermark-deck-capture.md` for the full recipe** — open in a new Chrome tab, auto-pass the email gate with `tom@invertedcap.com` (sanctioned for Papermark viewers per Tom 2026-08-11), `screencapture` each slide cropped to the slide rect, drop the Papermark end-card, `img2pdf` → PDF, upload to `Diligence/<Company>/` via `drive-upload.md`, then link the Drive file URL in Diligence Materials via `add-link-to-files-property.md` and `--remove` any prior Papermark chip.
+
+**Interactive GUI only** (needs Chrome + Screen Recording permission). In headless / webhook / scheduled runs, fall back to Step 3E link-only (link the Papermark URL as-is) and flag `⚠️ Papermark deck linked as-is — re-capture to PDF in an interactive session` so it can be snapshotted later.
+
 ## Step 4: Update the Notion Opportunity Page
 
 The canonical home for material links is the **Diligence Materials property field** (Files property chips at the top of the page). The page body stays clean and contains only the Note section plus an optional Company Blurb section (when the source email includes one) — do NOT add a `📎 Diligence Materials` body section by default.
@@ -380,6 +387,8 @@ If you're writing an exception-case body section, use the bullet format below. O
 
 **This step always runs.** Append each saved Drive link to the appropriate Files property on the opportunity page — either **Diligence Materials** or **Deal Docs** per the routing rules in Step 2's "Property Routing" section. Term sheets, SAFEs, side letters, pro forma cap tables, etc. → Deal Docs. Decks, memos, models, demos, etc. → Diligence Materials.
 
+**Spreadsheets get TWO chips.** Any Google Sheet or `.xlsx` (financial model, plan, cap-table workbook) is chipped as a PDF snapshot *and* its live/native source, both keeping the source file's own name — read `~/.claude/skills/shared-references/spreadsheet-artifact-convention.md` for the naming and the native `files.export` path.
+
 **Pinned Drive-folder chip (Diligence Materials only, once per company).** Before adding any other chip on this run, check whether a chip pointing at the company's Diligence subfolder URL (`https://drive.google.com/drive/folders/<folderId>`, the same `folderId` returned by Step 3's `createFolder` call) already exists on Diligence Materials. If not, add it first:
 
 ```bash
@@ -425,7 +434,8 @@ Skip this step only if the helper exits 1 (hard failure). In that case, note it 
 
 1. **If the superseded chip is a native Google Doc/Slides/Sheet** owned by the founder (not Tom), first archive a durable copy into the company's Diligence subfolder in its *original* format — export via the Drive v3 API (`files.export`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document` for Docs, `...presentationml.presentation` for Slides) and upload the bytes to `Diligence/[Company Name]/` via the Drive Upload Apps Script, same as any other upload. This is required BEFORE removing the Notion chip — the founder's own copy can be unshared or deleted at any time, and the chip removal must not leave the artifact recoverable only through Notion history. **Do not modify or delete the founder's original file** — export is read-only against it.
    - Skip this archival sub-step for hosted-viewer links (Papermark/DocSend/Brieflink) — the PDF conversion produced in Step 3B/3E is already the durable Drive copy; there's no separate "original file" to export.
-   - Skip entirely for a live Google Sheet (financial model) or a Tom-authored Doc (e.g. Diligence Q&A) meant to stay editable — these never get PDF-snapshotted or superseded; leave their native chip alone.
+   - Skip entirely for a Tom-authored Doc (e.g. Diligence Q&A) meant to stay editable — leave its native chip alone.
+   - **Live Google Sheets are never superseded either — but they DO get a PDF snapshot alongside.** Per `~/.claude/skills/shared-references/spreadsheet-artifact-convention.md`, a spreadsheet carries both chips permanently: the PDF snapshot and the live source. Add the PDF; never remove the Sheet chip.
 2. **Remove the superseded chip** from Diligence Materials:
    ```bash
    python3 ~/.claude/scripts/notion_files_property.py \
