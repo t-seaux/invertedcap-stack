@@ -29,7 +29,7 @@ then IMMEDIATELY enqueue a per-candidate enrichment job — enrichment happens a
 ```bash
 ~/.claude/scripts/enqueue-neg1-enrich.sh "<li_url>" "monday-sweep" "<name>"
 ```
-Cards post to `#neg1-sourcing` within minutes as each job completes. This applies to the weekly sweep AND the Step 1.75 monthly deep sweep / departure diff. pipeline-agent Task 6 remains the daily reconciliation backstop for `state=pending` rows older than ~2 hours (missed/failed jobs). The Step 4 Slack digest is unchanged. Everything referencing -1 Scanner writes below is LEGACY.
+Cards post to `#neg1-sourcing` within minutes as each job completes. This applies to the weekly sweep AND the Step 1.75 monthly deep sweep / departure diff. pipeline-agent Task 6 is the daily reconciliation backstop for `state=pending` rows older than ~2 hours (missed/failed jobs) — it runs nightly at 17:50 via the scheduled orchestrator's `pipeline-neg1` sub-task (wired 2026-08-12; before that the claim pointed at a runner that didn't exist). The Step 4 Slack digest is unchanged. Everything referencing -1 Scanner writes below is LEGACY.
 
 ---
 
@@ -190,7 +190,16 @@ snippet:
    - **Student-title inflation** — fraternity/club presidencies and student consulting clubs read as
      senior commercial seats.
    - **Narrative-only match** — the profile *talks* about a pivot but the arc does not show one.
-4. **Kill anything that reads on no archetype.** Log `[NO-ARCHETYPE] {name} — {one clause}` to the
+4. **PF-14 — venture-backed startup pace.** Does the arc show, anywhere, that this person has
+   operated at venture-backed startup speed? Tom, 2026-08-12: *"one thing i care about is that folks
+   understand the pace of working at a venture-backed startup (the speed is FAST)."* Domain
+   expertise and technical range do not substitute — kill an arc spent entirely in traditional
+   companies however deep the expertise. **Judge operating tempo, NOT name recognition:** a
+   seed-stage company neither of you has heard of passes; a legible 70-year-old freight forwarder,
+   bank, agency or family business fails. Getting this backwards re-introduces the legibility bias
+   the whole engine was rebuilt to remove — see PREFILTERS.md PF-14, which spells out the tension
+   with the "keep it open" rule.
+5. **Kill anything that reads on no archetype.** Log `[NO-ARCHETYPE] {name} — {one clause}` to the
    audit log. These are NOT named in the digest's Filtered-out section — that section is for
    prefilter (PF) kills, where a *rule* may be wrong. A no-archetype kill means the search was
    loose, which is expected for a wide recall net and not something Tom needs to adjudicate.
@@ -432,6 +441,26 @@ judge whether the rule misfired.)
 `\n\n` spacers and break the tight bullet block); the digest requires them between sections, exactly
 as the format above shows. Do not carry the card rule over here — that mistake shipped a wall-of-text
 summary on 2026-08-10 and Tom had to ask for the breaks back.
+
+**NEVER print a recipe LETTER on this surface — spell the archetype out** (Tom, 2026-08-12: *"without
+context and just saying recipe b in the alert... it's hard to know... so don't use recipe... just
+spell it out"*). Same principle as the PF-id and W-code bans below: `A`–`F` are internal rotation
+machinery and carry no meaning at a glance. Use the archetype name from RUBRIC.md §6, which is Tom's
+own vocabulary:
+
+| Internal | Print this |
+|---|---|
+| A | Field-Derived Domain Mastery |
+| B | Technical–Commercial Dual Mastery |
+| C | Deal Digest company alumni |
+| D | Composite (Tuor shape) |
+| E | Take-It-Slow-Before-Going-Fast |
+| F | Slope Over Y-Intercept |
+| company-anchored pass | Deal Digest company |
+| wildcard | the wildcard signal in plain words, e.g. "moonlighter", "young infiltrator" |
+
+The letter still goes in the store `recipe` column and the audit log — the quarterly back-test reads
+it there. It just never reaches a Tom-facing surface.
 
 **NEVER print the PF-id on this surface** (Tom, 2026-08-10: "Don't need PF number. Just tell me the
 reason in plain English"). Same rule as the W1/W2/W3 ban on card Timing bullets: rule ids are

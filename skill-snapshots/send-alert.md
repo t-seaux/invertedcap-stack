@@ -41,7 +41,7 @@ Why a webhook instead of the Slack MCP: posts show up as the `claude` bot, visua
 
 Current named channels:
 
-- `personal-alerts` → `#personal-alerts` (private, `C0BKZ2L0BDK`) — personal-life alerts: word-bank weekly refresher, coop-finances monthly prompt + summaries, mademeals order alerts.
+- `personal-alerts` → `#personal-alerts` (private, `C0BKZ2L0BDK`) — personal-life alerts: word-bank weekly refresher, coop-finances monthly prompt + summaries.
 
 ---
 

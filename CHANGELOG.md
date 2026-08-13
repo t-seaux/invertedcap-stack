@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-08-13] (Week of 2026-08-10)
+
+**Added:** deal-doc-drafter (Diligence Management), agentic-commerce-agent (Research Management)
+**Removed:** None
+**Modified:**
+- neg1-enricher — card header line now bolded; LinkedIn link required as first Presence bullet entry (never as a trailing bare link); redundant verdict label removed from card body; archetype names spelled out in full on candidate cards (internal letter codes no longer used on Tom-facing surfaces)
+- neg1-sourcing — pipeline-agent neg1 backstop explicitly wired; added venture-backed startup pace as a new prefilter gate; archetype names spelled out in full on candidate cards
+- neg1-sourcing-listener — Opp Description field clarified (describes the newco/company, not the person; TBD if no signal about what they're building); 🌱 icon field added to -1 Opp creation; post-create field verification step added
+- pipeline-agent — -1 Opp creation: Description describes the newco (TBD if no signal); 🌱 icon field added; post-create field verification step added; Slack card header bolded and LinkedIn link moved to Presence bullet
+**Total skills:** 46
+**Functions:** Diligence Management +1 (deal-doc-drafter), Research Management +1 (agentic-commerce-agent)
+
+---
+
 ## [2026-08-12] (Week of 2026-08-10)
 
 **Added:** None
