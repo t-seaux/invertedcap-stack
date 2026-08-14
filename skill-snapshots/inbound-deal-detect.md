@@ -17,7 +17,7 @@ The local processor invokes this skill with these args (set by `deal-scanner.js`
 - `threadId` (required) — Gmail thread ID. **Always use this for the fetch** (see Step 1). The MCP toolset has no "get message by API ID" tool, so the messageId alone is not directly fetchable.
 - `senderEmail` (required) — pre-parsed by the webhook. For non-forwarded mail this is the outer `From:` header. For self-forwards (see `forwardedFromTom`) and third-party forwards (see `forwardedFromReferrer`), this is the **inner** forwarded `From:` line — the original founder or referrer who sent to Tom, not Tom and not the outer envelope.
 - `senderName` (optional) — display name from the same source.
-- `forwardedFromTom` (optional, boolean) — `true` when the message is a `Fwd:` from one of Tom's alias addresses (e.g. `tom@dashfund.co`) into the watched inbox. The webhook has already swapped `senderEmail`/`senderName` to the inner forwarded sender. The classifier should treat the forwarded body block as the canonical email content and infer Source from the inner `To:` header (see Step 1B).
+- `forwardedFromTom` (optional, boolean) — `true` when the message is a `Fwd:` from one of Tom's alias addresses into the watched inbox. Tom's known addresses are `tom@invertedcap.com`, `tom@dashfund.co`, `thomas.seo@outlook.com`, and `tseo@primary.vc` (his Primary Venture Partners address — founders often pitch him there and he forwards those in). The webhook has already swapped `senderEmail`/`senderName` to the inner forwarded sender. The classifier should treat the forwarded body block as the canonical email content and infer Source from the inner `To:` header (see Step 1B). When the inner `To:` is any of Tom's addresses above, the pitch was sent directly to Tom.
 - `forwardedFromReferrer` (optional, boolean) — `true` when the message is a `Fwd:` from an external third party (not Tom, not the founder) who is forwarding the founder's email along. The webhook has already swapped `senderEmail`/`senderName` to the inner forwarded sender (the founder candidate). `referrerEmail` / `referrerName` carry the outer envelope (the referrer). See Step 1C.
 - `referrerEmail` (optional) — outer envelope email when `forwardedFromReferrer` is true.
 - `referrerName` (optional) — outer envelope display name when `forwardedFromReferrer` is true.
@@ -59,7 +59,9 @@ If `forwardedFromReferrer` is true, the email arrived from a third-party referre
 
 For classification: same body-unwrap as Step 1B — treat the forwarded block's `From:`/`To:`/`Subject:`/body as the canonical email and ignore Tom's outer cover note.
 
-For Source attribution when delegating to `add-to-crm`:
+**Direct-inbound override (run FIRST).** Before trusting `forwardedFromReferrer`, apply the Step 1B domain discriminator: compare the inner forwarded `From:` domain against the pitched company. **If they match, this is NOT a referral — it is a cold inbound founder email that reached Tom directly** (the founder wrote to one of Tom's addresses and Tom self-forwarded it; the "referrer" the webhook flagged is really Tom's own alias, e.g. `tseo@primary.vc`). Treat exactly like Step 1B's match case: **Source = Direct, Status default = `Connected`** — ignore `referrerEmail`/`referrerName`. Only fall through to the referrer attribution below when the inner sender's domain does NOT match the pitched company.
+
+For Source attribution when delegating to `add-to-crm` (referrer case only — inner domain does NOT match the company):
 
 - **Source = `referrerName`** (the outer envelope's display name). If `referrerName` is empty, use the local-part of `referrerEmail`.
 

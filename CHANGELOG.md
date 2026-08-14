@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-08-14] (Week of 2026-08-10)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm — HQ enrichment made mandatory and deterministic: full cascade (email sig → LinkedIn → website footer → WebSearch → ContactOut) required before any row is complete; pre-exit gate rejects `??? 🌀` HQ without evidence; self-forwarded founder emails correctly identified as direct inbound (Source = Direct, Status = Connected)
+- inbound-deal-detect — added direct-inbound override: when inner sender's domain matches pitched company on a self-forwarded email, classified as direct founder cold outreach (not referral); source set to Direct regardless of forwardedFromReferrer flag
+- pipeline-agent — neg1 trashed-draft detection hardened with multi-gate fail-safe: resolves full recipient set (store + Opp contact), checks Opp status, runs unbounded Gmail send scan, checks calendar, and only passes after all gates return empty; prevents false pass flips when draft or email evidence is stale
+**Total skills:** 46
+**Functions:** No changes
+
+---
+
 ## [2026-08-13] (Week of 2026-08-10)
 
 **Added:** deal-doc-drafter (Diligence Management), agentic-commerce-agent (Research Management)
