@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-08-17] (Week of 2026-08-17)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- pro-forma-round — FMV terminology replaced with NAV throughout (Fund NAV = sum of portfolio holdings' fair value); concentration rows renamed to % of NAV (percentage) and × Fund Size (multiple, not percentage); step-up calculation clarified as pre-money ÷ prior post-money rather than post-to-post; terminal value exit ladder added as fixed closing block (default $1B/$2B/$5B/$10B, with Position Value / MOIC / × Fund Size columns); added optional mode for recording the pro forma to the Opportunity card body with a dated header, confirmed/not-confirmed assumptions block, and replace-on-re-run rule
+**Total skills:** 46
+**Functions:** No changes
+
+---
+
 ## [2026-08-14] (Week of 2026-08-10)
 
 **Added:** None

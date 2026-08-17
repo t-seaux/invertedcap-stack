@@ -62,20 +62,52 @@ Tranche labels capitalize every word of the stage/round name: `Pre-Seed SAFE`, `
 
 | Fund Metric | Current | Pro Forma |
 |---|---|---|
-| Fund FMV | $Xm | $Ym |
+| Fund NAV | $Xm | $Ym |
 | Gross MOIC | X.Xx | Y.Yx |
 | Net TVPI (est) | X.Xx | Y.Yx |
 | DPI | X.Xx | X.Xx |
-| [Company] %FMV | X% | Y% |
-| [Company] %Fund Size | X% | Y% |
+| [Company] % of NAV | X% | Y% |
+| [Company] × Fund Size | X.Xx | Y.Yx |
 
 Methodology behind the rows:
-- New fund FMV = old total − company's old FMV + modeled value (+ new check on both sides if applicable).
-- Gross MOIC = fund FMV ÷ invested. DPI doesn't move in a markup scenario (all paper) — same value in both columns, no annotation.
+- **Fund NAV** = the fund's total portfolio fair value (sum of holdings' FMV). For these Dash funds — ~fully called with reserves deployed — cash is negligible, so portfolio FMV is the NAV; use "NAV" as the label. New NAV = old total − company's old FMV + modeled value (+ new check on both sides if applicable).
+- Gross MOIC = fund NAV ÷ invested. DPI doesn't move in a markup scenario (all paper) — same value in both columns, no annotation.
 - Net TVPI: **Dash funds** — estimate as `(V − 20% × max(0, V − called)) / called`, which reproduces the SOI's current net figure; label as an estimate. **Inverted** — use the lp-portal NAV-bridge methodology and respect the 60%-called TVPI gate; don't invent a net number the portal wouldn't show (if gated, the TVPI row shows `N/A (gated)`).
-- Concentration rows: `%FMV` = position FMV ÷ fund FMV; `%Fund Size` = position FMV ÷ fund size — both as percentages (e.g. 64%, not 0.64x).
+- Concentration rows:
+  - `% of NAV` = position FMV ÷ fund NAV, as a **percentage** (e.g. 41%) — how much of the fund's value this one name is.
+  - `× Fund Size` = position FMV ÷ fund size (committed capital), as a **multiple** (e.g. 0.70x, not 70%) — what this position alone returns against the whole fund, in the same units fund returns are quoted. This is the fund-returner lens: `1.0x` means the position is worth the entire fund; `>1.0x` means it returns the fund on its own.
 
-Close with the read, not just the math (be opinionated): step-up vs last round and elapsed time, whether the implied multiple is heat or trajectory, pro-rata math (what full maintenance would cost vs what the check recovers), remaining-reserves reality check, and secondary/liquidity angle if the mark is rich.
+Close with the read, not just the math (be opinionated): step-up vs last round and elapsed time, whether the implied multiple is heat or trajectory,
+
+> **Step-up is pre-money ÷ prior post-money, not post-to-post.** The valuation step-up = the new round's **pre-money** ÷ the prior round's **post-money** (e.g. Series B pre $301.5m ÷ Series A post $83.5m = 3.6x). Do NOT quote the post-to-post ratio ($335m ÷ $83.5m = 4.0x) as the step-up — that overstates it by counting the new money as growth. (The FMV math still uses the new post-money for `ownership × post`; this note is only about the headline step-up figure in the read.) pro-rata math — state it objectively as three ownership states: no-participation (current % × dilution factor), with the modeled check (+ check ÷ post), and full pro-rata (cost to hold flat, with the check as a % of pro-rata); no editorializing labels like "top-off" or "signal check" in the written record, and remaining-reserves reality check.
+
+**Terminal value analysis (fixed closing block).** After the read, a table of exit scenarios — default ladder $1b / $2b / $5b / $10b unless Tom names other marks:
+
+| Exit Value | Position Value | MOIC | × Fund Size |
+
+Position Value = post-round blended ownership × exit value; MOIC = position ÷ all-in cost; × Fund Size = position ÷ fund committed capital (multiple, one decimal). Header states the assumptions inline: post-round ownership held constant at exit (no further dilution modeled — each future round would dilute further), all-in cost, gross of carry. Do not model secondary sales here — that's separate analysis Tom asks for explicitly.
+
+## Recording the PF to the Opp card body (optional output mode)
+
+Default output is a chat answer that writes nothing. **When Tom asks to record the pro forma into the Opportunity card** (e.g. "run the PF in the body", "log this PF on the card", or a follow-on-card flow that wants the analysis attached), append the analysis to the Opp page body via `notion-update-page` (`insert_content`, `position: end`) using this fixed structure:
+
+1. **Dated header** — `## <Company> <Round> PF Draft — <Mon DD, YYYY>` (today's date, when the analysis was run). "PF Draft" signals it's indicative, not a booked mark.
+2. **Assumptions block** — list every input and tag each `✅ confirmed` or `⚠️ NOT confirmed`, with the source. Section and label names use Title Case (Capitalize First Letters): `Round Size`, `Option Pool Refresh`, `Tom's Check`, `Company Level`, `Fund Level`, `Terminal Value`. Always cover, at minimum:
+   - **Round Size** (raised $) — confirmed vs. rumored.
+   - **Valuation** (post-money / cap) — confirmed vs. rumored.
+   - **Option Pool Refresh** — whether a pool top-up is modeled and whether that provision is confirmed. If the term sheet's pool isn't in hand, model none and mark it `⚠️ NOT confirmed` (existing holders diluted by the new-money fraction only), and say what a refresh would cost.
+   - **Tom's Check** (if a follow-on check is modeled) and whether it's committed.
+   - **Anchor** — the SOI/source snapshot + date the ownership/FMV came from, and the tie-out (blended ownership × last-round post = FMV).
+3. **Company level** and **Fund level** tables — same fixed contracts as the Report section above.
+4. **Read** — the objective close, as bullets (per the read contract above — three-state pro-rata math, no editorializing labels).
+5. **Terminal value table** — the fixed closing block from the Report section (exit ladder with Position Value / MOIC / × Fund Size, assumptions stated inline).
+6. **Indicative-scenario footer** — one line stating it's anchored to SOI ownership (not the unsigned cap table) and what to replace when the real pro forma lands.
+
+Confirmed/not-confirmed tagging is the point of the written record: a PF Draft on the card must make explicit which inputs are hard (signed terms) vs. assumed (unconfirmed pool, uncommitted check), so a future reader never mistakes an assumption for a fact.
+
+**Exactly one PF analysis lives on a card at a time — replace, never append.** Re-running (e.g. the real cap table lands, terms change) REPLACES the existing draft in place: locate the prior `## … PF Draft — <date>` block (header through its indicative footer) and swap in the new one, updating the header to the new run date. Never leave two PF drafts on a card — this mirrors how `finalize-diligence` swaps its assessment in place. The refreshed draft reflects whatever inputs have since been confirmed (e.g. once SignalFire's pro forma lands, the option-pool line flips from `⚠️ NOT confirmed` to `✅ confirmed` and the `×0.90` assumption is replaced with the actual dilution).
+
+The canonical example lives on the `Outmarket (Series B FO)` card (Series B PF Draft — Aug 16, 2026).
 
 ## Known traps
 
