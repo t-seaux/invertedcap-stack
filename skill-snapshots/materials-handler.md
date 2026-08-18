@@ -1,7 +1,7 @@
 ---
 name: materials-handler
 description: >
-  Download diligence materials (decks, memos, term sheets, investor updates) for a pipeline company, save to Google Drive, and link in Notion (page body + Diligence Materials property field). Handles Gmail attachments via Apps Script, DocSend links via Python conversion, direct file URLs, and body-only emails (investor updates, memos written inline) rendered to PDF via Chrome headless. Trigger on "save materials for [company]", "add [X] as diligence material for [company]", "download materials", "grab the deck", "save the deck", "save this investor update as a material", "materials for [company]", or any variant wanting diligence materials saved and linked to a Notion opportunity. Also triggers when pipeline-agent or add-to-crm delegates materials handling. Trigger if context involves saving email attachments, email bodies, or deck files to Drive and linking them to a deal, even without the word "materials". Always trigger inline — no confirmation needed.
+  Download diligence materials (decks, memos, term sheets, investor updates) for a pipeline company, save to Google Drive, and link in Notion (page body + Diligence Materials property field). Handles Gmail attachments via Apps Script, DocSend links via Python conversion, direct file URLs, and body-only emails (investor updates, memos written inline) rendered to PDF via Chrome headless. Trigger on "save materials for [company]", "add [X] as diligence material for [company]", "download materials", "grab the deck", "save the deck", "save this investor update as a material", "materials for [company]", or any variant wanting diligence materials saved and linked to a Notion opportunity. ALSO the canonical entry point for logging a transaction/deal document to an EXISTING Opp: "log the [term sheet / side letter / SAFE / SPA / cap table] in the [company] opp", "log this in [company]", "add to [company] opp", "add this to the [company] opp", "add [X] to [company] opp", "save the executed term sheet to [company] deal docs", "add the side letter to [company]", "file this SAFE under [company]" — this skill's Step 2 Property Routing auto-sorts each artifact to the correct Files property (transaction docs → Deal Docs; everything else → Diligence Materials), so a bare "add to [company] opp" / "log this in [company] opp" is sufficient — the doc type determines the destination. Disambiguation: "add to [company] opp" targets an EXISTING opportunity (this skill); "add to crm" / "log this deal" / "add this opportunity" CREATES a new opportunity (that's add-to-crm). When the named Opp already exists and a document/attachment is in context, route here. Also triggers when pipeline-agent or add-to-crm delegates materials handling. Trigger if context involves saving email attachments, email bodies, or deck files to Drive and linking them to a deal, even without the word "materials". Always trigger inline — no confirmation needed.
 ---
 
 # Materials Handler
@@ -192,12 +192,14 @@ Classify each relevant email's materials into **delivery categories** (how to fe
 Every saved artifact lands in EITHER `Diligence Materials` OR `Deal Docs`, never both. Default is Diligence Materials; route to Deal Docs only when the filename or content matches a transaction-artifact signal.
 
 **Route to `Deal Docs` when filename or first-page text matches any of:**
-- "term sheet", " TS ", "TS_", "TS-", "TS v", "TS draft" (term sheets)
-- "SAFE", "convertible note", "conv note", "side letter"
-- "subscription agreement", "stock purchase", " SPA ", "SPA_", "stockholder", "shareholder"
-- "pro forma", "cap table", "cap_table", "captable", "ownership table"
-- "closing", "closing binder", "wire instructions", "funds flow"
-- Legal-doc signatures: "WHEREAS", "Per Share Price", "Liquidation Preference", "Pre-Money Valuation" appearing on the first page
+- **Term sheets:** "term sheet", "term-sheet", "termsheet", " TS ", "TS_", "TS-", "TS v", "TS draft", "[EXECUTED]"/"[FINAL]" prefixing any of the above, MyCase/DocuSign/Dropbox-Sign "Completed:" e-sign subjects
+- **Investment instruments:** "SAFE" (incl. "post-money SAFE", "pre-money SAFE", "SAFE agreement"), "convertible note", "conv note", "KISS", "promissory note"
+- **Side agreements:** "side letter", "MFN", "most favored nation", "pro rata letter", "pro-rata side letter", "information rights"
+- **Purchase/rights agreements:** "subscription agreement", "stock purchase", "purchase agreement", " SPA ", "SPA_", "SPA-", "stockholder", "shareholder", "voting agreement", "IRA" / "investor rights agreement", "ROFR", "right of first refusal", "co-sale", "registration rights"
+- **Corporate/closing docs:** "stockholder consent", "board consent", "written consent", "certificate of incorporation", "cert of incorp", "COI", "bylaws", "closing", "closing binder", "closing set", "wire instructions", "wire SSI", "funds flow", "flow of funds", "capitalization", "cap table", "cap_table", "captable", "pro forma" (cap table), "ownership table"
+- **Legal-doc signatures on the first page:** "WHEREAS", "Per Share Price", "Liquidation Preference", "Pre-Money Valuation", "This SAFE", "in consideration of", signature/notary blocks
+
+**Named-type shortcut (highest confidence).** When Tom names the doc type in his instruction — "log the **term sheet** / **side letter** / **SAFE** / **SPA** / **cap table** in the [company] opp" — that stated type IS the routing signal; route to Deal Docs without needing a filename or first-page match. An explicit type in the ask always wins over filename heuristics.
 
 **Route to `Diligence Materials` (default) for everything else** — decks, memos, one-pagers, case studies, investor updates, financial models (operating projections, NOT cap tables), customer references, product demos, etc.
 

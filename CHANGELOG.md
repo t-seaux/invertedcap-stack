@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-08-18] (Week of 2026-08-17)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- materials-handler — expanded scope to also serve as canonical entry point for logging deal docs (term sheets, SAFEs, side letters, SPAs, cap tables) to existing Opps; Step 2 Property Routing auto-sorts transaction docs to Deal Docs and everything else to Diligence Materials; trigger phrases expanded to include "log the [term sheet / SAFE / side letter] in [company] opp" and similar deal-doc variants; disambiguation rule added (existing Opp + document-in-context → this skill; creating a new Opp → add-to-crm)
+- pass-note-drafter — Candidate pillar tier semantics clarified: new pillars now go Active on first sighting (no cap), so the Candidate tier is empty in normal operation; treat any Candidate that does appear as a weak prior, used only on an unusually clean match
+**Total skills:** 46
+**Functions:** No changes
+
+---
+
 ## [2026-08-17] (Week of 2026-08-17)
 
 **Added:** None

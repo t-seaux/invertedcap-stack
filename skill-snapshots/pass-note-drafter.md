@@ -243,8 +243,9 @@ actually *argues*. Work it as a matching problem, not a checklist:
    `market-pov` Pillars carry a real read on the company or market; `fit-pass`
    Pillars own the constraint as Tom's own. Never manufacture one to dress up
    the other. `endorsement` Pillars belong in the praise bullets.
-4. Pillars marked **Candidate** are single-sighting priors — weak evidence.
-   Use only on an unusually clean match.
+4. Pillars marked **Candidate** should be rare — a new pillar goes Active on its
+   first sighting and there is no active cap, so this tier stays empty in normal
+   operation. If one appears, treat it as a weak prior — use only on a clean match.
 5. Use the framings as evidence of *how* Tom argues a Pillar, then make the
    argument fresh for this company. **Never paste a quoted framing into a
    draft** — a recycled sentence is the failure mode this file exists to avoid.
