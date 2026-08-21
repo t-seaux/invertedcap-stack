@@ -41,6 +41,8 @@ curl -sSL -H "Authorization: Bearer $SLACK_USER_TOKEN" "<url_private>" -o /tmp/<
 
 Requires `SLACK_USER_TOKEN` in env with `files:read` scope (same token used by the Slack MCP — user-scoped works since Tom is the only uploader).
 
+**Reaction-triggered jobs (`trigger: "reaction-added"`).** When Tom reacts 👍 to an alert (instead of typing a reply), the Worker synthesizes a job with `text: "👍"` and `thread_ts == reply_ts == <the alert's own ts>` — i.e. **there is no separate reply message in the thread**; the alert Tom reacted to IS both the parent and the "reply" anchor. Do not look for a distinct Tom-authored reply message — treat `args.text` ("👍") as his input and the message at `thread_ts` as the parent alert, then branch as normal (a bare 👍 is a confirm — same as the typed case). Step 0's 👀 and Step 4's ✅ land on the alert message itself; that's expected. This path only fires for the `+1`/`thumbsup` reaction, so it can only ever mean "confirm the recommendation" — the word-gated branches (SOI rebuild publish, NEW DEAL opt-in/opt-out) require specific text a bare 👍 never carries, so they never fire from a reaction.
+
 ---
 
 ## Unattended execution rules

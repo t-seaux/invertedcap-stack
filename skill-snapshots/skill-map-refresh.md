@@ -99,6 +99,7 @@ Scan the skills directory to build a complete inventory.
      | `materials-detect-inbound` | `materials-handler` |
      | `outreach-detector` | `pipeline-agent` |
      | `outreach-decliner` | `pipeline-agent` |
+     | `outreach-reply-detect` | `pipeline-agent` |
 
    **Ad Hoc** — the skill is invoked manually by Tom (trigger phrase in chat, no cron, no webhook).
 
@@ -123,8 +124,8 @@ Scan the skills directory to build a complete inventory.
 |---|---|
 | Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `neg1-sourcing-listener`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share`, `add-contact-inbound` |
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan` |
-| Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan`, `intro-outreach-drafter`, `safe-drafter`, `pro-forma-round` |
-| Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste`, `question-bank`, `memo-workshop`, `deal-doc-drafter` |
+| Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan`, `intro-outreach-drafter`, `safe-drafter`, `pro-forma-round`, `add-follow-on-round` |
+| Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste`, `question-bank`, `memo-workshop`, `deal-doc-drafter`, `brain-dump` |
 | Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan`, `investing-style` (composite — absorbs `founder-taste`, whose home function is Diligence Management; see Composite breakdown), `launchagent:com.tomseo.scheduled.investing-style-quarterly`, `agentic-commerce-agent` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)

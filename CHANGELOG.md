@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-08-21] (Week of 2026-08-17)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm — added engine-referral aliasing rule: referrals from a named deal-feed operator at a member firm route to the firm's shared sourcing page rather than the operator's individual people page; named-person rule (not domain-wide), with explicit counter-example that other people at the same firm without an engine role source to their own page
+- inbound-deal-detect — expanded deal classification to cover investor co-invest intros for a specific named company as deals (not just direct founder pitches); 4th medium-confidence evidence signal added (identified investor referrer pitching a named company alongside the existing 3); source attribution refined so investor-pitched single-company emails route the investor as referrer rather than defaulting to Direct
+**Total skills:** 48
+**Functions:** add-follow-on-round added to Portfolio Management; brain-dump added to Diligence Management
+
+---
+
 ## [2026-08-18] (Week of 2026-08-17)
 
 **Added:** None

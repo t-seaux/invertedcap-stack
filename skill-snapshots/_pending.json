@@ -1,1 +1,9 @@
-{}
+{
+  "skills": {
+    "deal-share-out": "2026-08-21"
+  },
+  "launchAgents": {},
+  "webhookHandlers": {
+    "deal-share-sent": "2026-08-21"
+  }
+}

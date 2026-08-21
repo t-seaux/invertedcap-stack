@@ -12,7 +12,8 @@ description: >-
   (candidate/hire outreach; talent-scan); pass-note (founder pass notes; pass-note-drafter);
   deal-decline ("sit this one out" deal-share declines; ad-hoc); lp-raise-outreach (prospective-LP
   raise notes + forwardable note; ad-hoc); reference-request (cold founder reference-check asks;
-  ad-hoc); portco-ask-forward (Fwd: of a portco's ask + casual cover note; ad-hoc). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose,
+  ad-hoc); portco-ask-forward (Fwd: of a portco's ask + casual cover note; ad-hoc); deal-share-out
+  (outbound deal share to another firm's deal inbox; deal-share-out). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose,
   investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish",
   or "refine" any prose or email — infer the type from context and route to the matching stylebook.
   Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right
@@ -43,6 +44,7 @@ writing-style/
   lp-raise-outreach/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← prospective-LP raise notes + forwardable note
   reference-request/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← cold founder reference-check asks
   portco-ask-forward/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES  ← Fwd: of a portco's ask + casual cover note
+  deal-share-out/    STYLE                                    ← outbound deal share to another firm's inbox
   # ── LONG-FORM ──
   letters-and-memos/ STYLE + VOICE_EXAMPLES                   ← LP letters, memos, pre-mortems, etc.
 ```
@@ -77,6 +79,7 @@ the end-to-end flow; the stylebook is its voice source.
 | **LP raise outreach** | Prospective-LP note — final close, remaining allocation, soft ask; incl. the forwardable-note sub-form | `lp-raise-outreach/` | — (ad-hoc) |
 | **Reference request** | Cold ask to someone in a founder's orbit for a diligence reference call. Trigger phrases: "draft reference [request/outreach] notes for [Founder]", "reach out to folks for [Founder]'s references", "founder reference [check/call] emails", "doing references on [Founder]" | `reference-request/` | — (ad-hoc) |
 | **Portco ask forward** | `Fwd:` of a portco's request (vendor search, customer lead, partnership) to a contact who might be the fit or can route it onward — short casual cover note, forward carries the substance | `portco-ask-forward/` | — (ad-hoc) |
+| **Outbound deal share** | Kicking a deal from Tom's own pipeline to another firm's deal inbox (e.g. Primary's deal-agent) — structured payload + sanitized founder email, draft only | `deal-share-out/` | `deal-share-out` |
 
 If a request is a NEW email shape not in this table, see **"Log a new email form"** below — don't
 force-fit it into the nearest stylebook.
@@ -90,9 +93,27 @@ auto-appends inside the client — API-created drafts land signature-less otherw
 2026-08-03 on the reference-request batch and now the default everywhere. This overrides any
 "no signature — Gmail auto-appends" language still lingering in an individual stylebook.
 
-**Two documented exceptions — do not add a signature here:**
+## Links — global rule for EVERY email
+
+**Any link baked into any email draft must point DIRECTLY at its destination** (Tom, 2026-08-20,
+caught on the first deal-share-out draft). A bare URL in a plaintext-only body gets auto-linkified
+by Gmail through its `google.com/url?q=…&ust=…` redirect wrapper — the recipient sees an ugly
+tracking URL instead of the site. The fix, for every stylebook and every ad-hoc email:
+
+- Author an `htmlBody` with explicit anchors — display text is the bare domain or a natural label,
+  href is the direct URL: `<a href="https://sagecare.ai">sagecare.ai</a>`. Contact emails get
+  `mailto:` anchors.
+- Keep the HTML minimal (no font styling) so Gmail applies its defaults; pass the plaintext `body`
+  as the alternative with bare-domain link text.
+- Links inside quoted/forwarded founder content follow the same rule — re-anchor them, don't leave
+  bare URLs.
+
+**Three documented exceptions — do not add a signature here:**
 - `intro-connect` — the bare hand-off shape (`You both have context so [X] – will let you take it
   from here!`) has no `Best, Tom` closer at all; a signature would look bolted on.
+- `deal-share-out` — Tom's hand-built template (2026-08-20, Sage Care) ends at the quoted
+  founder's sign-off with no closing or signature; the recipient is a machine-read deal inbox and
+  the From line carries his identity.
 - `pass-note` — explicitly and repeatedly rules out the signature block (STYLE.md fixture #14),
   which reads as a deliberate calibrated voice choice (warm personal decline), not the auto-append
   misconception the other stylebooks were written under. Flagged to Tom 2026-08-03, not yet
