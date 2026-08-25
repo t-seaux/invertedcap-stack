@@ -46,7 +46,7 @@ The company must already exist in the Opportunities DB — this skill adds a rou
 - `Status` — **`Active`**. This is the resting state; Tom moves it to `Committed` himself when he actually commits, and to `Portfolio: Follow-On` when it closes. Never set Committed/Follow-On automatically.
 - `Inv @ Round` — **leave blank.** Tom supplies his check size separately; only set it when he gives a number in this or a later turn.
 - `Source(s)` — always **Direct**: `https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9`. Follow-ons come straight from the founder; there is no referrer.
-- `Support` — the "N/A" entry: `https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1`.
+- `Shared` (fka `Support`) — the "N/A" entry: `https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1`.
 - `Followed Up` — `__NO__`.
 - `Close Date` — blank.
 

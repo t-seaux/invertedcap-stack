@@ -146,6 +146,13 @@ Filter results to People DB pages.
 
 **Disambiguation:** if multiple People DB candidates match by name, use context from the call note (company, role hints) to pick the right one. If still ambiguous, mark as `ambiguous-match` and skip this candidate (Slack alert lists for Tom to resolve manually).
 
+**Role-reference candidates ("the founder of X" / "the CEO of Y" — the commitment names a company-role, not a person) — MANDATORY gate:**
+1. Search the People DB by company across NAME VARIANTS — exact plus short/long forms ("Spark" ↔ "Spark Advisors"); Company fields drift, so one exact-string hit proves nothing. Collect ALL rows at that company.
+2. Corroborate against the FULL transcript: if any first name is used for the same person anywhere in the call ("Talk to James about it", "I'll text James"), the resolved person's name MUST match it.
+3. Multiple company-mates and no name corroboration → `ambiguous-match`: skip the draft, list all candidates in the alert. NEVER pick whichever row happened to match the company string exactly.
+
+*Incident (2026-08-21, Oun Homes):* "intro to the Spark Advisors founder" resolved to Byron Edwards (Company "Spark Advisors", co-founder/COO) instead of James Jiang (co-founder/CEO, Company "Spark" at the time — and named in the same transcript: "Talk to James about it"). A wrong-person draft went out to Byron's personal gmail and needed manual cleanup. Variant company strings + ignoring the in-transcript first name are exactly what this gate closes.
+
 **If person NOT found in People DB:**
 - Do NOT create a stub. Per pinned memory `feedback_no_people_entry_without_permission.md`, missing people require explicit permission + ContactOut enrichment + photo before a People DB entry is created.
 - Surface in the Slack alert (Step 8) with the candidate's name, the inferred type, and the verbatim context sentence from the note. The alert is the "note to Tom" — Tom decides whether to add them to People DB and re-run Mode C against the same note.

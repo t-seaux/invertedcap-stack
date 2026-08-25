@@ -65,6 +65,15 @@ For Source attribution when delegating to `add-to-crm` (referrer case only — i
 
 - **Source = `referrerName`** (the outer envelope's display name). If `referrerName` is empty, use the local-part of `referrerEmail`.
 
+### Step 1D: Plain inbound, no forward flags — envelope-sender gate (MANDATORY)
+
+When BOTH `forwardedFromTom` and `forwardedFromReferrer` are false, the envelope sender of the target message (= the webhook's `senderEmail`) is the person who actually wrote to Tom. Run the same domain discriminator directly on THEM before writing any directive:
+
+- **Envelope sender's domain matches the pitched company** (or the sender is the named founder writing from a personal address) → `sourceDirective: "Direct"`, `statusDirective: "Connected"`.
+- **Envelope sender's domain does NOT match the pitched company** → the sender is a referrer/sharer (an investor bouncing a deal blast, an "any interest?" note, an intro offer) **even when the webhook failed to set `is_third_party_forward`** — the webhook's Haiku gate is a hint, not the authority; this gate is. `sourceDirective: { email: <envelope senderEmail>, name: <envelope senderName> }`, `statusDirective: "Qualified"`. Escalate per the usual ladder: Tom already replied opting in → `Outreach`; the founder is actually in the thread with Tom → `Connected`.
+
+**HARD RULE (New Issue IQ incident, 2026-08-21):** in this path, `senderEmail`/`senderName` in the add-to-crm args must remain the ENVELOPE sender. Never substitute a founder email or name extracted from the body — the founder's contact belongs in the classifier fields (`founder_*`, and downstream in the Opp's Contact), never in `senderEmail` or `sourceDirective`. A quoted thread below the sender's note (Outlook-style `From:` blocks, Diadem-style deal blasts) does NOT make the quoted author the sender. `sourceDirective: "Direct"` may only be written when the envelope-domain match above is affirmatively proven; if you cannot prove it, it is a referrer. That morning's failure: Luis Valdich (viminvestors.com) forwarded a Diadem blast about New Issue IQ; the run swapped `senderEmail` to `john@newissueiq.com` and stamped Direct/Connected — wrong on both counts (correct: Source = Luis's People row, Status = Qualified, intro merely offered).
+
 ### Step 2: Classify
 
 Apply the classifier rubric below. Return a single JSON object — **no markdown fences, no commentary**:

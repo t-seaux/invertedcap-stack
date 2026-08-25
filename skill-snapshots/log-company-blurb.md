@@ -1,16 +1,16 @@
 ---
 name: log-company-blurb
-description: Log a new company blurb (Company Overview) to an Opportunity page in the Notion CRM using the canonical blurb-versioning format — the latest blurb lives in a blue 📚 callout headed by its date, and every prior version is collapsed into a "Company Overview (History)" toggle beneath it. Trigger when Tom says "log company blurb", "log company overview", "log the overview for [X]", "company overview for [X]", "log this blurb for [X]", "log the blurb", "company blurb for [X]", "add this blurb to [X]", "update the blurb for [X]", "update the overview for [X]", or pastes/settles a company blurb in conversation and asks to log it to Notion. Manual-only — no scheduled or webhook entry point. Works on any Opportunity row (portfolio or pipeline).
+description: Log a new company blurb (Company Overview) to an Opportunity page in the Notion CRM using the canonical blurb-versioning format — the latest blurb lives in a default-background 📚 callout headed by its date, and every prior version is collapsed into a "Company Overview (History)" toggle beneath it. Trigger when Tom says "log company blurb", "log company overview", "log the overview for [X]", "company overview for [X]", "log this blurb for [X]", "log the blurb", "company blurb for [X]", "add this blurb to [X]", "update the blurb for [X]", "update the overview for [X]", or pastes/settles a company blurb in conversation and asks to log it to Notion. Manual-only — no scheduled or webhook entry point. Works on any Opportunity row (portfolio or pipeline).
 ---
 
 # Log Company Blurb
 
-Log a company blurb to its Opportunity page using the canonical blurb-versioning format. The page shows exactly one current blurb (blue callout) and hides all history behind one toggle.
+Log a company blurb to its Opportunity page using the canonical blurb-versioning format. The page shows exactly one current blurb (default-background 📚 callout) and hides all history behind one toggle.
 
 ## Canonical format (target state of every page)
 
 ```
-<callout icon="📚" color="blue_bg">
+<callout icon="📚">
 	*Company Overview (<mention-date start="YYYY-MM-DD"/>)*
 	[current blurb paragraph 1]
 	[current blurb paragraph 2 …]
@@ -26,11 +26,19 @@ Log a company blurb to its Opportunity page using the canonical blurb-versioning
 
 Format rules:
 - **The callout is ALWAYS the very first block of the page body** (History toggle immediately after it). If an existing blurb lives mid-body, move the structure to the top — never transform it in place and leave it buried under other content.
-- Callout: icon `📚`, color `blue_bg`. Header is italic `*Company Overview (<mention-date …/>)*` — a real Notion date mention, not plain text. If the blurb's date is genuinely unknown, use `*Company Overview (Latest)*`.
+- Callout: icon `📚`, default background (no `color` attribute — per Tom 2026-08-24; was `blue_bg` before). When migrating a legacy page whose existing callout is colored, strip the color. Header is italic `*Company Overview (<mention-date …/>)*` — a real Notion date mention, not plain text. If the blurb's date is genuinely unknown, use `*Company Overview (Latest)*`.
 - History toggle: entries newest-first. No per-entry headers and NO `<empty-block/>` spacers between entries — each version's FIRST paragraph is prefixed inline with its `<mention-date …/>` (or `(Old) ` when undated); subsequent paragraphs of a multi-paragraph version follow as plain tab-indented paragraphs.
 - Children of the callout and toggle are tab-indented in Notion-flavored markdown.
 - Escape `$` as `\$` (and other spec-required chars) in markdown ops. Preserve pasted rich text verbatim — links `[text](url)`, bold, en dashes. Never reword the blurb.
 - Sections elsewhere on the page (TS House Take, meeting notes, Materials, etc.) are never touched.
+
+## Audience-specific blurbs (per Tom, 2026-08-24)
+
+A company can have variant blurbs tailored to a specific audience (e.g., card networks, prospective customers, downstream investors). Format:
+- Variants live INSIDE the same 📚 callout, directly BELOW the regular (general) blurb — never in a separate callout or elsewhere on the page.
+- Each variant gets its own italic header: `*Company Overview – for [Audience] (<mention-date start="YYYY-MM-DD"/>)*` — en dash before "for", real date mention.
+- Variant body is verbatim from Tom (or the settled conversation text) — same never-reword rule as the main blurb.
+- The general blurb always stays first in the callout; drafters pick the variant matching the recipient audience, falling back to the general blurb.
 
 ## Workflow
 

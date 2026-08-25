@@ -1,5 +1,26 @@
 # Changelog
 
+## [2026-08-25] (Week of 2026-08-24)
+
+**Added:** deal-share-out (Pipeline Management)
+**Removed:** None
+**Modified:**
+- add-to-crm — Notion relation renamed Support → Shared; field now tracks deal-share recipients rather than acting as a generic support relation
+- add-follow-on-round — same Support → Shared relation rename applied to follow-on round creation
+- deal-doc-drafter — file placement updated to flat Deal Docs/&lt;Company&gt;/ store; round subfolders are now multi-round-only; replace-in-place command simplified accordingly
+- deal-share-out — added Shared relation ledger for already-shared exclusion; three write paths (webhook self-record on send, manual log, Notion hand-entry); body composition now scripted via template
+- draft-investment-memo — field reference updated from Support to Shared relation in Notion payload
+- inbound-deal-detect — new envelope-sender gate in the plain-inbound path: non-founder envelope senders are routed as referrers; hard rule added for senderEmail/senderName sourcing in this path
+- intro-note-processor — role-reference candidate resolution expanded: multi-variant company name search + full-transcript name corroboration; ambiguous-match skip with candidate list in alert
+- log-company-blurb — callout icon color changed to default (no blue_bg); audience-specific blurb variants added as sub-entries inside the same callout below the general blurb
+- materials-handler — Drive routing clarified: Deal Docs (SAFEs, term sheets, side letters, SPAs, cap tables) go to flat Deal Docs/&lt;Company&gt;/ store; Diligence Materials go to per-company Diligence subfolder; target-folder gate runs before any upload
+- pipeline-agent — Notion relation renamed Support → Shared throughout all add-to-crm arg blocks
+- skill-map-refresh — deal-share-sent webhook handler added to mapping table
+**Total skills:** 48
+**Functions:** deal-share-out added to Pipeline Management
+
+---
+
 ## [2026-08-21] (Week of 2026-08-17)
 
 **Added:** None

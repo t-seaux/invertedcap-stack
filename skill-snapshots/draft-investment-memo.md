@@ -59,7 +59,7 @@ one. Never auto-pick.
 
 - Identity: `Name`, `Description`, `Website`, `HQ`, `Stage`, `Round Details`,
   `OS% @ Round`, `Inv @ Round`, `Close Date`, `Fund`, `Status`, `Contact`
-- Relations: `🏁 Founder(s)`, `Source(s)`, `Support`, `Coinvestors`, `Angels`,
+- Relations: `🏁 Founder(s)`, `Source(s)`, `Shared` (fka Support), `Coinvestors`, `Angels`,
   `👓 Existing Backers`, `✍️ Notes`, `🗄️ Investor Updates`,
   `🕰️ Funding History`
 - Files: `Diligence Materials`, `Deal Docs`

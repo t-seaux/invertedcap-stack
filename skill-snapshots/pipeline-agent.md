@@ -93,7 +93,7 @@ Key Opportunity Fields:
 - HQ (select): Infer from founder LinkedIn location, email body, or company website. Default "??? 🌀" only if no signal available.
 - Fund (select): Inverted 1️⃣ | Dash 1️⃣ | Dash 2️⃣ | PA 🏠 | SPV 💵 | Primary 🎖️
 - Followed Up (checkbox): default __NO__
-- Support (relation): default "https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1"
+- Shared (relation, fka Support — tracks deal-share recipients): default "https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1"
 - Source(s) (relation): default Direct = "https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9"
 - 🏁 Founder(s) (relation): links to People DB
 - Contact (text): founder emails
@@ -114,7 +114,7 @@ New Opportunity Defaults (for notion-create-pages with parent data_source_id "fa
   Followed Up: __NO__
   Website: <Infer from source email body links, founder email domain (if company domain, not gmail/outlook/etc.), or explicit mentions. Use "N/A" if not available.>
   Round Details: <If deal terms are not finalized, phrase as "Raising $Xm" or "Raising $Xk–$Ym" for a range. If terms are finalized, use "$Xm on $Ym post" or "$Xm on $Ym cap". Always lowercase "m" and "k". Leave blank if not available.>
-  Support: ["https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1"]
+  Shared: ["https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1"]
   Source(s): ["https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9"] (or resolved referrer from People DB)
 ```
 
@@ -469,7 +469,7 @@ Spawn with `Task` tool.
    | **Name** (title) | `-1 ([{Founder First Name} {Founder Last Name}]({LI URL}))` — **parens around the linked name** (Tom, 2026-07-27); the name is clickable to LinkedIn. Example: `-1 ([Greg Reiner](https://linkedin.com/in/gregreiner))`. Validate: `validate_eval_note.py --opp-title "<Name md>"` |
    | **Stage** | `Pre-Seed 💡` |
    | **Source(s)** | `["https://www.notion.so/07500beff4aa8213a8f801cfa3cb9a12"]` — the **Claude** source page (Tom, 2026-07-27: every candidate sourced through the engine gets Source = Claude). ⚠️ NOT `0fb9a640…` — that is **Direct**'s page, the exact 2026-08-03 copy-paste bug documented in neg1-sourcing-listener/SKILL.md; it survived here until the 2026-08-11 review |
-   | **Support** | leave unset (Tom's "N/A" — no relation populated; the default Support relation is intentionally blank for -1 promotions) |
+   | **Shared** | leave unset (Tom's "N/A" — no relation populated; the default Shared relation is intentionally blank for -1 promotions) |
    | **Fund** | `Inverted 1️⃣` |
    | **Status** | `Qualified` at draft-time creation (Tom, 2026-07-27) — Task 7's v2 send detection flips Qualified → `Outreach`; only in THIS legacy at-send bridge path may the row be created directly at `Outreach` |
    | **Description** | Describes the **newco/company**, not the person — the founder's bio lives in the People-DB row, not here. `TBD` (bare) unless there's an actual signal about what they're building/exploring next (e.g. a text or email mentions a vertical — then `"Exploring something in construction."`, terse, present tense). For a pre-founder still at their current employer with no such signal, it's just `TBD` (Tom, 2026-08-12) |

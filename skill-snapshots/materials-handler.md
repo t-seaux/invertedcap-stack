@@ -97,9 +97,9 @@ Posted via the `send-alert` skill. Format (GFM — `send-alert` converts to Slac
    - **Email body (no attachment)** — e.g. investor updates, memos written inline — render the body to PDF via Chrome headless, save to `/Users/tomseo/Downloads/`, upload to Drive via Drive Upload Apps Script. Use this path whenever Tom says things like "add this investor update as a diligence material" or "save this email as a material" and the email itself is the artifact.
 5. **Skip the Decks folder** — the primary target is the Diligence folder (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Only use the Decks folder if explicitly asked.
 6. **Do not attempt direct googleapis.com API calls** — `googleapis.com` does not resolve in the Apps Script path either way, so use the deployed endpoints documented in `shared-references/`.
-7. **Upload autonomy — Drive Upload Apps Script, never ask** — use the Drive Upload Apps Script (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`) for every non-Gmail file: call `createFolder` to get or create the company's Diligence subfolder, then `upload` with the returned `folderId` and the base64-encoded file content. On failure, retry once, then note the failure in the summary. Do not ask Tom to upload files manually.
-8. **Per-company subfolders in Diligence** — all materials for a given opportunity go into a dedicated subfolder: `Diligence/[Company Name]/`. Use the Apps Script's `createFolder` action to get-or-create the subfolder idempotently under the Diligence root (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Use the company name exactly as it appears in Notion (the opportunity title). When linking in Notion, link to the specific file URL whenever possible, and the company subfolder URL as a fallback.
-9. **Deal Docs land in a nested `Deal Docs/` subfolder** — anything routed to the Notion `Deal Docs` property (term sheets, SAFEs, SPAs, voting agts, IRA/ROFR/co-sale, stockholder consents, cert of incorp, wire SSI, pro forma cap tables, closing binders) goes into `Diligence/[Company Name]/Deal Docs/`. Create it idempotently with a second `createFolder` call passing `parentId = <company subfolder id>`. Diligence Materials chips continue to land directly in `Diligence/[Company Name]/`.
+7. **Upload autonomy — Drive Upload Apps Script, never ask** — use the Drive Upload Apps Script (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`) for every non-Gmail file: call `createFolder` to get or create the company folder under the routing-appropriate root (Step 3 target folder gate: Deal Docs–routed artifacts → `Deal Docs/[Company]/`, everything else → `Diligence/[Company]/`), then `upload` with the returned `folderId` and the base64-encoded file content. On failure, retry once, then note the failure in the summary. Do not ask Tom to upload files manually.
+8. **Per-company subfolders in Diligence** — all Diligence Materials–routed artifacts for a given opportunity (NOT Deal Docs–routed ones; those follow rule 9) go into a dedicated subfolder: `Diligence/[Company Name]/`. Use the Apps Script's `createFolder` action to get-or-create the subfolder idempotently under the Diligence root (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Use the company name exactly as it appears in Notion (the opportunity title). When linking in Notion, link to the specific file URL whenever possible, and the company subfolder URL as a fallback.
+9. **Deal Docs go to the canonical top-level `Deal Docs/` store — FLAT, not the Diligence tree** — anything routed to the Notion `Deal Docs` property (term sheets, SAFEs, SPAs, voting agts, IRA/ROFR/co-sale, stockholder consents, cert of incorp, wire SSI, pro forma cap tables, closing binders) goes into `Deal Docs/[Company Name]/` under the canonical Deal Docs root (`1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`) — NOT under `Diligence/…`. Get-or-create the company folder idempotently with `createFolder` passing `parentId = 1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`, then upload the file directly into it. **Flat by default (Tom, 2026-08-21): no round subfolder.** Only once a company has raised a NEW round do deal docs break into `<Stage> (<Mon YYYY>)` round subfolders (and at that transition the first round's docs bucket into their own round folder too). Diligence Materials chips continue to land directly in `Diligence/[Company Name]/`. Keep one copy of each distinct version in Drive (older versions/redlines stay for audit) but no byte-for-byte duplicates; the Notion `Deal Docs` property holds only the latest version of each doc. See the deal-docs layout memory.
 10. **Pin a Drive-folder chip at the top of Diligence Materials.** Every Opp's Diligence Materials property carries a permanent first chip linking to its whole Drive subfolder, labeled `[G DRIVE] [Company Name] Diligence Materials` and pointing at `https://drive.google.com/drive/folders/<company subfolder id>`. This gives one click to the full materials folder — including anything not individually chipped — without disturbing the per-file chips below it. Check for it (by folder URL) before any new chips are added on a run; if missing, add it first via `--prepend` so it leads the list (subsequent default-append chips then naturally land after it). See Step 4.
 
 ## Inputs
@@ -237,6 +237,8 @@ The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `g
 
 > **Why a third label instead of moving the existing one.** Drive uploads (Step 3) are non-idempotent and land minutes before the only durable record (the outcome label, Step 4.7) — the gap spans conversion and Chrome work. Moving the outcome label earlier would close the duplicate window but reintroduce precisely the bug this skill already guards against: marking a failed run processed. A separate in-flight label makes "started" and "finished" independent facts, so a dead run leaves a tombstone that triggers verification rather than either a blank (duplicate work) or a false success (lost work). This skill has no sweep of its own, but `add-to-crm` Step 6 and `pipeline-agent` Task 5 both re-find unlabeled messages by Gmail search — a second producer is always live.
 
+> **Residual race this gate does NOT close on its own (root-caused 2026-08-24, Fair opp).** This label check reads state at the START of a run; nothing stops two Mode B jobs for the SAME `threadId` from being *launched* close enough together that both read "nothing labeled yet" before either writes. That's what happened: `materials-detect.js` legitimately fired on two different messages in one thread seconds apart (each got its own `materials-handler-{messageId}` idempotency key, so the D1 queue correctly did NOT dedup them — by design, this label gate is what's supposed to arbitrate the second one), the local processor leased and launched both in the same batch, and both independently uploaded and chipped the same attachment before either had a chance to label it. Fixed at the queue-processor layer, not here: `~/.claude/local-agents/claude-job-queue-processor/processor.py` (`AFFINITY_SKILLS`) now serializes Mode B materials-handler jobs by `threadId` — a second job for a thread already in flight is held locally and retried once the first clears, so in practice this gate only ever has to arbitrate strictly-sequential runs. That guard covers Mode B (webhook) only. Mode C / delegated invocations (`pipeline-agent` Task 5, `add-to-crm` Step 6) don't route through the queue-processor's lease/launch path and could in principle still race a live Mode B run for the same thread — narrow, unclosed edge case; no incident of it yet.
+
 **Mode-specific notes:**
 - **Mode B (webhook):** working set = all messages in the inbound `threadId`. Apply this gate as the first thing after Step 0 / Status Guard.
 - **Mode C (manual / delegated):** working set = Step 2's Gmail search hits, deduped by messageId. Apply this gate immediately after Step 2, before any Drive uploads or processing.
@@ -244,15 +246,24 @@ The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `g
 
 ## Step 3: Process Materials
 
+**Target folder gate (run BEFORE any 3A–3D upload).** The Drive destination follows the artifact's Step 2 Property Routing — two stores, never mixed:
+
+| Property routing | Drive parent root | Target folder |
+|---|---|---|
+| **Deal Docs** (term sheets, SAFEs, side letters, SPAs, wire SSI, cap tables, closing docs…) | `1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN` (top-level `Deal Docs/`) | `Deal Docs/[Company Name]/` — flat; round subfolders only for multi-round companies (rule 9) |
+| **Diligence Materials** (everything else — decks, memos, updates…) | `1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d` (`Diligence/`) | `Diligence/[Company Name]/` |
+
+Get-or-create the company folder idempotently via the Drive Upload Apps Script `createFolder` with the routing-appropriate `parentId` from the table. A mixed email (deck + term sheet) resolves the gate **per attachment**, not per email. Wherever a step below says "the target folder," it means the folder this gate selected.
+
 ### 3A: Gmail Attachments (Apps Script)
 
-Use the Gmail Attachment Saver Apps Script to save attachments directly to the company's Diligence subfolder on Google Drive. No Chrome required.
+Use the Gmail Attachment Saver Apps Script to save attachments directly to the target folder on Google Drive. No Chrome required.
 
 Read the reference at `/Users/tomseo/.claude/skills/shared-references/gmail-attachment-saver.md` for the deployment URL and full API details.
 
 For each email containing relevant attachments:
 
-1. **Determine the target Drive folder ID**: Call the Drive Upload Apps Script's `createFolder` action with `name = [Company Name]` and `parentId = 1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d` to get-or-create the company's Diligence subfolder idempotently. Use the returned `folderId` as the target. If the Apps Script is unavailable, fall back to the Diligence root folder ID (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`) so the file still lands in Diligence.
+1. **Determine the target Drive folder ID** via the Step 3 target folder gate (`createFolder` with the routing-appropriate parent). If the Apps Script is unavailable, fall back to the routing-appropriate ROOT folder ID from the gate table so the file still lands in the correct tree. Note the Gmail Attachment Saver takes ONE `driveFolderId` per call — for a mixed email, save to the majority destination, then move the minority files to their correct folder via the Drive MCP `update_file` (parentId move preserves the file ID).
 
 2. **Call the Apps Script endpoint** via Python:
    ```python
@@ -280,7 +291,7 @@ Follow the `docsend-to-pdf` skill at `/Users/tomseo/.claude/skills/docsend-to-pd
 2. Name the file using the DocSend `<meta>` title: `[Company Name] - [Document Title].pdf`. Strip redundant company name if present in the title. Fallback: `[Company Name] - Deck.pdf`.
 3. Save to `/Users/tomseo/Downloads/[filename].pdf`.
 4. Present to user via `present_files`.
-5. **Upload to Google Drive Diligence folder via Drive Upload Apps Script**: See `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`. First call `createFolder` to get-or-create the company's Diligence subfolder under `1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`, then call `upload` with the returned `folderId` and the base64-encoded file content. On success, use the returned `fileId` and `url` directly — no separate Drive MCP search needed. On failure, retry once, then note the failure in the summary but do not ask Tom to upload manually.
+5. **Upload to the target folder via Drive Upload Apps Script**: See `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`. First run the Step 3 target folder gate (`createFolder` with the routing-appropriate parent — decks are Diligence Materials, so normally `Diligence/[Company]/`), then call `upload` with the returned `folderId` and the base64-encoded file content. On success, use the returned `fileId` and `url` directly — no separate Drive MCP search needed. On failure, retry once, then note the failure in the summary but do not ask Tom to upload manually.
 6. **Use the URL returned by the Apps Script**: The `upload` response contains `fileId` and `url` (`https://drive.google.com/file/d/<fileId>/view`). Use this link directly in the Notion page body — no separate Drive MCP lookup needed.
 
 For **data room URLs** (`/view/s/`), follow the docsend-to-pdf skill's data room handling to extract individual document URLs first, then convert each.
@@ -288,7 +299,7 @@ For **data room URLs** (`/view/s/`), follow the docsend-to-pdf skill's data room
 ### 3C: Direct File URLs
 
 - **Google Drive share links**: Extract the file ID directly from the URL. No download needed — just construct the view link and document in Notion.
-- **Dropbox or raw PDF URLs**: Use `web_fetch` or `curl` to download the file, save to `/Users/tomseo/Downloads/`. Then upload to the company's Diligence subfolder using the Drive Upload Apps Script — same `createFolder` → `upload` pattern as 3B. The Apps Script returns `fileId` and `url` directly.
+- **Dropbox or raw PDF URLs**: Use `web_fetch` or `curl` to download the file, save to `/Users/tomseo/Downloads/`. Then upload to the target folder (Step 3 gate) using the Drive Upload Apps Script — same `createFolder` → `upload` pattern as 3B. The Apps Script returns `fileId` and `url` directly.
 
 ### 3D: Email Body → PDF (Chrome Headless)
 
@@ -304,7 +315,7 @@ Use this path when the email *body itself* is the material — no attachment, no
      "file:///Users/tomseo/Downloads/<slug>.html"
    ```
 4. Name the PDF `[Company Name] - [Descriptive Label].pdf`. For investor updates, derive the label from the subject (e.g. "Week 20 Investor Update"). Don't include emojis or special punctuation in the filename.
-5. Upload to the company's Diligence subfolder via the Drive Upload Apps Script (same `createFolder` → `upload` pattern). Use the returned `fileId` / `url` for Notion linking.
+5. Upload to the target folder (Step 3 gate — investor updates/inline memos are Diligence Materials → `Diligence/[Company]/`) via the Drive Upload Apps Script (same `createFolder` → `upload` pattern). Use the returned `fileId` / `url` for Notion linking.
 
 ### 3E: Link-only / Non-convertible Materials (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, Brieflink, etc.)
 

@@ -82,6 +82,20 @@ their own People page (only Jordan Fox / the deal-agent inbox alias to the Prima
 per add-to-crm). Firm-wide matching applies to the EXCLUSION decision only — resolve each
 `Source(s)` person's firm before setting Bcc.
 
+**Already-shared exclusion — the `Shared` relation (fka `Support`, renamed 2026-08-21).** The
+Opp's `Shared` relation is the share ledger. Writes come from three paths, all meaning SENT:
+(1) the gmail-webhook `deal-share-sent` handler records every recipient of a sent
+`Deal Share:` email — members via its address map, anyone else via People DB email lookup — so
+a Tom-directed pre-pass share ("kick this to Fika only", "send this one to David") self-records
+on send; (2) Tom tells Claude he already shared something OUTSIDE the Deal Share flow (a phone
+forward, an in-person mention) → Claude adds the entry to `Shared` for him on his word; (3) Tom
+hand-adds in Notion himself. Before setting Bcc, read `Shared`
+and drop any member already covered — resolved FIRM-WIDE like the source exclusion (an entry of
+TX Zhuo's person page excludes the Fika inbox, the Fika/Primary pseudo-pages match directly; the
+`N/A` placeholder page `18200bef-f4aa-80bc-8344-fc48c7b0fdb1` means nothing-shared and is
+ignored). All members excluded (source + already-shared) → nothing to send; exit silently in
+webhook modes, tell Tom in Mode C.
+
 - **Default motion** — Mode B (👣) and a bare Mode C "kick out [X]": Bcc the FULL list (minus
   exclusions below).
 - Tom naming a subset explicitly ("only to Primary") → just those members.
@@ -204,6 +218,16 @@ own section under Original Email (stylebook "Pass Note rules"):
 Read `writing-style/deal-share-out/STYLE.md` and follow its subject line, scaffold, and rules
 exactly.
 
+**Body composition is scripted — NEVER hand-write the scaffold HTML** (added 2026-08-21: the
+B2 headless run hand-built `<p>`-tag HTML that rendered double-spaced in Mail, dropped the
+*Originally Logged* header, and merged the Stage/HQ labels). Build `bodyHtml`/`bodyText` by
+piping a fields JSON into `~/.claude/skills/deal-share-out/compose_body.py` (input schema in
+its docstring; stdout is `{"bodyHtml", "bodyText"}`). You supply VALUES — dates spelled out,
+Round Details verbatim un-escaped, the sanitized + metric-bolded Original Email / Pass Note
+inner fragments per the stylebook — the script owns labels, line breaks, separators, and
+blockquote styling. Applies to BOTH creation paths and ALL modes (the webhook runtime has
+Python; this is the same pattern as the endpoint POST).
+
 **Dedup first** — `create_draft` is not idempotent and deleting drafts is unreliable
 ([[feedback_founder_outreach_draft_dedup]]): check BOTH `list_drafts` with
 `query: subject:"Deal Share: <Company>"` AND sent mail
@@ -228,8 +252,7 @@ same semantics as the -1 pipeline's deleted-draft-is-a-pass rule). Concretely:
 **(a) No materials → MCP `create_draft`:**
 - **Bcc:** the resolved registry address(es); **To: empty** (see Recipient Registry)
 - **Subject:** `Deal Share: <Company>` (no stage parens — stylebook)
-- **Body:** `htmlBody` per the stylebook's canonical template (direct-href anchors, blockquoted
-  founder note), plus the plaintext `body` alternative. **No closing, no signature** — documented
+- **Body:** `htmlBody`/`body` from `compose_body.py` (see the scripted-composition rule above). **No closing, no signature** — documented
   exception; the body ends at the founder's sign-off (or the Overview block for grapevine deals).
 
 **(b) Materials present → the gmail-webhook draft endpoint** (extended with Drive-sourced
@@ -261,7 +284,7 @@ base64 through the MCP `attachments` param (bytes transit the model's token stre
      "action": "createDraft", "secret": "<secret>",
      "bcc": "<registry address(es), comma-separated>",
      "subject": "Deal Share: <Company>",
-     "bodyHtml": "<stylebook HTML>", "bodyText": "<plaintext alternative>",
+     "bodyHtml": "<compose_body.py bodyHtml>", "bodyText": "<compose_body.py bodyText>",
      "attachments": [{ "driveFileId": "<id>", "filename": "<Company> Deck.pdf" }]
    }
    ```
@@ -311,8 +334,11 @@ skip the fingerprint resolution (delta 1 below) and go straight to Step 1's `not
 `page_id`; recipients per delta 2; always create via the endpoint (delta 2b); **no close-loop
 post** — the draft appearing in Drafts IS the signal, and the Step 5 dedup exits silently on
 re-fires. Guard: re-check the Opp's current Status on fetch — no longer a pass/NR status (Tom
-reversed within the debounce window) → exit without drafting. On failure exit non-zero (lands in
-the queue's failed state).
+reversed within the debounce window) → exit without drafting. **Read the `Shared` relation
+FRESH from that same fetch and honor every entry regardless of who wrote it** — Tom hand-adds
+entries in Notion (often right before flipping the status), so the already-shared exclusion must
+run off the live relation, never off assumptions about which shares went through the email flow.
+On failure exit non-zero (lands in the queue's failed state).
 
 **B1 (👣 reaction)** — `args: {mode: "webhook", channel_id, thread_ts, reply_ts, user, text:
 "👣"}` when Tom reacts 👣 `:foot:` to a card in `#decision-retros`. Still useful for re-runs and

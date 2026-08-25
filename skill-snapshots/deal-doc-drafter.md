@@ -12,7 +12,7 @@ description: >-
   Fields deliberately left open render as [TBD] highlighted yellow. Also owns
   every deal-doc VERSION event — a new turn, vFinal awaiting execution, or the
   executed set, for the SAFE, term sheet, or side letter: same-name Drive
-  replace into the round folder + swap the Notion Opp's Deal Docs chip (replace
+  replace into the flat `Deal Docs/<Company>/` folder + swap the Notion Opp's Deal Docs chip (replace
   mints a new file ID, so the chip is refreshed every time). Manual-only.
   Trigger on "draft a SAFE for [company]", "generate the SAFE", "term sheet for
   [company]", "save down a PDF of the term sheet", "we agreed terms with
@@ -144,15 +144,18 @@ set (file drop, or a Gmail attachment — pull it via the Gmail Attachment Saver
 per `shared-references/gmail-attachment-saver.md` if needed). Side-letter
 drafting is out of scope below, but its version handling lands here.
 
-1. Find the current file's exact filename: `listFolder` on the round folder via
-   the Drive Manager Apps Script, or reuse the name from this conversation.
+1. Find the current file's exact filename: `listFolder` on the company's
+   `Deal Docs/<Company>/` folder via the Drive Manager Apps Script, or reuse the
+   name from this conversation. (Deal docs sit FLAT in `Deal Docs/<Company>/` —
+   round subfolders only exist for multi-round companies; see the deal-docs
+   layout memory.)
 2. Re-upload under that SAME name — the Apps Script upload action
    trashes-and-replaces on exact-name match, so the prior version is replaced
    in place:
    ```bash
    python3 ~/.claude/skills/deal-doc-drafter/scripts/upload_deal_doc.py <new_version.pdf> \
-     --company <Short Name> --stage <Stage> --round-month "<Mon YYYY of the existing round folder>" \
-     --name "<exact existing filename>.pdf"
+     --company <Short Name> --name "<exact existing filename>.pdf"
+   # multi-round company only: add  --round-subfolder --stage <Stage> --round-month "<Mon YYYY>"
    ```
    Re-running `fill_deal_doc.py --overwrite` does this for you: same filename in,
    same filename up.
