@@ -1,7 +1,5 @@
 {
   "skills": {},
   "launchAgents": {},
-  "webhookHandlers": {
-    "add-contact-inbound": "2026-08-25"
-  }
+  "webhookHandlers": {}
 }
