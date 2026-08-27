@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026-08-27] (Week of 2026-08-25)
+
+**Added:** add-to-crm-detect (webhook-triggered handler for explicit email-based CRM commands), update-profile-photo (refresh People-DB row icon from LinkedIn)
+**Removed:** neg1-scanner
+**Modified:** None
+**Total skills:** 48
+**Functions:** Pending categorization — 2 new skills await function assignment
+
+---
+
 ## [2026-08-25] (Week of 2026-08-24)
 
 **Added:** deal-share-out (Pipeline Management)

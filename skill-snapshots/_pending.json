@@ -1,5 +1,8 @@
 {
-  "skills": {},
+  "skills": {
+    "add-to-crm-detect": "2026-08-27",
+    "update-profile-photo": "2026-08-27"
+  },
   "launchAgents": {},
   "webhookHandlers": {}
 }
