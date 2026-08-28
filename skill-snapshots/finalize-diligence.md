@@ -251,7 +251,8 @@ multi-block ordering is non-deterministic — `feedback_mcp_insert_content_order
 
 **Full procedure in `references/step-4-notion-write.md` — read it now before proceeding.** It
 carries the parallel block-delete (4.1), the canonical insert-after-first-block + delete prepend
-pattern (4.2), the title PATCH (4.3), the icon check (4.4), and publish-progress alert 1 of 3.
+pattern (4.2), the title PATCH (4.3), and the icon check (4.4). (No progress ping fires here —
+the run's only early alert is the audit-started ping at Step 6; completion is the single Step 9 alert.)
 
 **Destructive op acknowledgment.** The block delete is the prescribed step of an
 explicitly-invoked skill — the `feedback_always_confirm_before_delete` exemption applies.
@@ -283,6 +284,23 @@ carries the exact invocation and the F1–F11 rule list.
 ---
 
 ## Step 6: LLM Audit Gate — MANDATORY (Subagent B)
+
+**Fire the audit-started Slack alert BEFORE running the audit.** This is the run's
+ONE early alert — the completion side collapses to a single alert at Step 9. Do NOT
+fire any publish-progress pings (the old "1 of 3 / 2 of 3 / 3 of 3" blocks in Step 4/
+Step 8 are removed); they produced a redundant multi-message wall in Slack (the
+first-pass Cline pattern, 2026-08-26). Only this ping and the Step 9 completion alert
+should ever fire.
+
+```bash
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🧪 Finalize audit starting for **${COMPANY}**.
+EOF
+```
+
+Single line, no feedback prompt, no links. Do NOT include `💬 Reply in thread` (that
+string is reserved for the Step 9 completion alert — the listener routes replies on it).
 
 Run the research-artifact-audit discipline (`feedback_research_artifact_self_audit`) over the new
 Final Assessment block against the verbatim source bundle, iterating up to 3× on untraced claims.
@@ -339,16 +357,7 @@ Upload the new PDF to the same company subfolder under Diligence root
 `update-diligence-priors` Step 5b. The `createFolder` call is idempotent and returns the
 existing subfolder if it's already there.
 
-**Fire publish-progress alert (2 of 3) — immediately after the upload returns
-`file_url`.**
-
-```bash
-COMPANY="<subject company name>"
-PDF_URL="<file_url from upload response>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-📄 **${COMPANY}** Final PDF uploaded to Drive — [vFinal PDF]($PDF_URL). Running retention sweep + linking next.
-EOF
-```
+(No progress ping here — the run stays silent until the single completion alert at Step 9.)
 
 ### Retention sweep — destructive, autonomous
 
@@ -383,24 +392,19 @@ on text-only patches):
    first-pass)`. If no existing bullet, POST a new one with `after: <heading_2 id>`.
 
 2. **`Diligence Materials` files-property** — follow
-   `~/.claude/skills/shared-references/add-link-to-diligence-materials.md`. After PATCH, re-fetch
-   the Opp page and verify the new Drive URL is in the `files[*].external.url` set. If absent
-   after 3 retries, surface to Tom rather than publish silently (the MANDATORY verification
-   pattern from update-priors Step 5b applies in full).
+   `~/.claude/skills/shared-references/add-link-to-files-property.md`, passing `--no-alert`
+   (the helper auto-fires a `📎 Materials:` ping on every Diligence Materials write, which is
+   redundant with this skill's Step 9 completion alert — suppress it so the run posts only one
+   message). After PATCH, re-fetch the Opp page and verify the new Drive URL is in the
+   `files[*].external.url` set. If absent after 3 retries, surface to Tom rather than publish
+   silently (the MANDATORY verification pattern from update-priors Step 5b applies in full).
 
 3. **Scrub stale URLs** — any entry in the files-property pointing at a trashed Drive file must
    be removed. Any bullet in the page body still pointing at a trashed PDF must be patched to
    the new URL.
 
-**Fire publish-progress alert (3 of 3) — once the Diligence Materials write
-verifies and stale URLs are scrubbed.**
-
-```bash
-COMPANY="<subject company name>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔗 **${COMPANY}** Diligence Materials property updated + stale URLs scrubbed. Sending completion alert.
-EOF
-```
+Once the Diligence Materials write verifies and stale URLs are scrubbed, proceed directly to
+the Step 9 completion alert. (No progress ping — that's the single alert below.)
 
 Per memory `feedback_no_permission_for_user_initiated_analysis` and
 `feedback_first_pass_no_permission_prompts`: all writes (PATCH, POST, DELETE) execute

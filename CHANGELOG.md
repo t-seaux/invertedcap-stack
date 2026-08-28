@@ -1,5 +1,28 @@
 # Changelog
 
+## [2026-08-28] (Week of 2026-08-25)
+
+**Added:** add-to-crm-detect (Pipeline Management — webhook handler for Tom's explicit "add to crm" email command; delegates to add-to-crm in explicit-command mode), intro-status-summary (Intro Management — produces a founder-facing intro status Gmail draft covering pending, connected, and passed contacts with verbatim feedback for a named round)
+**Removed:** None
+**Modified:**
+- add-to-contacts — added second email-capture webhook (forward-with-comment trigger alongside plus-alias BCC); Slack alert now lists net-new contacts only
+- add-to-crm — added explicit-command mode (third entry point via add-to-crm-detect webhook); HQ location-mention trap warning added to prevent inferring HQ from customer or investor name-drops in pitch body
+- coinvestor-recommender — overhauled ranking: behavioral evidence (prior round outcomes, made intros, co-investment graph) now primary signal over thesis-fit; canonical two-category output (Follower Checks + Next-Round Investors)
+- finalize-diligence — collapsed three progress pings into single start + completion alerts; materials helper invoked with --no-alert to suppress redundant ping
+- first-pass-diligence — added run-start Slack alert at Step 1; collapsed publish-progress pings into single completion alert
+- founder-outreach — corrected snapshot-body footnote: "Gmail auto-appends" is retired; snapshot excludes signature only as diff baseline for draft-feedback
+- intro-draft-agent — added colleague hand-off handling: draft to colleague + original replier; colleague People row auto-created if net-new; mandatory HTML signature
+- intro-outreach-drafter — mandatory HTML signature added; batch-status re-read gate added requiring live state check before reporting send outcomes
+- investor-update — added Case F for Notion-hosted updates (fully expands all toggles via public block API before archiving)
+- log-transcript-to-notion — updated yt-dlp recipe for modern YouTube: requires deno JS runtime and ios player client; --ignore-no-formats-error flag required
+- materials-handler — Papermark extraction now pure-HTTP script (no GUI); added Step 3H for video links (chip + transcript note); Slack alert code-enforced by write script; verbatim URL rule added
+- pass-note-drafter — corrected snapshot-body footnote (same fix as founder-outreach)
+- update-diligence-priors — added audit-started Slack alert; collapsed publish-progress pings into single completion alert; updated add-link-to-files-property.md reference
+**Total skills:** 50
+**Functions:** add-to-crm-detect added to Pipeline Management; intro-status-summary added to Intro Management
+
+---
+
 ## [2026-08-27] (Week of 2026-08-25)
 
 **Added:** add-to-crm-detect (webhook-triggered handler for explicit email-based CRM commands), update-profile-photo (refresh People-DB row icon from LinkedIn)

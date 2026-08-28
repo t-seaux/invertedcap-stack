@@ -108,7 +108,9 @@ back to a snapshot-less MCP draft). Draft rules:
 - `htmlBody`: `<div>`-line HTML; ask line links the subject person to LinkedIn and the company to its site;
   the verbatim blurb at the bottom under an italic `About [Subject]` header, first sentence bold, company
   name linked. Plaintext `body` fallback too.
-- No signature — Gmail auto-appends it below the About block.
+- **Signature: append the verbatim HTML block** from `shared-references/gmail-signature.md` at the very
+  end of `htmlBody`, below the About block. Gmail does NOT auto-append to API-created drafts. The
+  plain-text snapshot still excludes it (that keeps the edit-diff clean) — the draft itself must have it.
 - Use Tom's per-person context line if supplied; otherwise the default relevance line.
 
 ### Step 4 — Reflect on Notion (log to Qualified) — only when an Opp exists
@@ -129,6 +131,28 @@ in the report — the People rows still get created/deduped in Step 2.
   daily `intro-outreach` sweep as backstop. Tom is NOT the trigger — no action needed." (Only flip a status
   in-session yourself if Tom explicitly mentions a send during a live conversation, as an immediate expedite;
   never imply he must tell you.)
+
+## Step 6 — Batch status: re-read state before EVERY report (HARD GATE)
+
+Once a batch is in flight, Tom will keep working the drafts in Gmail while the session continues.
+**Any later statement about that batch — "sent", "still open", "waiting to hear" — must be re-derived
+from live state, never from what happened earlier in the conversation.** Before reporting:
+
+1. **Query the Opp's four intro relations** (`👓 Qualified` / `☎️ Outreach` / `✉️ Made` /
+   `🚫 Declined / NR`). The reply webhooks move people within minutes; the relation is fresher than
+   anything in context.
+2. **Search each recipient's thread and read the REPLIES**, not just the send.
+3. **Lead the report with terminal outcomes** — declines and opt-ins — quoting the person's own words.
+   A decline changes who is left and what coverage remains; it is the most valuable line in the report.
+
+⛔ **A draft disappearing from the drafts list is NOT evidence it was sent.** It means sent, OR
+hand-edited into a new draft id (Gmail remints as `s:…` on UI edit), OR discarded. Never report a send
+from an absence — confirm in sent mail.
+
+⚠️ Failure this gate exists to prevent (Fair, 2026-08-26): four drafts left the list, the drafter
+reported them "sent," and never opened a thread. Helen Min and Rapha Danilo had both already passed
+and were already filed under 🚫 Declined by the webhook. Tom had to point it out — his instruction was
+that he should never have to. **Catching a decline is the drafter's job, not Tom's.**
 
 ## Edge cases
 - **Missing subject-person LinkedIn** → link only the company; leave the name unlinked and note it.

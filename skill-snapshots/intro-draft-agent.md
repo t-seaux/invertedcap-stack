@@ -71,11 +71,36 @@ The opt-in target → Cc, founder(s) → To is the default mapping for this skil
 
 Use their actual email addresses. If a founder's email isn't in the People DB, check the Opportunity's `Contact` field.
 
+#### Colleague hand-off (the reply routes the intro to someone else)
+
+The person who opted in is not always the person to actually introduce — they sometimes hand the intro to a colleague. The `personId` you were handed is the **replier** (resolved off the reply's From header), so the colleague is invisible unless you read the reply. **Always scan the opt-in reply — body AND its Cc line — for a hand-off before finalizing recipients.** Signals:
+
+- Names a different person and routes it to them: *"my colleague Libby will take it from here"*, *"intro her instead"*, *"X is the right person for this"*, *"looping in X — she's in NYC this week"*, *"copying my partner X who runs point."*
+- The named person is **not** the sender (`senderEmail`), and is often Cc'd on the reply.
+
+When you detect a hand-off, **draft first, Notion bookkeeping after** — the draft needs only the colleague's email (which lives in the reply), not their People page, so getting the draft into Tom's Drafts never waits on contact creation:
+
+1. **Identify the colleague** — name + email. Take the email from the reply's Cc line if present; else any address stated in the body; else look up an existing People DB row. **If none of those yield an email, the hand-off is simply not actionable** (Tom's call, 2026-08-27: a replier who hands off without Cc'ing or naming an address is the replier's problem, not ours) — draft to the original replier exactly as a normal opt-in (skip steps 2–5 entirely, including the contact-creation/relation steps), and note the unaddressable hand-off in the report so Tom sees it. Never chase an email via enrichment for the draft's sake.
+2. **Granter set = the colleague (primary) + the original replier, both Cc'd**, colleague first. Keep the person who made the connection on the thread as a courtesy — Tom cuts them if he wants. Drop the original replier only if the reply explicitly bows out (*"I'm not the right person, talk to X"* with no ongoing role).
+3. This makes the intro **3+ people**, so the body uses **"you all"** (Step 3.2) and the subject's granter side lists both, colleague first: `[Colleague] & [Replier] ([Company])`. **Create the draft now** (Step 3's compose flow) — do not hold it for steps 4–5.
+4. **Then ensure the colleague has a People DB row — create if net-new** (Tom-sanctioned auto-create, 2026-08-27; the hand-off itself is the explicit ask). Dedup first (`workspace_search` by name/email against `collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`). **Match found → use that row.** **No match → CREATE it by running the `add-to-contacts` person pipeline** (Step C2 shape: enrich from email via `contactout_email_to_linkedin` / `contactout_enrich_person` + web fallback, fill Company/Role/Category/City/State fully — the enrichment-completeness hook DENIES stub rows with empty fields — set the photo icon, `touch /tmp/.addcontacts-bypass` before create). If enrichment genuinely can't complete, flag "colleague not in People DB" in the report — the draft already exists, so nothing is blocked.
+5. **Add the colleague to the Opp's `☎️ Intros (Outreach)` relation — strictly AFTER step 4**, since the relation write needs the colleague's People page ID (a just-created row's ID comes from the create response). **Append, never replace-with-one:** a Notion relation update overwrites the whole list, so first read the Opp's current `☎️ Intros (Outreach)` array, then write back ALL existing entries + the colleague's page ID (same full-list rule as the status/select full-replace incident, 2026-07-16). The original replier stays in the relation — this is an add, not a swap. Before writing, apply the contract's **Tom Is Never an Intro Party** and **Single-Stage Invariant** checks to the list you read: never add a Tom self-row, skip the append if the colleague already sits in another lifecycle field, and scrub any cross-field duplicates or Tom rows you find in the same write (self-heal). Verify the write by re-fetching before moving on.
+6. **Lifecycle scope:** this drafter only ADDS the colleague to `☎️ Outreach` (steps 4–5). The move to `✉️ Made` when Tom sends — and any scrub of either person — stays owned by the resolution/endpoint layer (`intro-resolution-endpoint.js`), as usual.
+
 ### Body & signature
 
 Draft the handoff line (and the optional vouch line) per `writing-style/intro-connect/STYLE.md` — it
-carries the 1:1 vs multi-party handoff forms, the vouch-line rule, and the "no typed signature (Gmail
-auto-appends)" rule. Do not re-specify the body format here; the stylebook is the single source.
+carries the 1:1 vs multi-party handoff forms and the vouch-line rule. Do not re-specify the body
+format here; the stylebook is the single source.
+
+⛔ **The signature must be the HTML block, in `htmlBody` — never the plaintext form alone.**
+`shared-references/gmail-signature.md` has TWO forms: plaintext (for the `body` param) and HTML (for
+`htmlBody`). A draft created with **only** `body` renders the signature at full body-text size instead
+of Tom's small Helvetica block. **Always write both files and pass both flags.**
+
+⚠️ Happened 2026-08-27 on the Avery ↔ Aadik connect: this agent auto-drafted plaintext-only and the
+signature came out body-sized. Tom caught it. The older "no typed signature — Gmail auto-appends"
+rule this section used to cite is **retired and wrong** — Gmail does not append to API-created drafts.
 
 ## Opportunity Scope (IMPORTANT)
 
@@ -135,8 +160,9 @@ When invoked with `personId` + `oppId` args (Pattern 3), **skip Step 1 (roster b
 2. **Idempotency guards (MANDATORY — draft only if all pass):**
    - The person must still be in `☎️ Intros (Outreach)` for this opp. If they're already in `✉️ Made` (Tom made the intro between enqueue and now) → skip, log `already-made`. 
    - Run Step 2's **full pre-create guards in order**: (1) the **deleted-draft contract** — if the opt-in thread (`threadId` from args) carries the `Intro Drafted` label, SKIP unconditionally even if no draft currently exists (Tom deleted it → never recreate); (2) already-sent check; (3) already-present-draft check. Any hit → skip, log the matching reason. This is what makes a spurious/duplicate enqueue — or a re-fire after Tom deleted the draft — safe.
-3. **Compose and create the draft** exactly per **Step 3** below (same subject/body/recipients format).
-4. **Report** a one-line summary: `intro-draft (targeted): <person> → <founder(s)> (<company>) — draft created | skipped (<reason>)`. No Slack alert of its own (consistent with the other modes).
+3. **Check for a colleague hand-off (reuse the guard's thread read).** You already fetched the opt-in thread (`threadId`) for the deleted-draft guard — scan its latest inbound reply (body + Cc line) for a hand-off per **Recipients → Colleague hand-off**. If found, follow that section's **draft-first ordering**: set the granter/Cc set to colleague (primary) + original replier (`personId`), create the draft (subject granter side lists both, "you all" body), and only THEN do the Notion bookkeeping — ensure the colleague's People row exists (create if net-new), then append them to the Opp's `☎️ Intros (Outreach)` relation (needs the page ID from the create). Mode B otherwise skips the inbox scan — this is the one reply read it must always do.
+4. **Compose and create the draft** exactly per **Step 3** below (same subject/body/recipients format).
+5. **Report** a one-line summary: `intro-draft (targeted): <person> → <founder(s)> (<company>) — draft created | skipped (<reason>)`; append `— handoff → <colleague>` when a hand-off was applied. No Slack alert of its own (consistent with the other modes).
 
 The founder-email / target-email edge cases in the **Edge Cases** section apply identically — if a required email is missing, do NOT create the draft; flag it.
 
@@ -210,6 +236,7 @@ For each opt-in where no existing draft/sent email is found:
 3. **Determine recipients** (see the **Recipients** section above for the To/Cc split):
    - **To** = the ask-side party's email(s) — normally all founder emails. Join multiple with ", ".
    - **Cc** = the favor-giver's email — normally the opt-in person's email (the one granting the chat). Join multiple with ", ".
+   - **First check for a colleague hand-off** (see **Recipients → Colleague hand-off**): read the opt-in reply (Mode B has `threadId`; the scheduled scan has the reply in the inbox). If the reply routes the intro to a colleague, set Cc = colleague + original replier per that rule, and recompute the subject (granter side lists both, colleague first) and the both/all form in 3.2.
 
 4. **Create the Gmail draft AND write the draft-feedback snapshot atomically** via
    `~/.claude/scripts/gmail-create-draft.py` (same helper as `founder-outreach` Step 7 — it creates
@@ -217,8 +244,13 @@ For each opt-in where no existing draft/sent email is found:
    `_system/draft-snapshots/<hex>.json` in one shot, so Tom's edits feed
    `writing-style/intro-connect/EDIT_PATTERNS.md` via diff mode).
 
-   Write two scratch files first: the HTML body (Gmail-native `<div>` lines), and the plain-text
-   snapshot body (strip tags; the connect email has no signature block to exclude — end at `Tom`).
+   Write two scratch files first: the HTML body (Gmail-native `<div>` lines, **ending with the
+   verbatim HTML signature fragment from `shared-references/gmail-signature.md` wrapped as
+   `<div>Tom<br><div>[fragment]</div></div>`**), and the plain-text snapshot body (strip tags and
+   **exclude the signature** — end at `Tom`).
+
+   ⛔ Both `--html-body-file` and `--snapshot-text-file` are required. Never create this draft with a
+   plaintext body only — see the signature rule above.
 
    ```
    ~/.claude/scripts/gmail-create-draft.py \

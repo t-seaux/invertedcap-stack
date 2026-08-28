@@ -112,19 +112,37 @@ Then re-enter at the furthest completed step, keeping everything upstream:
 
 Iteration snapshots (`draft.iterN.md`) and prior audit JSONs found in the
 workspace count toward the audit gate's iteration cap — do not delete them on
-resume. Send the audit-start / progress alerts as normal so Tom can see the
-resumed run's progress; note "(resumed)" in the first alert.
+resume. A resumed run posts the same alerts as a fresh one — the run-start ping
+(Step 1), the audit-started ping (Step 4b), and the single completion alert
+(Step 6b) — with " (resumed)" appended to the run-start line so Tom knows it
+picked up a prior run.
 
 ---
 
 ## Step 1: Gather All Available Context
 
-**Anchor the start time first** so the audit-start Slack alert (Step 4b) can
-report elapsed-from-start minutes. Write this once, before any other work:
+**Anchor the start time first** as a run marker (used for resume detection and
+the audit-start alert's elapsed-time report). Write this once, before any other work:
 
 ```bash
 date +%s > "$WORKSPACE/start_ts.txt"
 ```
+
+**Fire the run-start Slack alert** immediately after anchoring the start time,
+before gathering context. This is the first of the run's two early alerts (the
+second is audit-started at Step 4b); the completion side collapses to a single
+alert at Step 6b.
+
+```bash
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🚀 First-pass diligence started for **${COMPANY}**.
+EOF
+```
+
+Single line, no feedback prompt, no links. Do NOT include `💬 Reply in thread`
+(that string is reserved for the Step 6b completion alert — the listener routes
+thread replies based on it). On a resumed run, append ` (resumed)`.
 
 Before writing anything, assemble the full evidence base. Completeness matters — the analysis
 quality is directly proportional to how much source material you have.
@@ -1654,9 +1672,10 @@ that file in full before continuing this step.
 | `ITER_SNAPSHOT_PREFIX` | `$WORKSPACE/draft.iter` |
 | `NORMALIZED_DRAFT` | `$WORKSPACE/draft.normalized.md` |
 
-**Fire the audit-start Slack alert BEFORE building the source bundle.** This
-is a diligence-specific progress ping (not part of research-artifact-audit's
-generic flow):
+**Fire the audit-started Slack alert BEFORE building the source bundle.** This is
+the second of the run's two early alerts (the first is run-start at Step 1). It is
+a diligence-specific progress ping, not part of research-artifact-audit's generic
+flow:
 
 ```bash
 ELAPSED_MIN=$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 ))
@@ -1667,8 +1686,14 @@ EOF
 ```
 
 Single line, no feedback prompt, no links. Do NOT include `💬 Reply in thread`
-(that's reserved for Step 6b — the listener routes thread replies based on
-that exact string).
+(that's reserved for Step 6b — the listener routes thread replies based on that
+exact string).
+
+**Do NOT fire any publish-progress pings during Step 4/Step 6.** Everything on the
+completion side (Notion published, PDF uploaded, property linked, done) collapses
+into the SINGLE completion alert at Step 6b — separate progress pings produced a
+redundant multi-message wall in Slack (observed Cline, 2026-08-26). Only the two
+early alerts above and the one completion alert should ever fire.
 
 **Diligence-specific source bundle structure (Step A in research-artifact-audit).**
 Write `$WORKSPACE/sources.md` with this layout (the runner chunks at the
@@ -1815,18 +1840,7 @@ pages: [{
 
 Save the resulting Notion page URL — it will be referenced in the PDF and the completion alert.
 
-**Fire publish-progress alert (1 of 3).** The publish phase is silent for 15-20
-min between the audit-start alert and the final completion alert. These
-three progress pings make the silent stretch legible to Tom and surface any
-stuck step quickly.
-
-```bash
-COMPANY="<subject company name>"
-NOTION_URL="<URL from the page just created>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-📝 **${COMPANY}** Notion page published — [first-pass]($NOTION_URL). Building PDF next.
-EOF
-```
+(No progress ping here — the run stays silent until the single completion alert at Step 6b.)
 
 ### 4c. Set the Claude Logo Icon
 
@@ -2080,16 +2094,7 @@ file_url = upload_result["url"]  # Direct link — use this in Notion
 
 Act autonomously — do not ask for permission. Report what was done in the summary.
 
-**Fire publish-progress alert (2 of 3).** After the Drive upload succeeds and
-`file_url` is in hand, ping:
-
-```bash
-COMPANY="<subject company name>"
-PDF_URL="<file_url from upload response>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-📄 **${COMPANY}** PDF uploaded to Drive — [PDF]($PDF_URL). Linking to Diligence Materials.
-EOF
-```
+(No progress ping here — the run stays silent until the single completion alert at Step 6b.)
 
 **Linking in Notion — two places:**
 
@@ -2116,8 +2121,16 @@ EOF
        --page-id <opportunity_page_id> \
        --prop "Diligence Materials" \
        --url "<drive_url>" \
-       --label "<Company>_Master_Diligence.pdf"
+       --label "<Company>_Master_Diligence.pdf" \
+       --no-alert
    ```
+
+   **`--no-alert` is MANDATORY here.** The helper auto-fires a consolidated `📎 Materials:`
+   ping as a side effect of every Diligence Materials write. In the first-pass flow that
+   ping is redundant with the Step 6b completion alert (which already links the PDF), so it
+   must be suppressed — the run posts exactly one Slack message. (This is why first-pass links
+   the property inline instead of routing through materials-handler, whose whole purpose is
+   that auto-ping.)
 
    Exit 0 = ok (including idempotent skip), 1 = hard failure (log + fall back to page body link). See the canonical interface at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity page ID, the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`), and a display name like `[Company]_First_Pass_Diligence.pdf`.
 
@@ -2131,15 +2144,8 @@ EOF
    assert drive_url in urls, f"Property write did NOT take — URL {drive_url} not in {urls}"
    ```
 
-**Fire publish-progress alert (3 of 3).** After the Diligence Materials
-property write is verified, ping:
-
-```bash
-COMPANY="<subject company name>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔗 **${COMPANY}** Diligence Materials property updated. Sending completion alert.
-EOF
-```
+After the Diligence Materials property write is verified, proceed directly to the
+completion alert. (No progress ping — that's the single alert below.)
 
 ### 6b. Send the alert
 

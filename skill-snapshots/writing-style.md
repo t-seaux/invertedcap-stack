@@ -13,7 +13,8 @@ description: >-
   deal-decline ("sit this one out" deal-share declines; ad-hoc); lp-raise-outreach (prospective-LP
   raise notes + forwardable note; ad-hoc); reference-request (cold founder reference-check asks;
   ad-hoc); portco-ask-forward (Fwd: of a portco's ask + casual cover note; ad-hoc); deal-share-out
-  (outbound deal share to another firm's deal inbox; deal-share-out). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose,
+  (outbound deal share to another firm's deal inbox; deal-share-out); portco-investor-list (curated
+  investor list sent TO a portco founder to fill a round; bare bullets, no signature; ad-hoc). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose,
   investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish",
   or "refine" any prose or email — infer the type from context and route to the matching stylebook.
   Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right
@@ -45,6 +46,7 @@ writing-style/
   reference-request/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← cold founder reference-check asks
   portco-ask-forward/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES  ← Fwd: of a portco's ask + casual cover note
   deal-share-out/    STYLE                                    ← outbound deal share to another firm's inbox
+  portco-investor-list/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES ← investor list TO a portco founder (bare, no signature)
   # ── LONG-FORM ──
   letters-and-memos/ STYLE + VOICE_EXAMPLES                   ← LP letters, memos, pre-mortems, etc.
 ```
@@ -80,6 +82,7 @@ the end-to-end flow; the stylebook is its voice source.
 | **Reference request** | Cold ask to someone in a founder's orbit for a diligence reference call. Trigger phrases: "draft reference [request/outreach] notes for [Founder]", "reach out to folks for [Founder]'s references", "founder reference [check/call] emails", "doing references on [Founder]" | `reference-request/` | — (ad-hoc) |
 | **Portco ask forward** | `Fwd:` of a portco's request (vendor search, customer lead, partnership) to a contact who might be the fit or can route it onward — short casual cover note, forward carries the substance | `portco-ask-forward/` | — (ad-hoc) |
 | **Outbound deal share** | Kicking a deal from Tom's own pipeline to another firm's deal inbox (e.g. Primary's deal-agent) — structured payload + sanitized founder email, draft only | `deal-share-out/` | `deal-share-out` |
+| **Portco investor list** | Sending a portfolio founder a curated list of investors to fill out a round Tom is leading. Bare artifact — three headed sections of `Name @ Firm` bullets, name→LinkedIn / firm→site, **no greeting, closer, or signature**. Trigger: "draft email with the list", "send [founder] the investor list" | `portco-investor-list/` | — (ad-hoc; usually downstream of `coinvestor-recommender`) |
 
 If a request is a NEW email shape not in this table, see **"Log a new email form"** below — don't
 force-fit it into the nearest stylebook.
@@ -92,6 +95,28 @@ force-fit it into the nearest stylebook.
 auto-appends inside the client — API-created drafts land signature-less otherwise. Confirmed
 2026-08-03 on the reference-request batch and now the default everywhere. This overrides any
 "no signature — Gmail auto-appends" language still lingering in an individual stylebook.
+
+🔁 **Maintenance rule — a stylebook and its drafter must change together.** Each stylebook is read by
+a drafter skill (`intro-connect` → `intro-draft-agent`, `intro-outreach` → `intro-outreach-drafter`,
+`pass-note` → `pass-note-drafter`, `neg1-cold-outreach` → `founder-outreach`, `feedback-outreach` →
+`feedback-outreach-drafter`, `talent-outreach` → `talent-scan`). **When you change a rule here or in a
+STYLE.md, grep the consuming skill in the same pass** — twice on 2026-08-26/27 a fix in one layer left
+the other contradicting it, and the second time it shipped a malformed draft to Tom.
+
+📌 **Snapshot vs draft — do not confuse these.** Drafters correctly strip the signature from the
+**plain-text snapshot** (it's a diff baseline for `draft-feedback`; leaving it in dirties every diff).
+That is NOT a statement about the draft. The **draft's `htmlBody` must always carry the signature.**
+Any skill giving "Gmail auto-appends" as the reason for the snapshot exclusion is repeating the
+retired misconception — fix the rationale, keep the exclusion.
+
+**2026-08-26 — Tom: "I want signatures."** `intro-connect` and `pass-note` were both carrying the
+auto-append misconception and were therefore drafting bare; both are now corrected to append and
+have been removed from the exception list below. Two exceptions remain, and both are real voice
+choices Tom made himself, not misconceptions — don't "fix" them.
+
+⚠️ Also fixed the same day: the canonical block hard-coded `color: rgb(0, 0, 0)`, which rendered the
+signature black-on-black in dark mode. Stripped at source in `gmail-signature.md` — see the warning
+there before re-extracting the fragment from a fresh Mail-generated send.
 
 ## Links — global rule for EVERY email
 
@@ -108,16 +133,14 @@ tracking URL instead of the site. The fix, for every stylebook and every ad-hoc 
 - Links inside quoted/forwarded founder content follow the same rule — re-anchor them, don't leave
   bare URLs.
 
-**Three documented exceptions — do not add a signature here:**
-- `intro-connect` — the bare hand-off shape (`You both have context so [X] – will let you take it
-  from here!`) has no `Best, Tom` closer at all; a signature would look bolted on.
+**Two documented exceptions — do not add a signature here:**
 - `deal-share-out` — Tom's hand-built template (2026-08-20, Sage Care) ends at the quoted
   founder's sign-off with no closing or signature; the recipient is a machine-read deal inbox and
   the From line carries his identity.
-- `pass-note` — explicitly and repeatedly rules out the signature block (STYLE.md fixture #14),
-  which reads as a deliberate calibrated voice choice (warm personal decline), not the auto-append
-  misconception the other stylebooks were written under. Flagged to Tom 2026-08-03, not yet
-  overridden — ask before changing.
+- `portco-investor-list` — Tom stripped the signature explicitly on the first send (2026-08-25,
+  Fair): *"Remove everything but the sections and bullets pls. No commentary before or after or
+  even signature."* The form is a bare work-list to a founder who already knows the sender; a
+  sign-off would be noise.
 
 ## Routing logic (all writing, not just email)
 

@@ -125,7 +125,7 @@ Follow the career-signal-sentence + no-agenda-frame structure in writing-style/n
 
 Write two scratch files first:
 - HTML body (rendered email with hyperlinks, includes signature block)
-- Plain-text snapshot body (strip HTML tags, preserve line breaks, EXCLUDE the signature block from `–` onward since Gmail auto-appends — this is what the headless `draft-feedback` pipeline diffs against the sent message)
+- Plain-text snapshot body (strip HTML tags, preserve line breaks, EXCLUDE the signature block from `–` onward — **because the snapshot is a diff baseline, not because Gmail appends anything.** Gmail does NOT auto-append to API-created drafts; the HTML body above must carry the signature itself. This file is what the headless `draft-feedback` pipeline diffs against the sent message, and leaving the signature out keeps that diff clean.)
 
 Then invoke:
 

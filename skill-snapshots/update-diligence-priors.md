@@ -349,6 +349,22 @@ convicted in the thesis? Be specific about what moved and what didn't.]
 
 ## Step 4.5: LLM Audit Gate — MANDATORY
 
+**Fire the audit-started Slack alert BEFORE running the audit.** This is the run's
+ONE early alert — the completion side collapses to a single alert at Step 6. Do NOT
+fire any publish-progress pings during Step 5 (Notion prepend / PDF / property link);
+those produced a redundant multi-message wall in Slack (the first-pass Cline pattern,
+2026-08-26). Only this ping and the Step 6 completion alert should ever fire.
+
+```bash
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🧪 Update-priors audit starting for **${COMPANY}**.
+EOF
+```
+
+Single line, no feedback prompt, no links. Do NOT include `💬 Reply in thread` (that
+string is reserved for the Step 6 completion alert — the listener routes replies on it).
+
 Per memory `feedback_research_artifact_self_audit`, long-form diligence artifacts get the
 research-artifact-audit discipline before delivery. An Update block is squarely in scope —
 it's analytical prose anchored on new call notes, references, materials, and feedback, with
@@ -552,17 +568,7 @@ The update sections should stack chronologically — newest at the top, oldest a
 with the original analysis below all updates. This means a page that has been updated three times
 will read: Update 3 → Update 2 → Update 1 → Original Analysis.
 
-**Fire publish-progress alert (1 of 3) — once the Notion prepend succeeds.** The
-publish phase is silent for ~15 min between the audit and the final completion
-alert; these three pings make it legible.
-
-```bash
-COMPANY="<subject company name>"
-NOTION_URL="<existing diligence page URL>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-📝 **${COMPANY}** Update section prepended — [diligence page]($NOTION_URL). Building updated PDF next.
-EOF
-```
+(No progress ping here — the run stays silent until the single completion alert at Step 6.)
 
 When prepending the first update to a page that has never been updated before, also insert a
 section divider and header before the original first-pass content:
@@ -861,15 +867,7 @@ upload_resp = requests.post(DRIVE_URL, json={
 file_url = upload_resp.json()["url"]
 ```
 
-**Fire publish-progress alert (2 of 3).** Once `file_url` is in hand:
-
-```bash
-COMPANY="<subject company name>"
-PDF_URL="<file_url from upload response>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-📄 **${COMPANY}** Updated PDF uploaded to Drive — [PDF]($PDF_URL). Linking to Diligence Materials.
-EOF
-```
+(No progress ping here — the run stays silent until the single completion alert at Step 6.)
 
 If Tom attached supplementary materials (decks, plans, models) inline with the skill invocation,
 do NOT re-upload them — they are almost always already in the Diligence Materials property field
@@ -905,9 +903,11 @@ patches and MCP is slower + less reliable on them.
    insert one beneath the `## 📎 Diligence Materials` header.
 
 2. **Diligence Materials Files property field** — follow the shared reference at
-   `/Users/tomseo/.claude/skills/shared-references/add-link-to-diligence-materials.md`. Pass the opportunity
+   `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity
    page ID, the Drive file URL, and display name
-   `[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf`.
+   `[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf`. **Pass `--no-alert`** — the helper
+   auto-fires a `📎 Materials:` ping on every Diligence Materials write, which is redundant
+   with this skill's Step 6 completion alert; suppress it so the run posts only one message.
 
    **MANDATORY verification — never trust the 200 response alone.** Immediately after the property write, re-fetch the Opportunity page and confirm an entry in the `Diligence Materials` files array has `external.url` matching the Drive URL you just wrote. If absent, the write silently failed (observed Factir 2026-05-15 — PATCH returned 200 but Notion kept the stale URL underneath the new display label). Re-PATCH the full files array explicitly, then re-verify. After 3 retries, surface to Tom rather than publish silently. Reference snippet:
 
@@ -919,14 +919,8 @@ patches and MCP is slower + less reliable on them.
 
    If Chrome is unavailable, skip the property field and rely on the page body link.
 
-**Fire publish-progress alert (3 of 3).** Once the property write is verified:
-
-```bash
-COMPANY="<subject company name>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔗 **${COMPANY}** Diligence Materials property updated. Sending completion alert.
-EOF
-```
+Once the property write is verified, proceed directly to the Step 6 completion alert.
+(No progress ping — that's the single alert below.)
 
 Act autonomously — do not ask for permission. Report what was done in the summary.
 

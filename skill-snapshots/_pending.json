@@ -1,8 +1,11 @@
 {
   "skills": {
-    "add-to-crm-detect": "2026-08-27",
-    "update-profile-photo": "2026-08-27"
+    "intro-status-summary": "2026-08-28"
   },
   "launchAgents": {},
-  "webhookHandlers": {}
+  "webhookHandlers": {
+    "draft-supersede-sweep": "2026-08-28",
+    "add-to-crm-detect-inbound": "2026-08-28",
+    "add-contact-detect-inbound": "2026-08-28"
+  }
 }

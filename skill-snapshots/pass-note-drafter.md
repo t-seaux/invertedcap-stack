@@ -293,7 +293,7 @@ File contents:
   "threadId": "<gmail thread id>",
   "recipient": "<founder email>",
   "subject": "<Company> - Inverted follow up",
-  "draftText": "<full plain-text body of the pass note — exclude the signature block from `–` onward since Gmail auto-appends>",
+  "draftText": "<full plain-text body of the pass note — exclude the signature block from `–` onward, because this snapshot is a diff baseline. NOT because Gmail appends it: Gmail does not auto-append to API drafts, so the draft's own htmlBody must carry the signature>",
   "createdAt": "<ISO 8601 timestamp>"
 }
 ```

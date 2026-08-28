@@ -11,7 +11,7 @@ Read `references/schema.md` for the full database schema and field formatting ru
 
 ## Invocation modes
 
-This skill has two entry points:
+This skill has three entry points:
 
 1. **Manual mode** — Tom invokes via "add to crm", "-1 <LI URL>", or a pasted source (screenshot, forwarded email, LI URL, text). Run the full Workflow below starting at Step 1's source-type discrimination.
 
@@ -38,7 +38,25 @@ This skill has two entry points:
    - **Skip Step 4's "Present Summary"** — no human is watching the run-log live. Proceed directly from enrichment to page creation.
    - **Run the new Step 8 (Slack alert)** when done — that's the outcome signal Tom watches. Manual mode does not need Step 8 because Tom is in the conversation.
 
-   If the Protected Status Guard fires (terminal-status duplicate, prior pass, or live-pipeline duplicate), still run Step 8 with the appropriate alert variant (🔁/⛔/🛡️) — do not exit silently.
+3. **Explicit-command mode** — invoked by `add-to-crm-detect` via the claude-job-queue, when Tom wrote "add to crm" in his own text on an email in the watched inbox. Unlike webhook mode, **nothing was classified upstream** — `add-to-crm-detect` only recovered the raw source material, it never inferred Status/Source/Stage. The args dict contains `crmForwardMode: true`:
+
+   ```
+   { crmForwardMode: true,
+     messageId, threadId, gmailMessageUrl,
+     sourceShape,          // "forwarded-email" | "screenshot" | "pasted-text"
+     sourceText,            // extracted plain text for forwarded-email/pasted-text; "" for screenshot
+     screenshotFilePaths }  // local file paths to Read (multimodal); [] unless sourceShape === "screenshot"
+   ```
+
+   In explicit-command mode, treat this exactly like **manual mode** content — run Step 1's normal source-type discrimination and every downstream inference (Status, Source, Stage) exactly as if Tom had pasted this material into a live chat and said "add to crm":
+   - `sourceShape: "forwarded-email"` → treat `sourceText` as the "Forwarded email" input. Still call `mcp__claude_ai_Gmail__get_thread` with `threadId` to read the full thread (later thread progression, dedup signal harvesting) — same reason webhook mode does this.
+   - `sourceShape: "screenshot"` → `Read` each path in `screenshotFilePaths` (multimodal) and run Step 1's "Screenshot" extraction. Any non-empty `sourceText` is Tom's accompanying context, not the primary source.
+   - `sourceShape: "pasted-text"` → treat `sourceText` as Step 1's "Pasted text" input.
+   - **Skip Step 4's "Present Summary"** (no human watching), same as webhook mode.
+   - **Run Step 8 (Slack alert)** when done, same as webhook mode.
+   - Do NOT invent a `statusDirective`/`sourceDirective` — infer both normally from the content, exactly like manual mode would.
+
+   If the Protected Status Guard fires (terminal-status duplicate, prior pass, or live-pipeline duplicate) in webhook mode OR explicit-command mode, still run Step 8 with the appropriate alert variant (🔁/⛔/🛡️) — do not exit silently.
 
 ## Protected Status Guard
 
@@ -461,7 +479,8 @@ When running add-to-crm, if the email body doesn't name the founders, round, or 
 Every new entry in the Opportunities DB must ship enriched, not as a stub:
 
 - **Icon** — always set. Pick a thematic emoji from Notion's standard emoji set. Never create with a blank/default icon.
-- **HQ — MANDATORY, deterministic. Run the full cascade on every row before it is considered complete; never ship `??? 🌀` as a first resort.** Order: source material (email sig, forwarded thread) → LinkedIn via WebFetch → company website footer → **`WebSearch` for `"{company}" headquarters` / `"{company}" {founder} San Francisco|New York|…`** (this is what surfaces HQ for stealth/early companies with a bare marketing site — do NOT skip it) → ContactOut `company.headquarter` as the paid fallback. YC company page is case-by-case (only when clearly YC-backed per LI headline). Map the result to the nearest existing `HQ` select option (per the mapping rule in `references/schema.md`). `??? 🌀` is permitted ONLY after every step above has actually been run and genuinely returned nothing — it is never an acceptable resting state for a row that simply wasn't investigated. **This applies identically in webhook/unattended mode** (the `inbound-deal-detect` path): the thin `classifierHints` are a starting point, not a substitute for the cascade — Step 2 enrichment still runs in full, and HQ is resolved deterministically before exit. Do NOT ask whether to enrich HQ; enrichment is automatic, not prompted.
+- **HQ — MANDATORY, deterministic. Run the full cascade on every row before it is considered complete; never ship `??? 🌀` as a first resort.** Order: source material (email sig, forwarded thread) → LinkedIn via WebFetch → company website footer → **`WebSearch` for `"{company}" headquarters` / `"{company}" {founder} San Francisco|New York|…`** (this is what surfaces HQ for stealth/early companies with a bare marketing site — do NOT skip it) → ContactOut `company.headquarter` as the paid fallback. YC company page is case-by-case (only when clearly YC-backed per LI headline). Map the result to the nearest existing `HQ` select option (per the mapping rule in `references/schema.md`). `??? 🌀` is permitted ONLY after every step above has actually been run and genuinely returned nothing — it is never an acceptable resting state for a row that simply wasn't investigated. **This applies identically in webhook/unattended mode** (the `inbound-deal-detect` / `add-to-crm-detect` paths): the thin `classifierHints` (or the raw forwarded text) are a starting point, not a substitute for the cascade — Step 2 enrichment still runs in full, and HQ is resolved deterministically before exit. Do NOT ask whether to enrich HQ; enrichment is automatic, not prompted.
+  > **Location-mention trap (Collar 2026-08-26 incident):** a location name appearing in the pitch body is not automatically the company's HQ — it may name a *customer, investor, or market* instead (e.g. "we're piloting with Temasek, Singapore's sovereign wealth fund" names an institutional customer, not where the company is based; similarly "backed by Sequoia" or "used by clients across Southeast Asia" are not HQ signals). That run set HQ to Singapore from exactly this misread, found Singapore wasn't a valid schema option, and shipped `??? 🌀` — while the founder's own LinkedIn (which the cascade never actually reached) said San Francisco. Before accepting any location string as HQ, confirm it's attached to the FOUNDER or the COMPANY ENTITY itself (a signature block, an "HQ:"/"based in" line, LinkedIn's location field, a company-website address) — not to a named customer, investor, or market the pitch is name-dropping for credibility.
 - **Contact** — founder email. Source material first (signatures, forwarded threads, deck last slide), then public LinkedIn, then company website contact page. ContactOut (`profile_only=false` for `email`/`personal_email`) is the fallback.
 - **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none.
 - **Description** — one-line what-they-do: YC one-liner, company site hero/meta, LI headline, or deck. Not `TBD`.

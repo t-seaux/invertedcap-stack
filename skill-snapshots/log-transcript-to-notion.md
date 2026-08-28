@@ -15,24 +15,36 @@ Rip a transcript from a video URL (or accept a pre-existing transcript from the 
 
 **If a transcript was already ripped in the current conversation**, use that text directly — do not re-rip.
 
-**If a URL is provided (and no transcript is already in context)**, rip it using `yt-dlp`:
+**If a URL is provided (and no transcript is already in context)**, rip it using `yt-dlp`.
+
+**Modern YouTube blocks yt-dlp's default path — use this recipe (verified on the Cline demo rip, 2026-08-26):**
 
 ```bash
-pip install yt-dlp --break-system-packages -q
+# yt-dlp needs a JS runtime to mint subtitle PO tokens — install once:
+brew install deno   # or: which deno
 
-yt-dlp --no-check-certificate \
-  --write-auto-sub --skip-download \
-  --sub-format ttml --convert-subs srt \
-  -o "/home/claude/transcript" \
+yt-dlp --no-check-certificate --no-update --ignore-no-formats-error \
+  --extractor-args "youtube:player_client=ios" \
+  --write-sub --write-auto-sub --sub-lang "en.*" --skip-download \
+  --sub-format "srt/vtt/best" --convert-subs srt \
+  -o "/tmp/transcript" \
   "<URL>"
 ```
+
+Why each flag matters:
+- **`deno` installed** — without a JS runtime, web/mweb clients return `Some client subtitles require a PO Token` and captions come back empty.
+- **`player_client=ios`** — the default (android/web) client gets `This video is not available` or PO-token-gated subs on unlisted founder videos; `ios` exposes the caption tracks.
+- **`--ignore-no-formats-error`** — REQUIRED. These videos expose only image/storyboard formats to non-JS clients, so yt-dlp otherwise aborts with `Requested format is not available` *before* writing the subtitle file. This flag lets it skip format selection and still write subs.
+- **`--sub-lang "en.*"`** — catches both `en` and `en-orig` manual tracks.
+
+Older path (`--write-auto-sub` alone on the default client) is kept here only as a fallback; if the recipe above yields a `.srt`, use it.
 
 Then clean the raw `.srt` output into plain text:
 
 ```python
 import re
 
-with open('/home/claude/transcript.en.srt', 'r') as f:
+with open('/tmp/transcript.en.srt', 'r') as f:  # or transcript.en-orig.srt if that's what landed
     content = f.read()
 
 lines = content.split('\n')

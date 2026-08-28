@@ -41,7 +41,12 @@ Behavior:
 
 ## Mode C (email): BCC-to-contacts queue
 
-When invoked with `{mode: "email", messageId, threadId, alias}`, Tom BCC'd (or forwarded) an email to `tom+contact@invertedcap.com` to capture its counterparty into the People DB. The gmail-webhook `add-contact-inbound` handler already archived the message (label `contact-add`, skipped inbox) and enqueued this job via claude-job-queue. This runs **fully unattended** — apply the guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md`: never ask, skip-and-log on missing data, always reach Slack with a result line.
+When invoked with `{mode: "email", messageId, threadId, ...}`, Tom asked to capture an email's counterparty into the People DB. Two gmail-webhook gates enqueue this same Mode C job, both after archiving the message (label `contact-add`, skipped inbox):
+
+- **`add-contact-inbound`** — Tom BCC'd or forwarded to the `tom+contact@invertedcap.com` plus-alias. Args include `alias: "tom+contact@invertedcap.com"`.
+- **`add-contact-detect`** — Tom forwarded from one of his own addresses (`tom@invertedcap.com`, `tom@dashfund.co`, `thomas.seo@outlook.com`, `kenyonseo@gmail.com`) and wrote **"add to contacts"** in his cover note. No `alias` arg; args carry `trigger: "add-to-contacts-detect"`. Treat this exactly like a forward-to-alias — infer the counterparties from the forwarded original / thread.
+
+This runs **fully unattended** — apply the guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md`: never ask, skip-and-log on missing data, always reach Slack with a result line. When Tom forwards several emails at once they arrive as separate jobs; the Step C2 dedup (`workspace_search` → create-or-update) is what guarantees repeated people yield **net-new rows only**, never duplicates.
 
 ### Step C1 — Read the message and identify who to add
 
@@ -51,7 +56,7 @@ When invoked with `{mode: "email", messageId, threadId, alias}`, Tom BCC'd (or f
    - **Tom forwarded a received email to the alias** → the counterparty is the **original sender** of the forwarded message (read it out of the forwarded `From:` line or the quoted header block), plus any other external people quoted on it.
    - When ambiguous, use judgment on who the human of interest is; the signature block and who's being addressed by name usually make it obvious.
 3. **Exclude, always:**
-   - Tom's own addresses: `tom@invertedcap.com`, `tom@dashfund.co`, `thomas.seo@outlook.com`, and the capture alias `tom+contact@invertedcap.com` itself.
+   - Tom's own addresses: `tom@invertedcap.com`, `tom@dashfund.co`, `thomas.seo@outlook.com`, `kenyonseo@gmail.com`, and the capture alias `tom+contact@invertedcap.com` itself.
    - Automated / non-human senders: `no-reply`/`noreply`, `notifications@`, `mailer-daemon`, `updates@`, `news`/`newsletter@`, `alerts@`, `support@`, calendar-invite senders, and obvious list/blast addresses.
 4. **Add ALL remaining external people** (Tom's confirmed default). If there are several, process each; if there are none after exclusions, skip-and-log and still post a Slack line saying so.
 
@@ -66,17 +71,16 @@ For **each** identified person, run the standard person pipeline from this skill
    - **No match → CREATE** a fresh row per Step 4 (including the `touch /tmp/.addcontacts-bypass` gate marker and the icon).
 4. Populate Category, City, State, and set the icon exactly as in the manual flow.
 
-### Step C3 — One consolidated Slack alert
+### Step C3 — One consolidated Slack alert (net-new only)
 
-After processing everyone, post a **single** `send-alert` message summarizing the run — one line per person with the action taken and a Notion link, e.g.:
+After processing everyone, post a **single** `send-alert` message that lists **only the net-new contacts created** — one line per newly-created person with a Notion link. Do **not** mention people who were already in the People DB at all (no per-line entries, no trailing count). e.g.:
 
 ```
-📇 Contacts (BCC) — 2 processed
-• Created: Jane Okafor (Series A, Stripe) — <notion link>
-• Updated: Marco Ruiz (added email + role) — <notion link>
+📇 Contacts — 1 net-new
+• Libby Fidel (Investor, CoFound) — <notion link>
 ```
 
-If nothing was actionable (only Tom / automated senders), still post a short line so the queue run is never silent. Never send a separate alert per person.
+If there were **no** net-new contacts (everyone already existed, or only Tom / automated senders), still post one short line so the queue run is never silent, e.g. `📇 Contacts — 0 net-new`. Never list existing people, and never send a separate alert per person.
 
 ## Fields to Populate
 

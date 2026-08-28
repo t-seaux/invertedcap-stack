@@ -42,11 +42,11 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 - Run Step 2.5 (idempotency gate) to filter to the unlabeled subset.
 - Run Steps 3 + 4 normally on the delta set, scoped to the thread.
 - Apply the outcome label (`claude/materials-processed` on full success, `claude/materials-failed` on any fatal per-item failure) per Step 2.5 after processing.
-- Replace Step 5 with the Slack alert format below.
+- The Slack alert is emitted automatically by the Step 4 `--batch-json` call — do NOT send it yourself.
 
-**Slack alert (Mode B only) — fires only on success with ≥1 new artifact:**
+**Slack alert — code-enforced by the write, NOT model-executed:**
 
-Posted via the `send-alert` skill. Format (GFM — `send-alert` converts to Slack Block Kit):
+The consolidated `#claude-alerts` ping fires deterministically from inside `notion_files_property.py` whenever the `--batch-json` (or a non-`--no-alert` single `--url`) call lands ≥1 new chip on Diligence Materials / Deal Docs. This is the fix for the silent-append bug (Cline, 2026-08-25): the alert can no longer be skipped because it's a side effect of the write, not a step the model has to remember. Your only jobs are to (a) pass `--email-message-id` so the header carries the `(Email)` link, and (b) NOT compose or send any separate materials alert. The format the helper emits (for reference only):
 
 ```
 **📎 Materials: [{Opp Name}](https://www.notion.so/{oppId}) ([Email](https://mail.google.com/mail/u/0/#all/{messageId}))**
@@ -180,8 +180,10 @@ Classify each relevant email's materials into **delivery categories** (how to fe
 - **DocSend link** (URL matching `docsend.com/view/`)
 - **Direct file URL** (Google Drive share link, Dropbox link, raw PDF URL)
 - **Data room link** (DocSend `/view/s/` or similar multi-doc container)
-- **Papermark deck** (URL matching `papermark.com/view/` or `*.papermark.io/view/`) — email-gated image deck. **Convert to a Drive PDF** via screenshot-capture (Step 3F), NOT linked as-is. Interactive GUI only; headless/webhook runs fall back to link-only.
-- **Link-only / non-convertible** (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, **Brieflink (`brieflink.com`)**, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
+- **Papermark deck** (URL matching `papermark.com/view/` or `*.papermark.io/view/`) — email-gated image deck. **Convert to a Drive PDF** via the pure-HTTP extractor (Step 3G), NOT linked as-is. Works headless — no GUI/webhook fallback needed anymore (unless the link is password/agreement-gated).
+- **Video link** (YouTube `youtu.be`/`watch`, Loom, Vimeo — demo walkthroughs, founder videos) — **Step 3H**. Linked verbatim as a chip AND ripped to a transcript note tagged to the Opp. Do not treat a video as a plain link-only material — it gets the extra transcript step.
+- **Link-only / non-convertible** (Figma, Miro, Pitch.com, Canva, Notion.site, **Brieflink (`brieflink.com`)**, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
+  - **Pass the URL to `notion_files_property.py` byte-for-byte as it arrived — copy-paste from the source, never retype or reconstruct it.** Do NOT normalize, shorten, or convert between equivalent forms (e.g. `youtu.be/<id>` → `youtube.com/watch?v=<id>`, stripping `?feature=shared`, canonicalizing a Figma/Loom path). These rewrites are where video/share IDs get silently truncated and the link dies — Cline's demo was filed as `watch?v=9wKiITaLA` when the founder sent `youtu.be/069wKiITaLA`, dropping two chars (Tom, 2026-08-26). The founder's original string is the only safe input; if you can't copy it verbatim, don't file it.
 
 **Destination category** (drives Step 4 chip routing — see "Property Routing" below):
 - **Diligence Materials** (default) — evaluation artifacts: pitch decks, memos, one-pagers, case studies, investor updates, financial/operating models, customer references, product demos.
@@ -200,6 +202,8 @@ Every saved artifact lands in EITHER `Diligence Materials` OR `Deal Docs`, never
 - **Legal-doc signatures on the first page:** "WHEREAS", "Per Share Price", "Liquidation Preference", "Pre-Money Valuation", "This SAFE", "in consideration of", signature/notary blocks
 
 **Named-type shortcut (highest confidence).** When Tom names the doc type in his instruction — "log the **term sheet** / **side letter** / **SAFE** / **SPA** / **cap table** in the [company] opp" — that stated type IS the routing signal; route to Deal Docs without needing a filename or first-page match. An explicit type in the ask always wins over filename heuristics.
+
+**Deal Docs are stored as received — never mint a derived copy (Tom, 2026-08-25).** For anything routed to `Deal Docs`, the file as it arrived IS the artifact. Do not transcribe it into a Google Doc, re-render it as "machine-readable" text, or otherwise create a second copy — and never drop one into `Diligence/[Company]/`, where later diligence passes and memo drafts will read it as source material. Derived copies drift from the original, and plaintext strips the visual cues that make a transaction doc verifiable. Wire instructions are the acute case: a Doc reads as authoritative but carries none of the bank's formatting, so a tampered version is indistinguishable from a real one. If you need the contents to reason, read the original in-context and leave nothing behind.
 
 **Route to `Diligence Materials` (default) for everything else** — decks, memos, one-pagers, case studies, investor updates, financial models (operating projections, NOT cap tables), customer references, product demos, etc.
 
@@ -345,9 +349,39 @@ Use this path when the source email includes a live product demo — typically a
 
 ### 3G: Papermark Decks (`papermark.com/view/…`) — capture to PDF, don't link as-is
 
-Papermark viewers are email-gated image decks whose share links expire. Snapshot the slides into a durable Drive PDF instead of linking the gated URL. **Follow `/Users/tomseo/.claude/skills/shared-references/papermark-deck-capture.md` for the full recipe** — open in a new Chrome tab, auto-pass the email gate with `tom@invertedcap.com` (sanctioned for Papermark viewers per Tom 2026-08-11), `screencapture` each slide cropped to the slide rect, drop the Papermark end-card, `img2pdf` → PDF, upload to `Diligence/<Company>/` via `drive-upload.md`, then link the Drive file URL in Diligence Materials via `add-link-to-files-property.md` and `--remove` any prior Papermark chip.
+Papermark viewers are email-gated image decks whose share links expire. Snapshot the pages into a durable Drive PDF instead of linking the gated URL. **Run the pure-HTTP extractor:**
 
-**Interactive GUI only** (needs Chrome + Screen Recording permission). In headless / webhook / scheduled runs, fall back to Step 3E link-only (link the Papermark URL as-is) and flag `⚠️ Papermark deck linked as-is — re-capture to PDF in an interactive session` so it can be snapshotted later.
+```bash
+python3 ~/.claude/scripts/papermark_extract.py "<papermark_url>" --out-dir /tmp/<co>_pm --json --quiet
+```
+
+It reverse-engineers Papermark's view API (`/api/views` + `/api/views/pages`) — **no browser, no screen capture, works headless and in webhook/scheduled runs**, correct for docs of any length. Auto-passes the email gate with `tom@invertedcap.com` (sanctioned for Papermark viewers per Tom 2026-08-11). Exit 0 = PDF written (path in the `--json` output); exit 4 = blocked (password/agreement — pass `--password`, else flag for interactive capture); exit 2/5 = incomplete/parse error. Full contract + fallbacks in `/Users/tomseo/.claude/skills/shared-references/papermark-deck-capture.md`.
+
+Then upload the PDF to `Diligence/<Company>/` via `drive-upload.md`, link the Drive file URL in Diligence Materials via `add-link-to-files-property.md`, and `--remove` any prior Papermark chip (the PDF supersedes the gated link).
+
+**Only a password- or agreement-gated link (exit 4) still needs a fallback** — pass `--password`, or in an unattended run link the Papermark URL as-is (Step 3E) and flag `⚠️ Papermark deck linked as-is — password/NDA gated, re-capture interactively`.
+
+### 3H: YouTube / Video Links (demo walkthroughs, founder videos) — link verbatim AND log a transcript note
+
+Any YouTube (`youtube.com/watch`, `youtu.be/…`), Loom, Vimeo, or other hosted-video URL that arrives as diligence material gets **two** things, not one:
+
+1. **File the link as a chip — verbatim (Step 3E rules apply).** The video URL is the canonical artifact; it goes straight into Diligence Materials via `add-link-to-files-property.md`. **Pass the URL byte-for-byte as the founder sent it — never retype, normalize, or convert between forms** (`youtu.be/<id>` → `watch?v=<id>`, stripping `?feature=shared`, etc.). That rewrite is how a video ID gets silently truncated and the chip dies (Cline demo filed as `watch?v=9wKiITaLA` when the founder sent `youtu.be/069wKiITaLA` — Tom, 2026-08-26). Label: `[Company] - <Video Title> (YouTube)` or `[Company] Demo (YouTube)`.
+2. **Rip a transcript and create a Notes-DB entry tagged to the Opp.** Delegate to the **`log-transcript-to-notion`** skill (read `/Users/tomseo/.claude/skills/log-transcript-to-notion/SKILL.md`), passing the video URL and the resolved Opportunity page URL so the note's `Opportunity` relation is set. That skill rips the captions with `yt-dlp`, builds the note (Source / Speaker / Summary + Frameworks + Transcript), sets the `:claude-color:` icon, and runs `note-classifier` (an Opp-linked pipeline note classifies as **Diligence**). Note title follows that skill's format, e.g. `Transcript: <Company> Product Demo — <Company> (Mon DD, YYYY)`.
+
+**yt-dlp reality check (learned on the Cline rip, 2026-08-26).** Modern YouTube blocks yt-dlp's default path. The recipe that works for unlisted founder demos:
+- A JS runtime is required — `deno` (installed via `brew install deno`). Without it, subtitle PO-token minting fails and captions come back empty.
+- Use the `ios` player client and tolerate the missing video format (we only want captions):
+  ```bash
+  yt-dlp --no-check-certificate --no-update --ignore-no-formats-error \
+    --extractor-args "youtube:player_client=ios" \
+    --write-sub --write-auto-sub --sub-lang "en.*" --skip-download \
+    --sub-format "srt/vtt/best" --convert-subs srt \
+    -o "/tmp/<co>_demo" "<verbatim video URL>"
+  ```
+  `--ignore-no-formats-error` is essential — otherwise yt-dlp aborts on "Requested format is not available" (the video exposes only image/storyboard formats to non-JS clients) *before* it writes the subtitle file. Then clean the `.srt` with the dedup pass in `log-transcript-to-notion` Step 1.
+- If captions genuinely don't exist (the metadata shows no manual subs and `has no automatic captions`), file the chip per (1), note `⚠️ no captions available — transcript not logged` in the Step 5 summary, and move on. Do not block the chip write on the transcript.
+
+Both outputs are independent — a failed transcript rip never blocks the chip, and vice versa.
 
 ## Step 4: Update the Notion Opportunity Page
 
@@ -410,30 +444,35 @@ python3 ~/.claude/scripts/notion_files_property.py \
     --prop "Diligence Materials" \
     --url "https://drive.google.com/drive/folders/<folderId>" \
     --label "[G DRIVE] [Company Name] Diligence Materials" \
-    --prepend
+    --prepend --no-alert
 ```
 
-`--prepend` only matters the first time — once the chip exists, every later run's idempotency check (URL match) skips it, and normal appended chips already land after it. Never apply this to Deal Docs.
+`--prepend` only matters the first time — once the chip exists, every later run's idempotency check (URL match) skips it, and normal appended chips already land after it. Never apply this to Deal Docs. **`--no-alert` is required here** — the folder-pin is infrastructure, not a material; it must never appear in the consolidated ping (see Step 5).
 
-Shell out to the public-API helper:
+**Write all real materials in ONE batch call** — this fires the single consolidated `#claude-alerts` ping automatically (see Step 5). After the folder-pin, collect every material saved in the preceding steps into a `--batch-json` array of `{prop, url, label}` items (mix Diligence Materials and Deal Docs freely — the helper groups them in the alert) and make one call:
 
 ```bash
 python3 ~/.claude/scripts/notion_files_property.py \
     --page-id <opportunity_page_id> \
-    --prop "Diligence Materials" \
-    --url "<drive_or_external_url>" \
-    --label "<display_label>"
+    --batch-json '[
+      {"prop":"Diligence Materials","url":"<file_url>","label":"<display_label>"},
+      {"prop":"Deal Docs","url":"<file_url>","label":"<display_label>"}
+    ]' \
+    --email-message-id "<gmail_message_id>"
 ```
 
-Exit 0 = success (including idempotent skip when URL already present); exit 1 = hard failure (log + body-only fallback). See `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` for the full interface.
+- `--email-message-id` adds the `(Email)` deep-link to the ping header — pass the trigger message's Gmail ID whenever available (Mode B always has it).
+- The helper adds each item (idempotent on URL, preservation-safe), then fires ONE consolidated ping listing only the chips that **newly landed** on Diligence Materials / Deal Docs. Items that skip (already present) are silently excluded — a re-run that adds nothing new sends nothing. **Do not compose or send a materials alert yourself** — the batch call owns it (this is why Step 5's alert is code-enforced, not model-executed).
+- Exit 0 = success (including idempotent skips); a per-item hard failure is reported in the `results` array with exit still 0 unless *every* item failed. See `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` for the full interface.
+- Single-add form (`--url`/`--label`/`--prop`) still works and also auto-pings for these two props unless `--no-alert` is passed — but for a materials drop always prefer the batch call so Tom gets ONE message, not one per file.
 
 **Critical: Always link the specific file URL** (`https://drive.google.com/file/d/<fileId>/view`), never the folder URL. The file ID comes from the Drive Upload Apps Script `upload` response — use it directly, don't re-search.
 
 **Link-only materials (Step 3E) are the explicit exception** — for Figma, Miro, Loom, Pitch.com, Canva, Notion.site etc., pass the external URL itself (e.g. `https://figma.com/deck/...`). These materials have no Drive counterpart; the external URL is the canonical artifact and MUST still be written to the property field — "no Drive URL" is not a reason to skip.
 
-For each file saved to Drive in the preceding steps, call the helper with the opportunity page ID, the Drive file URL, and a descriptive display name that matches the PDF filename (e.g., `Chief Rebel - Week 20 Investor Update.pdf`). For link-only materials, use the external URL and a label like `Bloom - Deck (Figma)`. For multiple files, call once per URL — the helper is idempotent on URL.
+Give each file a descriptive display name that matches the PDF filename (e.g., `Chief Rebel - Week 20 Investor Update.pdf`); for link-only materials, use the external URL and a label like `Bloom - Deck (Figma)`. Assemble all of them into the single `--batch-json` call above — one call per drop, not one per file — so the consolidated ping lists them together.
 
-Skip this step only if the helper exits 1 (hard failure). In that case, note it in the summary and continue — the page body link is the interim record.
+Skip this step only if the batch call reports every item failed. In that case, note it in the summary and continue — the page body link is the interim record.
 
 ## Step 4.4: Materials Hygiene — PDF Snapshot Supersedes Native / Link-Only Chip
 

@@ -250,7 +250,7 @@ Evaluate the email content to determine which case applies, checked in this orde
 >
 > The webhook enforces this in code (`investor-update.js → detectStrippedAttachment`), so Mode B never enqueues a content-less job. Modes A and C must apply the same rule themselves. MakersHub 2026-07-14 is the precedent: the Q2 letter's entire content was in the PDF, the forward dropped it, and the body was signature-only.
 
-> **⚠️ ALWAYS probe for attachments first.** Run the Gmail Attachment Saver on the target message unconditionally *before* considering Case B / C / D / E — even when the email body shows a Google Doc/Slides link or appears to be pure prose. Tom frequently forwards investor updates with the PDF attached (and texts himself board deck PDFs alongside the Slides share notification). The `plaintextBody` returned by the Gmail MCP hides attachments behind the `￼` (object-replacement) placeholder glyph, so the only reliable signal is probing the message with the Attachment Saver. Jumping straight to Case B/D when you see a Google Doc/Slides link duplicates work Tom already did and is a regression. If the saver returns a PDF, use Case A and stop. Only fall through to Case B / Case C / Case D / Case E if the saver returns zero files.
+> **⚠️ ALWAYS probe for attachments first.** Run the Gmail Attachment Saver on the target message unconditionally *before* considering Case B / C / D / E — even when the email body shows a Google Doc/Slides link or appears to be pure prose. Tom frequently forwards investor updates with the PDF attached (and texts himself board deck PDFs alongside the Slides share notification). The `plaintextBody` returned by the Gmail MCP hides attachments behind the `￼` (object-replacement) placeholder glyph, so the only reliable signal is probing the message with the Attachment Saver. Jumping straight to Case B/D when you see a Google Doc/Slides link duplicates work Tom already did and is a regression. If the saver returns a PDF, use Case A and stop. Only fall through to Case B / Case C / Case D / Case E / Case F (linked Notion page) if the saver returns zero files.
 
 ### Case A: PDF attachment exists
 
@@ -412,12 +412,29 @@ Founders sometimes ship updates as interactive content rather than written prose
 
 
 
-For Cases A, B, and D — where substance can live in a separate artifact (PDF attachment, Google Doc/Sheet, Google Slides) rather than only the email body — read the saved artifact before drafting the Notion page in Step 4. This is what enables the Summary and Traction fields to reflect actual update content rather than defaulting to "see attached" / `N/A`. Founders routinely put the headline number in the artifact, not the email body — especially board decks (Case D) and Doc-based updates (Case B).
+### Case F: Email links to a Notion page (the update lives in Notion)
+
+Founders increasingly ship the update as a **shared Notion page** (any workspace — often their own, e.g. `app.notion.com/p/{workspace}/...` or a `*.notion.site` link) with a short covering note in the email body ("More details here: …"). The linked page IS the update; the email body is just the teaser. Treat it like Case B/D — the substance is in the artifact, not the body.
+
+> **⚠️ FULLY-EXPANDED IS THE CONVENTION (Tom, 2026-08-26).** Notion pages hide substance inside **collapsed toggles**. The archive and the Notion Formal section MUST contain the page with **every toggle and nested bullet expanded** — never the collapsed headers alone. A saved update showing only toggle titles is a regression. This applies to ALL Notion-hosted updates.
+
+**The Notion API (`notion-fetch`) 404s on pages outside Tom's workspace** — the founder's page is on their own workspace, not shared with Tom's integration. Use Notion's public block-tree endpoints instead (no auth needed for shared/published pages):
+
+1. Convert the page ID from the URL to dashed UUID form (`3c864c4ef014...` → `3c864c4e-f014-...`).
+2. `POST https://www.notion.so/api/v3/loadPageChunk` with `{"pageId":"<uuid>","limit":200,"cursor":{"stack":[]},"chunkNumber":0,"verticalColumns":false}` → returns the top-level `recordMap.block` tree. Toggle **children are referenced in each block's `content[]` but are NOT in the first chunk.**
+3. Collect every block ID referenced in a `content[]` that is absent from `recordMap.block`, then batch-fetch them via `POST https://www.notion.so/api/v3/syncRecordValues` with `{"requests":[{"pointer":{"table":"block","id":"<id>","spaceId":"<spaceId from any block>"},"version":-1}, ...]}`. Loop until no referenced ID is missing (toggles can nest). This is what "expands all bullets."
+4. Walk the tree from the root page, rendering each block (`header`/`sub_header` → headings, `bulleted_list`/`numbered_list`/`to_do` → bullets, `toggle` → bold label **with its children rendered inline beneath it**, `quote`/`callout`, `code`, `image`/`embed` → note the URL) to markdown. Recurse into `content[]` for every block.
+5. Render that full markdown to PDF (Case C weasyprint path), name it `[Company] - [Period] Update.pdf`, upload to the company subfolder, and put the **entire expanded body** into the Formal section (Step 4d) — not just the email teaser. Link both the PDF (📄) and the original Notion page URL (in body + Artifacts).
+
+A parser reference implementation lives at `references/notion_public_page.py` — reuse it rather than re-deriving the block walk each time.
+
+For Cases A, B, D, and F — where substance can live in a separate artifact (PDF attachment, Google Doc/Sheet, Google Slides, linked Notion page) rather than only the email body — read the saved artifact before drafting the Notion page in Step 4. This is what enables the Summary and Traction fields to reflect actual update content rather than defaulting to "see attached" / `N/A`. Founders routinely put the headline number in the artifact, not the email body — especially board decks (Case D), Doc-based updates (Case B), and Notion-hosted updates (Case F).
 
 - **Case A (PDF attachment):** read the saved PDF via `mcp__claude_ai_Google_Drive__download_file_content` using the `fileId` returned by the Gmail Attachment Saver. (Or fetch the attachment inline via the Gmail MCP and parse the PDF locally.)
 - **Case B (Google Doc/Sheet):** read the file via `mcp__claude_ai_Google_Drive__read_file_content` using the `fileId` returned by `copyFile` (forwarded-from-dashfund path) or by `google_drive_fetch` (direct-email path).
 - **Case D (Google Slides):** read the exported PDF via `mcp__claude_ai_Google_Drive__download_file_content` using the `fileId` returned by the dashfund-proxy or by the direct-email upload step. For image-heavy decks where text extraction comes back thin, use `mcp__claude_ai_Google_Drive__get_file_metadata` for the content snippet as a fallback.
 - **Case E (Loom / video / audio):** read the `video.en.vtt` transcript pulled via yt-dlp at Case E's transcript fetch step. Strip the WEBVTT timecode lines and concatenate the spoken text. The transcript IS the artifact — there is no PDF to read.
+- **Case F (linked Notion page):** the fully-expanded markdown produced by the loadPageChunk + syncRecordValues walk above IS the artifact — extract Traction/Summary from the expanded body (toggle contents carry the reforecasts, pricing changes, and per-segment detail the teaser omits).
 
 Extract the canonical aggregate metric (Traction) and the headline narrative (Summary) per the rules in Step 4, AND draft the per-section page-body summary required by Case E. **Never default to "see deck" / "see attached" / "watch the Loom" / `N/A` when the artifact was successfully read** — the whole point of reading the artifact is to make its content searchable in Notion.
 
