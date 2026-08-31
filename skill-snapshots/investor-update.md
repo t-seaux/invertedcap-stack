@@ -716,6 +716,8 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 
 **Notification channel:** All alerts (success, non-portfolio, misclassification review) MUST be delivered via the `send-alert` skill at `/Users/tomseo/.claude/skills/send-alert/SKILL.md` — pipe the GFM body through `~/.claude/skills/send-alert/send.sh`. This posts as the `claude` bot identity (the canonical channel for LLM-synthesized alerts; distinct from `tom` MCP and `alerts` Apps Script).
 
+**HARD RULE — every DB write alerts, ALL modes including Mode C (Tom, 2026-08-28).** Any run that creates or upserts a Company Updates row sends the Slack alert — sweep, webhook, AND manual/in-conversation runs. Mode C uses the Mode B single-line format. Do NOT skip the alert because Tom is present in the conversation (precedent: the AgentBay Aug 2026 manual capture initially skipped it and the alert had to be backfilled) — #claude-alerts is the durable audit trail of DB writes, not just a notification channel; an in-chat summary does not replace it. The only alertless exits are no-op exits (idempotency skip, or a filtered non-write — those follow their own alert sections above).
+
 **Do NOT use `mcp__claude_ai_Slack__slack_send_message`** — that posts as `tom` (your user identity) and conflates with messages you actually sent. Mode B misclassification alerts and Mode A summaries both go via send-alert.
 
 **Alert format (Slack):** Organize by **company**. Bold company names using GFM double asterisks (`**Quiet AI**`). Split into two sections: `**Portfolio**` (companies with Status in the Active Portfolio set, where the update was archived to Notion) and `**Non-Portfolio (filtered)**` (companies that didn't qualify — pipeline-only, unknown sender, or personal newsletter).

@@ -1,5 +1,25 @@
 # Changelog
 
+## [2026-08-31] (Week of 2026-08-31)
+
+**Added:** None to visible functions.
+**Pending (newly detected, uncategorized):** add-to-calendar (2026-08-31), investor-crm (2026-08-31), purchase-agent (2026-08-31), sms-listener (2026-08-31) — 5 total pending skills including intro-status-summary (2026-08-28)
+**Removed:** None
+**Modified:**
+- add-to-crm — pipeline-entry gate added (runs first, before the Protected Status Guard)
+- batch-add-to-crm — incorporated-companies assumption documented; rejects lists of people rather than companies
+- deal-share-out — LI field rule added: the LinkedIn URL field must not render N/A on outbound share cards
+- investing-style — description updated: doc is now explicitly flagged as PRIVATE (not public-facing)
+- investor-update — HARD RULE added: every DB write must trigger a Slack alert across all modes including Mode C
+- materials-handler — pre-converted handoff path added for DocSend PDFs passed in from add-to-crm Step 6
+- neg1-enricher — minor wording update to candidate card formatting rules
+- neg1-sourcing-listener — fast-path Opportunity creation clarified (do not run add-to-crm enrichment inline)
+- pipeline-agent — Source field attribution rule updated (email source → People-DB referrer name lookup)
+**Total skills:** 50 visible + 5 pending
+**Functions:** No visible function changes
+
+---
+
 ## [2026-08-28] (Week of 2026-08-25)
 
 **Added:** add-to-crm-detect (Pipeline Management — webhook handler for Tom's explicit "add to crm" email command; delegates to add-to-crm in explicit-command mode), intro-status-summary (Intro Management — produces a founder-facing intro status Gmail draft covering pending, connected, and passed contacts with verbatim feedback for a named round)

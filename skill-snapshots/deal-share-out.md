@@ -132,13 +132,24 @@ If the company has multiple round cards, share from the card Tom means — defau
   slide; else `🏁 Founder(s)` relation → People DB (last — DNM founders almost never have a
   People row, Tom 2026-08-20). First name only resolvable → use it; never guess a surname (an
   ambiguous LI slug like `danieliu3120` does NOT resolve one).
-- Founder LinkedIn URL, in this order (deck first — same reason):
+- Founder LinkedIn URL — **the LI field should NOT render `N/A`** (Tom, 2026-08-28). Founders
+  have LinkedIn profiles; an `N/A` here reads as "didn't look" and is treated as a defect, not an
+  acceptable value. Climb the FULL ladder for EACH named founder — in order (deck first — same
+  reason):
   1. **The Diligence Materials deck** — the contact/team slide usually carries the profile URL,
      and the deck is in-scope founder material, not outside research (Solderable 2026-08-20;
      DocSend captures have no text layer — Read the PDF pages visually).
-  2. `contactout_email_to_linkedin` on the Contact email.
-  3. The People DB row's LI field (rarely exists for shared deals).
-  Still nothing → `N/A`. Never guess a slug from a name — a wrong profile is worse than N/A.
+  2. `contactout_email_to_linkedin` on EVERY founder email you have (not just the Contact) —
+     run it per founder address; a founder with an `@company` email almost always resolves.
+  3. `contactout_search_people` / `contactout_enrich_person` by founder name + the deal's company
+     — accept a hit ONLY when its current company/role matches the deal (that verification is
+     what separates it from guessing; a name-only match is not enough).
+  4. The People DB row's LI field (rarely exists for shared deals).
+  Never paste an unverified slug guessed from a name — a wrong profile is worse than a hole. But
+  if the full ladder genuinely comes up empty for a founder, that is a **flag, not a silent
+  `N/A`**: call it out in the Step 6 confirmation (Mode C) / the draft's Slack alert (webhook
+  modes) as "couldn't resolve LI for <founder> — supply before sending", so Tom can fill it in
+  rather than the draft shipping with a blank LI.
 - `🕰️ Funding History` relation (list of sibling Opp cards, one per round)
 - Page body → the **Original Email** section (bold label or heading; written by `add-to-crm`)
 - `Source Thread ID` (fallback for Step 4 if the body has no Original Email section)
@@ -228,6 +239,20 @@ inner fragments per the stylebook — the script owns labels, line breaks, separ
 blockquote styling. Applies to BOTH creation paths and ALL modes (the webhook runtime has
 Python; this is the same pattern as the endpoint POST).
 
+**Materials line = deck + memo ONLY** (Tom, 2026-08-28). List the pitch deck and, if one exists,
+the memo — nothing else. **Label the memo just `Memo`, never `Investment Memo`** (Tom,
+2026-08-28). NEVER surface a demo/product video, data-room link, loom, or any other artifact on
+the Materials line, even when it's sitting in the Opp's Diligence Materials. Attached items read
+`(attached)` (e.g. `Deck (attached), Memo (attached)`).
+
+**Materials lists ONLY files actually ATTACHED to the email — never a third-party viewer link**
+(Tom, 2026-08-28). A deck or memo that lives behind a DocSend / Papermark / data-room / any
+external-viewer link does NOT go in the email as a link. If it can be ripped to a PDF and
+attached (Step 1b's DocSend/Papermark rip → Drive → attach), attach it and list it `(attached)`.
+If it can't be attached (hard email gate, un-rippable), OMIT it — do not paste the link. The
+Materials line only ever names things the recipient can open from the email itself. If neither a
+deck nor a memo can be attached → `Materials: N/A`.
+
 **Dedup first** — `create_draft` is not idempotent and deleting drafts is unreliable
 ([[feedback_founder_outreach_draft_dedup]]): check BOTH `list_drafts` with
 `query: subject:"Deal Share: <Company>"` AND sent mail
@@ -297,8 +322,28 @@ body tweak must re-create via the endpoint, then delete the stale draft with the
 added 2026-08-20 v204 — reliable, unlike the Chrome automation script). Delete only drafts THIS
 flow created; Tom's own drafts are his.
 
-Do NOT send. Do NOT call `send-alert` — the AI-draft PostToolUse hook on `create_draft` pings
-#claude-alerts on its own.
+Do NOT send — draft only.
+
+**Fire a Slack alert on EVERY draft creation** (Tom, 2026-08-28). The two creation paths alert
+differently on their own: the MCP `create_draft` PostToolUse hook pings #claude-alerts only on
+path (a), while path (b) / the endpoint — which ALL webhook-mode drafts and every
+materials-present draft use — bypasses that hook and would otherwise land SILENTLY. So this skill
+sends ONE consistent alert itself, in all modes:
+
+1. **Before** creating the draft, mute the generic hook so path (a) doesn't double-fire:
+   `~/.claude/scripts/draft_alert_mute.sh on --label deal-share-out`
+2. **After** the draft lands, pipe a summary to `send-alert` (`send-alert/send.sh`):
+
+   ```bash
+   cat <<'EOF' | ~/.claude/skills/send-alert/send.sh
+   ✍️ Deal share drafted — <Company> (<Stage>)
+   → <Firm(s)> (bcc) — in [drafts](https://mail.google.com/mail/u/0/#drafts)
+   <caveats, one per line: couldn't resolve LI for <founder> — supply before sending; Materials N/A; no founder email; …>
+   EOF
+   ```
+
+This fires in Mode C, B1, and B2. Mode B1 STILL posts its `#decision-retros` close-loop reply in
+addition (that answers the 👣 reaction; the #claude-alerts ping is the standard draft notice).
 
 ---
 
@@ -332,8 +377,10 @@ Invoked headlessly by the claude-job-queue processor. NEVER ask questions.
 **B2 (auto on pass)** — `args: {mode: "webhook-status", page_id, status, oppName}`. Deltas:
 skip the fingerprint resolution (delta 1 below) and go straight to Step 1's `notion-fetch` with
 `page_id`; recipients per delta 2; always create via the endpoint (delta 2b); **no close-loop
-post** — the draft appearing in Drafts IS the signal, and the Step 5 dedup exits silently on
-re-fires. Guard: re-check the Opp's current Status on fetch — no longer a pass/NR status (Tom
+post** — but it STILL fires the Step 5 #claude-alerts draft alert (that's the notice Tom gets;
+"no close-loop" means no `#decision-retros` reply, since there's no reaction thread to answer),
+and the Step 5 dedup exits silently on re-fires (a re-fire that finds the existing draft does NOT
+re-alert). Guard: re-check the Opp's current Status on fetch — no longer a pass/NR status (Tom
 reversed within the debounce window) → exit without drafting. **Read the `Shared` relation
 FRESH from that same fetch and honor every entry regardless of who wrote it** — Tom hand-adds
 entries in Notion (often right before flipping the status), so the already-shared exclusion must

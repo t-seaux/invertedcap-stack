@@ -289,6 +289,8 @@ For each email containing relevant attachments:
 
 ### 3B: DocSend Links (No Chrome Needed)
 
+**Pre-converted handoff:** if the caller (add-to-crm Step 6) passed a local PDF path already converted from this DocSend URL, skip steps 1–3 below and jump straight to naming (if needed) + upload with that file — never re-convert a URL the caller already converted.
+
 Follow the `docsend-to-pdf` skill at `/Users/tomseo/.claude/skills/docsend-to-pdf/SKILL.md` for the exact Python conversion approach:
 
 1. Use the `requests` + `Pillow` method to convert the DocSend document to PDF.

@@ -1,6 +1,10 @@
 {
   "skills": {
-    "intro-status-summary": "2026-08-28"
+    "intro-status-summary": "2026-08-28",
+    "add-to-calendar": "2026-08-31",
+    "investor-crm": "2026-08-31",
+    "purchase-agent": "2026-08-31",
+    "sms-listener": "2026-08-31"
   },
   "launchAgents": {},
   "webhookHandlers": {

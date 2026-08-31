@@ -58,6 +58,77 @@ This skill has three entry points:
 
    If the Protected Status Guard fires (terminal-status duplicate, prior pass, or live-pipeline duplicate) in webhook mode OR explicit-command mode, still run Step 8 with the appropriate alert variant (🔁/⛔/🛡️) — do not exit silently.
 
+## Pipeline-entry gate (run FIRST — before the Protected Status Guard)
+
+Decide whether this belongs in the Opportunities DB at all before deduping it. Deduping something that shouldn't land is wasted work, and the failure this gate prevents is silent: nothing errors when a row lands wrong.
+
+**Why the bar exists.** An Opportunity asserts a live consideration. The board's worth is that its row count means something — an unselected row doesn't just add one row, it taxes the reading of every other row, and Status fields don't fix that because you still scan past them. Entry is cheap in one direction only: candidate store → CRM is one reply from Tom; CRM → candidate store is hand-unwinding Notion rows, relations, and statuses. **Under uncertainty, stay out.**
+
+### Test 1 — WHO sent it. This decides almost everything; run it first.
+
+The axis is the sender's identity, **not** volume, stage, or person-vs-company.
+
+- **A named individual, writing to Tom personally, who is IN the People DB → CRM. Always.** A human putting their name on a referral has staked relationship capital on it; that IS the qualification layer, and Tom owes them a response. **This holds even when the subject is a `-1`** — an individual introducing a pre-founder who hasn't left their seat still goes straight to CRM as `-1 (Name)`. Test 2 does not gate this path.
+- **People-DB membership is the trust test for the individual path** (Tom, 2026-08-29 — same move as network-cache membership defining warm/cold: mechanical, checkable, works headless). Check the sender's email against the People DB. **Not a member → no relationship capital is staked → route the referred name through the -1 engine** for Tom's qualification, exactly like machine output. Carry the sender's email as the store row's `source` so provenance is never lost; the card's Source bullet shows the raw email with a `(not in People DB)` marker. **NEVER auto-create a People row for the unknown referrer** (Tom, same day, reaffirming the standing no-People-DB-writes rule — the feedback-ask carve-out does NOT extend here): if the candidate later graduates via `draft`, Source(s) falls back to Claude with a flagged gap naming the email, and Tom decides per case whether the referrer earns a row (at which point create fully-enriched + swap Source(s)).
+- **A deal agent, an `investments@` / `deals@` / `no-reply` style role account, or any automated roster → -1 engine.** No relationship, no accountability, nobody waiting. Tom's triage is the qualification layer the sender never applied. In his words: "a deal AI agent needs a layer of qualification from yours truly."
+
+Two clarifications that follow from "identity, not volume":
+
+- **An individual's bulk list still goes to CRM.** A trusted person sending five companies (David Talpalar's "A Few Interesting Ones") is five referrals, not a roster — fan out normally. Volume never demotes a human referral.
+- **A role account's single identified deal is still a deal.** A founder pitching from `investments@theircompany.com`, or any single named company with a live round, is ordinary inbound — handle it normally. The engine path is specifically for **third-party rosters of unqualified names**, which is what a deal agent emits.
+
+If a human sender is merely the *transport* for machine output — forwarding a platform digest they didn't curate — treat it as machine. The test is whether a person exercised judgment on these specific names, not whether a person hit send.
+
+**The operator corner case (Jordan Fox precedent, 2026-08-29).** A person who *runs* a sourcing engine and sends its output from their personal address is still the machine path — their judgment went into the filter, not into the names. The sender test is a proxy for name-level human judgment; an operator shipping their system's roster has vouched for nobody on it. The routing upgrades to CRM only on **name-level, first-person endorsement that exceeds the system's output** — "I know Kevin, he's the real thing," "met her, she's leaving" — and it upgrades **per name, not per email**: one endorsed name in a ten-name roster sends that one to CRM and the other nine to the engine. Cover prose around the roster ("would love your feedback on these!") is shipping, not vouching. Channel-level trust (a deal-share agreement, a standing subscription) NEVER upgrades routing — if a contract were enough, every vendor would bypass the qualification layer. Separately: the operator is still owed a *reply* — that's relationship management, independent of where the names route. Answer the human warmly, route the names coldly.
+
+### Test 2 — Confirmation sets the gate (machine-sourced material only)
+
+**Applies only when Test 1 routed to the machine branch.** Individual referrals skip this entirely.
+
+**The CRM path requires a positive, confirmed fact. The -1 path is the default.** Do not read "no evidence against" as "confirmed."
+
+Take the CRM path only when at least one of these is **confirmed**:
+
+- The person **has started a NewCo** — it exists, it's named or otherwise concretely established. A `-1` person who incorporates graduates out of the candidate store into a real Opp.
+- The company **is out raising** — an actual round, not an intention.
+
+Take the -1 path in every other case, including both of these:
+
+- **They haven't left their job yet.** Still in the seat → -1, full stop, no matter how strong the profile or how credible the source. A window that hasn't opened is not a deal.
+- **They've left, but the NewCo or the raise is unconfirmed.** "Exploring", "pre-company", "stealth", "hasn't announced what's next", "heard they're working on something" — all of it is -1. This is the exact shape vendor lists arrive in, and the shape most likely to be mistaken for a deal.
+
+**Pre-incorporation is HUMAN-GATED — never auto-create the Opp.** Tom holds discretion over what graduates to the CRM. Route to the -1 engine instead:
+
+  ```
+  ~/.claude/scripts/decision-ledger/candidates.py upsert --json '{...,"state":"pending","type":"Cold 🧊","source":"<origin>"}'
+  ~/.claude/scripts/enqueue-neg1-enrich.sh <li_url> <source> "<name>"
+  ```
+
+  That cards each candidate into `#neg1-sourcing` with the draft / pass / track verbs. **The Opp is minted when Tom replies `draft`** — that reply is the moment of CRM birth (see `neg1-sourcing-listener`). Set `recipe` to the origin channel so the quarterly conversion back-test can score it.
+
+### Why the split is drawn here
+
+A CRM row asserts that someone whose judgment Tom accepts has picked this. An individual referrer has done that picking and is accountable for it — their name is on it, and a bad referral costs them something. **Machine output has been picked by nobody; the -1 engine is where the picking happens.** Never let an unqualified vendor roster into the Opportunities DB, however credible the vendor's brand.
+
+Worked example (2026-08-29): Primary's deal agent sent 11 "pre-company" names. Enrichment found that **not one had left their seat** — their top pick had *started* at Anthropic four months earlier. A role account emitting a machine roster is exactly the input this gate exists to catch. Had a Primary partner sent any one of those names personally, it would have gone straight to CRM.
+
+### Batch inputs
+
+Two or more names from one source: run this gate **once at the orchestrator level**, before any fan-out — never inside each sub-agent, or a single routing decision becomes N prompts and the rows land before anything can stop them. Because Test 1 keys on the sender, one verdict covers the whole batch: an individual's list fans out in full, a role account's roster goes to the engine in full and spawns no sub-agents at all.
+
+When Tom's literal wording says "add to CRM" but this gate says otherwise, **surface the conflict and let him choose** — do not silently follow either one. Precedent: 2026-08-29, the Primary deal-agent share of 11 pre-company names; the literal reading would have minted 11 untriaged cold rows.
+
+### Headless modes (webhook / explicit-command)
+
+There is no one watching a queued job, so "let him choose" is not available. Resolve it this way instead:
+
+- **Run Test 1 against the ORIGINAL sender, not the forwarder.** In any self-forward, Tom is the transport. Parse the innermost forwarded `From:` and apply the individual-vs-role-account test to *that* address — a role-account sender stays a role-account sender no matter who relays it.
+- **Explicit-command mode** (`crmForwardMode` — Tom wrote "add to crm" himself): if the original sender is an individual, proceed to CRM normally. If it's a role account emitting a **multi-name roster**, route to the -1 engine anyway — the forward was a routing instruction, not a judgment on each name — and say so in the Step 8 alert.
+- **Webhook mode** (`inbound-deal-detect`): same test on the original sender. A classifier is not a referrer, so it never satisfies Test 1 on its own.
+- Either way: **never block and never auto-create when the gate is ambiguous.** Route to the engine (the reversible direction), and make the Step 8 Slack alert state plainly that the gate diverted it and why, so Tom can override with one reply.
+
+**Detecting a role account** (heuristics, in order): explicit agent/bot naming (`deal-agent@`, `agent@`, `bot@`); shared-function local parts (`investments@`, `deals@`, `intros@`, `sourcing@`, `team@`, `hello@`, `no-reply@`); a `List-Unsubscribe` header or a "you're receiving this because…" footer; a templated body with per-name blocks and uniform scores. Any one is enough. A personal address (`firstname@`, `first.last@`) writing prose in the first person is an individual — that's the default when nothing above fires.
+
 ## Protected Status Guard
 
 Before creating ANY new opportunity, run the dedup check below. This is MANDATORY — do not skip it. Unattended callers (e.g. `inbound-deal-detect`) must run this guard the same way as manual invocations.
@@ -127,6 +198,14 @@ This filter applies to the same caller scope as the rest of the guard: manual `a
 6. Handle any deck/material uploads
 7. **Verification gate — re-scan source for deck URLs and confirm they landed in the Diligence Materials property; re-invoke materials-handler if not (Step 7)**
 
+### Latency discipline — run the flow concurrently, not serially
+
+A webhook run pays wall-clock for every serial minute (measured 9m+ on a routine single-deck deal, 2026-08-28). Three standing rules:
+
+1. **Start deck conversion in the background before anything else.** When `materialUrls` (or the source) contains a convertible deck URL — DocSend `/view/`, foreign-Drive file, Dropbox file, raw PDF — make the FIRST action of the session: read the conversion recipe (`docsend-to-pdf` skill for DocSend; plain `curl` for Drive/Dropbox/raw-PDF), write the converter to `/tmp/`, and launch it with `Bash run_in_background`, outputting to a predictable path. Conversion is pure I/O; the dedup guard and Steps 1–2 don't need its output. Join at Step 1B: if the output file isn't ready yet, wait for it there — you've overlapped the conversion with everything that ran in between. If the dedup guard ends in a skip, kill the background job; a discarded conversion costs cents, a serial one costs minutes.
+2. **Batch independent lookups into single parallel tool-call blocks.** The four dedup queries (Source Thread ID SQL, title, domain, contact-email) don't depend on each other — issue all four in one message and apply the decision table to the combined results (a Source Thread ID hit still wins regardless of call order). Same in Step 2: the founder-LI Chrome read, company-website WebFetch, and YC-page fetch are independent — one message, parallel calls. Anything without a data dependency gets batched.
+3. **Convert once.** Whatever Step 1B converted locally gets handed to materials-handler by local path (see Step 6) so it uploads the existing file instead of re-converting the same URL.
+
 ## Step 1: Extract Data from Source
 
 Determine the input type and extract all available data points:
@@ -184,7 +263,7 @@ The only thing that does NOT count is a generic company-website link (`unicornsn
 
 2. **Foreign Google Drive URLs (e.g. a founder's or referrer's own Drive)** — DO NOT re-upload to Tom's Drive at this step; the URL gets linked as-is in Step 6. To read content for field extraction: `curl -sL "https://drive.google.com/uc?export=download&id=<fileId>" -o /tmp/<slug>.pdf` (extract `<fileId>` from the URL between `/file/d/` and `/view`), check the output is a PDF not an HTML interstitial (`file /tmp/<slug>.pdf`), then `pdftotext -layout`. If `curl` returns the virus-scan interstitial (small file is HTML), fall back to Chrome: navigate to the Drive file URL and `get_page_text` against the rendered viewer.
 
-3. **DocSend URLs** — convert to PDF via `docsend-to-pdf` skill (Python `requests` + `Pillow`), then `pdftotext`. Same skill handles data room URLs (`/view/s/`).
+3. **DocSend URLs** — convert to PDF via `docsend-to-pdf` skill (Python `requests` + `Pillow`), then `pdftotext`. Same skill handles data room URLs (`/view/s/`). If the Latency-discipline background conversion was launched at session start, do NOT re-run it — collect that job's output PDF here (wait for the file if the background shell hasn't finished).
 
 3b. **Papermark URLs (`papermark.com/view/…`)** — do NOT WebFetch (returns only Papermark's marketing shell). Capture the slides to a Drive PDF per `/Users/tomseo/.claude/skills/shared-references/papermark-deck-capture.md`, then read the captured slide PNGs for field extraction (round, valuation, HQ, founders, product). Interactive GUI only; in headless/webhook runs, link the Papermark URL as-is and proceed with what the email gave you. (Step 6 / materials-handler runs the same reference to produce the final linked PDF — pass it the captured file so it isn't re-done.)
 
@@ -354,6 +433,7 @@ Read the `materials-handler` skill at `/Users/tomseo/.claude/skills/materials-ha
 - **Material URLs**: any deck or material URL extracted from the source — DocSend links, Google Drive links, Dropbox links, direct PDF URLs, AND third-party deck-sharing platforms (`brieflink.com`, `pitch.com`, `decko`, similar). Pass all of them; the materials-handler decides whether to convert-to-PDF or link as-is.
 - **Gmail message ID**: if the source was a forwarded email, pass the message ID so materials-handler can find and process attachments
 - **Pre-saved file IDs** (if Step 1B ran): pass the Drive file IDs and URLs so materials-handler skips re-uploading
+- **Pre-converted local PDFs** (if Step 1B converted a DocSend/Drive/Dropbox URL locally): pass the local file path alongside its source URL so materials-handler uploads the existing file instead of re-converting the same URL
 
 The materials-handler skill will determine whether Chrome is available and execute the appropriate path — full Drive upload flow when Chrome is up, or lightweight deep-link fallback when it's not. File uploads go through the Drive Upload Apps Script either way.
 

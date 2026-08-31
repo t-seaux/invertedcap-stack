@@ -1,19 +1,22 @@
 ---
 name: investing-style
 description: >-
-  Refresh Tom's public-facing "Investing Style" Google Doc from the founder-taste corpus. Re-derives the
-  Markets / Teams / Products / Models bullets from PILLARS.md, the decision ledger, retros, LP letters and
-  investment memos; diffs the result against the last published version; and rebuilds the Doc in the
-  diligence-qa visual canon (logo, HEADING_1 title, italic HEADING_2 sections, justified bullets with bold
-  "that…" lead-ins). Founder-facing artifact — publication-safety gates are mandatory. Trigger on "refresh
-  my investing style", "update the investing style doc", "regenerate investing style", "what's changed in my
-  investing style", "bump the investing style doc", or any request to update that doc. Manual only — no
-  scheduled or webhook entry point.
+  Refresh Tom's PRIVATE "Investing Style" Google Doc from the founder-taste corpus. Bullets map 1:1 to
+  Pillars — Markets / Teams / Products / Models / Not a fit / Other — and are re-derived from PILLARS.md,
+  the decision ledger, retros, LP letters and investment memos; diffs against the last published version;
+  rebuilds the Doc in the diligence-qa visual canon (logo, HEADING_1 title, italic HEADING_2 sections,
+  justified bullets with bold "that…" lead-ins). Trigger on "refresh my investing style", "update the
+  investing style doc", "regenerate investing style", "what's changed in my investing style", "bump the
+  investing style doc", or any request to update that doc. Also republishes AUTOMATICALLY and unattended
+  whenever the corpus moves — draft-feedback's save_pillars() calls sync_investing_style() on every
+  feedback path, with no approval step.
 ---
 
 # Investing Style — refresh
 
-Maintains one artifact: **[Investing Style](https://docs.google.com/document/d/1CegObODNYmHZWHwszxaL8dGG5T37Dl80M__oIHhEOQw/edit)**, a founder-facing statement of what Tom invests in and why. It exists to show how many reps he has run and how opinionated he is — so it must stay current, and it must never leak anything confidential.
+Maintains one artifact: **[Investing Style](https://docs.google.com/document/d/1CegObODNYmHZWHwszxaL8dGG5T37Dl80M__oIHhEOQw/edit)**, a statement of what Tom invests in and why.
+
+> **This is a PRIVATE doc** (Tom, 2026-08-29) — not shared with founders or anyone else. That is what licenses both the 1:1 raw render (every Pillar gets a bullet, including the `-1` rule-outs that judge individual pre-founders) and unattended auto-publish. **If it ever becomes shareable, both decisions have to be revisited before it goes out** — re-read the publication-safety rules in `founder-taste/SKILL.md` Query Mode and re-curate.
 
 **Local files** (`~/.claude/skills/investing-style/`):
 
@@ -118,10 +121,10 @@ writes no proposal rather than manufacturing movement.
 
 ## Gates
 
-- **Publication safety is mandatory** — the rules in `founder-taste/SKILL.md` Query Mode. In short: never attribute a pass to a named company; no fund economics, LP names, round terms, ownership, or valuations; no unflattering reads on named founders. Publish the argument, cut the referent.
-- **Quotes from confidential sources.** LP letters and investment memos are marked CONFIDENTIAL. Tom's positions are his to publish; verbatim sentences lifted from those documents are a separate question. Default to stating the position in his voice rather than quoting. His own coinages (*the non-obvious slog*, *the liminal zone*) are fine.
-- **No firm layer.** Audience is founders. Cost of capital, AUM dynamics, fund size, ownership targets, graduation math, and portfolio construction stay out — that is the LP argument.
-- **Keep the "that…" construction.** Sections are plural nouns (Markets, Teams, Products, Models); every bullet's bold lead-in completes the stem "I look for …". Passes fold into their section as `— a pass` rather than living in a separate rejection list.
+- **State the pattern, never the instance.** The one content rule that survives the doc going private. Bullets are abstractions; a bullet that names a company or a founder has failed, because the corpus underneath is built entirely out of specific people and specific deals and the default failure is a bullet that reads as an anecdote.
+- **The publication-safety rules are dormant, not deleted.** Never attributing a pass to a named company, no fund economics or LP names or round terms, no unflattering reads on named founders, no verbatim lifts from CONFIDENTIAL LP letters and memos — all of that is relaxed *only* because nobody else reads this. The moment it is shared, re-apply `founder-taste/SKILL.md` Query Mode in full and re-curate. Do not assume the current contents are safe to send.
+- **Keep the "that…" construction.** Sections are plural nouns (Markets, Teams, Products, Models); every bullet's bold lead-in completes the stem "I look for …" and ends in exactly one period — `canonical_spec.normalize_label()` enforces the period, so a lead-in cannot flow into its sentence. One tight sentence of substance follows.
+- **En dashes only.** Per `writing-style/letters-and-memos/STYLE.md` rule 5, em dashes do not appear in body prose. `draft_style_bullet()` normalises them on the way in, because the model reaches for them regardless of the prompt.
 - **Formatting is not this skill's to invent.** It comes from `diligence-qa/canonical_spec.py`, which reads the measured profile off Tom's approved reference doc. If the chrome looks wrong, fix it there, not here.
 
 ## Known gaps to state when they bear on a refresh

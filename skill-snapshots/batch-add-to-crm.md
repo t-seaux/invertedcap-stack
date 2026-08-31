@@ -17,6 +17,21 @@ The single-company `add-to-crm` skill is the right answer for one inbound pitch.
 
 If the source is a multi-deal Chris-Oh-style market scan with no opt-in intent ("here are 8 companies I saw this week"), that's a **deal-digest** ingest, not batch-add-to-crm. The discriminator: are these companies Tom should actively consider as deals? If yes → this skill. If they're context/intel → `deal-digest`.
 
+**This skill assumes incorporated companies.** If the list is people rather than companies — pre-founders, operators who just left a seat, anyone "pre-company" — this is the wrong skill. See Step 0.
+
+## Step 0: Run the pipeline-entry gate ONCE, before anything else
+
+Read the **Pipeline-entry gate** in `add-to-crm/SKILL.md` and apply it to the batch as a whole, here at the orchestrator level. Never defer it into the sub-agents — one routing decision must not become N prompts, and sub-agents that have already spawned will each create their row before any gate can stop them.
+
+The gate keys on **who sent the batch**, so one verdict covers every name in it:
+
+- **Sent by a named individual → fan out normally.** Continue to Step 1. Volume never demotes a human referral — a trusted person sending five companies (David Talpalar's "A Few Interesting Ones") is five referrals, not a roster. This holds even for pre-founders: an individual introducing a `-1` goes straight to CRM.
+- **Sent by a deal agent, an `investments@` / `deals@` / `no-reply` style role account, or any automated roster → spawn no sub-agents at all.** Upsert the batch into the candidate store and enqueue enrichment per the commands in that gate, then report to Tom as candidates carded to `#neg1-sourcing`, not as Opportunities created.
+
+Check the **original** sender, not the forwarder — if Tom self-forwarded a vendor blast, the vendor is the sender.
+
+When Tom's wording is "add all of these to CRM" but the gate routes to the engine, surface the conflict and let him pick — his literal wording is not consent to the destination, because he may not have registered that the list is pre-company. Precedent: 2026-08-29, the Primary deal-agent share of 11 pre-company names.
+
 ## Architecture
 
 Each company runs as an **independent sub-agent** via `Agent` with `subagent_type: "general-purpose"`. Sub-agents fire in **parallel** — they have no ordering dependency (different Opportunities, different Notion writes). The orchestrator collects each sub-agent's brief return summary and presents one consolidated report at the end.
