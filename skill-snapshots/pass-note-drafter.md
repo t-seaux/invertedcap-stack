@@ -239,10 +239,11 @@ actually *argues*. Work it as a matching problem, not a checklist:
    moat)` is the most over-represented in the corpus and the easiest to reach
    for reflexively — it needs *named* well-funded entrants and real
    capital-velocity dynamics, not a general sense that a market is competitive.
-3. Respect the family split, which is Style Canon rule 3 in operational form:
-   `market-pov` Pillars carry a real read on the company or market; `fit-pass`
-   Pillars own the constraint as Tom's own. Never manufacture one to dress up
-   the other. `endorsement` Pillars belong in the praise bullets.
+3. Respect the section split, which is Style Canon rule 3 in operational form:
+   **Market**, **Team**, **Product** and **Model** Pillars carry a real read on
+   the company; **Fit** Pillars own the constraint as Tom's own and are never a
+   verdict on the company. Never manufacture one to dress up the other. Pillars
+   that praise rather than object belong in the praise bullets.
 4. Pillars marked **Candidate** should be rare — a new pillar goes Active on its
    first sighting and there is no active cap, so this tier stays empty in normal
    operation. If one appears, treat it as a weak prior — use only on a clean match.
@@ -264,6 +265,14 @@ Then produce the email body, following the Style Guide precisely.
 ### Step 6: Create the Gmail Draft + Drive Snapshot
 
 **THIS STEP IS MANDATORY. Do NOT skip it, summarize it, or present the draft inline as a substitute. The skill is not complete until `gmail_create_draft` has been called and confirmed. Presenting the email body in the conversation is not a replacement for creating the actual Gmail draft.**
+
+**First, mute the per-draft ✉️ ping** — Step 7 already reports every draft, so without this Tom gets two Slack messages per pass note:
+
+```bash
+~/.claude/scripts/draft_alert_mute.sh on --label pass-note-drafter
+```
+
+The mute is session-scoped and self-expires after 30 minutes; Step 7 lifts it explicitly.
 
 Use `gmail_create_draft` with:
 
@@ -354,6 +363,12 @@ Multi-entity batches stack the entity blocks with a single blank line between ea
 If any opportunities failed (e.g., couldn't find founder email, draft creation failed), append:
 ```
 ⚠️ Failed: [Company] — [brief reason]
+```
+
+This alert is the ONLY Slack message the run should produce — the per-draft ✉️ ping is muted in Step 6. Lift the mute once it's sent (also run this if you bail out early after Step 6):
+
+```bash
+~/.claude/scripts/draft_alert_mute.sh off
 ```
 
 ---

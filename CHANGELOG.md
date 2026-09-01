@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-09-01] (Week of 2026-09-01)
+
+**Added:** investor-crm (Portfolio Management — builds and maintains a founder-facing VC CRM in Tom's house format; creates from intro relations or incrementally edits existing sheets)
+**Removed:** None
+**Modified:**
+- coinvestor-recommender — added Mode B (Next-Round Leads): recommends who should lead a portfolio company's next round; Mode A (coinvestors for current round) unchanged
+- intro-draft-agent — Cc expansion rule: now includes every colleague from the granting firm who was on Tom's original outreach thread, not just the replier; prevents missed group opt-ins
+- intro-note-processor — alert suppression: per-draft Slack ping suppressed when run posts grouped summary
+- intro-resolution-agent — added split-state audit (Step 1.5): proactively heals contacts simultaneously in terminal (Made/Declined) and upstream (Outreach/Qualified) lifecycle arrays; runs on every scheduled sweep
+- intro-status-summary — expanded scope: now also mirrors intro/feedback content into a Notion Notes DB row so the record survives the inbox; investor-feedback aliases added as a second entry point into the same operation
+- neg1-sourcing — retired A-F archetype recipe for cold candidate selection; cold supply now drawn from the lookalike backlog reservoir via weighted lottery (NY ≈ 2x tilt, otherwise dominantly random)
+- pass-note-drafter — updated Pillar section terminology (Market/Team/Product/Model/Fit split); added draft alert mute to prevent double Slack pings per pass note batch
+**Total skills:** 51 visible
+**Functions:** investor-crm added to Portfolio Management
+
+---
+
 ## [2026-08-31] (Week of 2026-08-31)
 
 **Added:** None to visible functions.

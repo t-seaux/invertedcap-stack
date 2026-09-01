@@ -69,6 +69,12 @@ Split To vs Cc by **who is doing the favor** — the party granting their time t
 
 The opt-in target → Cc, founder(s) → To is the default mapping for this skill's flow. Only flip it if the favor direction is genuinely reversed (a founder is the one granting time to the target). Multiple people on one side all go in that side's field.
 
+#### Include EVERY original-thread participant on the granting side — not just the replier (Tom, 2026-08-28)
+
+The `personId` you're handed is only whoever hit reply. But when Tom's original outreach addressed **several people at the same firm** and one of them opts in for the group (*"Yes, please connect **us** with Nishant and Jackson"*), the opt-in covers **all of them** — every colleague Tom originally reached out to on that thread belongs in the Cc, not just the one who typed the reply. **Miss that happened (do not repeat):** the Ellie Peters / Quiet Software connect Cc'd only Ellie when the original ask went to **Ellie, Ben, and Lynn at Cameron Holdings** — Tom had to add Ben and Lynn himself before sending.
+
+So, before finalizing the Cc set: **read the original outreach message on the thread (`threadId`) and pull its full To + Cc — every person on the granting firm's side — and include them all in the Cc**, deduped, with the replier among them. Signals it's a group opt-in: the original ask had multiple firm colleagues addressed, and/or the reply uses "us"/"we"/"you all". Take each person's email straight off the original thread headers (no enrichment needed — they were already addressees). This is distinct from a colleague hand-off (below): a hand-off *routes* the intro to a NEW person named in the reply; this rule *retains* the colleagues who were on the ask from the start. When both apply, union them. A group opt-in makes the intro 3+ people → use the **"you all"** body form (Step 3.2) and list the granting side's names in the subject.
+
 Use their actual email addresses. If a founder's email isn't in the People DB, check the Opportunity's `Contact` field.
 
 #### Colleague hand-off (the reply routes the intro to someone else)
@@ -235,8 +241,8 @@ For each opt-in where no existing draft/sent email is found:
 
 3. **Determine recipients** (see the **Recipients** section above for the To/Cc split):
    - **To** = the ask-side party's email(s) — normally all founder emails. Join multiple with ", ".
-   - **Cc** = the favor-giver's email — normally the opt-in person's email (the one granting the chat). Join multiple with ", ".
-   - **First check for a colleague hand-off** (see **Recipients → Colleague hand-off**): read the opt-in reply (Mode B has `threadId`; the scheduled scan has the reply in the inbox). If the reply routes the intro to a colleague, set Cc = colleague + original replier per that rule, and recompute the subject (granter side lists both, colleague first) and the both/all form in 3.2.
+   - **Cc** = the favor-giver's email(s). **Not just the replier** — read the original outreach message on the thread and Cc EVERY colleague from the granting firm who was on Tom's original ask (see **Recipients → Include EVERY original-thread participant on the granting side**); a group "yes" opts in the whole group. Join multiple with ", ".
+   - **Also check for a colleague hand-off** (see **Recipients → Colleague hand-off**): read the opt-in reply (Mode B has `threadId`; the scheduled scan has the reply in the inbox). If the reply routes the intro to a NEW colleague, add colleague + original replier per that rule. Union with the original-thread participants above. Recompute the subject (granter side lists all names) and the both/all form in 3.2 whenever the granting side ends up as 2+ people.
 
 4. **Create the Gmail draft AND write the draft-feedback snapshot atomically** via
    `~/.claude/scripts/gmail-create-draft.py` (same helper as `founder-outreach` Step 7 — it creates

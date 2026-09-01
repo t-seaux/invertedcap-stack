@@ -229,7 +229,7 @@ Query all Opportunities that have entries in `☎️ Intros (Outreach)` OR `👓
    - **Agent View**: `notion-query-database-view` with the filtered view URL. If it returns a validation error, fall back to `notion-search` + `notion-fetch` without Status filtering.
    - **Active Portfolio**: `notion-search` on `collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6` filtered to `Status = "Active Portfolio"`.
    - Merge results from both sources and deduplicate by page ID before proceeding.
-2. For each Opportunity, extract BOTH the `☎️ Intros (Outreach)` array AND the `👓 Intros (Qualified)` array.
+2. For each Opportunity, extract ALL FOUR lifecycle arrays — `☎️ Intros (Outreach)` and `👓 Intros (Qualified)` for the roster, plus `✉️ Intros (Made)` and `🚫 Intros (Declined / NR)` for the Step 1.5 split-state audit.
 3. For each person URL in either array, fetch their People page to get their name, email, and phone.
 4. Also fetch the Opportunity's `Contact` field (founder emails) and `🏁 Founder(s)` relation to get founder names — you'll need these to detect double-opt-in emails.
 
@@ -246,6 +246,20 @@ Result: A roster mapping each person to their contact info, the relevant founder
   ...
 ]
 ```
+
+### Step 1.5: Split-State Audit (Mode A only)
+
+The atomic endpoint prevents the automated pipeline from creating split-state, but manual edits in the Notion UI bypass it entirely — Tom adding someone to 🚫 Declined by hand without removing them from ☎️ Outreach leaves a dupe that sits until someone eyeballs it (2026-08-28 miss: Bruno Werneck on Fair, in both Outreach and Declined/NR). This audit is the proactive catch: it runs on every scheduled sweep, needs no email signal, and heals via the same wrapper.
+
+Step 1's Opp fetches already return all four lifecycle arrays — extract ✉️ Made and 🚫 Declined/NR alongside Outreach and Qualified (no extra fetches). Then for each Opp, for each person:
+
+- **In exactly one terminal field (Made or Declined) AND in Outreach and/or Qualified** → split-state. Invoke the wrapper (Step 3 syntax) with `--target` set to the terminal field they're already in — the terminal state wins; the original resolution already classified, this is cleanup only. Pass `--message-id split-audit-YYYY-MM-DD`. Report as `removed from <upstream> — already in <target> [split-state audit]`. Do NOT re-classify from email — no thread reads for audit heals.
+- **In BOTH terminal fields (Made AND Declined)** → cross-terminal conflict. The audit cannot know which is correct — do NOT write. Surface in Needs Review: `⚠️ [Person] on [Opp] in both Made and Declined — needs manual call`.
+- **In Outreach AND Qualified (no terminal)** → upstream dupe, not resolvable here (no terminal target to move to). Surface in Needs Review for manual scrub.
+
+Audit heals are silent-by-default in the grouped alert EXCEPT as a one-line entry per heal in the Step 4 report — they represent state cleanup, not new resolutions. A run with zero splits adds nothing to the report.
+
+Skip this step entirely in Mode B (the per-message pre-check at Step 4 of Mode B covers it) and Mode C.
 
 ### Step 2: Scan for Resolution Signals — MANDATORY BATCHING
 
@@ -400,6 +414,9 @@ Provide a clear summary, distinguishing between moves from Outreach and moves fr
 
 ### Still in 👓 Qualified (no full-cycle resolution detected):
 - **Jordan Wu** → Gamma Inc (outreach detected + opt-in, but no double-opt-in email yet — Outreach/Draft agents will handle)
+
+### Split-state heals (Step 1.5 audit — omit section when zero):
+- **Bruno Werneck** → Fair (removed from ☎️ Outreach — already in 🚫 Declined/NR [split-state audit])
 ```
 
 ## Edge Cases

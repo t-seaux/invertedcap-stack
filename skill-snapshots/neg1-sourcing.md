@@ -1,8 +1,8 @@
 ---
 name: neg1-sourcing
 description: >-
-  Weekly Monday sourcing sweep — surfaces 2 warm reconnects + 8 cold candidates (2 wildcards; other 6 rotate
-  archetype recipes A-D from RUBRIC.md §6), plus monthly network deep sweep + quarterly departure diff (first
+  Weekly Monday sourcing sweep — surfaces 2 warm reconnects + 8 cold candidates (2 wildcards; other 6 drawn
+  from the lookalike backlog reservoir via _drain_backlog — the A-F recipe pass retired 2026-08-31), plus monthly network deep sweep + quarterly departure diff (first
   Monday after the Jan/Apr/Jul/Oct cache refresh). Upserts each candidate to the CANDIDATE STORE (state=pending)
   and immediately enqueues a per-candidate enrichment job (enqueue-neg1-enrich.sh) — cards post to
   #neg1-sourcing within minutes; NO batching delay, NO Notion writes. Dedup reads the store. Slack digest posts
@@ -13,7 +13,11 @@ triggers:
 
 # neg1-sourcing — Weekly Pre-Founder Sourcing Sweep
 
-Runs every Monday at 08:00 ET. Produces 2 reconnect + 8 cold outreach candidates (2 wildcards) from Tier 1–3 high-growth companies, upserts them to the candidate store (`state=pending`), enqueues per-candidate enrichment jobs, and sends a Slack digest. (The old -1 Scanner / `Pending Enrichment` queue wording is retired — DB deleted 2026-07-16.)
+Runs every Monday at 08:00 ET. Produces 2 reconnect + 8 cold outreach candidates, upserts them to the candidate store (`state=pending`), enqueues per-candidate enrichment jobs, and sends a Slack digest. (The old -1 Scanner / `Pending Enrichment` queue wording is retired — DB deleted 2026-07-16.)
+
+**Cold supply is the backlog drain (v3, 2026-08-31).** The 8 cold slots = **2 wildcard + 6 backlog drain**. The A–F recipe pass is RETIRED (it did precision arc-matching at the discovery stage — the 2026-08-11 Bain/JPM failures). The 6 cold slots now draw from the **lookalike reservoir** (`candidates.state='backlog'`) via a **weighted lottery** — dominantly random, with mild odds tilts (NY ≈ 2x, small bumps for SF / founding-titled seats / vetted standouts; Tom 2026-08-31: "more randomized... weighting a bit more on NY though not exclusively" — NO hard hierarchy, a zero-signal row draws every week). Seeded by ISO week purely for re-run stability. `neg1_sourcing.py run` emits these in the `cold` array carrying `source:"lookalike"`, `drained:true`, and their `recipe:"lookalike:<Co>"`. All arc/taste judgment happens mid-funnel in neg1-enricher — the drain is cheap triage only. Preview any week's draw read-only with `neg1_sourcing.py drain`.
+
+**The reservoir must keep GROWING (restock, every Monday).** The drain consumes 6/week; the restock step (Step 1.5d) expands ~3 new digest-anchored companies/week (~40–75 new backlog rows), so supply always outpaces the drain.
 
 **Unattended execution guard:** never ask questions, never halt waiting for input. If a step fails, skip it, log the error, and continue. Always reach the Slack alert even if some rows failed to write.
 
@@ -23,12 +27,17 @@ Runs every Monday at 08:00 ET. Produces 2 reconnect + 8 cold outreach candidates
 
 Candidates no longer land in the -1 Scanner. Steps 2-3 (Notion row writes) are replaced by store upserts — for each verified candidate:
 ```bash
-python3 ~/.claude/scripts/decision-ledger/candidates.py upsert --json '{"li_url": "...", "name": "...", "city": "...", "current_role": "...", "current_company": "...", "type": "Warm ☀️|Cold 🧊", "source": "monday-sweep", "recipe": "{candidate recipe field: A-F, or the wildcard_signal for wildcard rows; omit for warm/backfill rows}", "state": "pending"}'
+python3 ~/.claude/scripts/decision-ledger/candidates.py upsert --json '{"li_url": "...", "name": "...", "city": "...", "current_role": "...", "current_company": "...", "type": "Warm ☀️|Cold 🧊", "source": "monday-sweep", "recipe": "{the wildcard_signal for wildcard rows; omit for warm/backfill rows}", "state": "pending"}'
 ```
 then IMMEDIATELY enqueue a per-candidate enrichment job — enrichment happens as names surface, never on a batch delay (Tom, 2026-07-16: "there shouldn't be a delay"):
 ```bash
 ~/.claude/scripts/enqueue-neg1-enrich.sh "<li_url>" "monday-sweep" "<name>"
 ```
+
+**Source per row — use the `source` the JSON carries, do NOT default everything to `monday-sweep`:**
+- **Drained rows** (`drained:true`, from the backlog drain): upsert with `"source": "lookalike"` and keep the row's own `"recipe": "lookalike:<Co>"` verbatim — do NOT overwrite either. These rows already exist in the store as `state=backlog`; the upsert flips them to `pending` (upsert keys on `li_url`). Enqueue with source `lookalike`: `enqueue-neg1-enrich.sh "<li_url>" "lookalike" "<name>"`. The ledger's lookalike-vs-legacy conversion review (quarterly) keys on this source.
+- **Wildcard rows** (`wildcard:true`): `source="wildcard"`, recipe = the `wildcard_signal` (unchanged, see Step 1.5c).
+- **Warm reconnect + company-anchored backfill rows:** `source="monday-sweep"`, no recipe.
 Cards post to `#neg1-sourcing` within minutes as each job completes. This applies to the weekly sweep AND the Step 1.75 monthly deep sweep / departure diff. pipeline-agent Task 6 is the daily reconciliation backstop for `state=pending` rows older than ~2 hours (missed/failed jobs) — it runs nightly at 17:50 via the scheduled orchestrator's `pipeline-neg1` sub-task (wired 2026-08-12; before that the claim pointed at a runner that didn't exist). The Step 4 Slack digest is unchanged. Everything referencing -1 Scanner writes below is LEGACY.
 
 ---
@@ -82,22 +91,17 @@ is not (*"there are so not so great companies in the company db"*). Everything c
 the `COLD_SLOTS_COMPANY = 3` reserved pass and recipe C — now sources from `deal-digest-cache.json`.
 Recipes A and B lost their anchors entirely and match on arc shape instead.
 
-**Cold slot split.** `COLD_SLOTS_COMPANY = 3` of the 8. Tom: *"this is a cold outreach engine too,
-so i don't mind you flagging folks I'm not connected to yet at those companies."* Composition:
+**Cold slot split (v3, 2026-08-31).** The 8 cold slots = **2 wildcard + 6 backlog drain**. The
+company-anchored pass (`COLD_SLOTS_COMPANY`, sourced from `deal-digest-cache.json` via
+`_hypergrowth_anchors()`) is no longer a reserved allocation — it runs ONLY as a reservoir-thin
+backfill when `_drain_backlog` returns fewer than 6. Tom: *"this is a cold outreach engine too, so i
+don't mind you flagging folks I'm not connected to yet at those companies"* — the drain and the
+backfill both surface people Tom hasn't met yet.
 
-| Week | Digest-anchored | Company-free (Step 1.55) |
-|---|---|---|
-| A, B, D, E, F | 3 of 8 | **5 of 8** |
-| C | 6 of 8 | 2 of 8 |
-
-The engine is now taste-driven by default and list-driven only where Tom explicitly curated the
-list. It previously ran ONLY on recipe shortfall,
-so the 2026-08-11 run gave it 1 slot of 8 while recipe D took 5 — and **3 of those 5 died on
-prefilters** (the run's other two kills were a wildcard row and the generic backfill; an earlier
-draft of this line said "4 of 5" and was wrong — D also produced the run's two strongest names,
-Brendan Joyce and Abhishek Pawar). Current split: **2 wildcard + 3 recipe + 3 company-anchored**,
-with the company-anchored pass also absorbing any recipe shortfall so an underfilled recipe week
-still ships a full digest.
+The prior split (**2 wildcard + 3 recipe A–F + 3 company-anchored**) is RETIRED: the A–F recipe pass
+did precision arc-matching at discovery via neural queries, which on 2026-08-11 gave recipe D 5 slots
+and **3 of those 5 died on prefilters**. v3 moves all arc judgment mid-funnel (neg1-enricher) and
+makes the lookalike reservoir the standing cold supply.
 
 ---
 
@@ -276,11 +280,15 @@ Upsert each candidate individually. If one fails, log the error and continue to 
 
 ---
 
-## Step 1.5b — Cold-pass cohort recipes (archetype feeders)
+## Step 1.5b — Cold supply: the backlog drain (RETIRED the A–F recipe pass, 2026-08-31)
 
-6 of the 8 cold slots draw from a WEEKLY ROTATING archetype recipe (RUBRIC.md §6 sourcing strategies) instead of generic role × tier search. **Implemented in `neg1_sourcing.py` since 2026-07-27** (`_recipe_pass` + `RECIPE_ROTATION`; before this the table was prose-only and every run shipped generic role × tier rows). Rotation by ISO week number mod 6; the run JSON carries `recipe` at top level and per-candidate, and the store upsert writes it to the `recipe` column (added same day) so the ledger can back-test recipe conversion like wildcard conversion:
+**The 6 non-wildcard cold slots are filled by `_drain_backlog` — a draw from the lookalike reservoir (`candidates.state='backlog'`), NOT the A–F recipe pass.** `neg1_sourcing.py run` already does this: a **weighted lottery** (Efraimidis–Spirakis sampling; weight = 1 + score/2 where score gives mild bumps for NY, SF, founding-titled seats, and vetted standouts w/ a stored arc). Dominantly random by design — Tom rejected a rank hierarchy (2026-08-31): the tilts nudge odds (NY draws at ~2x base rate, ~33% of picks vs 23% of pool in simulation), they never gate. Seeded by ISO week for one reason only: a crashed-and-re-run Monday job picks the SAME six instead of a fresh six (idempotent re-runs). Week-to-week novelty needs no seed — drawn rows flip `backlog→pending` and leave the pool permanently. Emitted in `cold` with `source:"lookalike"`, `drained:true`, `recipe:"lookalike:<Co>"`. Restocked every Monday by Step 1.5d; if the reservoir ever runs thin anyway, the company-anchored pass backfills the shortfall (never fall back to the retired neural queries).
 
-| Week | Recipe | Query shape (mechanism) |
+**Why retired:** the A–F recipes (`_recipe_pass`/`RECIPE_ROTATION`) did precision arc-matching at the DISCOVERY stage via neural queries — which shipped Bain consultants and JPM analysts on 2026-08-11 and forced Step 1.55 as a patch. v3 splits the funnel: discovery is structural/cheap/wide (pools → lookalike expansion → reservoir), and ALL archetype/arc judgment happens exactly once mid-funnel in neg1-enricher, where the full evidence is. The `_recipe_pass` function stays defined but is no longer invoked.
+
+**The archetype table below is retained as DOCTRINE (mid-funnel scoring reference), not as a sourcing recipe rotation.** Archetypes no longer ship as cold-pass queries; their sourcing expression is now the pool/seed/expansion layer + the enricher's rubric (RUBRIC.md §6).
+
+| Archetype (was recipe week) | Shape |
 |---|---|---|
 | A | **FDDM** (Field-Derived Domain Mastery) | **NO company anchor** — neural queries for the person: implementation / CS / solutions operators who onboarded hundreds of customers in one industry. Employer may be unknown to us; the domain reps are the signal. Gated by Step 1.55 |
 | B | **TCDM** (Technical-Commercial Dual Mastery) | **NO company anchor** — neural queries for the person: hired to write code, pulled customer-facing because customers asked for them by name. Gated by Step 1.55 |
@@ -355,6 +363,28 @@ retrieval mechanism was wrong.**
 **Wildcard search mechanics (2026-07-27 eval findings):** `_exa_search_wildcard` harvests BOTH profile URLs and `linkedin.com/posts/` URLs — a post narrating the shape in first person is the strongest match, and the author slug is embedded in the post URL. A coarse follower cap (`WILDCARD_MAX_FOLLOWERS`) drops obviously-famous profiles. **The Step 1.6 prefilter screen has two EXTRA kills for wildcard rows:** (1) already-legible people — famous OSS creators, founders of at-scale funded companies; the flip already happened and the -1 engine hunts pre-legibility (Q4 2025 letter: intercept "before they're 'found out'"); (2) performative build-in-public self-promoters whose narration lacks substance — post-derived candidates skew this way, and it is Tom's named anti-signal ("shameless chest-pounding"). Judge the arc, not the volume of narration. When adding an archetype-adjacent template or retiring one whose shape got codified into RUBRIC.md §6, edit `WILDCARD_QUERIES` — same human-gated doctrine coupling as the recipe table. Quarterly, review wildcard conversion in the ledger (`SELECT * FROM decisions WHERE label IN (SELECT name FROM candidates WHERE source='wildcard')`); 3+ wildcard drafts sharing a shape is a new-archetype candidate for the Casebook.
 
 All recipes still pass the ContactOut verification gate (Step 1.5) and the full rubric downstream — the recipe only shapes WHO enters the funnel.
+
+## Step 1.5d — Weekly reservoir restock (EVERY Monday, after the digest posts)
+
+The drain consumes 6 backlog rows/week; this step adds ~40–75 so the reservoir always GROWS (Tom, 2026-08-31: an engine that "adds more folks to ensure the backlog keeps growing"). Gates live in code; the agent only ferries the ContactOut search (MCP-only — the hosted server has no local API key):
+
+1. **Plan (code picks the companies):**
+   ```bash
+   /opt/homebrew/bin/python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py restock-plan
+   ```
+   Emits ~3 target companies — digest-anchored (curation-event rule intact: `_hypergrowth_anchors()` momentum/recency weighting), minus companies already expanded (any `recipe LIKE 'lookalike:%'` row), minus mega-cos (`MEGA_EXCLUDE` — draft §2.1: mega-scale uses flow-over-stock intake, not roster expansion). Plus the role-family title sets (eng / product / bizops).
+
+2. **Resolve the TRUE domain per company** (Companies DB row, digest cache, or web) BEFORE searching — never trust the name match. This feeds the guard, it doesn't replace it.
+
+3. **Search (agent, MCP):** for each company × role family, one `contactout_search_people` call (`company=[name]`, `job_title=[family title set]`, page 1). Search calls consume no email credits. Map each result to `{li_url, name, title, company_domain, city}`.
+
+4. **Ingest (code enforces the gates):**
+   ```bash
+   /opt/homebrew/bin/python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py restock-ingest --json '{"company": "<Co>", "domain": "<true-domain.com>", "profiles": [...]}'
+   ```
+   Applies the **hard domain guard** (the pilot's "Decagon" search matched a Nigerian bootcamp, "Rogo" matched soil robots — enforced in code, a mismatched `company_domain` never lands), dedupes against the whole store, runs the mechanical warm/cold cache check, and upserts survivors as `state="backlog"`, `source="lookalike"`, `recipe="lookalike:<Co>"` via candidates.py (journal + high-water-mark guard preserved). Prints per-company stats (`in / domain_reject / dupe / upserted`).
+
+**No enrichment at restock time** — expansion is free discovery; credits are spent only on rows the weekly drain promotes. If ContactOut is unreachable, skip the step and note it in the audit log — the reservoir has weeks of buffer; never block the digest on restock. Append one line to the digest thread (not the digest itself) when restock runs: `🔁 Restocked: {Co1} (+N), {Co2} (+N), {Co3} (+N) — reservoir {total}`.
 
 ## Step 1.75 — Monthly network deep sweep + departure diff (FIRST Monday of the month only)
 
@@ -458,9 +488,12 @@ own vocabulary:
 | F | Slope Over Y-Intercept |
 | company-anchored pass | Deal Digest company |
 | wildcard | the wildcard signal in plain words, e.g. "moonlighter", "young infiltrator" |
+| `source="lookalike"`, `recipe="lookalike:<Co>"` (backlog drain) | **Lookalike — {Co} expansion** (e.g. `recipe="lookalike:Rogo"` → "Lookalike — Rogo expansion") |
 
-The letter still goes in the store `recipe` column and the audit log — the quarterly back-test reads
-it there. It just never reaches a Tom-facing surface.
+The letter/recipe still goes in the store `recipe` column and the audit log — the quarterly
+back-test reads it there. It just never reaches a Tom-facing surface. (A–F are legacy: no new rows
+carry them since the recipe pass retired 2026-08-31, but old store rows still being carded keep the
+mapping live.)
 
 **NEVER print the PF-id on this surface** (Tom, 2026-08-10: "Don't need PF number. Just tell me the
 reason in plain English"). Same rule as the W1/W2/W3 ban on card Timing bullets: rule ids are

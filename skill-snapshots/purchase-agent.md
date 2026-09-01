@@ -52,17 +52,32 @@ account + saved payment (Amazon first for goods), (b) reputable direct merchants
 3 options max, lead with the recommendation. Then send the quote via the channel
 the request came from (SMS → short; chat/Slack → can be richer):
 
+Confirmation format — Title Case emoji header, blank line, then the fields (item, total,
+ship-to, seller, card, and the **item link** — all required so the requester can audit):
 ```
-🛒 [item name] — $[total] at [merchant]
-[direct product URL — REQUIRED, so the requester can audit the exact listing]
-[card: Amex Gold (personal) | Brex (work)] → [address: home | office]
-[1-line key detail: size/color/arrival date/flight times]
-Reply YES to buy.
-```
+🛒 Purchase Confirmation
 
-**Payment + address toggles (Tom 2026-08-30):**
-- **Payment:** `personal` = Amex Gold · `work` = Brex Mastercard
-- **Address:** `home` = 25 Garden Pl Apt 2, Brooklyn · `work` = Inverted Capital, 365 Bridge St Ste 8PRO, Brooklyn
+• Item: [name + size/color]
+• Total: $[total]
+• Ship to: [home 25 Garden | office]
+• Seller: [merchant — flag if 3rd-party]
+• Card: [Amex Gold | Brex]   ← name ONLY; NEVER include card digits, not even last 4
+• Link: [direct product URL]
+
+Reply YES to place.
+```
+No bold (iMessage renders Unicode bold weirdly). For gifts/travel with options, list up to
+3, lead with the recommendation, each with its link.
+
+**Payment + address toggles (Tom 2026-08-30/31):**
+- **Payment:** `personal` = **Amex Gold (…2017)** · `work` = **Brex (…0188)**. On the
+  personal Amazon account the Amex Gold is the card ending 2017; do NOT use the Brex
+  (…0188, work card) or the auto-selected Chase Sapphire (…2660, burns Chase points) for
+  personal — switch to the Amex.
+- **Address:** `home` = 25 Garden Pl Apt 2, Brooklyn · `work` = Inverted Capital, 365
+  Bridge St Ste 8PRO, Brooklyn. (Amazon's account default is the office — always switch
+  to home for personal.)
+- **Elsie's requests count as personal** → Amex Gold + 25 Garden (unless she says work).
 - **Default is ALWAYS personal + home (Amex Gold → 25 Garden Pl)** — no context
   inference. The work pair (Brex → 365 Bridge) is used ONLY when the requester
   explicitly says so ("on the work card", "ship to the office", "work purchase").

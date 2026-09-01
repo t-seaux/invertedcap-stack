@@ -192,6 +192,8 @@ Intent: for each newly-Qualified person, save ONE Gmail draft to the target only
 
 ### Step 8: Slack alert
 
+This is the ONLY Slack message the run should produce — the per-draft ✉️ ping is suppressed by Step 7f's `--no-alert`.
+
 Compose ONE Slack alert via `send-alert`. Read `~/.claude/skills/send-alert/SKILL.md` for delivery and format. Use the per-entity row convention (no bullets, two-line, `🧍` emoji for people).
 
 **Alert body:**

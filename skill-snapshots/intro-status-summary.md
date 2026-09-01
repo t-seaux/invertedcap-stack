@@ -1,6 +1,6 @@
 ---
 name: intro-status-summary
-description: "Summarize the full intro status for a company's round — intros made, intros declined (with verbatim pass commentary in blockquotes), and still pending response — as a Gmail draft addressed to the founder. Trigger on \"intro status for [company]\", \"summarize intros for [company]\", \"intro summary for [company]\", \"where are we on [company] intros\", \"where are we on intros for [company]\", \"track intros to [company]\", \"track intros for [company]\", \"intro update for [company]\", \"draft the intro status email for [company]\", or any variant asking for a consolidated status of the intro pipeline on one Opportunity — \"track intros\" means run the one-time status draft NOW, not set up recurring monitoring. Manual-only — always trigger inline, no confirmation needed. Never sends; draft only."
+description: "Summarize the full intro status for a company's round — intros made, intros declined (with verbatim pass commentary in blockquotes), and still pending response — as a Gmail draft addressed to the founder. Trigger on \"intro status for [company]\", \"summarize intros for [company]\", \"intro summary for [company]\", \"where are we on [company] intros\", \"where are we on intros for [company]\", \"track intros to [company]\", \"track intros for [company]\", \"intro update for [company]\", \"draft the intro status email for [company]\", or any variant asking for a consolidated status of the intro pipeline on one Opportunity — \"track intros\" means run the one-time status draft NOW, not set up recurring monitoring. ALSO owns the investor-feedback record for a round: mirrors the same content into a `<Company>: Investor Feedback` note on the Opp so the feedback outlives the inbox. **Primary aliases: \"summarize investor feedback [on/for company]\" and \"update investor feedback [on/for company]\"** — both run the full sweep, refresh the note, and report the latest read back in chat. Also triggers on \"capture investor feedback on [company]\", \"log the investor feedback for [company]\", \"what feedback have we gotten on [company]\", \"refresh the investor feedback note for [company]\", \"did we capture the feedback from the [company] intros\". The intro-status aliases and the investor-feedback aliases are two doors into ONE identical operation — every run produces both the Gmail draft and the Notion note regardless of phrasing. Only an explicit \"just the note\" / \"no email\" / \"skip the email\" suppresses the draft. Always ends by giving Tom the read (key points + verbatim), not a confirmation. Manual-only — always trigger inline, no confirmation needed. Never sends; draft only."
 ---
 
 # Intro Status Summary
@@ -134,6 +134,23 @@ any links as direct-href anchors). CANONICAL FORMAT — Tom's own edit of the fi
 - NR entries get a plain `– NR` note, never a fabricated quote.
 - Order within each section: most recent activity first.
 
+## Step 3.5 — Which artifacts does this run produce?
+
+**Every run produces BOTH** — the Gmail draft to the founder (Step 4) and the Notion note
+(Step 5). **Phrasing does not change the work** (Tom, 2026-08-31): the intro-status aliases
+and the investor-feedback aliases are two doors into one identical operation. Do not infer
+a note-only run from feedback wording — if Tom asks to "summarize investor feedback on X",
+he still gets the draft.
+
+- **Note-only** fires ONLY on an explicit opt-out: "just the note", "no email", "don't draft
+  anything", "skip the email". Nothing else suppresses Step 4.
+- **Email-only** is not a mode at all. The note is cheap, it's the whole reason the feedback
+  survives the inbox, and skipping it is how the Fair sweep ended up living in one sent
+  email.
+
+The draft is never sent, so an unwanted draft costs one deletion while a missing note costs
+the record. Default toward producing both.
+
 ## Step 4 — Create the draft
 
 Create via `~/.claude/scripts/gmail-create-draft.py` (NEVER the MCP connector for this —
@@ -157,6 +174,118 @@ signature fidelity):
   prefixes.
 - Never send. Report the draft URL plus a one-line count summary
   (`[Company]: N connected · N passed (k with feedback) · N pending`).
+
+## Step 5 — Mirror the email into Notion
+
+Gmail is not a record. Every run ALSO writes the same content to a Notes DB row on the Opp,
+so the feedback stays retrievable after the thread scrolls out of the inbox. Added
+2026-08-31 after a full Fair sweep — 5 verbatim passes plus 3 substantive connected
+reactions — lived only in one sent email.
+
+1. **Find or create** the note. Title: `<Company>: Investor Feedback` (no date — it's an
+   append target across the campaign). Dedup by reading the Opp's `✍️ Notes` relation and
+   matching that title — NOT Notion search, whose index lags same-run writes.
+2. Row properties: `Category` = `Diligence`, `Opportunity` → the Opp. Notes DB data source
+   is `collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`. **No page icon** — the page is
+   mostly third-party verbatim text (see `shared-references/claude-note-icon.md`).
+3. First thing on the page is an italic stamp — `*Last Updated: <Month DD, YYYY>*`, full
+   month name, plain body text NOT a heading block (Tom, 2026-08-31). Then the email's three
+   sections reproduced exactly — `Pending` → `Connected` → `Passed`, same counts, same
+   `Name (Firm)` runs, same verbatim quotes, still no quotation marks. No preamble, no
+   "mirrors the email sent to…" scene-setting, no closing synthesis / "Read" / takeaways
+   section. The quotes speak for themselves here exactly as they do in the email.
+3b. **No spacer blocks.** Do NOT emit `<empty-block/>` between sections — once each person
+   is a bullet with an indented quote (see below), the nesting carries the visual
+   separation and the spacers just add dead rows. Tom added them, then stripped them
+   himself once the bullets landed (2026-08-31); don't reintroduce them on a re-run.
+   (Retained for the general case: a bare blank line is a no-op in Notion — empty lines are
+   stripped unless written as `<empty-block/>`. That's the tool if a future layout genuinely
+   needs air. This one doesn't.)
+4. **Re-runs refresh the page in place** — rewrite the three sections to current campaign
+   state and bump the stamp. The note is a living current-state mirror, not an append log;
+   that's what the `Last updated` stamp commits to, and it's why there are no dated section
+   headings. Prior states stay recoverable via Notion version history, and the sent emails
+   are the dated record. **Before replacing, read the existing body** and carry forward any
+   section or quote Tom added by hand that regeneration wouldn't reproduce.
+5. Report the note URL alongside the draft URL.
+
+### Notion quote formatting — Notion ≠ Gmail
+
+A blank `>` line inside a blockquote renders as a visible **empty quote block** in Notion
+(caught 2026-08-31 on the Fair note). When one person's verbatim spans multiple paragraphs,
+emit each paragraph as its OWN quote block separated by a real blank line carrying no `>`:
+
+```
+> first paragraph
+
+> second paragraph
+```
+
+NOT `> first` / `>` / `> second`. This applies anywhere a multi-paragraph quote lands in
+Notion, not just here.
+
+Two more Notion-side rules (Tom, 2026-08-31):
+
+- **No per-entry `[View thread]` / Gmail deep links.** They clutter the note. The Opp and
+  the email thread are one search away.
+- **Multi-day feedback from one person gets a date RANGE in the heading** — `Aug 27–31`,
+  en dash, never `Aug 27 → Aug 31` and never just the latest date.
+
+### Quotes attach INSIDE the section the person belongs to
+
+The email only quotes decliners, so Pending and Connected are bare name runs there. The
+Notion note carries more: anyone in ANY section who gave a substantive read gets their
+verbatim, and it sits **under that person's own section** — never in a separate catch-all
+bucket at the bottom (Tom, 2026-08-31; the first pass filed Aadik Shekar under a
+`Not in the status email` heading when he belongs under Connected).
+
+Per section: the bolded header and its inline `Name (Firm)` run stay exactly as in the
+email. Beneath it, **each person who said something is a BULLET, with their quote(s) as
+INDENTED CHILDREN of that bullet** (Tom, 2026-08-31 — indent with TABS per the NFM spec):
+
+```
+**Connected (10):** Eric Stern (Tiger Global), Samit Kalra (1984 Ventures), …
+
+- Aadik Shekar (POV Ventures) — Aug 27–31:
+→   > first message
+
+→   > second message
+- Anthony Danon (Rerail) — Aug 27:
+→   > …
+```
+
+(`→` above = a literal tab. Spaces will NOT nest the quote under the bullet.)
+
+- The bullet line carries a date (or range), unlike the email's bare `Name (Firm):`.
+- People with nothing substantive appear only in the roster run — never a bullet with no
+  quote under it.
+- Multiple messages from one person = multiple child quote blocks under the ONE bullet,
+  oldest first. Consecutive `>` lines already render as separate quote blocks, which is
+  what's wanted for distinct dated messages — do NOT join them with `<br>`.
+- A decliner whose reply had substance beyond the decline itself (Keith Bender's "why this
+  wedge, I've tracked Ownwell") gets BOTH quotes under their one bullet. The email may
+  carry only the decline sentence; the note keeps everything.
+- Escape stray NFM control characters inside verbatim text — a bare `[` in someone's typo
+  (`he[s good friends`) must be written `he\[s` or the rest of the quote is swallowed.
+
+## Step 6 — Report the latest back to Tom
+
+Whatever the mode, the chat reply ends with **the read, not a receipt**. Tom's ask is
+usually "summarize / update investor feedback on X" — he wants to know what came in, not
+that a page was written.
+
+Follow the synthesis shape (see the notes/feedback memory): **a few key points, each
+carrying the verbatim quote that earns it**, with sub-points where they help. Never re-list
+the full roster — that's what the note is for.
+
+- Lead with what's NEW since the last run (or since the last status email, if there is one)
+  — that's the part Tom hasn't seen.
+- Surface **convergence explicitly**: when two or more investors land on the same objection
+  from different angles, say so and name them. That's the signal worth acting on.
+- Separate feedback that's **about the business** from passes that are about fit, timing,
+  conflict, or fund mechanics. The latter carry no signal on the company and should be
+  labeled as such so they aren't read as market feedback.
+- Then the artifact URLs (note, and draft if one was created), one line, at the end.
 
 ## Edge cases
 
