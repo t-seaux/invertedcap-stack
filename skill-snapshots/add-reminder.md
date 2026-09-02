@@ -17,40 +17,58 @@ Tom's shorthand: **"add a reminder to X" = a native Apple Reminder.** This is wh
 showed in the Calendar app's "Reminder" tab — an iCloud reminder that pings his phone,
 not a calendar event.
 
-## Primary path — Apple Reminders (via AppleScript)
+## Primary path — Apple Reminders (via the native `eventkit` helper)
 
-Create the reminder in the macOS Reminders app with `osascript`. Default list is
-**"Tasks"** (Tom's default Reminders list).
+Use the native EventKit CLI at `~/.claude/tools/eventkit/eventkit`. It talks to
+Reminders directly instead of through AppleScript's slow bridge (10-50x faster; it
+never marshals the whole 584-item list). Default list is **"Tasks"** (Tom's default
+Reminders list — `eventkit add` targets it automatically).
 
 **ALWAYS set an all-day due date** — a reminder with no due date does NOT appear in the
 Calendar app's reminders row, which is where Tom looks for it. Default the due date to
-**today**; use another day only if Tom names one.
+**today**; use another day only if Tom names one. `--due` accepts `today`, `tomorrow`,
+or `YYYY-MM-DD` (all-day, no timed alarm).
 
-Today (default) — capture the new reminder and set its `allday due date` to today:
+Today (default):
+
+```bash
+~/.claude/tools/eventkit/eventkit add --title "[TS] Send Shivan \$15" --due today
+```
+
+A named future day — build `YYYY-MM-DD` from `currentDate` in context:
+
+```bash
+~/.claude/tools/eventkit/eventkit add --title "[TS] Text Sidney" --due 2026-08-08
+```
+
+Returns JSON (`{"ok":true,"reminder":{...}}`); on failure `{"ok":false,"error":...}`
+and exit 1. Other verbs: `list [--all]`, `count`, `complete/uncomplete --id`,
+`delete --id`, `move --to LIST --id`, `clear-completed` (see `eventkit help`). The
+`--id` verbs accept multiple `--id` flags and commit as one batch — that's the fast
+path for bulk moves/edits/clears.
+
+**One reminder per item.** Batch the `eventkit add` calls in one turn for multiple items.
+
+### Fallback — AppleScript (`osascript`)
+
+If the `eventkit` binary is missing (e.g. not yet rebuilt on a fresh machine), fall
+back to `osascript`. Recompile with
+`swiftc -O -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist -o eventkit main.swift`
+from the tool dir if needed.
 
 ```bash
 osascript -e 'tell application "Reminders" to set myR to make new reminder with properties {name:"Send Shivan $15"}' -e 'tell application "Reminders" to set allday due date of myR to (current date)'
 ```
 
-A named future day — build the date string from `currentDate` in context:
-
-```bash
-osascript -e 'tell application "Reminders" to make new reminder with properties {name:"Text Sidney", allday due date:date "Friday, August 8, 2026"}'
-```
-
 Use `allday due date` (date only) rather than `due date` (adds a timed alarm) unless Tom
-asks for a specific time. Scope any lookups to `list "Tasks"` — iterating all lists is
-slow and can time out.
+asks for a specific time. Scope any lookups to `list "Tasks"`.
 
-**One reminder per item.** Batch the `osascript` calls in one turn for multiple items.
+### Permissions (one-time, already granted)
 
-### First-run permission (one-time)
-
-The first Reminders AppleScript call triggers a macOS automation-consent dialog and
-will fail with `AppleEvent timed out (-1712)` until Tom clicks **OK** at his Mac. If
-you hit `-1712`: tell Tom to approve the dialog on his computer, then retry. Don't
-silently fall back if he's at the machine — the grant is one-time and unblocks
-everything after.
+`eventkit` uses EventKit's Reminders access (System Settings › Privacy & Security ›
+Reminders) — already granted. If it ever reports access denied, Tom re-enables it there.
+The AppleScript fallback uses a separate Automation grant; a first `-1712` timeout means
+Tom must click **OK** on the consent dialog at his Mac, then retry.
 
 ## Fallback path — Google Calendar all-day event
 
@@ -70,5 +88,25 @@ it's the fallback:
 - **Title**: the reminder text verbatim, lightly cleaned ("remind me to send Shivan
   $15" → "Send Shivan $15"). Sentence case, imperative.
 - **One reminder per item**: split conjoined asks ("A and B") into separate reminders.
+- **Assignee prefix (title, mirrors the calendar TS/EK convention)** — this is what
+  lets the family-todo-digest scheduled task group reminders by who owns them.
+  Format is bracketed, with a space before the title (Tom, 2026-09-01 — was bare
+  `TS `/`EK ` before):
+  - `[TS] ` prefix = Tom's task ("remind ME" from Tom, or Tom named explicitly).
+  - `[EK] ` prefix = Elsie's task ("remind ME" from Elsie, or Elsie named explicitly).
+  - No prefix = shared/family task (either of them could do it, or it's ambiguous).
+  - Resolve "me" to the sender (see sms-listener's allowlist resolution). If a name
+    other than the sender is given ("remind Elsie to..."), prefix for THAT person.
+  Example: Elsie texts "remind me tonight 8:30 to book a rental car" →
+  title `[EK] Book a rental car for Pittsburgh`.
 - Confirm back as a compact ✅ checklist, noting the date if not today and noting if
   the fallback path was used.
+
+## This is the source of truth for the family TODO list
+
+Every reminder created here (list "Tasks") feeds the `family-todo-digest` scheduled
+task (`~/.claude/scheduled-tasks/family-todo-digest/`) — the 8am ET daily send to the
+family group, and any on-demand "what's on the todo list" query. Both read the SAME
+list via `~/.claude/skills/sms-listener/todo_digest.py`, grouping by due date bucket
+then by the TS/EK/no-prefix assignee convention above. No separate TODO store — Apple
+Reminders IS the TODO list. Keep this convention current if either mechanism changes.

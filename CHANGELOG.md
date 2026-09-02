@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-09-02] (Week of 2026-09-01)
+
+**Added:** None to visible functions.
+**Pending (newly detected, uncategorized):** deal-text-scanner (2026-09-02), fund-update-drafter (2026-09-02), restaurant-reservation (2026-09-02) — 3 total pending skills
+**Pending (resolved):** family-inbox, haircut, preference-miner now categorized as Admin (hidden); draft-supersede-sweep, add-to-crm-detect-inbound, add-contact-detect-inbound now in webhook handler table
+**Removed:** None
+**Modified:**
+- add-reminder — implementation switched from AppleScript to native EventKit CLI helper (~/.claude/tools/eventkit/eventkit); 10-50x faster than AppleScript bridge; `--due` accepts `today`, `tomorrow`, or `YYYY-MM-DD`
+- add-to-crm — NewCo vs -1 naming clarified: NewCo when founder has left AND settled on idea and is raising; -1 when still at current company or pre-idea; Round Details field now captures disclosed valuation context even when framed as tentative (e.g. "likely 5-6 on 25-30 pre")
+- deal-share-out — provenance rule added for attachments: only company-provided materials may be attached; materials originating from another firm's diligence are excluded even if present in Diligence Materials field
+- sms-listener — restaurant-reservation routing added (book/table/reserve triggers restaurant-reservation, not purchase-agent); deal proposal confirm fast-path added (loads pre-staged payload from deal-text-scanner and creates Notion Opportunity immediately on Tom's confirm)
+**Total skills:** 51 visible + 3 pending
+**Functions:** No visible function changes
+
+---
+
 ## [2026-09-01] (Week of 2026-09-01)
 
 **Added:** investor-crm (Portfolio Management — builds and maintains a founder-facing VC CRM in Tom's house format; creates from intro relations or incrementally edits existing sheets)

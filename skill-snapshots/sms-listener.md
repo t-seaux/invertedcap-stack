@@ -7,7 +7,7 @@ description: "Processes inbound SMS/MMS texts sent to Tom's Twilio number (978-7
 
 An allowlisted person texted Tom's Twilio number; the `body` arg is their command. Execute it and text back the result. This is a **calendar-first personal agent** — most commands are calendar queries/adds. Full tool access (filesystem + all MCP).
 
-**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. Don't read other skills' SKILL.md for calendar work (fast path below covers it); only read another skill for non-calendar commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order/book anything → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, etc.).
+**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. Don't read other skills' SKILL.md for calendar work (fast path below covers it); only read another skill for non-calendar commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`.
 
 ## Args (from the Worker)
 
@@ -224,6 +224,68 @@ I Noticed" proposal) texts Tom candidate prefs with ids (e.g. `p1`, `p3`). If he
 
 (Durable, proven prefs eventually get baked into the skills themselves and drop out of the
 corpus — that graduation keeps this lean. Don't worry about it mid-turn; the miner flags it.)
+
+**4. CONFIRM deal proposals (🆕).** The deal-text-scanner texts Tom `🆕 Opportunity: <Company>`
+/ `🆕 Opportunity: -1 (<Founder>)` cards ending "👍 to Add to CRM" (audit line:
+`notes=proposed add-to-crm <founder> via <referrer>`). When Tom confirms one —
+"confirm" / "yes" / "add to crm" / a 👍 tapback
+(Sendblue delivers tapbacks as inbound text like `Liked "🆕 Opportunity…"` — treat a
+positive tapback quoting a 🆕 card as a confirm; resolve WHICH proposal via the
+standard disambiguation above) — **FAST PATH, speed is the point:** load the pre-staged
+payload `~/.claude/skills/deal-text-scanner/staged/<sent_handle>.json` (the scanner did
+all lookups, deck-reading, and the Drive upload at proposal time). From it, immediately:
+1. Create the Notion Opportunity per add-to-crm conventions — ALL of them (dedup title
+   check first — one search, not the full battery): `opp_title`, `stage` (exact emoji
+   option), `Round Details` = `round_details` (disclosed valuation stays in the field:
+   `$5-6m on $25-30m pre`, never demoted to "Raising $Xm"), `HQ` = `hq`,
+   Source = `source` (People-page relation), Description; **page `icon` = staged `icon`
+   emoji (never ship blank)**; **`Contact` = staged `contact` ("N/A" if no email — never
+   empty)**; `Website` = staged `website` ("N/A" default); `Shared` = the N/A entry;
+   Founder relation only if the person exists in the People DB (else leave blank and
+   mention it in the reply thread later if asked); `source_context` goes in the page body.
+   **Dupe corner case:** if the dedup check finds this company already has an Opp, do
+   NOT create — reply inline under the card, exactly two lines, and stop:
+   ```
+   🚫 Dupe – already in CRM
+   <notion url of the existing opp> ↗
+   ```
+2. Chip `deck_drive_link` onto the Opp's Materials via `notion_files_property.py
+   --no-alert` (skip if null).
+3. Reply (the ✅ format below). Target: Tom's 👍 → ✅ in well under a minute.
+Do NOT re-derive anything already in the staged file; do NOT run the full add-to-crm
+pipeline unless the staged file is missing (then fall back to executing
+`~/.claude/skills/add-to-crm/SKILL.md` with what the proposal captured). CRM conventions
+apply (referrer = source; add-to-crm's own rules govern statuses — a confirm simply adds
+to CRM, no special pass-handling here). **Completion reply (Tom's exact spec): send as an
+inline-reply nested under the 🆕 CARD — reply-to = the PROPOSAL's `sent_handle` (from the
+audit log / the staged filename), NEVER `args.message_sid` (on a tapback confirm that's
+the tapback's own handle and the reply will drift out of the thread; bug hit 2026-09-01 —
+Tom never saw the MaxHeap ✅). Body EXACTLY two lines — no recap of the deal, nothing
+else:**
+```
+✅ Added to CRM
+<notion url of the created row> ↗
+```
+(Header is "Added to CRM" with lowercase t — an exception to Title Case headers.)
+**Edits — "respond to make changes" is a live promise:**
+- Reply with corrections BEFORE confirming ("stage is pre-seed not seed", "HQ is NYC",
+  "company is spelled MaxHeap") → apply them to the pending proposal and resend the
+  corrected card (new sent_handle, audit line `notes=proposed add-to-crm … (edited: <what>)`).
+  Still awaiting 👍.
+- Confirm WITH edits in one message ("add it but stage is pre-seed") → apply the edits,
+  then add to CRM in the same turn — the CRM row must reflect the edited values, not the
+  card's originals.
+- Corrections AFTER the ✅ ("actually HQ is Austin") → update the existing CRM row
+  (resolve via the Notion URL just sent), reply with a brief ✅ updated.
+A ❌/👎 tapback or "skip" → acknowledge, add a `rejected` line to
+`~/.claude/skills/deal-text-scanner/.proposed` so it isn't re-proposed, do nothing else.
+
+## Formatting — links (ALL texts)
+
+**Links must render as plain clickable text, never a big iMessage preview card (Tom
+2026-09-01).** iMessage generates the preview when a bare URL is the whole message or its
+final token. So: NEVER end a message with a bare URL — put text before AND at least one
+character after the link. Standard shape for reply links: `<url> ↗` — just the URL with a trailing ↗ (no prefix). **The ↗ is LOAD-BEARING — tested live 2026-09-01: same two-line message with a bare trailing URL rendered the big preview card; with the trailing ↗ it stayed plain clickable text. Never drop it.** Applies to ✅/🚫/🎯 replies, calendar links, everything.
 
 ## Formatting — headers (ALL texts)
 

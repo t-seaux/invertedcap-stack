@@ -1,13 +1,9 @@
 {
   "skills": {
-    "family-inbox": "2026-09-01",
-    "haircut": "2026-09-01",
-    "preference-miner": "2026-09-01"
+    "deal-text-scanner": "2026-09-02",
+    "fund-update-drafter": "2026-09-02",
+    "restaurant-reservation": "2026-09-02"
   },
   "launchAgents": {},
-  "webhookHandlers": {
-    "draft-supersede-sweep": "2026-08-28",
-    "add-to-crm-detect-inbound": "2026-08-28",
-    "add-contact-detect-inbound": "2026-08-28"
-  }
+  "webhookHandlers": {}
 }

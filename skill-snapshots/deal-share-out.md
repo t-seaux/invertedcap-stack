@@ -245,6 +245,19 @@ the memo — nothing else. **Label the memo just `Memo`, never `Investment Memo`
 the Materials line, even when it's sitting in the Opp's Diligence Materials. Attached items read
 `(attached)` (e.g. `Deck (attached), Memo (attached)`).
 
+**Attach ONLY company-provided materials — never another firm's diligence material, even from
+inside the Opp's Diligence Materials field** (Tom, 2026-09-01; caught on the MaxHeap → Primary
+share, which attached `MaxHeap Fika Version.pdf` — a copy that had passed through Fika's own
+diligence, not the founder's original deck). The Diligence Materials property is NOT a trusted
+allowlist by itself — it can hold files sourced from another investor (forwarded by a syndicate
+partner, pulled from another firm's data room, a version another firm annotated or re-saved).
+Before attaching, confirm provenance traces back to the company/founder (sent by the founder,
+pulled from the founder's own DocSend/Papermark link, or explicitly logged as founder-provided).
+Red flags in the filename or file history — another fund's name, "shared by [other firm]",
+a version note that isn't the founder's — mean skip it and fall back toward `Materials: N/A`
+rather than guess. This is the same principle as the Original-Email rule two paragraphs up
+(founder-authored content only, a source investor's note never appears) applied to attachments.
+
 **Materials lists ONLY files actually ATTACHED to the email — never a third-party viewer link**
 (Tom, 2026-08-28). A deck or memo that lives behind a DocSend / Papermark / data-room / any
 external-viewer link does NOT go in the email as a link. If it can be ripped to a PDF and
@@ -337,7 +350,7 @@ sends ONE consistent alert itself, in all modes:
    ```bash
    cat <<'EOF' | ~/.claude/skills/send-alert/send.sh
    ✍️ Deal share drafted — <Company> (<Stage>)
-   → <Firm(s)> (bcc) — in [drafts](https://mail.google.com/mail/u/0/#drafts)
+   → <Firm(s)> (bcc) — in Drafts
    <caveats, one per line: couldn't resolve LI for <founder> — supply before sending; Materials N/A; no founder email; …>
    EOF
    ```
@@ -364,8 +377,10 @@ One line:
   share recorded somewhere, that's a separate ask.
 - **No internal read shared.** Status/disposition, pass reasons, diligence analyses, call notes,
   and the deal's source are never included — see the stylebook's facts-only rule.
-- **No materials beyond the Opp's own.** Attach what `Diligence Materials` holds (Step 5) —
-  never hunt down a deck elsewhere or share internal artifacts (first-pass PDFs, memos Tom wrote).
+- **No materials beyond the Opp's own, and only if company-provided.** Attach what
+  `Diligence Materials` holds (Step 5) IF it traces back to the founder/company — never hunt down
+  a deck elsewhere, never share internal artifacts (first-pass PDFs, memos Tom wrote), and never
+  attach a file that originated from another firm's own diligence (see the provenance rule above).
 - **No outside research.** Every fact in the email comes from the CRM or the founder's own note.
 
 ---
