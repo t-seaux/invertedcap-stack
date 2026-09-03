@@ -2096,25 +2096,11 @@ Act autonomously — do not ask for permission. Report what was done in the summ
 
 (No progress ping here — the run stays silent until the single completion alert at Step 6b.)
 
-**Linking in Notion — two places:**
+**Linking in Notion — the Files property ONLY.**
 
-1. **Page body** — append a single-line entry to the `## 📎 Diligence Materials` section,
-   following the materials-handler convention:
-   ```
-   - [**[Company]_Master_Diligence_MM.DD.YYYY.pdf**](https://drive.google.com/file/d/<fileId>/view) — Claude first-pass diligence analysis, [date]
-   ```
-   Use `notion-update-page` with `update_content` for this. The Opportunity page body is
-   small (typically <20 blocks) and will not time out.
+**Never write a `## 📎 Diligence Materials` section into the Opportunity page body**, and never append to one that already exists. The Files property is the canonical, actionable surface (it renders in board views and is searchable); a body section is duplicate state that drifts the moment one side is updated. This applies to the first-pass PDF specifically — Tom's standing rule is that it lives in the property field, NOT the body (Kestrel 2026-05-14, reconfirmed on Root 2026-09-02 after this step wrote a duplicate section). If a body section already exists on an Opp from an older run, leave it alone — do not append to it and do not proactively clean it up.
 
-   > **Large-page caveat:** `update_content` times out on pages >~50KB (~300+ blocks).
-   > The diligence Notes page is always large — never call `update_content` on it.
-   > The Opportunity page body is always small and safe. If `update_content` on the
-   > Opportunity page times out for any reason, fall back to the Chrome `javascript_tool`
-   > approach: navigate to the Opportunity page in Chrome, then use `loadPageChunk` to
-   > find the last block in the `## 📎 Diligence Materials` section and call
-   > `saveTransactions` to append a new bulleted text block after it.
-
-2. **Diligence Materials Files property field — MANDATORY in EVERY run, every code path.** Do not skip this step under any circumstance, including when an existing first-pass PDF link is already present in the property field. The helper is idempotent on URL (skips if the exact URL is already there) but a freshly-uploaded file always has a NEW URL per the rule above, so this call always adds the new entry. Shell out to the public-API helper:
+1. **Diligence Materials Files property field — MANDATORY in EVERY run, every code path.** Do not skip this step under any circumstance, including when an existing first-pass PDF link is already present in the property field. The helper is idempotent on URL (skips if the exact URL is already there) but a freshly-uploaded file always has a NEW URL per the rule above, so this call always adds the new entry. Shell out to the public-API helper:
 
    ```bash
    python3 ~/.claude/scripts/notion_files_property.py \
@@ -2132,7 +2118,7 @@ Act autonomously — do not ask for permission. Report what was done in the summ
    the property inline instead of routing through materials-handler, whose whole purpose is
    that auto-ping.)
 
-   Exit 0 = ok (including idempotent skip), 1 = hard failure (log + fall back to page body link). See the canonical interface at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity page ID, the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`), and a display name like `[Company]_First_Pass_Diligence.pdf`.
+   Exit 0 = ok (including idempotent skip), 1 = hard failure (log it and surface the failure in the completion alert — do NOT fall back to a page-body link; the body is never a valid destination). See the canonical interface at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity page ID, the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`), and a display name like `[Company]_First_Pass_Diligence.pdf`.
 
    The helper uses the public Notion API (PATCH `/v1/pages/{id}` with the Files property's `files` array). No Chrome dependency.
 

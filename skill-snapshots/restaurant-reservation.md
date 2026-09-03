@@ -344,6 +344,20 @@ The booking half needs Tom's Resy auth token captured once (we never store his p
 Until then, `search`/`find` work (proven live), but `book` returns "RESY_AUTH_TOKEN not set."
 The token is long-lived; if `book` ever returns 401/419, re-run capture to refresh it.
 
+## ⚠️ "No tables" always needs a WHY, not just an empty slot list
+
+Empty slots can mean genuinely sold out, but on some OpenTable/Resy venues it means the
+booking window simply hasn't opened yet — e.g. **Fairfax (West Village)** only opens each
+date exactly **14 days out at 11:00 AM EST** (its own reservation widget states this
+explicitly: "Reservations for next 14 days open on `<date>` at 11:00 AM EST"). Reporting
+"zero open tables" without that context is a materially incomplete answer — Tom flagged
+this live 2026-09-02 ("you should've told me why"). Before reporting a dead end:
+- If the platform page/API response includes an explanation (rolling window, notify-me,
+  "sold out", "not accepting online reservations"), surface it verbatim/paraphrased.
+- If the venue has a known fixed booking horizon, treat it like the drop-based sniper
+  venues above — set a reminder for the exact window-open moment instead of just saying no.
+  (`eventkit add` only takes a date, not a time — put the exact time in the title/notes.)
+
 ## Notes
 
 - Endpoints proven live 2026-09-01: `search` (venuesearch) + `find` (/4/find) return real

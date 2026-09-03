@@ -72,9 +72,24 @@ Tom must click **OK** on the consent dialog at his Mac, then retry.
 
 ## Fallback path — Google Calendar all-day event
 
-If AppleScript isn't available (headless run, permission not yet granted and Tom is
-away), create an **all-day event marked FREE** on the calendar instead, and tell Tom
-it's the fallback:
+**Retry before you fall back — don't skip straight to the calendar on one hiccup**
+(Tom 2026-09-02, after a stray "[TS] Check email from pink room" calendar event got
+created despite `eventkit` being perfectly healthy at the time — root cause was
+skipping straight to the calendar fallback instead of retrying/diagnosing). Before
+using this path:
+1. Confirm `~/.claude/tools/eventkit/eventkit` actually exists — if it's missing,
+   that's real, go to AppleScript.
+2. If it exists but the `add` call errored, **retry once.** Most failures at this
+   layer are transient (a momentary EventKit/TCC hiccup), not a real outage. Only
+   treat it as "Reminders unavailable" after a genuine second failure, and quote the
+   actual `{"ok":false,"error":...}` string in your own reasoning rather than a vague
+   "hit an issue."
+3. Only then try the AppleScript path, and only fall through to the calendar-event
+   fallback below if BOTH eventkit and AppleScript genuinely fail.
+
+If both are genuinely unavailable (headless run, permission not yet granted and Tom
+is away), create an **all-day event marked FREE** on the calendar instead, and tell
+Tom it's the fallback — clearly, with the real reason, not a generic "unavailable":
 
 - `create_event` with `allDay: true`, `availability: "AVAILABILITY_FREE"`,
   `startTime` = target date (`YYYY-MM-DD`), `endTime` = next day.
@@ -101,6 +116,26 @@ it's the fallback:
   title `[EK] Book a rental car for Pittsburgh`.
 - Confirm back as a compact ✅ checklist, noting the date if not today and noting if
   the fallback path was used.
+
+## Autonomous completion — always alert (Tom 2026-09-02)
+
+**Broad rule, applies to every skill/script that can call `eventkit complete`:**
+whenever a reminder is checked off WITHOUT Tom or Elsie directly commanding it in
+that turn — i.e. some background/watcher process decided on its own that the
+underlying task is done (a payment confirmation spotted in a text thread, an email
+that resolved an open item, etc.) — it must send a short text alert to the group
+announcing what got checked off and why. This is distinct from an interactive
+completion ("mark the Katya reminder done" / "clear X"), which already gets a reply
+in the normal request/response flow and needs no separate alert.
+
+Minimum shape: `✅ <Title> — <one-line reason>` (e.g. `✅ Katya Invoice Paid — saw
+the payment confirmation in the thread`). Send via the sms-listener reply helpers
+(`send_imessage.sh --group "<family_group_id>"` for anything on the household side).
+Silent autonomous completion is the failure mode Tom is guarding against — a
+reminder that vanishes with no explanation is worse than one that lingers.
+First instance: `family-inbox/check_katya_paid.py` + `katya_paid_watch.sh` (see
+that skill's SKILL.md section 4b). Any new autonomous-completion logic (future
+skills) should follow the same pattern.
 
 ## This is the source of truth for the family TODO list
 

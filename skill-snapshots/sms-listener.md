@@ -49,7 +49,7 @@ Litmus: **Is it Tom's calendar (any of them)?** → Elsie may READ (never write 
 
 ### Group threads (args `group_id` is set)
 A non-null `group_id` means the message came from a GROUP conversation — a SHARED thread. Two hard rules:
-1. **Reply into the group**, not 1:1: `send_imessage.sh --group "<group_id>" "<text>"`.
+1. **Reply into the group**, not 1:1: `send_imessage.sh --group "<group_id>" --stdin <<'MSG' … MSG` (body on stdin — see Reply channel; never a double-quoted body).
 2. **Scope = strictest of everyone who can see the thread.** A group can include Elsie (or others), so apply **Elsie's fence** regardless of who sent the message: her calendar reads (family + Tom's calendar/locations) are fine, but NEVER surface Tom's work systems (email/Notion/Slack/CRM/deals/docs) or make work-calendar writes / work-card purchases in a group.
 - **Group allowlist:** only respond in groups whose `group_id` is listed in `~/.claude/skills/sms-listener/.group_allowlist` (one id per line, `# name` comments OK). If the `group_id` is NOT listed: this is an unrecognized group that could contain a third party — do NOT act on the request and do NOT surface any calendar/location detail. Reply once: `👋 I only work in the family group for now — Tom can add this group.` and exit. (Tom confirms a new group's id out-of-band before it's added.)
 
@@ -63,6 +63,19 @@ Fire these immediately, then do the work. **Speed matters: keep replies short an
 conversational, minimize tool calls.** The allowlist + core prefs are already in your
 session context (injected at start) — do NOT re-read those files; only load a DOMAIN prefs
 file (`prefs.py load calendar|purchases|email`) when that task type actually comes up.
+
+**If you have NO prior conversation in context** — no recent texts, no `RECENT CONVERSATION`
+block, this looks like turn one — you are a **cold failover run**: the warm daemon was down and
+this message is almost certainly mid-thread, not the start of one. Do not answer as if it were
+the first thing anyone said. Spend one call on the thread's actual history first:
+```bash
+tail -25 ~/.claude/skills/sms-listener/conversation.jsonl 2>/dev/null | jq -r '"\(.dir): \(.text)"'
+tail -15 ~/.claude/skills/sms-listener/audit-log/$(date +%F).log 2>/dev/null
+```
+Follow-ups like "do it by card instead" or "you sure?" only make sense against that history, and
+answering them blind is what produces a duplicate, subtly-wrong reply. The audit `notes=` lines
+are the prior session's working state — pending proposals and withheld items in there are still
+live unless something later resolved them.
 
 React to the sender's message with a tapback as your next action — a real reaction ON their message, not a reply bubble:
 ```bash
@@ -206,8 +219,11 @@ I Noticed" proposal) texts Tom candidate prefs with ids (e.g. `p1`, `p3`). If he
      (CONFIRMED live — Sendblue sends it; the webhook normalizes it to a string). Bind the
      confirm to THAT message's proposal, even if a newer proposal exists. To resolve what the
      handle refers to: check this session's context first (you know your own recent sends),
-     else look it up: `grep -h "sent_handle=<handle>" ~/.claude/skills/sms-listener/audit-log/*.log`
-     (the `notes=` names the proposal). So an inline-reply to the Fire Museum proposal →
+     else look up the FULL SENT TEXT in the conversation ledger —
+     `grep '"<handle>"' ~/.claude/skills/sms-listener/conversation.jsonl | jq -r .text` —
+     and fall back to `grep -h "sent_handle=<handle>" ~/.claude/skills/sms-listener/audit-log/*.log`
+     (the `notes=` names the proposal). A handle you can't resolve does NOT mean another bot sent
+     it — it usually means that send predates the ledger or was made by a failover run. So an inline-reply to the Fire Museum proposal →
      confirm the Fire Museum event; an inline-reply to the `p1` proposal → `prefs.py confirm p1`.
      Anchored to a message that proposed nothing → treat as unanchored (fall through to 2).
   2. **Else, recency.** No inline anchor → bind to whatever the agent's IMMEDIATELY PRECEDING
@@ -307,14 +323,30 @@ but is deprecated for messages; don't call it.)
 ## Reply channel — pick by job source
 
 The args block's `source` (in the job-start line) decides HOW you send the reply:
-- **`source=sendblue`** (iMessage via Sendblue — the live blue-bubble path) → send directly:
+- **`source=sendblue`** (iMessage via Sendblue — the live blue-bubble path) → send directly.
+  **Always pass the body on stdin via a QUOTED heredoc (`<<'MSG'`), never as a double-quoted
+  argument.** Your Bash tool runs under zsh, which expands `$` followed by digits as a
+  positional parameter — so a body written inline as `"Total: $4,796.59"` silently arrives as
+  `"Total: ,796.59"`. This destroyed every figure in a family spend breakdown on 2026-09-02.
+  A quoted heredoc delimiter disables all expansion, so the text reaches Sendblue byte-for-byte:
   ```bash
-  # 1:1 — ALWAYS nest the reply inline under the original message (pass args.message_sid as reply-to):
-  H=$(/Users/tomseo/.claude/skills/sms-listener/send_imessage.sh "<from>" "<reply text>" "<message_sid from args>") && H=${H#ok }
+  # 1:1 — ALWAYS nest the reply inline under the original message (args.message_sid as reply-to):
+  H=$(/Users/tomseo/.claude/skills/sms-listener/send_imessage.sh "<from>" --stdin "<message_sid from args>" <<'MSG'
+  <reply text — dollar amounts, backticks, $VAR, anything: all safe here>
+  MSG
+  ) && H=${H#ok }
   # group thread (args.group_id set) — reply INTO the group, apply group scope (see Group threads).
   # NOTE: inline replies are NOT supported in groups, so no reply-to here:
-  H=$(/Users/tomseo/.claude/skills/sms-listener/send_imessage.sh --group "<group_id>" "<reply text>") && H=${H#ok }
+  H=$(/Users/tomseo/.claude/skills/sms-listener/send_imessage.sh --group "<group_id>" --stdin <<'MSG'
+  <reply text>
+  MSG
+  ) && H=${H#ok }
   ```
+  The helper refuses to send text containing an orphaned decimal (` .93`, ` ,784.63`) — the
+  fingerprint of an amount already eaten by the shell. If you see that refusal, you built the
+  command wrong: re-send with the heredoc, do NOT "fix" the numbers by hand and do NOT set
+  `SENDBLUE_ALLOW_ODD_NUMERICS`. Same rule for the audit-line `echo` — escape `\$` there, since
+  a mangled audit line is what made a past session misread its own delivery record.
   Nesting keeps each answer visually attached to the request it belongs to, instead of a loose bubble in the thread. Multi-message conversations stay organized by topic. (1:1 only — groups thread flat.)
   Then append the audit line (status from the helper) and **include `sent_handle=$H` in it —
   mandatory whenever the message PROPOSES something confirmable** (pref candidate, pending
@@ -349,6 +381,31 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] sid=<message_sid> from=<from> intent=<tag> 
 - `delivered`/`sent` → done.
 - `undelivered`/`failed` (carrier block 30034 — A2P registration pending) → send the SAME text via iMessage: `mcp__imessages__tool_send_message`, `recipient` = `from`. Append ` via=imessage` to the audit line (one more tiny Bash call is fine).
 - Reply formats: `✅ <result>` · `❓ <question>` · `⚠️ couldn't — <reason>`.
+
+## Conversation memory — and never denying your own messages
+
+`~/.claude/skills/sms-listener/conversation.jsonl` is an append-only ledger of the thread:
+one JSON line per message, `dir:"in"` written by the warm daemon when a text arrives,
+`dir:"out"` written by `send_imessage.sh` itself at the moment of a successful send. Because
+the outbound line is written by the only code that can send, it is a **delivery record, not a
+recollection** — it cannot contain a message that wasn't sent, and a message that was sent
+cannot be missing from it. The daemon replays the tail into every fresh session, so the thread
+survives session resets and failover runs.
+
+Two rules follow, and they are hard:
+
+1. **Never say "I didn't send that" without checking the ledger first.**
+   `grep -F '<distinctive phrase>' ~/.claude/skills/sms-listener/conversation.jsonl`. Absence
+   from *your* context is not evidence of absence: this thread can also be served by
+   `processor.py`'s cold failover path, which sends under the identical Sendblue identity with
+   no visual tell in Messages. "Not in my session" and "never sent" are different claims.
+2. **If output you don't recognize appears under your identity, enumerate the other paths that
+   share it** — cold path (`ls ~/.claude/local-agents/claude-job-queue-processor/run-logs |
+   grep sms`), scheduled tasks, other webhooks — before concluding anything. On 2026-09-02 a
+   session reasoned correctly that a second process was sending as it, but couldn't name it, so
+   it escalated a documented part of its own architecture as an unknown intruder. One `ls`
+   would have closed it. Report what you observed and what you checked; don't hand Tom an
+   unverified architectural theory.
 
 ## Notes
 

@@ -304,8 +304,18 @@ For **data room URLs** (`/view/s/`), follow the docsend-to-pdf skill's data room
 
 ### 3C: Direct File URLs
 
-- **Google Drive share links**: Extract the file ID directly from the URL. No download needed — just construct the view link and document in Notion.
+**A PDF in our own Drive folder is always the preferred chip. Never chip a founder's live link when a PDF snapshot is obtainable** — the founder can unshare, edit, or delete it at any time, and the chip rots silently. Step 4.4 does NOT rescue this case: it only fires as a consequence of adding a PDF chip, so a native link filed here without conversion never gets superseded.
+
+- **Native Google Docs / Slides** (`docs.google.com/document/...`, `docs.google.com/presentation/...`) — **convert, don't link.** Even when the link is a clean Drive share URL:
+  1. `files.export` to `application/pdf` → `Diligence/[Company Name]/[Company] - [Title].pdf`
+  2. `files.export` to the original Office format (`...wordprocessingml.document` for Docs, `...presentationml.presentation` for Slides) → same folder, durable archive of the editable original
+  3. Chip **only the PDF**. Do not chip the `docs.google.com` URL.
+  Export is read-only against the founder's file — never modify or trash their original. Exempt: Tom-authored Docs meant to stay editable (e.g. Diligence Q&A), which keep their native chip.
+- **Native Google Sheets** — never superseded, but still get a PDF snapshot alongside the live chip. See `~/.claude/skills/shared-references/spreadsheet-artifact-convention.md`.
+- **Binary files on Drive** (a PDF/`.pptx`/`.xlsx` the founder uploaded, `drive.google.com/file/d/...`) — download the bytes and re-upload into `Diligence/[Company Name]/` via the Drive Upload Apps Script, then chip our copy. Chip the founder's URL directly only if the download fails.
 - **Dropbox or raw PDF URLs**: Use `web_fetch` or `curl` to download the file, save to `/Users/tomseo/Downloads/`. Then upload to the target folder (Step 3 gate) using the Drive Upload Apps Script — same `createFolder` → `upload` pattern as 3B. The Apps Script returns `fileId` and `url` directly.
+
+Drive v3 export/download runs through the `gmail-reconciler` service account with DWD as tom@invertedcap.com — `from drive_rename import _service` in `~/.claude/scripts/` gives an authenticated `drive` client.
 
 ### 3D: Email Body → PDF (Chrome Headless)
 

@@ -1,8 +1,6 @@
 {
   "skills": {
-    "deal-text-scanner": "2026-09-02",
-    "fund-update-drafter": "2026-09-02",
-    "restaurant-reservation": "2026-09-02"
+    "writeback-review-triage": "2026-09-03"
   },
   "launchAgents": {},
   "webhookHandlers": {}

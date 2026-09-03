@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-09-03] (Week of 2026-09-01)
+
+**Added:** deal-text-scanner (Pipeline Management — scans inbound iMessages for deal-flow signals, proposes CRM add via sms-listener), fund-update-drafter (Portfolio Management — drafts outbound fund and portfolio update emails for LPs and peers)
+**Removed:** None
+**Modified:**
+- first-pass-diligence — removed page-body link step; now links the first-pass PDF to the Diligence Materials Files property only (never the page body), consistent with Tom's standing rule confirmed 2026-09-02
+- materials-handler — added native Google Docs/Slides export: converts to PDF before chipping rather than linking the live document URL; Drive binary files are now downloaded and re-uploaded into the Diligence folder before chipping
+**Total skills:** 53 visible + 1 pending (writeback-review-triage — needs categorization)
+**Functions:** Pipeline Management +1 (deal-text-scanner), Portfolio Management +1 (fund-update-drafter)
+
+---
+
 ## [2026-09-02] (Week of 2026-09-01)
 
 **Added:** None to visible functions.
