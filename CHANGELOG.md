@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-09-04] (Week of 2026-09-01)
+
+**Added:** None to visible functions.
+**Removed:** None
+**Modified:**
+- intro-draft-agent — added proactive split-state healing: when a contact appears in both Made and Outreach simultaneously, the agent now heals the state (removes from Outreach) before drafting, closing a race window that previously required a subsequent sweep or reply to resolve
+- intro-resolution-agent — added snappy one-line opt-in ping to #claude-alerts on opt-in-without-intro resolution; replaces the former run-log string echo with a concise "person opted in → founder (opp)" format
+- pass-note-drafter — Pass Note Guidance detection broadened: now accepts parenthetical date suffix (`Pass Note Guidance (Sept 3, 2026)`) and italic-label callout format (matching the sibling 📚 blurb callout style written by log-pass-note-guidance)
+- log-pass-note-guidance — guidance callout now placed directly beneath the 📚 Company Overview callout (not top of page body); label is dated italic, fill is transparent (matching 📚 blurb aesthetics)
+**Total skills:** 53 visible
+**Functions:** No changes
+
+---
+
 ## [2026-09-03] (Week of 2026-09-01)
 
 **Added:** deal-text-scanner (Pipeline Management — scans inbound iMessages for deal-flow signals, proposes CRM add via sms-listener), fund-update-drafter (Portfolio Management — drafts outbound fund and portfolio update emails for LPs and peers)

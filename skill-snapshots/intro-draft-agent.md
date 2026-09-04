@@ -164,7 +164,15 @@ When invoked with `personId` + `oppId` args (Pattern 3), **skip Step 1 (roster b
 
 1. **Fetch the specific opp + person.** `notion-fetch` the Opportunity (`oppId`) and the person (`personId`). From the opp, get `Name`, `🏁 Founder(s)` (fetch each founder for name + email; fall back to the `Contact` field for founder emails), and the current `☎️ Intros (Outreach)` / `✉️ Intros (Made)` relations.
 2. **Idempotency guards (MANDATORY — draft only if all pass):**
-   - The person must still be in `☎️ Intros (Outreach)` for this opp. If they're already in `✉️ Made` (Tom made the intro between enqueue and now) → skip, log `already-made`. 
+   - The person must still be in `☎️ Intros (Outreach)` for this opp. Inspect BOTH `✉️ Made` and `☎️ Outreach` for `personId`:
+     - **Cleanly in Made** (in Made, NOT in Outreach — Tom made the intro between enqueue and now) → skip, log `already-made`.
+     - **Split-state** (in Made AND still in Outreach) → a concurrent Made-write scrubbed Outreach but a later write re-added the person, and it escaped the endpoint's in-call remediation window. **Heal it now — do not leave it for the next inbound reply.** Fire the atomic scrub and then skip the draft:
+       ```bash
+       ~/.claude/scripts/intro-resolution-write.py \
+           --opp-id <oppId> --person-id <personId> --target made \
+           --message-id <messageId> --person-name "<Name>" --opp-name "<OppName>"
+       ```
+       Log `healed-split-state: <person> on <opp> — removed from ☎️ Outreach (already in ✉️ Made)`. No draft, no Slack alert (state cleanup, not a new resolution). This is the proactive heal: because this agent runs within ~a minute of every opt-in, it closes the split-state window that a purely reactive audit (next reply / scheduled sweep) would otherwise leave open for many minutes.
    - Run Step 2's **full pre-create guards in order**: (1) the **deleted-draft contract** — if the opt-in thread (`threadId` from args) carries the `Intro Drafted` label, SKIP unconditionally even if no draft currently exists (Tom deleted it → never recreate); (2) already-sent check; (3) already-present-draft check. Any hit → skip, log the matching reason. This is what makes a spurious/duplicate enqueue — or a re-fire after Tom deleted the draft — safe.
 3. **Check for a colleague hand-off (reuse the guard's thread read).** You already fetched the opt-in thread (`threadId`) for the deleted-draft guard — scan its latest inbound reply (body + Cc line) for a hand-off per **Recipients → Colleague hand-off**. If found, follow that section's **draft-first ordering**: set the granter/Cc set to colleague (primary) + original replier (`personId`), create the draft (subject granter side lists both, "you all" body), and only THEN do the Notion bookkeeping — ensure the colleague's People row exists (create if net-new), then append them to the Opp's `☎️ Intros (Outreach)` relation (needs the page ID from the create). Mode B otherwise skips the inbox scan — this is the one reply read it must always do.
 4. **Compose and create the draft** exactly per **Step 3** below (same subject/body/recipients format).

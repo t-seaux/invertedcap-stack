@@ -3,8 +3,9 @@ name: log-pass-note-guidance
 description: >
   Log Tom's free-form Pass Note Guidance — scratch notes or transcribed voice notes that
   give a general read on how he wants the pass note drafted — to the body of an Opportunity
-  in the Notion Opportunities DB. The guidance lands as a section at the TOP of the page
-  body, formatted so `pass-note-drafter` Step 3f picks it up as authorial intent when Tom
+  in the Notion Opportunities DB. The guidance lands as a `⛔` callout directly beneath the
+  `📚` Company Overview callout, formatted so `pass-note-drafter` Step 3f picks it up as
+  authorial intent when Tom
   later flips Status to "Pass Note Pending". Trigger when Tom says "log pass note guidance
   [on/for X]", "pass note guidance for X", "add pass note guidance to X", "guidance for the
   pass note on X", "log this as pass note guidance", or any variant where he names an
@@ -35,33 +36,51 @@ invokes explicitly.
 ## The Notion Data Model
 
 - **Opportunities DB:** `collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`
-- **Target field:** page body — a `⛔` **callout** block at the top of the body, whose
-  first line is the bolded label `Pass Note Guidance` and whose children are the guidance
-  bullets. (Pass-note-drafter Step 3f detects the callout shape, plus the older
+- **Target field:** page body — a `⛔` **callout** block placed directly beneath the `📚`
+  Company Overview callout, whose first line is the dated italic label
+  `Pass Note Guidance (<date>)` and whose children are the guidance bullets.
+  (Pass-note-drafter Step 3f detects the callout shape, plus the older
   heading/bolded-paragraph variants for back-compat.)
 
 ## Section Format (canonical — must match what pass-note-drafter recognizes)
 
-The section MUST be written so pass-note-drafter Step 3f detects it.
+The section MUST be written so pass-note-drafter Step 3f detects it. It deliberately
+mirrors the `log-company-blurb` 📚 callout — same dated italic label line, same transparent
+fill — so the two read as siblings on the page.
 
 **Canonical form — `⛔` callout (use this for every new section):**
 ```
-<callout icon="⛔" color="gray_bg">
-	**Pass Note Guidance**
+<callout icon="⛔">
+	*Pass Note Guidance (<mention-date start="YYYY-MM-DD"/>)*
 	- {bullet 1}
 	- {bullet 2}
 	- ...
 </callout>
 ```
 Children (label + bullets) are indented one tab inside the `<callout>` per Notion-flavored
-Markdown. Icon is always the no-entry emoji `⛔`; color is always `gray_bg` (matches the
-Notion UI's default gray callout — without an explicit color the API renders it
-transparent, which looks off).
+Markdown.
+
+- **Label is italic only** — `*…*`, never bold. This matches the 📚 blurb exactly.
+- **No `color` attribute** — the callout fill stays transparent, same as the blurb. Do not
+  set `gray_bg`.
+- **Icon** is always the no-entry emoji `⛔`.
+- **Date** is a `<mention-date>` for the day the guidance was last updated — see the
+  last-updated rule below.
+
+**Date = last updated, not a history (Tom, 2026-09-03).** The parenthetical carries a
+single date: when the guidance was last touched. On any material revision or addition, bump
+it to today. Never stack multiple dated entries or keep a running log of past guidance
+inside the callout — the drafter should read one current intent, not an archive.
+
+**Bullets, one per conceptual point (Tom, 2026-09-03).** Keep the separate ideas separate —
+don't fuse his read into a single paragraph. Each bullet is a cleaned-up sentence, not a
+transcript fragment.
 
 **Legacy forms (accept when they already exist — append into them, don't convert):** a
-bolded paragraph `**Pass Note Guidance**` followed by sibling bullets, or a
-`## Pass Note Guidance` / `### Pass Note Guidance` heading. If a legacy section already
-exists on an Opp, append into it in place rather than creating a second callout.
+`⛔` callout with a plain undated `**Pass Note Guidance**` label, a bolded paragraph
+`**Pass Note Guidance**` followed by sibling bullets, or a `## Pass Note Guidance` /
+`### Pass Note Guidance` heading. If a legacy section already exists on an Opp, append into
+it in place rather than creating a second callout.
 
 Casing/punctuation variants Tom uses interchangeably: `pass note guidance`,
 `Pass-Note Guidance`, `Pass note guidance`. Treat all as the same section — do not create
@@ -82,20 +101,23 @@ Extract two things from Tom's message:
    - A pasted screenshot of bullets (read the image)
    - A voice-style run-on paragraph (Tom's default — he dictates unstructured)
 
-**Paraphrase rule (Tom's explicit preference, 2026-07-21):** Tom WANTS your paraphrase —
-he drops guidance unstructured via voice, so clean it into clear, structured bullets that
-capture *his read*. Rewrite run-on dictation into self-contained thoughts; fix transcription
-artifacts and filler; organize into a tight bullet per idea. Preserve his **meaning,
+**Paraphrase rule (Tom's explicit preference, 2026-07-21; reinforced 2026-09-03):** Tom
+WANTS your paraphrase — he drops guidance unstructured via voice, so clean it into clear
+bullets that capture *his read*. Do not transcribe verbatim: rewrite run-on dictation into
+finished sentences, drop filler and transcription artifacts, and fuse the repeated
+restatements he makes while thinking out loud into one clear claim. Preserve his **meaning,
 emphasis, and any specific pass reason** exactly — do not soften his verdict, invent
 substance he didn't imply, or over-editorialize with your own analysis. When in doubt about
 whether a point is his read or your inference, keep it to his read. This is the one skill
 where paraphrasing is correct: the downstream `pass-note-drafter` treats this as authorial
 intent, so it must faithfully represent what Tom thinks, just more legibly than raw voice.
 
-**Structuring:** split into natural thought boundaries, one self-contained idea per bullet.
-Lead with what excited him / the strengths; put the actual pass reason (if he names one) in
-its own bullet so the drafter can lift it as the spine. Don't pad to hit a bullet count —
-if he gave one clear thought, one bullet is fine.
+**Structuring:** one bullet per conceptual point, in the order his logic moves — what he
+credits, then the turn, then the pass reason. Keep distinct ideas in distinct bullets rather
+than fusing them into a paragraph; each bullet should stand on its own as a finished
+sentence. Lead with what excited him / the strengths; put the actual pass reason (if he names
+one) in its own bullet so the drafter can lift it as the spine. Don't pad to hit a bullet
+count — if he gave one clear thought, one bullet is fine.
 
 If the target Opportunity is ambiguous (Tom said "the deal we discussed"), ask once for
 clarification — this is the one place ambiguity gets a question, because writing to the
@@ -152,77 +174,72 @@ Use `notion-fetch` on the Opp page (no `include_transcript` — this is a routin
 a transcript-consuming one; per `feedback_notion_fetch_always_include_transcript.md` we
 skip the flag here).
 
-Walk the block children and check for an existing **Pass Note Guidance** section
-(case-insensitive match on the label variants above). The detector should match:
+Walk the block children and capture two things:
 
-- A `callout` block whose first child is the bolded label (canonical current shape)
-- A `paragraph` block whose entire content is bolded text equal to the label (legacy)
-- A `heading_2` or `heading_3` block whose plain text equals the label (legacy)
+1. **The `📚` Company Overview callout** (written by `log-company-blurb`) — this is the
+   placement anchor. Note its full rendered markdown.
+2. **An existing Pass Note Guidance section** (case-insensitive match on the label variants
+   above). The detector should match:
+   - A `callout` block whose first child is the italic dated label — current shape
+   - A `callout` block whose first child is the plain bolded label (older shape)
+   - A `paragraph` block whose entire content is bolded text equal to the label (legacy)
+   - A `heading_2` or `heading_3` block whose plain text equals the label (legacy)
 
-Capture: (a) whether a section exists, (b) if so, which shape (callout vs. legacy), and
-the rendered markdown of its last bullet (the append anchor).
+If a section exists, note which shape it is (dated-italic callout vs. legacy) and the
+rendered markdown of its last bullet — that's the append anchor.
 
 ### Step 4: Write the Section
 
 **Case A — No existing section (most common, first invocation):**
 
-Prepend a new `⛔` callout to the TOP of the page body. Notion's REST API has no native
-prepend, so use MCP `notion-update-page` with `command: update_content`, anchored on the
-first child block's rendered markdown:
+Insert the `⛔` callout **directly beneath the `📚` Company Overview callout**. Use
+`notion-update-page` with `command: update_content`, anchored on the blurb callout's full
+rendered markdown:
 
 ```
 notion-update-page
   command: update_content
   page_id: <opp_page_id>
   content_updates: [{
-    old_str: "<first child markdown verbatim>",
-    new_str: "<callout icon=\"⛔\" color=\"gray_bg\">\n\t**Pass Note Guidance**\n\t- <bullet 1>\n\t- <bullet 2>\n</callout>\n<first child markdown verbatim>"
+    old_str: "<📚 blurb callout markdown verbatim>",
+    new_str: "<📚 blurb callout markdown verbatim>\n<callout icon=\"⛔\">\n\t*Pass Note Guidance (<mention-date start=\"YYYY-MM-DD\"/>)*\n\t- <bullet 1>\n\t- <bullet 2>\n</callout>"
   }]
 ```
-Children inside the callout are indented one tab. Fetch the first child via `notion-fetch`;
-the first non-empty block's markdown is the anchor. If that markdown is short/common enough
-to risk a non-unique match (a bare `---`, a one-word heading), extend the anchor to include
-the next block so the substitution is unambiguous.
+Children inside the callout are indented one tab. Reproduce the blurb markdown exactly as
+`notion-fetch` returned it (including its `<mention-date>` tag and indentation) or the match
+will fail.
 
-**Simplest alternative (equally valid):** `command: insert_content` with
-`position: {"type":"start"}` and the callout markdown as `content` — this prepends without
-needing an anchor. Prefer it when the first-block anchor is awkward.
+**No `📚` blurb on the page:** fall back to prepending at the top — `insert_content` with
+`position: {"type":"start"}` and the callout markdown as `content`. Same for an empty page.
 
-**Page is empty (no children):** `insert_content` with `position: {"type":"start"}` (append
-=== prepend on an empty page) and the callout markdown as `content`.
+**Case B — Existing dated-italic callout (extend or revise):**
 
-**Case B — Existing section found (append bullets):**
+If Tom is adding a genuinely new point, append bullets inside the existing callout, anchored
+on its last bullet. If he's restating or correcting an existing point, rewrite that bullet
+in place rather than stacking near-duplicates — the drafter reads the whole section as one
+intent, so contradictory leftovers are worse than a clean overwrite.
 
-Append the new bullets into the existing section. Anchor on the last existing bullet's
-rendered markdown (works for both callout and legacy shapes — the new bullets inherit the
-same indentation/nesting):
-```
-notion-update-page
-  command: update_content
-  page_id: <opp_page_id>
-  content_updates: [{
-    old_str: "\t- <last existing bullet verbatim>"   (callout: leading tab; legacy: no tab)
-    new_str: "\t- <last existing bullet verbatim>\n\t- <new bullet 1>\n\t- <new bullet 2>"
-  }]
-```
-Match the existing indentation exactly — a callout's bullets carry a leading tab, legacy
-sibling bullets do not. Do NOT convert a legacy section to a callout; append in place.
+**Always bump the label's date to today** on any material change, replacing the old date.
+The parenthetical is a last-updated stamp, not a history — never append a second dated line
+or keep the prior date alongside the new one.
 
-Idempotency: before writing, check whether each new bullet's text already appears in the
-existing section (substring match). Skip duplicates to handle re-runs. If ALL new bullets
-are duplicates, report
-`⚠️ All bullets already present in [Opp Name]'s Pass Note Guidance — no change made.`
+**Case C — Existing legacy section:**
 
-**Case C — Existing section found but empty (label only, no bullets):**
+Append new bullets in place — do NOT convert it to the dated-italic shape. Anchor on the
+last existing bullet's rendered markdown and match its indentation exactly (a callout's
+bullets carry a leading tab; legacy sibling bullets do not).
 
-Anchor on the label line and append the bullets after it, matching the shape's indentation
-(callout: tab-indented bullets under the label; legacy: sibling bullets).
+Idempotency (all cases): before writing, check whether the new content already appears in
+the existing section (substring match) to handle re-runs. If it's all already there, report
+`⚠️ Guidance already present in [Opp Name]'s Pass Note Guidance — no change made.`
 
 ### Step 5: Verify the Write
 
 Re-fetch the Opp page (cheap — same notion-fetch as Step 3, no transcript) and confirm:
-- The section header exists
+- The `⛔` callout exists, with an italic (not bold) dated label and no `color` attribute
+- It sits directly beneath the `📚` Company Overview callout (Case A)
 - All intended bullets are present (substring match against the rendered markdown)
+- Exactly one date appears in the label, and it's today's (on any write that changed content)
 
 Per `feedback_skill_self_report_diverges_from_actual_write.md`, do NOT trust the write
 self-report alone — verify by re-reading. If verification fails, retry once. If it still
@@ -232,25 +249,25 @@ fails, surface the failure clearly to Tom rather than reporting success.
 
 **Case A success:**
 ```
-✅ Pass Note Guidance added to [Opp Name] ([Fund]):
+✅ Pass Note Guidance added to [Opp Name] ([Fund]), under the Company Overview callout:
 - <bullet 1>
 - <bullet 2>
 ...
 Opp: <Notion URL>
 ```
 
-**Case B success (appended to existing):**
+**Case B/C success (extended or revised an existing section):**
 ```
-✅ Appended [N] bullet(s) to existing Pass Note Guidance on [Opp Name] ([Fund]):
-- <new bullet 1>
-- <new bullet 2>
+✅ [Extended | Revised] Pass Note Guidance on [Opp Name] ([Fund]) — date bumped to [today]:
+- <new or revised bullet 1>
+- <new or revised bullet 2>
 (Existing bullets preserved: [count])
 Opp: <Notion URL>
 ```
 
 **Duplicate skip:**
 ```
-⚠️ All bullets already present in [Opp Name]'s Pass Note Guidance — no change made.
+⚠️ Guidance already present in [Opp Name]'s Pass Note Guidance — no change made.
 ```
 
 **Verification failure:**
@@ -267,14 +284,20 @@ Opp: <Notion URL>
   legible bullets that capture his read (his explicit preference, 2026-07-21). Preserve his
   meaning, emphasis, and pass reason exactly; don't soften his verdict or add your own
   analysis. Keep it to his read when unsure whether a point is his or your inference.
+- **One bullet per conceptual point.** Don't fuse his separate ideas into a paragraph, and
+  don't split one idea across bullets.
+- **Match the blurb's chrome exactly.** Italic-only dated label (never bold), no `color`
+  attribute so the fill stays transparent — the ⛔ callout should read as a sibling of the
+  📚 Company Overview callout, not as a different artifact.
+- **The date is a last-updated stamp, not a history.** One date in the parens, bumped to
+  today on every material change. Never accumulate dated guidance entries.
 - **Never create an Opportunity.** If the named company has no Opp entry, stop and tell
   Tom to run `add-to-crm` first.
 - **One section per Opp.** Detect existing sections under the callout and legacy label
-  shapes; append into the existing section rather than creating a second one (never convert
-  a legacy section to a callout — append in place).
-- **Section goes at the TOP** of the page body for new sections. This makes it visible to
-  Tom (and to pass-note-drafter on a quick body scan) without scrolling past historical
-  call notes.
+  shapes; extend or revise the existing section rather than creating a second one (never
+  convert a legacy section to the dated-italic shape — append in place).
+- **Section goes directly beneath the `📚` Company Overview callout** — company context
+  first, then Tom's read. Only prepend to the very top when no blurb callout exists.
 - **No permission prompts.** Per `feedback_first_pass_no_permission_prompts.md` and
   `feedback_no_permission_for_user_initiated_analysis.md`, Tom-invoked end-to-end skills
   run without asking. The only allowed pause is genuine target ambiguity (Step 1) or

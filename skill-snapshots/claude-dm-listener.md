@@ -7,7 +7,7 @@ description: "Processes direct messages sent to the `claude` Slack bot. Tom DMs 
 
 When Tom sends a direct message to the `claude` Slack bot OR posts a top-level message in `#claude-alerts`, treat the message as a command and execute it. This is the headless equivalent of asking Claude Code to do something — full skill access, broad authority, do whatever Tom asked for, post a reply when done.
 
-Post a `Working on it...` reply as your very first action (Step 0 below) so Tom sees confirmation that this skill — not just the Worker — has picked up the job. Then do the work and post the result.
+Claim the job with a 👀 reaction as your very first action (Step 0 below), so Tom sees that this skill — not just the Worker — has picked it up. Then do the work and post the result.
 
 **Webhook-only.** No sweep mode, no manual mode. Invoked by the claude-job-queue processor dispatching jobs from `slack-retro-webhook` on two paths:
 - `message.im` events (Tom DM'd the bot) — `channel_id` starts with `D`
@@ -59,20 +59,32 @@ curl -sSL -H "Authorization: Bearer $SLACK_USER_TOKEN" "<url_private>" -o /tmp/<
 
 ---
 
-## Step 0. Ack Tom's message with a reaction
+## Step 0. Claim the job with a reaction
 
-The Worker no longer posts a synchronous ack — that confirmation now comes from this skill, so it only fires when claude has actually started working on the task.
+Reactions carry the status signal — never post an up-front text "Working on it…" reply, which is just noise in the DM. (A mid-run *progress* update on genuinely long work is a different thing and still fine — see Step 2.)
 
-Before doing anything else, add a 👀 reaction to Tom's message:
+| | meaning | who adds it |
+|---|---|---|
+| ⏳ `hourglass_flowing_sand` | queued | **slack-retro-webhook**, at ingest (sub-second) |
+| 👀 `eyes` | working | this skill, Step 0 |
+
+There's no completion tombstone here — Step 3's reply *is* the completion signal. (`claude-alerts-listener` additionally adds 🏁, because it needs a machine-readable claim/complete pair for idempotency; this skill doesn't.)
+
+Before doing anything else, add 👀 to Tom's message, then clear the Worker's ⏳ — it has served its purpose the moment 👀 lands:
 
 ```bash
 /Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
   "<channel_id from args>" \
   "<reply_ts from args>" \
   eyes
+
+/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
+  "<channel_id from args>" \
+  "<reply_ts from args>" \
+  hourglass_flowing_sand remove
 ```
 
-This is quieter than a text "Working on it..." reply — no extra message in the channel/DM, just a reaction visible on Tom's original message. If the reaction fails, log to audit and continue. The result reply at Step 3 is still required.
+If either call fails, log to audit and continue; the result reply at Step 3 is still required. `remove` is a no-op-safe call (a missing ⏳ exits 0).
 
 ---
 
@@ -151,4 +163,4 @@ Append to `~/.claude/skills/claude-dm-listener/audit-log/YYYY-MM-DD.log`:
 
 - **Bot identity for posting back:** the reply posts as the `claude` Slack app via the bot token at `~/.claude/skills/claude-dm-listener/.bot_token` (mode 600). Do NOT use the Slack MCP for replies — that posts as `tom`, defeating the bot identity split (Tom would be talking to himself).
 - **Idempotency:** if the queue file gets reprocessed, check the thread first via `mcp__claude_ai_Slack__slack_read_thread` (channel=channel_id, thread_ts=reply_ts). If the bot has already posted a reply in this thread, exit 0 with audit note — don't duplicate work.
-- **Long tasks:** the processor's per-job timeout is 600s (10 min) by default. For longer work, post an interim reply early so Tom knows the task is in flight, then continue. If you genuinely need >10min, increase `timeout_sec` on the listener side or break the work into multiple commands.
+- **Long tasks:** the per-job timeout is 900s (15 min) — `timeout_sec` set by `slack-retro-webhook` when it enqueues, matching the processor's own default (raised from 600s on 2026-08-03). For longer work, post an interim reply early so Tom knows the task is in flight, then continue. If you genuinely need >15min, raise `timeout_sec` in the Worker or break the work into multiple commands.

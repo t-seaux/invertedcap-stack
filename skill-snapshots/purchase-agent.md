@@ -68,11 +68,34 @@ delivery address (default: home). Ambiguity that changes what gets bought → on
 back to the requester. Ambiguity that doesn't (brand of paper towels) → pick well.
 
 ### 2. Research → quote
-Find the item. Prefer, in order: (a) merchants where the family already has an
-account + saved payment (Amazon first for goods), (b) reputable direct merchants,
-(c) anything else only if the requester named it. For gifts/travel, present up to
-3 options max, lead with the recommendation. Then send the quote via the channel
-the request came from (SMS → short; chat/Slack → can be richer):
+**Check `references/canonical-items.md` FIRST** — if Tom's everyday name for the item
+is pinned there ("detergent", "blue recycling bags", …), use exactly that listing and
+skip research entirely. Otherwise: find the item. Prefer, in order: (a) merchants where
+the family already has an account + saved payment (Amazon first for goods), (b)
+reputable direct merchants, (c) anything else only if the requester named it. For gifts/travel, present up to
+3 options max, lead with the recommendation.
+
+**ALWAYS send the quote as an actual text via `send_imessage.sh` (Tom 2026-09-03:
+"always send a text for me to respond to yes")** — regardless of which channel the
+request came in on. This is not just a UX preference: `place_order.sh`'s consent
+guard verifies the YES against **chat.db**, so a quote that only ever appeared as
+in-session chat text has no message record for the guard to check against, and a
+"yes" typed back in that same chat session can never satisfy CHECK 2. A request that
+arrived in Claude Code chat still gets its quote AND its execution gated by a real
+text — there is no in-chat-only purchase path.
+- Recipient: `+12012567714` (Tom) or Elsie's number, whoever is the requester.
+- Send via `~/.claude/skills/sms-listener/send_imessage.sh <to_e164> --stdin`, body
+  on stdin with a quoted heredoc (`<<'MSG' ... MSG`) — never inline in a double-quoted
+  shell string, which corrupts `$` amounts (see the script's own header comment).
+- Needs `SENDBLUE_API_SECRET` in env: decrypt with
+  `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops -d --extract '["data"]'
+  ~/.claude/.sendblue-api-secret.enc` when running outside the warm daemon (which
+  injects it automatically).
+- The text arrives from the assistant's dedicated Sendblue line
+  (`+13603178168`), NOT from Tom's own number — don't look for it in a thread named
+  after his own number.
+- After sending, still show the same quote in-session too (so the chat has a visible
+  record), but the text is what's authoritative for the gate.
 
 Confirmation format — Title Case emoji header, blank line, then the fields (item, total,
 ship-to, seller, card, and the **item link** — all required so the requester can audit):
@@ -208,6 +231,12 @@ No bold (iMessage renders Unicode bold weirdly). For gifts/travel with options, 
     purchases ("on the work card", "work purchase") — NOT merely because something ships
     to the office. A personal T-shirt delivered to 365 Bridge is still Amex Gold.
 - **Elsie's requests count as personal** → Amex Gold (unless she says work).
+- **HOUSEHOLD ITEMS → address = 25 Garden Pl (home), card = Amex Gold, ALWAYS** (Tom
+  2026-09-03). This is a category override, not just a default: when the ask is a household
+  item (detergent, paper towels, other household restock/consumables), ship home and charge
+  Amex regardless of the general office/Brex defaults above. If a household item is combined
+  into one order with a non-household item (can't split address/card within a single
+  checkout), the household classification wins for the whole order.
 - The quote ALWAYS states both the address and the card; changing either re-quotes.
 - **Never select an address by position.** Amazon's book holds SIX, including other
   people's — Mikyung Kim (Northvale NJ), Steve Seo (Fort Lee NJ), a Santa Barbara and a
@@ -239,6 +268,21 @@ Per-merchant recipes: Amazon → `references/chrome-checkout.md` (tier 3 today);
 Target → `references/target-checkout.md` (tier 2, PerimeterX-walled — verified).
 Adding a merchant = probe for an API first, then a profile+port logged in once.
 Screenshot or capture the JSON of the final order confirmation as the audit artifact.
+
+**Amazon — route by HOW MANY things Tom asked for (Tom 2026-09-03):**
+- **ONE item → Buy Now.** `amazon_api.mjs buy-now <ASIN>` — checks out that single item via
+  `isBuyNow=1` and leaves the cart untouched (his cart is a wishlist, not an order, so
+  never drag its contents into a one-item buy). Then ALWAYS `review` and confirm the
+  variant off `/spc` — Buy Now can silently check out the PDP's default size.
+- **MULTIPLE items → the cart flow.** `amazon_api.mjs add <ASIN> [qty]` for each item, then
+  `cart-checkout` (`proceedToRetailCheckout`) to check out the whole cart at once. Audit
+  `sold_by` on every line first — one 3rd-party item that can't ship to his address wedges
+  the entire pipeline (no Continue control renders).
+- The count is **what Tom asked to buy in this request**, not what happens to be sitting in
+  the cart. "buy the Hanes shirt" = Buy Now even if 5 other things are parked in the cart;
+  "order the shirt and the socks" = cart flow.
+- Both paths stage only. Nothing places until `place_order.sh amazon --execute` clears its
+  four-check consent guard (open quote + a real YES in chat.db + live total still matches).
 - **No-recipe merchant:** get to the final review page, screenshot it, and if the
   last click can't be made reliably, send the requester the cart/checkout link to
   finish — a handed-off purchase is a success, not a failure.

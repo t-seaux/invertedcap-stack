@@ -5,7 +5,7 @@ description: "Processes thread replies in #claude-alerts and #personal-alerts as
 
 # Claude Alerts Listener
 
-When Tom replies to an alert in `#claude-alerts` — or `#personal-alerts` (private, `C0BKZ2L0BDK`; personal-life alerts incl. the coop-finances monthly drop, routed here by slack-retro-webhook since 2026-07-27) — act on his feedback. Post a `Working on it...` reply as your very first action (Step 0 below) so Tom sees confirmation that this skill — not just the Worker — has picked up the job. Then do the work and post a close-loop reply.
+When Tom replies to an alert in `#claude-alerts` — or `#personal-alerts` (private, `C0BKZ2L0BDK`; personal-life alerts incl. the coop-finances monthly drop, routed here by slack-retro-webhook since 2026-07-27) — act on his feedback. Claim the job with a 👀 reaction as your very first action (Step 0 below), so Tom sees that this skill — not just the Worker — has picked it up. Then do the work and post a close-loop reply.
 
 **Webhook-only.** No sweep mode, no manual mode. Invoked exclusively by the claude-job-queue processor dispatching jobs from `slack-retro-webhook`.
 
@@ -41,7 +41,7 @@ curl -sSL -H "Authorization: Bearer $SLACK_USER_TOKEN" "<url_private>" -o /tmp/<
 
 Requires `SLACK_USER_TOKEN` in env with `files:read` scope (same token used by the Slack MCP — user-scoped works since Tom is the only uploader).
 
-**Reaction-triggered jobs (`trigger: "reaction-added"`).** When Tom reacts 👍 or a checkmark (✅/✔️/☑️ — the Worker normalizes all of these to `text: "👍"`) to an alert instead of typing a reply, the Worker synthesizes a job with `text: "👍"` and `thread_ts == reply_ts == <the alert's own ts>` — i.e. **there is no separate reply message in the thread**; the alert Tom reacted to IS both the parent and the "reply" anchor. Do not look for a distinct Tom-authored reply message — treat `args.text` ("👍") as his input and the message at `thread_ts` as the parent alert, then branch as normal. **A bare 👍 is a full confirm — exactly equivalent to replying "confirm" — on every branch that accepts a plain confirm, INCLUDING SOI rebuild publish and SOI mark confirm** (Tom 2026-08-24; this supersedes the old rule that word-gated the SOI branches away from reactions). Branches that require an actual CHOICE (NEW DEAL opt-in/opt-out, value adjustments, field corrections) still need words a reaction can't carry. Step 0's 👀 and Step 4's 🏁 land on the alert message itself; that's expected.
+**Reaction-triggered jobs (`trigger: "reaction-added"`).** When Tom reacts 👍 or a checkmark (✅/✔️/☑️ — the Worker normalizes all of these to `text: "👍"`) to an alert instead of typing a reply, the Worker synthesizes a job with `text: "👍"` and `thread_ts == reply_ts == <the alert's own ts>` — i.e. **there is no separate reply message in the thread**; the alert Tom reacted to IS both the parent and the "reply" anchor. Do not look for a distinct Tom-authored reply message — treat `args.text` ("👍") as his input and the message at `thread_ts` as the parent alert, then branch as normal. **A bare 👍 is a full confirm — exactly equivalent to replying "confirm" — on every branch that accepts a plain confirm, INCLUDING SOI rebuild publish and SOI mark confirm** (Tom 2026-08-24; this supersedes the old rule that word-gated the SOI branches away from reactions). Branches that require an actual CHOICE (NEW DEAL opt-in/opt-out, value adjustments, field corrections) still need words a reaction can't carry. The Worker's ⏳, Step 0's 👀, and Step 4's 🏁 all land on the alert message itself; that's expected.
 
 ---
 
@@ -50,24 +50,37 @@ Requires `SLACK_USER_TOKEN` in env with `files:read` scope (same token used by t
 - NEVER ask questions in-session. Headless. If the reply is genuinely ambiguous, post a clarifying question **in the Slack thread** (via `post_close_loop.sh`) and exit.
 - NEVER fall back to other notification channels. Close-loop reply goes ONLY to the originating thread (use `channel_id` from the args — `#claude-alerts` or `#personal-alerts`).
 - On failure, log to `audit-log/YYYY-MM-DD.log` and post a brief failure note in-thread (`⚠️ couldn't apply this — <one-line reason>`). Do not retry from this skill.
-- **Exit promptly.** Once Step 5 (audit log) is written, STOP. No re-reading edited files to verify, no "let me also check…", no exploring adjacent skills, no proactive cleanup of unrelated content. The Edit tool's success return IS the verification. The `claude --print` wrapper has a 600s ceiling — past runs have hit it after the work was already done, producing a false-positive ⚠️ failure alert on top of a successful run. Sequential Step 0 → 1 → 2 → 3 → 4 → 5 → exit. Nothing after Step 5.
+- **Exit promptly.** Once Step 5 (audit log) is written, STOP. No re-reading edited files to verify, no "let me also check…", no exploring adjacent skills, no proactive cleanup of unrelated content. The Edit tool's success return IS the verification. The `claude --print` wrapper has a 900s ceiling (`timeout_sec` on the Worker's job; raised from 600s on 2026-08-03) — past runs have hit it after the work was already done, producing a false-positive ⚠️ failure alert on top of a successful run. Sequential Step 0 → 1 → 2 → 3 → 4 → 5 → exit. Nothing after Step 5.
 
 ---
 
-## Step 0. Ack Tom's message with a reaction
+## Step 0. Claim the job with a reaction
 
-The Worker no longer posts a synchronous ack — that confirmation now comes from this skill, so it only fires when claude has actually started working on the task.
+Three reactions, one per lifecycle stage. Reactions carry the whole status conversation — never post a text "Working on it…" reply, which is just noise in the thread.
 
-Before doing anything else, add a 👀 reaction to Tom's reply message (the one that triggered this job):
+| | meaning | who adds it |
+|---|---|---|
+| ⏳ `hourglass_flowing_sand` | queued | **slack-retro-webhook**, at ingest (sub-second) |
+| 👀 `eyes` | working | this skill, Step 0 |
+| 🏁 `checkered_flag` | done | this skill, when Step 4's close-loop posts |
+
+Before doing anything else, add 👀 to the message that triggered this job, then clear the Worker's ⏳ — it has served its purpose the moment 👀 lands:
 
 ```bash
 /Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
-  "C0B06385BP1" \
+  "<channel_id from args>" \
   "<reply_ts from args>" \
   eyes
+
+/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
+  "<channel_id from args>" \
+  "<reply_ts from args>" \
+  hourglass_flowing_sand remove
 ```
 
-This is quieter than a text "Working on it..." reply — no extra message in the thread, just a reaction visible on Tom's reply. If the reaction fails, log to audit and continue. The close-loop reply at Step 4 is still required.
+Use `channel_id` from the args, not a hardcoded id — this skill serves both `#claude-alerts` and `#personal-alerts`. If either call fails, log to audit and continue; the close-loop reply at Step 4 is still required. `remove` is a no-op-safe call (a missing ⏳ exits 0).
+
+**👀/🏁 remain the claim/complete pair Step 4a reads for idempotency — ⏳ is not part of it.** The Worker adds ⏳ to every enqueued job, including ones that never start, so it says nothing about whether a run happened.
 
 ---
 
@@ -181,7 +194,7 @@ Append a one-line summary of the run to `~/.claude/skills/claude-alerts-listener
 
 Tags should be short: `format-tweak`, `denylist-edit`, `notion-update`, `memory-write`, `ack-only`, etc.
 
-**This is the terminator.** After the audit-log line is appended, exit 0. Do not re-read the edited file. Do not verify the Slack reply landed. Do not look at adjacent skills "while you're here". The wrapper is on a 600s clock and the work is done.
+**This is the terminator.** After the audit-log line is appended, exit 0. Do not re-read the edited file. Do not verify the Slack reply landed. Do not look at adjacent skills "while you're here". The wrapper is on a 900s clock and the work is done.
 
 ---
 

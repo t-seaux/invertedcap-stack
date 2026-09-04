@@ -59,6 +59,8 @@ A company can have variant blurbs tailored to a specific audience (e.g., card ne
 
 5. **Verify.** Re-fetch the page: callout shows the new blurb with today's date mention; the previous version's full text is present at the top of the toggle; nothing else changed. Report the page link and what was demoted.
 
+6. **Chain: sync open drafts.** If this run wrote a NEW blurb version onto a page that already carried one (Case (a), or Case (b) with prior sections), run the `blurb-draft-sync` skill (`~/.claude/skills/blurb-draft-sync/SKILL.md`) with the company name, Opp page ID, and the new blurb text — it updates every active Gmail draft embedding the old blurb (the `--` / *About [Company]* section) and sends one consolidated #claude-alerts ping. Skip for Case (c) (first-ever blurb — nothing depends on it yet) and for no-op rewrites of identical text.
+
 ## Notes
 
 - Date for the new blurb = today, unless Tom supplies an explicit date ("log this as the July blurb" → use that date).

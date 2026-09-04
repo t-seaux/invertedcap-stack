@@ -1,7 +1,9 @@
 {
   "skills": {
-    "writeback-review-triage": "2026-09-03"
+    "blurb-draft-sync": "2026-09-04"
   },
-  "launchAgents": {},
+  "launchAgents": {
+    "family-todo-digest": "2026-09-04"
+  },
   "webhookHandlers": {}
 }
