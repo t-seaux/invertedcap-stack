@@ -83,11 +83,57 @@ Many notable emails — especially the **BFS weekly** (Andy's school) — carry 
 dated items. Extract EVERY concrete date/event/deadline (first day, picture day, no-school
 days, gatherings, conferences, due dates, appointment times).
 
+**OPEN THE LINKS *AND THE ATTACHMENTS* FIRST — the email body is not the email**
+(Tom 2026-09-04 / 2026-09-06, HARD RULE). The webhook `body` arg is only the first ~2000
+chars of **text/plain**, so it misses HTML-only anchors, anything past the cutoff, **and
+every attachment** (the webhook never carries them). Three proven cases where the dates live
+*entirely* outside the body:
+- **Pink Room "Essential Info" sheet** — body had no dates; the linked Google Doc held the
+  whole 2026-2027 date list **and** the 5-day phase-in schedule. Reported "no dated events
+  to add" and missed all of it.
+- **BFS: The Weekly** — body is literally *"To view the contents of this message, click on
+  the following link"*. Every weekly digest has been classified on zero content.
+- **Regal movie ticket** (Tom 2026-09-06) — body was just prices + a login-walled order link;
+  the showtime/theater/auditorium/seats were printed on the **attached JPEG ticket**. Told Tom
+  "no date to auto-catch" because the image went unopened. Tickets, boarding passes, and event
+  confirmations put the date/time/seat in an IMAGE, not the text — just like BFS puts it behind
+  a link.
+
+So, before extracting anything, enumerate what the message actually points to:
+```bash
+python3 ~/.claude/skills/family-inbox/family_inbox.py links <messageId|uid>
+```
+This reads the FULL message off IMAP (both text/plain and text/html) and prints deduped
+URLs plus attachment names, with `DOC`-tagged lines first. **If ANY `ATTACHMENT` line
+appears, pull the bytes and read them** — the same reflex as clicking a BFS link:
+```bash
+python3 ~/.claude/skills/family-inbox/family_inbox.py attachments <messageId|uid>
+```
+This saves each attachment to `/tmp/family_attach/` and prints a `SAVED <path>` line per file.
+Then **open every DOC line AND every saved attachment** before deciding what dates exist:
+- Google Doc/Sheet/Slides → `mcp__claude_ai_Google_Drive__read_file_content` with the file
+  ID from the URL (`/d/<id>/` or `?id=<id>`).
+- Other web pages (myschoolapp push pages, Smore, SignUpGenius) → `WebFetch`.
+- Image attachments (JPEG/PNG — tickets, passes, flyers) → `Read` the saved file (vision).
+- PDF/DOCX attachments → `Read` the saved file.
+- If a link or attachment won't open (permissions, login wall, fetch error), say so explicitly
+  in the heads-up — **never** let an unopened link/attachment become a silent "no dates found."
+
+**NEVER report "no dated events to add" when a DOC link OR an attachment went unopened.** That
+claim is only valid once every link and every attachment has actually been read.
+
 **Relevance filter FIRST — drop anything not for this family:**
-- **BFS / school mail:** Andy is in the **ECLS / Early Childhood (EC)** program. Keep
-  **EC / ECLS / "all school"** items; **DROP Middle School (MS) and Upper School (US)**
-  items entirely (see [[reference_family_members]]). A BFS weekly lists all divisions —
-  only EC/ECLS lines are ours.
+- **BFS / school mail:** Andy is in the **ECLS / Early Childhood (EC)** program, **Pink
+  Room** (2s), teachers **Linda and Camille** (`pink@brooklynfriends.org`). Keep
+  **EC / ECLS / ECLC / "all school"** items; **DROP Middle School (MS), Upper School (US),
+  and Grades K-4** items entirely (see [[reference_family_members]]). A BFS weekly lists
+  all divisions — only EC/ECLS lines are ours.
+  - **DROP BFX Extended Day items — Andy is not enrolled** (Tom 2026-09-04). Trimester
+    start/end dates, registration windows, dismissal-option changes: all N/A.
+  - **DROP financial-aid items — not applying** (Tom 2026-09-04). The Clarity application
+    deadline and related reminders are N/A.
+  - Adult-facing all-school events (Giving Day, The Benefit, volunteer fairs) ARE wanted,
+    but add them **all-day and FREE** — they don't block the day.
 - Other mail: keep only genuinely family-relevant dates.
 
 **For EACH relevant date, dedup-check the family calendar BEFORE anything else:**
@@ -96,10 +142,24 @@ days, gatherings, conferences, due dates, appointment times).
 semantically — the BFS feed already auto-adds many milestones (Labor Day, Family Visit
 Day, First/Second Day), so most will already exist.
 
-- **DUPE found → ENRICH, don't re-add.** `update_event` to fill in any MISSING detail the
-  email provides — a specific time if the existing event is all-day, a location, a
-  description. Don't overwrite correct existing info; only add what's missing. (This is an
-  authorized auto-update — no approval needed — but you STILL tell them, see step 4.)
+- **DUPE found → RECONCILE, don't just skip.** Finding a match is the START of the check,
+  not the end. `update_event` to do BOTH of:
+  1. **Fill in what's MISSING** — a specific time if the existing event is all-day, a
+     location, a room number, a description.
+  2. **CORRECT what CONFLICTS.** Compare every field against the source: date, start AND
+     end time, location, who it's for. An existing event is **NOT authoritative** — Tom and
+     Elsie create events by hand and they are often wrong or stale (Tom 2026-09-04). If the
+     source disagrees, the source wins: fix it, and note the old value + why you changed it
+     in the description so the edit is auditable.
+  Real case: a hand-made "[BFS] Family Visit Day" sat at 10:15-10:30 while the Pink Room
+  sign-up sheet had Andy at **10:00-10:15** — 10:15 was the NEXT family's slot. Enrich-only
+  logic preserves that kind of error forever, and a wrong time nobody flags looks exactly
+  like a right one.
+  (Authorized auto-update — no approval needed — but you STILL report it, see step 4.
+  Corrections go in the heads-up as a ✏️ line, distinct from a plain ✓ enrich, so a
+  changed time actually gets noticed rather than blending into the "already on cal" noise.)
+  Ask instead of guessing only when the source itself is ambiguous, or when "correcting"
+  would delete detail the source doesn't cover.
 - **NET-NEW relevant date → ADD it directly, then report it** (Tom 2026-09-02 — "take
   first pass and text alert us with what you added, let us audit/ask for edits"). No
   more propose-and-wait: once the dedup check above comes back clean, create the event
@@ -127,10 +187,15 @@ Cover both buckets, clearly separated:
 📬 BFS weekly — 3 EC dates
 ✓ Already on cal (enriched): Grown-Up Gathering Fri 9/11 — added 8:45am start
 ✓ Already on cal: First Day of School Wed 9/9
+✏️ Fixed: Family Visit Day Tue 9/8 — was 10:15, sign-up sheet says 10:00-10:15
 🆕 Added: Picture Day — Tue 10/7 (EC)
 ```
 - `✓` lines = dupes you already handled (enriched noted). Tom asked: even when it's
   already on the calendar, still tell them you saw a relevant date in the email.
+- `✏️ Fixed:` lines = an existing event whose details CONFLICTED with the source and that
+  you corrected. Always say what it was and what it is now, so they can catch a bad call
+  fast. These matter most when Tom or Elsie made the event by hand — never let a
+  correction hide inside a ✓ line.
 - `🆕 Added:` lines = net-new relevant dates you ALREADY put on the calendar (dedup-
   checked first, per above) — first-pass, not a proposal. Tom/Elsie audit after the fact;
   a reply like "move picture day to 9am" / "remove that" / "wrong calendar" is an edit

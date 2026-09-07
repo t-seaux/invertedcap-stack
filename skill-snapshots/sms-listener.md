@@ -1,6 +1,6 @@
 ---
 name: sms-listener
-description: "Processes inbound SMS/MMS texts sent to Tom's Twilio number (978-733-7893). An allowlisted sender (Tom or Elsie) texts a command — most often a calendar query or add — and this skill executes it and texts back the reply (Twilio REST, iMessage fallback while A2P registration is pending). Webhook-only — invoked by claude-job-queue dispatching jobs from the sms-webhook Cloudflare Worker on inbound-sms events."
+description: "Processes inbound iMessages to Tom's personal number via Sendblue. An allowlisted sender (Tom or Elsie) texts a command — most often a calendar query or add — and this skill executes it and replies in-thread as a blue bubble. Also owns the confirm loop for deal-text-scanner's 🆕 cards and preference-miner proposals (👍 tapback or \"confirm\"). Webhook-only — invoked by claude-job-queue dispatching jobs from the sendblue webhook. Twilio/SMS transport retired 2026-09-04 (Tom no longer uses Twilio); the scripts and Worker remain on disk but dormant and unreferenced."
 ---
 
 # SMS Listener
@@ -19,7 +19,7 @@ An allowlisted person texted Tom's Twilio number; the `body` arg is their comman
   "body": "<the command>",
   "message_sid": "SM...",
   "num_media": 0,
-  "media_urls": [],            // MMS: fetch with curl -u "$TWILIO_ACCOUNT_SID:$TWILIO_AUTH_TOKEN"
+  "media_urls": [],            // attachments: Sendblue-hosted URLs, fetch with plain curl
   "media_types": []
 }
 ```
@@ -101,6 +101,15 @@ React to the sender's message with a tapback as your next action — a real reac
 - **Personal / family / kids / school** → Elsie-Tom shared: `cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com`
 - **Work** → `tom@invertedcap.com` (also: Dash `tom@dashfund.co`, Primary `tseo@primary.vc`)
 - "my calendar today" with no cue → **for Tom**, check personal + Inverted work in ONE parallel turn. **For Elsie**, check the personal calendar; she may also READ Tom's work calendar if she asks about his availability — but she can never WRITE to it (see her fence above).
+
+**Calendar before web search, always** (Tom 2026-08-31, graduated 2026-09-06) — for ANY
+scheduling question ("when is X", "do we have anything on Saturday", "is X already on the
+calendar", "what time is Y") OR before proposing to add an event, `list_events` the relevant
+range FIRST. The calendar is the source of truth for what's already scheduled — never answer
+from a web search (or propose an add) before checking it. Origin: answered a school-calendar
+question via web search while the BFS feed had already pre-populated the events. This is
+BROADER than the dedup rule below (which only guards event *creation*) — it also governs how
+you *answer* date/schedule questions.
 
 **Rules for adds:**
 1. **Dedup first, always** — `list_events` over the day; same date + overlapping time + equivalent title (judge semantically) → skip, report as existing. BFS school feed pre-populates milestones.
@@ -205,11 +214,42 @@ preferences without bloating context. Two duties every turn:
 - **Only persist GENERAL rules, not one-off commands.** "add soccer Thursday 8" is a task,
   not a preference. If it's ambiguous whether they mean "just this time" vs "always," ask a
   one-line clarifier BEFORE persisting. Better to under-capture than learn a wrong rule.
+- **Capture the SCOPE the sender states — and if scope is ambiguous, ask before saving.**
+  A durable rule can be broad (all summaries) or narrow (just the family digest). If they
+  bound it ("only for X", "when doing Y", "for calendar only"), write that qualifier verbatim
+  into the rule text AND route it to the matching domain file (not `general`). If the rule is
+  durable but its breadth is unclear — could plausibly be broad or narrow — fire a ONE-LINE
+  clarifier before persisting ("broadly, or just for the family digest?"), same as the
+  durable-vs-one-off gate. Don't silently default an unbounded rule to `general` when the
+  phrasing hints it was meant for one surface. Better to ask once than mis-scope a learned rule.
 - Keep the rule text concise and self-contained (it'll be read cold later).
 
 **3. CONFIRM/REJECT miner proposals.** The nightly preference-miner (and the "🧠 Preferences
 I Noticed" proposal) texts Tom candidate prefs with ids (e.g. `p1`, `p3`). If he replies
 "confirm p3" / "yes p3" → `prefs.py confirm p3`; "no p3" / "reject p3" → `prefs.py reject p3`.
+
+- **"confirm all" is a BLANKET yes — it covers the 📌 graduation flags too, not just the
+  numbered `pN` candidates.** For that same digest: `prefs.py confirm` each pending `pN`, AND
+  execute every `📌 Ready to bake into <skill>: <prefs>` line. For each flag, in order:
+  1. **Open the named skill's SKILL.md and search for the SPECIFIC behavior** the pref
+     describes — not a similarly-worded rule. Match on what the rule DOES, not on shared
+     keywords. (Bug, Tom 2026-09-06: a "check calendar first before web-searching a scheduling
+     question" flag was declared "already present" because SKILL.md had a *dedup-before-create*
+     rule — different behavior, same word "calendar" — and the corpus line was dropped, losing
+     the pref from both layers.)
+  2. **If the exact behavior isn't compiled in, WRITE it** — add a concise, self-contained
+     rule to the right section. Do NOT assume "close enough" existing text covers it; when in
+     doubt, add the explicit rule.
+  3. **Only after the rule is actually in SKILL.md** (you just wrote it, or you quoted the
+     exact line that already encodes THIS behavior) — delete the matching pref line(s) from the
+     corpus (`preferences/<domain>.md`). Never drop a corpus line on an unverified "already
+     there." A dropped-but-not-compiled pref is lost from both layers — worse than not
+     graduating.
+  In the reply, name each skill you edited AND say which flags were already-present (quote the
+  line) vs newly written, so Tom can eyeball. A bare "confirm all" with no `pN` pending but 📌
+  flags present → still graduate the flags. To graduate flags WITHOUT the candidates (or
+  vice-versa), Tom says "graduate all" / "confirm prefs only"; "reject" a flag ("skip the
+  haircut bake") leaves the pref in the corpus.
 
 - **⚠️ Disambiguating a bare "confirm" / "yes" / "ok" (Tom bug 2026-08-31).** More than one
   thing can await a yes at once (a pref candidate `p1`, a pending calendar-event proposal, a
@@ -238,8 +278,9 @@ I Noticed" proposal) texts Tom candidate prefs with ids (e.g. `p1`, `p3`). If he
   it's absent on the job, the inbound wasn't an inline-reply, or the gateway didn't surface
   it → fall through to recency/clarifier.)
 
-(Durable, proven prefs eventually get baked into the skills themselves and drop out of the
-corpus — that graduation keeps this lean. Don't worry about it mid-turn; the miner flags it.)
+(Durable, proven prefs get baked into the skills themselves and drop out of the corpus —
+that graduation keeps this lean. The miner flags candidates with 📌; Tom's "confirm all" (or
+"graduate all") executes the bake + corpus-drop inline, per the blanket-confirm bullet above.)
 
 **4. CONFIRM deal proposals (🆕).** The deal-text-scanner texts Tom `🆕 Opportunity: <Company>`
 / `🆕 Opportunity: -1 (<Founder>)` cards ending "👍 to Add to CRM" (audit line:
@@ -363,8 +404,9 @@ The args block's `source` (in the job-start line) decides HOW you send the reply
          '{recipient:$r, body:$b, source_job:$j}')"
   ```
   Then append the audit line (status=queued_imessage) and you're done — the relay delivers.
-- **`source=sms-webhook`** (Twilio) → use the Twilio path below (send_sms.sh + delivery poll +
-  iMessage fallback). This whole block applies only to SMS-sourced jobs.
+- **`source=sms-webhook`** (Twilio) → **RETIRED 2026-09-04.** Tom no longer uses Twilio. No job
+  should carry this source; if one ever does, treat it as a misroute — log it and exit rather
+  than trying to answer over a dead transport.
 
 ## Reply + verify + audit — SMS/Twilio path (ONE Bash call)
 

@@ -193,6 +193,18 @@ run `build_qa_doc.py` to copy the logo-only template into it and style every
 paragraph by computed character offset. Full procedure in
 `references/step-5-builder.md` — read it now before proceeding.
 
+**Provenance rendering (Tom, 2026-09-04).** The builder emits a legend line
+under the title (`⬛️ TS-generated; 🟧 Claude-generated`) and colors questions
+by origin: skill-drafted questions are tagged `"claude"` (default) and render
+dark orange; Tom-authored questions are tagged `"tom"` and render black. On
+the initial all-Claude draft everything is orange. When Tom asks to
+incorporate his own questions (in the initial request or later), PROOFREAD
+them — fix typos, subject-verb agreement, obvious slips, and report each
+fix — but otherwise keep his text VERBATIM (including his italics; apply
+in-prose italics via a targeted `updateTextStyle` after build). Never rewrite
+his phrasing into the skill's one-sentence register. Schema details in
+`QA_CONTENT_SCHEMA.md` (Provenance section). Guard check G10 verifies the legend.
+
 ---
 
 ## Step 6: Format guard (HARD GATE)
@@ -202,7 +214,7 @@ python3 ~/.claude/skills/diligence-qa/format_guard.py \
     --doc-id "$DOC_ID" --company "$COMPANY"
 ```
 
-Re-fetches the live Doc and enforces nine checks:
+Re-fetches the live Doc and enforces ten checks:
 
 | ID | Check |
 |---|---|
@@ -215,6 +227,7 @@ Re-fetches the live Doc and enforces nine checks:
 | G7 | No bullet glyph on any non-question paragraph (date/title/section/blank) |
 | G8 | No raw markdown markers (`#`, `##`, `- `, `**`) leaked into rendered text |
 | G9 | Each section has ≥ `COVERAGE_MINIMUM_QUESTIONS` question bullets |
+| G10 | Legend line present under the title, not bulleted |
 
 **G7 is the load-bearing check** — it catches the historical defect where every
 paragraph rendered with a bullet. A green guard with a bulleted date/title/
@@ -273,7 +286,7 @@ Read `~/.claude/skills/send-alert/SKILL.md` and post to `#claude-alerts`:
 - Company + Drive URL (GFM link — `[text](url)`, never Slack mrkdwn `<url|text>`,
   per memory `feedback_send_alert_gfm_not_mrkdwn`)
 - Per-section question count: `Product: N / Distribution: N / Market: N / Team: N`
-- Format guard summary: `format guard: G1-G9 all PASS`
+- Format guard summary: `format guard: G1-G10 all PASS`
 
 ---
 

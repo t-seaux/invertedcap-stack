@@ -58,13 +58,13 @@ Materials`). Read it and extract into working memory:
 
 - every **Open Questions** block (these are the questions diligence already
   flagged — the overlap set),
-- the **Risks / Killshots** sections (unaddressed risks are the raw material
+- the **Risks / Failure Modes** sections (unaddressed risks are the raw material
   for "what would you bring" in Step 2).
 
 The Master Diligence Doc frequently exceeds the fetch token limit. When
 `notion-fetch` spills to a saved file, slice it by character range (the fetch
 tool result names the file and the technique) and grep for `Open Question`,
-`Risk`, `Killshot`, and headings — do NOT try to re-read the whole thing into
+`Risk`, `Failure Mode`, and headings — do NOT try to re-read the whole thing into
 context. A diligence artifact is NOT required; if none exists, the overlap set
 is empty — say so in the Step 1c orientation and lean harder on Step 1b-alt.
 
@@ -84,7 +84,7 @@ load, not a fallback — do it thoroughly:
 - **Sources / founder LinkedIn** — whatever the Opp links for founder
   background.
 
-With no diligence doc, the Risks/Killshots raw material for Step 2's "what
+With no diligence doc, the Risks/Failure Modes raw material for Step 2's "what
 would you bring" doesn't exist either — derive it yourself from the materials
 just read (competitive threats, unproven assumptions, team gaps, round
 mechanics) so the opinionated move still fires.
@@ -121,7 +121,7 @@ skill, not just stenography:
 
 **When Tom asks "what am I missing / what would you bring":** be opinionated
 (per memory `feedback_agent_behavior` — opinionated, not a pleaser). Propose
-net-new questions drawn from the diligence Risks / Killshots and gaps his dump
+net-new questions drawn from the diligence Risks / Failure Modes and gaps his dump
 hasn't touched, RANK them, name the must-asks explicitly, and map each to a
 section. Do not just mirror his framing back.
 

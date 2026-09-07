@@ -231,14 +231,21 @@ q: "is:inbox from:\"<First Name> <Last Name>\" newer_than:12h"
 For each inbox message found:
 1. Read the full thread to extract: sender name and email, reply date, reply body (strip quoted prior messages — extract only the new reply text). **The reply body must be pasted verbatim into the note — do not summarize, paraphrase, or rewrite into third person.**
 2. **Sanity check**: Confirm the reply is part of a feedback outreach thread (the thread should contain a prior outreach message from Tom about the relevant opportunity). Skip unrelated emails from the same person.
+2b. **Founder-on-thread exclusion (HARD RULE).** If the message's `To`/`Cc` includes the Opp's founder — any `🏁 Founder(s)` email or the Opp's `Contact` address — it cannot be backchannel feedback. Nobody gives a candid read on a company while the founder is reading. Skip it outright, whatever the content, and do not append it to the note.
+
+   This matters most on **parallel-track notes** (`feedback-outreach-drafter` Gate C), where the feedback giver is ALSO an intro target and is therefore actively corresponding with the founder on the connect thread. Those messages ("would be great to chat — can do Tues 9am or 10:30am") arrive in Tom's inbox, from a person who IS in `📣 Pending Feedback`, on a thread that DOES contain a prior Tom message about the Opp — so the Step 2 sanity check passes and only this rule stops them. Tom is frequently Bcc'd on the connect thread, so these land in the inbox scan by default.
+
+2c. **Intro-thread logistics are not feedback.** On a parallel-track note, the person's messages in the intro thread *before* the debrief happens are scheduling and chatter. Classify them non-substantive AND do not append them at all unless they carry an actual read on the company — a Response section filling up with "kk sounds good" is worse than one that stays empty, because it makes an untouched ask look answered. Append only when the message contains a real opinion, and only then run the substantive path.
 3. **Classify the reply** — this determines downstream actions:
    - **Substantive feedback**: The person shares actual opinions, market reactions, answers to diligence questions, or relevant observations about the opportunity. This counts as feedback received.
    - **Acknowledgment / deferral**: The person says they'll respond later ("I'll send notes soon", "give me a few days", "will get back to you after vacation"). This does NOT count as feedback received — the person remains pending, even though they replied.
+   - **Decline**: The person says they can't or won't give a read — "don't know the space well enough", "can't help on this one", "too close to the company", "conflicted, I'm an investor in a competitor", "not comfortable commenting". **Terminal — no feedback is coming.** Separate it from a deferral by whether a near-term re-engagement path is offered: a specific one keeps it pending, while indefinite timing or an explicit inability/unwillingness to help is a decline. When genuinely uncertain, **treat it as a deferral and leave it pending** — a false decline silently closes an ask Tom still wants, which is the more expensive error. Note the reason; "too close to the company" or a competitor conflict is itself diligence signal.
 4. Search for an existing note for this person + opportunity by fetching the opportunity page and inspecting its `✍️ Notes` relation array. Check each linked note's title (prefixed or unprefixed) against both the giver-first `[First Name] [Last Name] ([Their Company]): ...` and legacy `[Company]: [First Name]...` forms. This is the same relation-based check used in Step 1 — do not use Notion search here.
 5. If a note exists — append the reply under `## Response — [Date]` (Step 4).
 6. If no note exists yet — create the full note now using the thread's sent message as the outreach note body and the reply as the response (Step 3 + Step 4 together).
 7. **After appending the reply**, act based on classification:
    - **Substantive feedback**: remove `[PENDING]` from the note title (Step 4b) and remove this person from `📣 Pending Feedback` (Step 5).
+   - **Decline**: retitle `[PENDING]` → `[DECLINED]` (Step 4b) and remove this person from `📣 Pending Feedback` (Step 5) — the ask is closed, so it should stop surfacing on the roster. **Never archive the note.** Its existence is what keeps every other path from re-drafting the same ask, and the stated reason is diligence signal.
    - **Acknowledgment / deferral**: keep `[PENDING]` in the title and keep the person in `📣 Pending Feedback`. Log the acknowledgment in the note so there's a record, but treat them as still outstanding.
 
 ---
@@ -353,20 +360,23 @@ When a reply is detected (Step 2) and a note already exists:
 4. If a response already exists (prior reply), insert a new `## Response — [Date]` block **ABOVE** the existing one — do not overwrite, and do not append below. The page is **reverse-chronological: newest input on top**, so the oldest event (`## Outreach Note`) always sits last (Tom, 2026-08-04). Same verbatim rule applies. If the new block shares a date with an existing one, disambiguate both with a parenthetical channel tag — `## Response — August 4, 2026 (reference call)` above `## Response — August 4, 2026 (email)`.
 5. Also update the respondent's email in the People DB if the reply came from a different address than what is on file.
 
-### Step 4b: Remove [PENDING] prefix when substantive feedback arrives
+### Step 4b: Resolve the status prefix
 
-If the reply is classified as **substantive feedback**, update the note title to remove the `[PENDING]` prefix using `notion-update-page` with `command: update_properties`:
+Update the note title with `notion-update-page` (`command: update_properties`) per the Step 2.3 classification. Contract: `shared-references/feedback-note-format.md`.
 
-- Before: `[PENDING] Jeff Green (Hatch Bank): Clusia Feedback`
-- After: `Jeff Green (Hatch Bank): Clusia Feedback`
+- **Substantive feedback** → strip the prefix:
+  `[PENDING] Jeff Green (Hatch Bank): Clusia Feedback` → `Jeff Green (Hatch Bank): Clusia Feedback`
+- **Decline** → swap the prefix:
+  `[PENDING] Jeff Green (Hatch Bank): Clusia Feedback` → `[DECLINED] Jeff Green (Hatch Bank): Clusia Feedback`
+- **Acknowledgment / deferral** → leave `[PENDING]` in place; those people are still outstanding.
 
-Do NOT remove the prefix for acknowledgments or deferrals — those people are still pending.
+Silence is not a decline — only an explicit decline in the person's own words sets `[DECLINED]`. When torn between decline and deferral, leave it `[PENDING]`.
 
 ---
 
 ## Step 5: Remove Person from Pending Feedback
 
-After **substantive feedback** is successfully logged, remove the person from the opportunity's `📣 Pending Feedback` relation.
+Remove the person from the opportunity's `📣 Pending Feedback` relation once the ask has **resolved** — either **substantive feedback** was successfully logged, or the person **declined**. Both are terminal states; the relation tracks only asks still outstanding, so anything resolved must come off it.
 
 Do NOT remove the person if the reply was an acknowledgment or deferral — they stay in `📣 Pending Feedback` so the scanner picks them up again on the next run.
 
@@ -386,7 +396,8 @@ Return a structured summary for the Diligence Agent orchestrator:
 - **New notes created**: [count] — [list: Person (Company) → Opportunity]
 - **Replies logged**: [count] — [list: Person → Opportunity, note whether substantive or deferral]
 - **Manually-resolved (reconciled)**: [count] — [list: Person → Opportunity, source (call notes / manual paste)]
-- **Removed from Pending Feedback**: [count] — [list: Person → Opportunity]
+- **Declined**: [count] — [list: Person → Opportunity, reason given]
+- **Removed from Pending Feedback**: [count] — [list: Person → Opportunity, resolved as substantive | declined]
 - **Still pending (deferral/ack only)**: [count] — [list: Person → Opportunity]
 - **Already existed / skipped**: [count]
 - **Name-fallback matches**: [count] — [list: Person → email used (if different from People DB)]

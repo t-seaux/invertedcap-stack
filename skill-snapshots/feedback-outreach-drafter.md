@@ -35,19 +35,55 @@ Query the Opportunities DB for all opportunities whose `📣 Pending Feedback` r
 > **Why 30 hours:** The agent runs on a ~10-hour cadence (8am and 6pm ET). A 30-hour lookback creates a 20-hour overlap between consecutive runs, so any contact added near a run boundary — or during a run's own execution window — is always caught by the next run. The draft-once dedup check below prevents double-drafting regardless of overlap.
 
 1. Fetch the opportunity page and read the current `📣 Pending Feedback` array.
-2. For each person in the array, run a **draft-once dedup check**. Two gates — a hit on **either** means skip.
+2. For each person in the array, run a **draft-once dedup check**. Three gates deciding **two separate things** — conflating them is what strands people in the relation with nowhere to put their feedback:
 
-   **Gate A — the Opp's `✍️ Notes` relation (authoritative).** Read the relation directly and match this person's note title with or without the `[PENDING]` prefix, in both the giver-first and legacy company-first forms. This is the cross-path interlock required by `shared-references/feedback-note-format.md` ("Every path checks the Opp's `✍️ Notes` relation — not Notion search, the index lags same-run writes"). A note exists whether Tom sent, hasn't sent yet, or deleted the draft, so this holds draft-once semantics without depending on Gmail state.
+   - **The NOTE is decided by Gate A alone.** No existing note → create one, always, whatever Gates B and C conclude about the email. Tom putting someone in `📣 Pending Feedback` IS the signal that he wants their read, and the note is the vessel that read lands in — including feedback arriving by phone, text, or voice note that never touches Gmail at all.
+   - **The EMAIL is decided by Gates B and C.** A hit on either means do not draft.
 
-   **Gate B — Gmail trace, across all of Gmail including Trash and Spam.** Match **either** subject form, because `📣 Pending Feedback` has two writers using different conventions:
+   > **Why they are decoupled (Tom, 2026-09-04).** Gate B used to skip outright, note included. So a person Tom added to `📣 Pending Feedback` by hand, for whom Tom then discarded the drafted email because he phoned them instead, got no note — while staying in the relation indefinitely. He had asked for the feedback and had nowhere to record it. The note is cheap and the collection point; the email is the only thing worth suppressing.
+
+   **Gate A — the Opp's `✍️ Notes` relation (authoritative).** Read the relation directly and match this person's note title with or without **any** status prefix — `[PENDING]`, `[DECLINED]`, or none — in both the giver-first and legacy company-first forms. Matching all three matters: a `[DECLINED]` note must still suppress re-drafting, since the person already said no and a fresh ask would re-ask a closed question. This is the cross-path interlock required by `shared-references/feedback-note-format.md` ("Every path checks the Opp's `✍️ Notes` relation — not Notion search, the index lags same-run writes"). A note exists whether Tom sent, hasn't sent yet, or deleted the draft, so this holds draft-once semantics without depending on Gmail state.
+
+   **Gate B — Gmail trace, across all of Gmail including Trash and Spam.** Subject forms known to carry a real ask:
    - `subject:"Thoughts on [Company]" to:[person email] in:anywhere` — this skill's own outreach.
    - `subject:"[Founder name] reference" to:[person email] in:anywhere` — a **reference request** Tom sent by hand.
+   - `subject:"Intro to [Company]" to:[person email] in:anywhere` — an **intro-fused ask** (Shape 3 in `shared-references/feedback-ask-signals.md`). Tom routinely puts the feedback ask inside an intro offer.
+   - `subject:"[Company]" to:[person email] in:anywhere` — bare company name, no prefix at all.
 
-   → If ANY match returns (sent, drafts, or trash), skip. The outreach has already been handled — either sent, awaiting Tom's send, or Tom deleted the draft as a terminal signal (he reached out another way, or decided not to pursue this contact).
+   > **A subject miss is NOT a negative result (corpus-verified 2026-09-04).** Subject matching is a fast *positive* signal only. Mining 98 feedback notes plus the matching sent mail found the ask under `Intro to Rengo AI?`, `Intro to Sticker (embedded procurement)?`, `[External] Intro to Kai Dougan @ Lark (…)?`, `Redwagon – would love to intro`, and the bare `Factir - software + payments for cross-border importers` — none of which the original two-form Gate B matched. **When no subject matches, do not conclude "no ask exists."** Fall through to Gate C, which reads message bodies.
+
+   → If ANY match returns (sent, drafts, or trash), **do not draft an email.** The outreach was already handled — sent, awaiting Tom's send, or Tom deleted the draft as a terminal signal (he reached out another way, or decided not to pursue this contact).
+
+   **The note is still created if Gate A found none.** Source its `## Outreach Note` body from whichever message Gate B matched: the sent message, the pending draft, or — when the only match is a trashed draft that never went out — the single line `_Ask made outside email; draft discarded._` instead of a body. That last case is the one that matters: Tom killed the email because he called instead, and the debrief still needs a home.
 
    > **Why Gate B must check both forms (fixed 2026-08-04).** `gmail-webhook/feedback-founder-backchannel.js:294` promotes reference-request recipients into this same `📣 Pending Feedback` relation, and `founderNameFromSubject` (`:77-80`) keys on the `"[Name] reference"` subject shape. But `addToPendingFeedback` (`:206-222`) patches ONLY the relation — it creates no `✍️ Notes` entry. So a person Tom had already emailed a reference request to showed up in `📣 Pending Feedback` with no note (Gate A misses) and no `Thoughts on…` thread (the old single-form Gate B missed). The scan concluded "no trace anywhere" and drafted a second, off-topic ask to someone he'd already contacted about that deal — repeating every scan until he sent or deleted it. No crash or timeout required; this is purely a dedup-key scoping bug.
 
-   **No trace in either gate:**
+   **Gate C — the ask may already exist, made in Tom's own words inside another thread.** Gate A catches an existing note. Gate B catches an ask sent under one of the two recognized subjects. Neither catches an ask Tom made free-form inside a thread he was already writing to this person on — most often an intro thread, because that is precisely where Tom is already corresponding with this person about this company.
+
+   **Always run Gate C when Gates A and B have not resolved.** A subject-level miss is precisely the case the corpus shows is unreliable, so this gate reads message bodies rather than trusting subjects.
+
+   Check whether the person sits in any of the four intro relations — `👓 Intros (Qualified)`, `☎️ Intros (Outreach)`, `✉️ Intros (Made)`, `🚫 Intros (Declined / NR)` — matching on **page ID, not name**. That is a strong hint about *where* to look, since the fused ask usually lives in the intro thread, and it is what Step 8b seeds from. **It is not itself evidence an ask happened, and its absence is not evidence that none did.**
+
+   **Classify the bodies against `shared-references/feedback-ask-signals.md`** — the verbatim phrase bank mined from Tom's real sent mail. Use it rather than the illustrative strings quoted inline here; it covers the intro-fused shape that pure "feedback" vocabulary misses completely, and it carries the negative examples (Tom *delivering* feedback, a bare intro handoff) that most often produce false positives.
+
+   Search per Step 8b item 1, then branch on what the thread actually contains — never on which stage the person sits in:
+
+   - **A feedback ask OR offer is present, from either side** → do not draft. Seed the note from that thread (Step 8b), then report under Step 9. It counts when **Tom solicits** a read ("trying to get market feedback", "figured you'd have a take", "would love to debrief") and equally when **the other person volunteers** one ("happy to", "you want second opinion?", "let me know if you want my take"). **Neither a reply nor Tom's acceptance is required.** Once feedback is on the table from either direction, a fresh templated ask is redundant — that is the whole test. Same rule as Gate B, which suppresses on a sent ask without regard to whether it drew a response.
+   - **No ask found** → **draft normally.** Fall through to the drafting queue exactly as if Gate C had never fired.
+
+   > **Being an intro target is not evidence of a feedback ask, and the two tracks have no required order** (Tom, 2026-09-04). Tom can and does ping someone for a backchannel read *before* introducing them to the founder he is evaluating — the backchannel may even be what decides whether the intro happens at all. The ask and the intro are independent; either can come first, and only one may ever happen. So this gate must never suppress a draft on stage alone. Only a real ask found in a real thread suppresses. An earlier version of Gate C blocked drafting whenever the person sat in `👓 Qualified`, reasoning that the ask "should ride along with the intro outreach" — that was wrong, and would have silently swallowed every deliberate backchannel-before-intro.
+
+   **Advisory (do NOT block on this) — `📣 Pending Feedback` suppresses intro-outreach *tracking*.** While a person sits in `📣 Pending Feedback` for an Opp, `intro-outreach-agent` Gate 4 and its webhook mirror at `gmail-webhook/Code.js:1396-1405` skip the Qualified → Outreach promotion for that (person, Opp), by design — they read Tom's outbound as backchannel diligence rather than an intro attempt. Nothing prevents Tom from *sending* the intro; what stalls is the Notion record. It self-clears once substantive feedback lands and Step 5 removes them from `📣 Pending Feedback`. The residual risk is narrow but real: an intro-outreach email sent *during* the suppression window will have aged out of the scanners' recent-window scans by then and is not picked up retroactively. When the person is in `👓 Qualified` or `☎️ Outreach`, surface:
+
+   `ℹ️ [Person] is in 📣 Pending Feedback and [stage] on [Company] — intro-outreach tracking is suppressed until the feedback resolves. If you send the intro meanwhile, log it manually or say "promote [Person] to intro for [Company]".`
+
+   > **Why this gate exists (2026-09-04, Byron Edwards / Redwagon).** `intro-agent`'s "Reference Contacts Are Not Intro Targets" gate encodes an assumption that the two roles are mutually exclusive: a person is either someone Tom introduces TO a founder, or someone Tom asks ABOUT the company, never both. Byron was both. Tom's intro email carried the feedback ask inside it ("figured you might have a take given your work at your family business… trying to get some much-needed market feedback"), Byron replied `Happy to, you want second opinion?`, Tom answered `will intro you now and once you had a chance to chat with him would love to debrief`, and the intro completed the same night. Tom then added Byron to `📣 Pending Feedback` by hand. With only Gates A and B, the next scheduled scan sees a Pending Feedback entry with no note (A misses) and no `Thoughts on…` thread — the intro thread's subject is `Redwagon – would love to intro` (B misses) — concludes "no trace anywhere", and drafts a redundant cold ask to someone who already said yes.
+   >
+   > **Dual membership in `📣 Pending Feedback` and an intro relation is legal and must never be auto-healed.** The single-stage invariant in `shared-references/intro-lifecycle-contract.md` scopes to the four `👓/☎️/✉️/🚫` fields only. `📣 Pending Feedback` is orthogonal to that set, and one person can legitimately hold one of each on the same Opp. Verified 2026-09-04 across the skills and `gmail-webhook`: every audit and scrub scope list — `intro-resolution-agent` Step 1.5, self-heal-on-contact, `transitionPersonTo`, `scrubPersonToTargetCS` — enumerates only those four and never reads `📣 Pending Feedback`, so the dual state persists rather than being corrected.
+   >
+   > The gate direction matters. `📣 Pending Feedback` membership already **suppresses** intro writes (`intro-outreach-agent` Gate 4, `intro-agent`'s Reference Contacts gate, `Code.js:1401`), but intro membership does not suppress feedback writes — nothing checks the intro relations before adding someone to `📣 Pending Feedback`. Gate C is the missing half of that pair.
+
+   **No trace in any gate:**
    → Add to the drafting queue for this opportunity.
 
    **Why draft-once semantics:** Presence in `📣 Pending Feedback` is sticky — the relation persists after the initial draft. Without checking Trash, a deleted draft would keep getting re-created on every scan. Treating draft deletion as terminal collapses the loop: Tom drafts, decides (send / manual reach-out / skip), the record ends there.
@@ -228,6 +264,26 @@ Create the note with `notion-create-pages` (`data_source_id: e8afa155-b41a-4aa2-
 **Removal is automated — do not strip `[PENDING]` by hand** unless Tom asks. The scanner removes it (and clears `📣 Pending Feedback`) only on *substantive* feedback; deferrals stay pending.
 
 Also update the respondent's email in the People DB if a later reply uses a different address than what was on file.
+
+### Step 8b: Parallel-track variant — seed the note from the intro thread (Gate C)
+
+When Gate C routed a person here there is no drafted email to paste, so the `## Outreach Note` section is seeded from the intro thread instead. Everything else is unchanged: same format contract, same `[PENDING]` prefix, same atomic `Opportunity` relation write, same Step 3b race guard borrowed from `feedback-outreach-scanner`.
+
+1. **Find the thread.** `in:anywhere (to:<person email> OR from:<person email>)`, narrowed by the Opp's `Website` domain stem, a `🏁 Founder(s)` name, or the Opp name. Read it in full with `get_thread` — `search_threads` truncates to ~5 messages per thread and will hide the exchange you need.
+
+2. **Verify a feedback ask or offer is actually in the thread before seeding.** One of the two suffices, in either direction: Tom soliciting a read, OR the person volunteering one ("happy to", "you want second opinion?"). **Judge Tom's side against `shared-references/feedback-ask-signals.md`, not against intuition** — the warrant family (`figured you'd have a take`, `since this is squarely your world`) and the motive disclosures (`Candidly I'm trying to stress test`, `trying to get a few backchannel reads`) are what carry the ask, and in the intro-fused shape they are the *only* thing that distinguishes a feedback ask from a plain intro offer. **Do not require a reply, an acceptance, or a closed loop.** Quote whatever exchange did occur; if it was never answered, the note simply keeps its empty `## Response — [No reply yet]`, which is the ordinary `[PENDING]` state.
+
+   If **neither** appears, **do not seed — return to Gate C's "no ask found" branch and draft normally.** An intro thread with no feedback content in it just means the backchannel has not come up yet, which is ordinary and not an error: Tom routinely adds someone to `📣 Pending Feedback` intending to reach out separately, before or after the intro. Never infer the ask from the Pending Feedback entry itself — that entry is what prompted the search, not evidence of its result.
+
+3. **Extract only the on-topic exchange.** Intro threads are mixed-topic in a way purpose-built feedback emails never are — the same thread commonly runs through the recipient's own fundraise, unrelated market chatter, and scheduling logistics. Quote the ask and the agreement, drop the rest. The verbatim rule still binds on what you DO include: never summarize or rewrite into third person.
+
+4. **Head the section with its provenance** — `## Outreach Note — [Date] (intro thread)` — and put the Gmail thread permalink on its first line so the full context stays one click away. `## Response — [No reply yet]` still comes first, per the format contract.
+
+5. **Record the promised response channel.** If Tom named one ("call / text / voice note — your call"), add it as an italic line directly under the Response heading: `_Debrief expected by call / text / voice note._` The scanner depends on this — see below.
+
+6. **Title:** Feedback variant (`[PENDING] [Name] ([Their Company]): [Opp] Feedback`) when the ask is about the company, Reference variant when it is about a person. Gate C's ordinary case is a company read, so Feedback is the default here.
+
+**Downstream — the debrief will often never touch email.** A parallel-track ask is usually answered on a call, a text, or a voice note, because that is what Tom offers when the ask rides along inside a friendly intro thread. `feedback-outreach-scanner`'s inbound reply scan (Step 2) will therefore never fire for most of these, and the note legitimately sits `[PENDING]` until the Step 2c manual-reconciliation sweep finds content Tom entered by hand. That is the designed path, not a failure — and the `_Debrief expected by…_` line from item 5 is what tells a later run why an outreach with no email reply is still correctly open.
 
 ### Step 9: Confirm to Tom
 

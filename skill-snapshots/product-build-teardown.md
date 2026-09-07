@@ -5,7 +5,7 @@ description: >-
   Diligence Materials, transcripts), explores the company's public surface (site, docs, API reference, demos)
   with screenshots, walks competitor/peer sites, and researches via Exa (primary) + Parallel (fallback).
   Produces a six-section analysis — Product Anatomy, Delivery Mechanism, Build Cost to v1, Path to
-  Production-Grade, Moat Read, Killshots — each cited with cost/time estimates tied to the shared
+  Production-Grade, Moat Read, Failure Modes — each cited with cost/time estimates tied to the shared
   cost-calibration table. Outputs a Notion Notes page (Category = Diligence), a first-pass-styled PDF, a Drive
   upload, and a Slack alert. Trigger: "product teardown on X", "build teardown on X", "product build teardown on
   X", "do a teardown on X", or any teardown request on a named opportunity. Always inline — no confirmation.
@@ -115,8 +115,8 @@ Read both of these **in full** at the start of every run:
    `/Users/tomseo/.claude/skills/shared-references/product-build-teardown-framework.md`.
    This is the canonical six-section framework (Product Anatomy, Delivery
    Mechanism, Build Cost & Time to v1, Path to Production-Grade, Moat
-   Read, Killshots) — structure, depth requirements, table formats,
-   citation discipline, killshot taxonomy. The same file is read by
+   Read, Failure Modes) — structure, depth requirements, table formats,
+   citation discipline, failure mode taxonomy. The same file is read by
    `first-pass-diligence` §2 Product and `update-diligence-priors`
    Product refreshes — single source of truth, no drift across
    invocation paths.
@@ -206,8 +206,8 @@ A good Product Build Teardown:
   hardening work in Section 4
 - Makes the moat read honest, including the counter-case — well-rounded
   mediocrity on moat is a negative, not a wash
-- Writes Killshots that are specific failure mechanisms, not generic
-  category-risk language; each killshot has structural evidence rooted
+- Writes Failure Modes that are specific failure mechanisms, not generic
+  category-risk language; each failure mode has structural evidence rooted
   in the product's actual architecture
 - Cites every numeric, technical, and entity-anchored claim — passes
   the `first_pass_audit.py` judge with zero untraced after iteration

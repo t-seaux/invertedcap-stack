@@ -1,5 +1,24 @@
 # Changelog
 
+## [2026-09-07] (Week of 2026-09-07)
+
+**Added:** None to visible functions.
+**Removed:** None
+**Modified:**
+- deal-text-scanner — expanded from deal-only scanner to multi-lane text router; three lanes: DEAL (CRM add proposal with 👍 gate), INTRO (pipeline status moves and scheduling handoff), FEEDBACK (auto-written backchannel capture with no 👍 gate)
+- diligence-qa — added provenance rendering: questions tagged as Tom-authored vs. Claude-generated; G10 format guard added to verify legend line presence
+- first-pass-diligence — added a fifth parallel subagent lane for claimed-number validation (quantitative claims reconciled against independent sources); restructured document section order (Context → Need to Believe → Framework Mapping → Materials & Sources → numbered analysis sections)
+- pre-mortem — renamed "kill shots" to "failure modes" throughout; Kill Shot Ranking table renamed Failure Mode Ranking
+- product-build-teardown — sixth section renamed from Killshots to Failure Modes; failure modes require structural evidence rooted in the product's architecture (not generic category-risk language)
+- question-bank — updated references from "Killshots" to "Failure Modes" in cross-skill grep instructions and section headers
+- update-diligence-priors — updated references from "Killshots" to "Failure Modes" throughout; multi-child prior heading examples updated accordingly
+- feedback-outreach (drafter) — decoupled note creation from email suppression: note is now always created for a new Pending Feedback contact regardless of email dedup result; email dedup expanded to three gates with a body-level Gate C for detecting asks made inside existing threads (intro threads, free-form notes)
+- feedback-outreach (scanner) — added decline classification ([PENDING] → [DECLINED]); added founder-on-thread exclusion rule (hard rule preventing messages with the founder in To/Cc from counting as backchannel feedback); added intro-logistics exclusion (scheduling messages in parallel-track intro threads suppressed)
+**Total skills:** 53 visible
+**Functions:** No changes
+
+---
+
 ## [2026-09-04] (Week of 2026-09-01)
 
 **Added:** None to visible functions.

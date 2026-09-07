@@ -5,7 +5,7 @@ description: "Draft a structured pre-mortem for an investment opportunity Tom is
 
 # Pre-Mortem Skill
 
-Draft a rigorous, evidence-grounded pre-mortem for an investment opportunity and save it as a linked note in the Notion Notes database. The pre-mortem imagines a future failure and works backward — it is a structured intellectual exercise designed to surface kill shots before capital is deployed, not a refutation of the thesis.
+Draft a rigorous, evidence-grounded pre-mortem for an investment opportunity and save it as a linked note in the Notion Notes database. The pre-mortem imagines a future failure and works backward — it is a structured intellectual exercise designed to surface fatal risks before capital is deployed, not a refutation of the thesis.
 
 ---
 
@@ -57,11 +57,11 @@ Use these four canonical failure categories as your framework, then add a fifth 
 1. **Category / Market Formation Risk** — Does the market category exist as a distinct, payable thing? Who owns it if it crystallizes? What incumbent or platform could absorb it?
 2. **Product / Technical Loop Risk** — Is the core product loop (the thing that makes the thesis compound) actually built and validated, or is it roadmap? Where does the evidence trail go cold?
 3. **GTM / Commercial Execution Risk** — Can the founder(s) sell? To whom, with what motion, at what pace? Is there evidence of a repeatable commercial motion beyond the first design partner?
-4. **Team / Organizational Fragility Risk** — What does the company look like when it hits organizational stress — a bad hire, a co-founder gap, a key customer churn? Does the team structure hold? Also surface **founder–thesis journey-length mismatch**: does the founder's profile match the journey length the thesis requires? Conservative founders who hit an early acquisition window are predictably likely to take it (Mason / Vantager — exited to a publicly-traded acquirer at 24/25). If the thesis depends on a multi-year build (category creation, deep tech, regulatory unlock), check whether the founder's track record signals stamina for that journey vs. propensity to take a clean intermediate exit. Surface as a probability adjustment on the venture-outcome distribution, not a kill shot.
+4. **Team / Organizational Fragility Risk** — What does the company look like when it hits organizational stress — a bad hire, a co-founder gap, a key customer churn? Does the team structure hold? Also surface **founder–thesis journey-length mismatch**: does the founder's profile match the journey length the thesis requires? Conservative founders who hit an early acquisition window are predictably likely to take it (Mason / Vantager — exited to a publicly-traded acquirer at 24/25). If the thesis depends on a multi-year build (category creation, deep tech, regulatory unlock), check whether the founder's track record signals stamina for that journey vs. propensity to take a clean intermediate exit. Surface as a probability adjustment on the venture-outcome distribution, not a fatal risk.
 5. **Thesis-Specific Risk** (if applicable) — A fifth failure mode unique to this deal's central thesis (e.g., the data moat thesis, the regulatory tailwind thesis, the category-definition bet).
 
-**Kill Shot Ranking** *(table)*
-A 4–5 row table ranking each failure mode by Probability, Severity, and whether it's a Kill Shot (independent path to zero) or Conditional.
+**Failure Mode Ranking** *(table)*
+A 4–5 row table ranking each failure mode by Probability, Severity, and whether it's Fatal (independent path to zero) or Conditional.
 
 **Load-Bearing Priors and What Would Break Them** *(numbered list)*
 3–4 explicit prior beliefs that underpin the investment. For each, write the precise conditions under which it breaks. These should be falsifiable.
@@ -255,7 +255,7 @@ When in doubt about timing, note it in the opening frame of the document.
 A good pre-mortem has the following properties:
 - Every failure mode cites specific evidence from the diligence record (a quote, a data point, a gap explicitly named in the notes)
 - No failure mode is purely generic — each is calibrated to this company's specific product, market, and team
-- The kill shot ranking reflects honest probability assessment, not wishful thinking
+- The failure mode ranking reflects honest probability assessment, not wishful thinking
 - The load-bearing priors are stated as falsifiable claims, not vague thesis summaries
 - The diligence requirements are concrete enough to be actioned in the next founder or backchannel conversation
 

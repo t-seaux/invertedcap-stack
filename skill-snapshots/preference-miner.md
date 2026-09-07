@@ -59,12 +59,23 @@ Honor the formatting prefs (`prefs.py load core`): Title Case header, blank line
 
 Reply "confirm p3" to save, "reject p3" to drop (or "confirm all").
 ```
+When the digest ALSO carries 📌 graduation flags, tell Tom the blanket confirm covers them:
+```
+📌 Ready to bake into <skill>: "<pref>"
+
+Reply "confirm p3" to save, "reject p3" to drop. "confirm all" saves + graduates every 📌
+above; "graduate all" does just the 📌 flags.
+```
 Nothing new → send nothing.
 
 ## 5. Graduation flag (keep the corpus lean)
 If an ACTIVE pref (from `prefs.py load --all`) is stable + general enough to belong in a
 skill's core behavior, add one line to the digest: `📌 Ready to bake into <skill>: "<pref>"`
-— Tom/Claude promotes it into the skill and it drops from the corpus. Don't edit skills here.
+— Tom promotes it and it drops from the corpus. **Don't edit skills HERE** (the miner only
+flags). The bake happens when Tom replies: **"confirm all" is a blanket yes that graduates
+every 📌 flag in the digest** (bake into the named skill + drop the pref from the corpus) in
+addition to confirming the numbered `pN` candidates — see sms-listener step 3. So when the
+digest carries 📌 flags, the reply line MUST advertise it (below).
 
 ## Notes
 - Manual trigger: "run preference miner" / "learn from recent" → run steps 1–5 once.

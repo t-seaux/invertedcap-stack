@@ -17,7 +17,7 @@ Two profiles — determine WHOSE haircut first (default = Tom):
 | Whose | Stylist | Service | Constraint | Cadence |
 |---|---|---|---|---|
 | **Tom** | **Hide** | Men's/Unisex Short Cut (~$66.99) | slot **≤ 4:00pm** (kid pickup) | ~monthly |
-| **Andy** (son) | **Jessica** | kids'/child short cut | **WEEKENDS** (Sat/Sun) | as needed |
+| **Andy** (son) | **Jessica** (NOT Hide) | kids'/child short cut | **WEEKENDS** (when Tom & Elsie aren't working) | as needed |
 
 Same Meevo flow for both (swap the service + stylist + constraint). If Jessica isn't in the
 Meevo employee list for this location, ask Tom. The rest is written for Tom's cut.

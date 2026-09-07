@@ -528,6 +528,13 @@ context with raw crawl output. Spawn them as parallel `Task` subagents
    pricing/docs pages, careers JDs, engineering blog, GitHub org (framework spec crawls)
 4. **Founder online presence** — one lane covering all founders: personal sites, talks,
    posts, company-of-record artifacts, LinkedIn-association check
+5. **Claimed-number validation (Tom, 2026-09-04)** — sweep the diligence materials + call
+   notes for every quantitative claim (market sizes, margins, FTE-hours, contract values,
+   growth rates, cost benchmarks) and attempt to validate each against independent online
+   sources. For each number: reconciles (cite the corroborating source), or does NOT
+   reconcile (state the independent benchmark and the gap). An irreconcilable number is
+   NOT a dealbreaker — it's a flag the draft must carry (see the Independent Finding rule
+   in Writing Guidance).
 
 Each subagent's prompt must state: the company, what to find, and that its final message
 must be the raw structured findings (key data points + pull-quotes + source URLs, grouped
@@ -617,16 +624,20 @@ Do NOT lead the body with a date stamp (`*April 27, 2026*` etc.). The Notion pag
 already carries the date (`[Claude] [Company Name] Master Diligence Doc — MM.DD.YYYY`),
 and the PDF subtitle does too. A leading body date is redundant and reads as a small
 production error. After the inner H1 anchor, start the body directly with the **Context**
-section, then proceed into Framework Mapping. Context has three subheaders — rendered as **bold text only, not
-underlined headings and not H-level headings**: Company Overview, Working Thesis, and
-Materials & Sources Reviewed.
+section, whose two subheaders — rendered as **bold text only, not underlined headings and
+not H-level headings** — are Company Overview and Working Thesis. Then proceed:
+**Need to Believe** → **Framework Mapping** → **Materials & Sources Reviewed** (its own
+section, NOT a Context subheader) → a `---` divider (renders as a PDF page break) →
+**1. Market**. (Order per Tom, 2026-09-04: the necessary conditions come right after the
+founder's thesis, the framework analysis follows, the source inventory closes the front
+matter, and the numbered analysis sections start on a fresh page.)
 
 **Citation style — document-wide:** Use footnote numbers in brackets — `[1]`, `[2]`, etc. —
 rather than inline parenthetical references **throughout the entire document**, including
 Framework Mapping, Founder Evaluation, Market Context, and every other section. Never write
 "(per the deck)", "(per the May 13 call)", "(per the unit economics primer)", or any similar
-parenthetical anywhere in the output. At the end of the Context section (immediately before
-Framework Mapping), include a compact footnote block where each entry uses `^N` at the start
+parenthetical anywhere in the output. At the end of the Materials & Sources Reviewed section
+(immediately before the `---` page-break divider that precedes 1. Market), include a compact footnote block where each entry uses `^N` at the start
 of the line (caret + number, no brackets, no colon):
 
 > The deck positions the company as a data layer for property managers [1], and the March 19
@@ -693,27 +704,19 @@ or "this maps to our [X] framework" framing — that is the explicit job of Fram
 Mapping below. Everything that follows develops, stress-tests, or qualifies this
 working thesis.
 
-**Materials & Sources Reviewed**
-An upfront inventory of what was scanned to produce this analysis, organized by
-type. This is distinct from the terminal **Sources** section at the end of the
-document (which is the clickable audit trail with full URLs and annotations); this
-upfront block gives the reader at-a-glance scope of what informed the doc before
-they read the analysis.
+**Need to Believe**
+Working backwards from what must be true for this to be a compelling Inverted Capital investment.
+Each item is a **bullet** (not numbered) with a bold label and a multi-sentence explanation. These
+are necessary conditions — if any breaks, the thesis is materially impaired.
 
-Format as a bulleted list grouped by source type — one line per entry, terse:
-- **Notion Opportunity** — page name (no URL; the terminal Sources section carries it)
-- **Call notes** — title + date for each note in the ✍️ Notes relation
-- **Diligence Materials** — name each: deck, one-pager, memo, data room contents
-- **Founder evidence** — LinkedIn profiles scraped, online presence sources
-  consulted (no URLs here)
-- **Inverted memos referenced** — list the investment memos actually drawn on in this analysis
-- **External research** — high-level categories surveyed (competitive landscape,
-  market sizing, regulatory environment) — full URLs live in the terminal
-  Sources section
+**NEVER use numbered lists** (1., 2., 3.) for Need to Believe items. Use bullet points only.
 
-Keep entries terse — this is an inventory, not the audit trail. If a category
-was not consulted (e.g., no diligence materials yet), omit the row rather than
-writing "None" — the absence is itself informative.
+End with a synthesis paragraph identifying the highest-priority beliefs to diligence — which ones
+have the most binary outcomes and the least existing evidence.
+
+Need to Believe sits directly AFTER Working Thesis and BEFORE Framework Mapping
+(Tom, 2026-09-04 — order is deliberate; the necessary conditions frame the reader immediately
+after the founder's bet, before the framework analysis).
 
 **Framework Mapping — Inverted Lens**
 Evaluate the opportunity against the Inverted Lens frameworks that are most relevant to this
@@ -891,15 +894,31 @@ End the full section with a **Summary Assessment** subsection (2 paragraphs mini
 the frameworks against each other, identifies where the mapping is strongest and weakest, and
 surfaces the most important signal across all frameworks taken together.
 
-**Need to Believe**
-Working backwards from what must be true for this to be a compelling Inverted Capital investment.
-Each item is a **bullet** (not numbered) with a bold label and a multi-sentence explanation. These
-are necessary conditions — if any breaks, the thesis is materially impaired.
+**Materials & Sources Reviewed**
+An upfront inventory of what was scanned to produce this analysis, organized by
+type. This is distinct from the terminal **Sources** section at the end of the
+document (which is the clickable audit trail with full URLs and annotations); this
+block gives the reader at-a-glance scope of what informed the doc before
+the numbered analysis sections begin. It comes AFTER Framework Mapping (Tom, 2026-09-04).
 
-**NEVER use numbered lists** (1., 2., 3.) for Need to Believe items. Use bullet points only.
+Format as a bulleted list grouped by source type — one line per entry, terse:
+- **Notion Opportunity** — page name (no URL; the terminal Sources section carries it)
+- **Call notes** — title + date for each note in the ✍️ Notes relation
+- **Diligence Materials** — name each: deck, one-pager, memo, data room contents
+- **Founder evidence** — LinkedIn profiles scraped, online presence sources
+  consulted (no URLs here)
+- **Inverted memos referenced** — list the investment memos actually drawn on in this analysis
+- **External research** — high-level categories surveyed (competitive landscape,
+  market sizing, regulatory environment) — full URLs live in the terminal
+  Sources section
 
-End with a synthesis paragraph identifying the highest-priority beliefs to diligence — which ones
-have the most binary outcomes and the least existing evidence.
+Keep entries terse — this is an inventory, not the audit trail. If a category
+was not consulted (e.g., no diligence materials yet), omit the row rather than
+writing "None" — the absence is itself informative.
+
+**MANDATORY — page break before the numbered sections:** immediately after Materials &
+Sources Reviewed, insert a `---` divider (a Notion divider block). The PDF builders render
+a divider as a page break, so **1. Market** starts on a fresh page.
 
 **1. Market**
 Three subsections: Market Size & Dynamics, Competitive Landscape, Regulatory Environment.
@@ -928,7 +947,7 @@ Each subsection ends with ***Open Questions*** in bold-italic.
 the build (Product Anatomy & Roadmap, Core Technical Strategy) with the
 deeper teardown lenses that follow (Delivery Mechanism, Build Cost & Time
 to v1, Path to Production-Grade, Moat Read,
-Killshots). Each subsection has a single clear job; do not collapse,
+Failure Modes). Each subsection has a single clear job; do not collapse,
 merge, or drop any. Evidence-thin subsections run short — a single
 honest paragraph naming the gap is better than three paragraphs of
 training-data extrapolation. **Structure stays full; depth scales with
@@ -938,7 +957,7 @@ evidence.**
 `/Users/tomseo/.claude/skills/shared-references/product-build-teardown-framework.md`
 once at the start of this section. It owns the spec for §2.3–§2.7 below
 (structure, depth requirements, table formats, citation discipline,
-cost-calibration cites, killshot taxonomy). The same file is read by the
+cost-calibration cites, failure mode taxonomy). The same file is read by the
 standalone `product-build-teardown` skill and `update-diligence-priors`
 Product refreshes — single source of truth, no drift across invocation
 paths.
@@ -1023,15 +1042,15 @@ sub-header. Close with an honest counter-case paragraph. Be
 opinionated — well-rounded mediocrity on moat is a negative read,
 not a wash.
 
-***2.7 Killshots.*** Apply framework spec §6. Each killshot is a
-`#### Killshot N — [Descriptive Title]` H4 sub-subsection (per
-`shared-references/label-hierarchy.md` — the H4 anchor keeps killshot
+***2.7 Failure Modes.*** Apply framework spec §6. Each failure mode is a
+`#### Failure Mode N — [Descriptive Title]` H4 sub-subsection (per
+`shared-references/label-hierarchy.md` — the H4 anchor keeps failure mode
 children visually distinct from §2.7's inline bold-italic header and
-from the body-size `**Killshot N — Title.**` paragraph leaders that
+from the body-size `**Failure Mode N — Title.**` paragraph leaders that
 would otherwise collapse against each other). Each H4 is followed by
 an analytical paragraph and a bold-italic ***Failure mode:*** paragraph.
-End with a Killshot Summary table (Failure Mode | Key Evidence | Kill
-Shot?). When a killshot here is the same mechanism that will appear
+End with a Failure Mode Summary table (Failure Mode | Key Evidence | Kill
+Shot?). When a failure mode here is the same mechanism that will appear
 in §6 Risks, write it in full here (the product-architecture-anchored
 framing is the right home) and cross-reference from §6 Risks rather
 than re-narrating.
@@ -1224,7 +1243,7 @@ Each risk has two components:
   analysis look like a generic risk matrix instead of investor-grade thinking.
 - Do **NOT** create a Risk Summary table with "Probability" or "Impact" columns.
 - **DO** end with a Risk Summary table with exactly these columns: **Failure Mode | Key Evidence |
-  Kill Shot?** — where Kill Shot uses "Yes — independent path to zero" or "Conditional —
+  Fatal?** — where Fatal? uses "Yes — independent path to zero" or "Conditional —
   compounds other risks / slows thesis" (not probability labels).
 - Anchor every risk in **specific evidence** that makes it material, not subjective assessments
   of likelihood.
@@ -1329,7 +1348,16 @@ data point cited in the analysis is linked to its source URL.
   underwriting models for Mexican consumers" is useful.
 - **Ground claims in evidence.** Every assertion should trace to a call note, a deck, a data point,
   or a research finding.
-- **No unverified numeric precision.** Specific numbers not traceable to a source document ("1–2
+- **Validate every quoted number outside-in (Tom, 2026-09-04).** Any number quoted from the
+  diligence materials or calls (market size, margin, FTE-hours, ACV, growth rate) gets an
+  online-research reconciliation attempt (Step 2 lane 5). When a number reconciles, cite the
+  corroborating source alongside the founder citation. When it does NOT reconcile, flag it in
+  the draft with the **bold "Independent Finding"** callout — state the independent benchmark,
+  the gap, and the most plausible reconciliation (e.g., scope mismatch). Not reconciling is not
+  a dealbreaker; failing to flag it is. (This generalizes the Regulatory Environment
+  Independent Finding rule to the whole document — the Redwagon 8,000-FTE-hour check is the
+  reference example.)
+- **No unverified numeric precision.** Specific numbers not traceable to a source document ("1-2
   EMs per year globally", "sources 500 companies annually") are a hallucination risk marker. If a
   number can't be cited, use qualitative language instead ("a small number of", "selectively", "a
   few per year"). The absence of a number is better than a fabricated one.
@@ -2182,7 +2210,7 @@ A good first-pass diligence analysis:
 - Is explicit about where the evidence base is thin and what additional context would help
 - Uses substantive, multi-paragraph prose throughout — not bulleted lists of observations
 - Cross-references Inverted portfolio memos in the Framework Mapping section
-- Follows the exact Risk Summary table format (Failure Mode | Key Evidence | Kill Shot?)
+- Follows the exact Risk Summary table format (Failure Mode | Key Evidence | Fatal?)
 - Includes all four Path to Next Round subsections with the prescribed analytical content
 
 A bad first-pass diligence analysis reads like a pitch deck summary or a generic VC memo.

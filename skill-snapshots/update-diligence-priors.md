@@ -191,7 +191,7 @@ and the cost-calibration reference at
 to keep refresh outputs aligned with first-pass and standalone-teardown framings.
 Single source of truth, no drift across invocation paths — same six lenses (Product
 Anatomy, Delivery Mechanism, Build Cost & Time to v1, Path to Production-Grade, Moat
-Read, Killshots), same citation rules, same `(per calibration §<N>)` cite format.
+Read, Failure Modes), same citation rules, same `(per calibration §<N>)` cite format.
 
 Work through these questions for each new data point:
 
@@ -278,24 +278,24 @@ to updated data points, before/after metrics, or a revised competitive landscape
 `shared-references/label-hierarchy.md`: the prior subhead is always an H4 — never an
 inline-bold paragraph leader. Title Case throughout. Drop the trailing period that
 paragraph-leader labels usually carry. This applies whether the prior has one child
-paragraph or many, and whether it's a multi-child collection (Killshots, Risks) or a
+paragraph or many, and whether it's a multi-child collection (Failure Modes, Risks) or a
 single-prior reinforcement.
 
-**Multi-child priors (Killshots, Risks, multi-signal founder eval changes).** When the
+**Multi-child priors (Failure Modes, Risks, multi-signal founder eval changes).** When the
 prior being updated is a *collection* that contains 2+ labeled children (introducing
-two new killshots, revising three risk subsections), the parent gets the `####` header
+two new failure modes, revising three risk subsections), the parent gets the `####` header
 as above; each labeled child stays as a `**Label.**` bold-inline paragraph leader.
 Example:
 
 ```markdown
-#### Killshots — Product-Anchored Failure Modes — New Consideration
+#### Failure Modes — Product-Anchored Failure Modes — New Consideration
 
-**Killshot 1 — Foundation-Model Commoditization Cuts the Extraction Differentiation.**
+**Failure Mode 1 — Foundation-Model Commoditization Cuts the Extraction Differentiation.**
 [analytical paragraph — what about the product makes this real…]
 
 ***Failure mode:*** [bold-italic paragraph — the precise mechanism…]
 
-**Killshot 2 — Incumbent Customs Broker Ships Landed Cost as a Feature.**
+**Failure Mode 2 — Incumbent Customs Broker Ships Landed Cost as a Feature.**
 [analytical paragraph…]
 
 ***Failure mode:*** [bold-italic paragraph…]
@@ -322,6 +322,10 @@ convicted in the thesis? Be specific about what moved and what didn't.]
 - **Include tables when the update involves data.** If the new call provided specific metrics
   (loss rates, conversion rates, pipeline numbers), create a table comparing the original
   assumptions or open questions to the new data points. This makes the delta visible at a glance.
+- **Validate every quoted number outside-in.** Apply the first-pass rule exactly (see
+  first-pass-diligence/SKILL.md Writing Guidance → "Validate every quoted number outside-in"):
+  any number quoted in new materials/calls gets an online reconciliation attempt; irreconcilable
+  numbers are flagged with the bold "Independent Finding" callout, never silently repeated.
 - **Reference the original analysis by section.** Say "The original Market section (1.1) noted..."
   or "Need to Believe item 2 (cash flow underwriting) is directly addressed..." so the reader
   can cross-reference.
