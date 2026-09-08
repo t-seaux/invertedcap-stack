@@ -1,9 +1,5 @@
 {
-  "skills": {
-    "fund-audit": "2026-09-07"
-  },
-  "launchAgents": {
-    "meal-prep-reschedule": "2026-09-07"
-  },
+  "skills": {},
+  "launchAgents": {},
   "webhookHandlers": {}
 }

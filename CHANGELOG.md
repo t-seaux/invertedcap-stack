@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-09-08] (Week of 2026-09-08)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- neg1-sourcing — candidate counts adjusted to 2-3 warm reconnects + 7-8 cold (10 total, tilted toward warm); monthly Step 1.75 refocused: "network deep sweep" and "departure diff" retired; first-Monday pass is now structured post-liquidity/scarred-alumnus cold candidates only; `[Scaled]` vs `[Mature]` growth tier labels clarified (tier-1 employers on the mature-enterprises list now render `[Mature]`, not `[Scaled]`); digest format updated — no Deep Sweep section, warm/cold counts expressed as ranges
+**Total skills:** 53 visible
+**Functions:** No changes
+
+---
+
 ## [2026-09-07] (Week of 2026-09-07)
 
 **Added:** None to visible functions.

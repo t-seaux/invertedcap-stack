@@ -76,19 +76,87 @@ must match.
 
 ---
 
-## Step 1 – Detect Confirmation
+## Entry modes
 
-Use `tool_get_recent_messages` or `tool_fuzzy_search_messages` to look for a recent
-message from **Lupe Hernandez** confirming the cleaning. Extract the date of
-cleaning from the message content or, if absent, use the message timestamp.
+- **Live loop (primary, NOT this skill)** — the deterministic 5-minute
+  `com.invertedcap.lupe-paid-watch` launchd job
+  (`~/.claude/scheduled-tasks/office-cleaning-expense/lupe_watch.sh` +
+  `~/.claude/scheduled-tasks/office-cleaning-expense/check_lupe_paid.py`) executes the
+  state machine below with zero LLM: reminder + text on confirmation; sheet
+  POST + reminder check-off + ONE combined text on payment. Any change to the
+  state machine or notification contract must be made THERE and mirrored here.
+- **Job mode (daily reconcile)** — a daily 8:10 AM launchd job
+  (`~/.claude/scheduled-tasks/office-cleaning-expense/sweep.sh`) enqueues
+  `{mode:"reconcile", window_hours:168}` on the claude-job-queue → this skill
+  re-scans the full 168h window and repairs anything the watcher missed. It
+  exists because the watcher was silently dead 2026-09-03→07 (launchd PATH
+  lacked `uv`; `imessage-read.sh` used `immutable=1`, which hides WAL-fresh
+  chat.db rows) and the 2026-08-22 cleaning was lost to the old weekly sweep
+  failing the same silent way. All actions idempotent; text Tom ONLY about
+  things actually repaired. NEVER narrow the 168h window.
+- **Manual** — Tom asks directly ("log the cleaning expense", "Lupe
+  confirmed", maintenance ops). Same state machine.
 
-If no confirmation is found, stop — do not log anything.
+## The state machine (defined by Tom, 2026-09-07)
+
+Two events drive everything, both read from the Lupe iMessage thread:
+
+1. **Cleaning confirmation** (Lupe: "the office is clean" etc.) → create the
+   pay reminder. **Do NOT write to the sheet yet.**
+2. **Payment** (Tom sends $100 Apple Cash — renders as an attachment-only
+   `You:` message after a confirmation) → NOW log that cleaning to the sheet
+   **and check off the reminder**.
+
+The sheet records *paid* cleanings, not confirmed ones. A confirmation with no
+payment yet = an open reminder and nothing on the sheet.
 
 ---
 
-## Step 2 – Log the Expense
+## Step 1 – Read the thread and pair events
 
-POST via Python. Format the date as `MM/DD/YY` (e.g. `04/12/26`).
+Scan the Lupe Hernandez thread (contact `+19176135344`) over the scan window
+via `tool_get_recent_messages`. Extract, in timestamp order:
+
+- **Confirmations**: messages from Lupe reporting a completed clean. Cleaning
+  date = date named in the message, else the message timestamp's date.
+- **Payments**: messages from Tom that carry an attachment placeholder (`￼`,
+  no text) — Apple Cash renders this way. A payment belongs to the most recent
+  prior confirmation that has no payment yet.
+
+Then reconcile each confirmation to one of two states:
+
+| State | Actions |
+|---|---|
+| Confirmed, **not yet paid** | Ensure the pay reminder exists (Step 2). Nothing on the sheet. |
+| Confirmed **and paid** | Ensure the expense is on the sheet (Step 3) AND the reminder is checked off (Step 4). |
+
+Every action below is idempotent (reminder-by-title check, endpoint dedup), so
+re-scanning the same window is always safe.
+
+If the thread has no confirmations in the window, stop.
+
+---
+
+## Step 2 – Reminder on unpaid confirmation
+
+For each confirmed-not-paid cleaning, ensure a reminder exists (see
+`~/.claude/skills/add-reminder/SKILL.md` for conventions — Work list default,
+`[IC]` prefix, single quotes because `$100`):
+
+```bash
+# skip if an open reminder with this exact title already exists:
+~/.claude/tools/eventkit/eventkit list --list Work | grep -F '[IC] Pay Lupe $100 (office cleaning MM/DD)'
+~/.claude/tools/eventkit/eventkit add --title '[IC] Pay Lupe $100 (office cleaning MM/DD)' --due today
+```
+
+`MM/DD` = the cleaning date — unique per cleaning, so re-runs dedup naturally.
+
+---
+
+## Step 3 – Log the Expense (only once PAID)
+
+POST via Python. Format the date as `MM/DD/YY` (e.g. `04/12/26`) — the
+**cleaning** date, not the payment date.
 
 ```python
 import urllib.request
@@ -132,17 +200,62 @@ not retry.
 
 ---
 
-## Step 3 – Send Alert (only on `success`)
+## Step 4 – Check off the reminder (paid cleanings)
 
-Read the `send-alert` skill for delivery config. Skip the alert when the
-response is `duplicate` (the sheet was already up to date; no need to ping).
+Once a cleaning's expense is on the sheet (Step 3 returned `success` OR
+`duplicate`), find the matching open reminder and complete it:
+
+```bash
+~/.claude/tools/eventkit/eventkit list --list Work
+# find the id whose title is '[IC] Pay Lupe $100 (office cleaning MM/DD)', then:
+~/.claude/tools/eventkit/eventkit complete --id <ID>
+```
+
+No open reminder with that title (e.g. Tom paid before the sweep ever saw the
+confirmation, so none was created — like 09/07/26) → nothing to do, not an
+error.
+
+---
+
+## Step 5 – Send Alert
+
+**Delivery: TEXT Tom via the Sendblue bot — NOT Slack.** (Changed 2026-09-07
+per Tom: this workflow's source surface is his iMessage thread with Lupe, and
+alerts follow the surface — spotted in text → text back. See
+`feedback_alert_routing_by_source_surface` + `feedback_text_lane_alerts` in
+memory. No Slack dupe.)
+
+**The notification contract (Tom, 2026-09-07) — exactly two events text him:**
+
+1. **Reminder created** (confirmation seen, unpaid) → one text.
+2. **Payment seen** → reminder checked off + expense logged, and ONE combined
+   text covering all three (payment detected / sheet logged / reminder
+   checked). Never three separate texts.
+
+Nothing changed → no text. If a single run does both (confirmation AND payment
+arrived within the same window), the payment text alone suffices — fold the
+reminder lifecycle into it ("reminder created + checked off").
+
+```bash
+export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
+printf '%s\n' "$BODY" | SENDBLUE_API_SECRET="$(sops -d "$HOME/.claude/.sendblue-api-secret.enc")" \
+  "$HOME/.claude/skills/sms-listener/send_imessage.sh" +12012567714 --stdin
+```
+
+- `+12012567714` = Tom's own iPhone (bot-to-owner). Never text Lupe.
+- Body goes on **stdin** (quoted heredoc or `printf`) — never argv; the shell
+  eats `$100` otherwise (`feedback_imessage_send_never_double_quote`).
+- Plain text, no markdown (this is iMessage, not Slack).
+
+Body shapes (include only the lines that apply):
 
 ```
-🧹 Office Cleaning Logged
-
-Lupe Hernandez – {date} – $100.00 – Office
-Logged to Inverted I – Outstanding Expenses (MC tab)
+🧹 Lupe confirmed cleaning (MM/DD) — reminder created: Pay Lupe $100. Sheet logs when you pay.
+🧹 Payment detected — cleaning MM/DD logged to the expense sheet ($100, MC tab) and reminder checked off.
 ```
+
+On send failure, log the error to the scheduled task's `audit-log/` — do not
+fall back to Slack or any other channel.
 
 ---
 

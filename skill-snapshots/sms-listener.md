@@ -93,6 +93,34 @@ React to the sender's message with a tapback as your next action — a real reac
 
 **A tapback can REPLACE a reply** when a reaction says everything and no text is needed (a pure FYI, a "thanks", a "see you at 6") — 👍 and done, no bubble. **Skip the tapback entirely** only when you're sending an instant text answer anyway and a reaction would be redundant noise. Use judgment; don't over-react to every message.
 
+## Share-sheet messages — comment + link arrive as TWO messages
+
+An iMessage share-with-comment (Instagram post, article, photo "sent with a comment") is
+delivered as **two separate inbound messages**: the comment text first, then the link/media
+seconds later — each dispatched as its own job. Two hard rules (bug, Tom 2026-09-07: "Add to
+Korea doc" was answered "❓ no text or image came through" 13s before the Instagram link
+arrived):
+
+1. **Never ❓ a directive whose object is missing without waiting for the companion.** If the
+   body is a command about content that isn't in the message ("add this…", "save this", "add to
+   Korea doc") and there's no URL/media in args: tapback 👀, then poll for the companion —
+   `sleep 20` and `tail -3 ~/.claude/skills/sms-listener/conversation.jsonl` (the daemon logs
+   `dir:"in"` on arrival), up to 3 tries (~60s).
+   - Companion (URL or media from the same sender) arrived → **exit silently, send NOTHING.**
+     The companion's own job will do the work; your message supplies its context via the
+     replayed conversation. Two jobs must produce ONE reply, and it's the companion's.
+   - Nothing after ~60s → now the ❓ is legitimate.
+   Conversely, a bare URL/media job should read the immediately-preceding inbound(s) for its
+   directive ("Add to Korea doc" → that's the instruction for this link).
+2. **Empty-body messages** (a rich-link balloon can arrive as a second, empty message, sid
+   `<orig>_1`) → if the adjacent messages already carry the URL, exit silently. Never ❓ an
+   empty artifact of a share you're already handling.
+
+**Interim ack on slow link work.** Carousel/DocSend/multi-page scrapes run 5+ minutes; a
+tapback on a link card is easy to miss, and silence reads as failure — Tom re-shares and
+seeds dupe jobs. If the work will exceed ~90s, send a one-line interim FIRST
+(`👀 On it — pulling the carousel, ~5 min`), then work. The minute-10 rule still stands.
+
 ## Calendar fast path
 
 (Digest of `add-to-calendar` — the full skill is the source of truth; keep in sync.)
@@ -343,6 +371,14 @@ A ❌/👎 tapback or "skip" → acknowledge, add a `rejected` line to
 2026-09-01).** iMessage generates the preview when a bare URL is the whole message or its
 final token. So: NEVER end a message with a bare URL — put text before AND at least one
 character after the link. Standard shape for reply links: `<url> ↗` — just the URL with a trailing ↗ (no prefix). **The ↗ is LOAD-BEARING — tested live 2026-09-01: same two-line message with a bare trailing URL rendered the big preview card; with the trailing ↗ it stayed plain clickable text. Never drop it.** Applies to ✅/🚫/🎯 replies, calendar links, everything.
+
+## Formatting — Google Docs writes are PLAIN TEXT
+
+When writing into a Google Doc (the Korea doc, any family-folder doc): **never emit markdown
+escape sequences** — `12\.`, `\$`, `\*`, `\-` land as literal backslashes (bug, Tom
+2026-09-07: the Korea doc's appended parks read `12\. Seoul Forest`). Compose the text as
+plain prose, and strip any `\` escapes before insert. Same for `**bold**` — Docs won't render
+it; use the styling helper or drop it.
 
 ## Formatting — headers (ALL texts)
 
