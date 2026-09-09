@@ -21,18 +21,22 @@ description: >
 
 ## Input
 
-Args: `{mode:"scan", messages:[{rowid, ts, sender, chat, participants, from_me, text,
-attachments, attachment_paths}]}` — new messages since the last sweep, pre-filtered in code
-by `sweep.sh` (1:1 threads plus ≤4-member groups; family, short codes, and Tom's own agent
-number already excluded).
+Args: `{mode:"scan", messages:[{rowid, ts, sender, sender_name, chat, participants, from_me,
+text, attachments, attachment_paths}]}` — new messages since the last sweep, pre-filtered in
+code by `sweep.sh` (1:1 threads plus ≤4-member groups; family, short codes, and Tom's own
+agent number already excluded).
 
 `sender` = the thread's peer handle. **`from_me:1` rows are TOM'S OWN messages** — never
 candidates in the deal lane, but load-bearing everywhere else: they carry his opt-in/pass
 (intro lane) and his outbound asks (feedback lane).
 
-**Resolve the peer's real name before acting.** `mcp__imessages__tool_find_contact` (or
-`check_contacts`) on the handle; an in-thread LinkedIn preview title often names the person
-too. Fall back to the raw handle only if lookup fails — and never put a raw phone number in
+**Use the peer's real name — it is already resolved for you.** `sender_name` is the contact
+name `sweep.sh` resolved from AddressBook at enqueue time (via `resolve_contacts.sh`, which
+reads the AddressBook DB from the FDA-granted launchd context — the headless MCP cannot,
+which is why referrers used to show as a raw number). **Prefer `sender_name` whenever it is
+non-null** — that is the referrer/peer name for every card. Only when it is null: try
+`mcp__imessages__tool_find_contact` on the handle, or an in-thread LinkedIn preview title.
+Fall back to the raw handle only if all of those fail — and never put a raw phone number in
 anything Tom reads.
 
 `attachments` = display names, `attachment_paths` = local paths under

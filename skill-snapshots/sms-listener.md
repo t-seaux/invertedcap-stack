@@ -115,6 +115,11 @@ arrived):
 2. **Empty-body messages** (a rich-link balloon can arrive as a second, empty message, sid
    `<orig>_1`) → if the adjacent messages already carry the URL, exit silently. Never ❓ an
    empty artifact of a share you're already handling.
+3. **Instagram/carousel links — pull the FULL carousel, not the cover.** When an Instagram
+   post link is shared, fetch every slide (all images in the carousel) via the embed endpoint
+   before summarizing or acting on it — never stop at the cover/preview image. Same standard as
+   opening an email attachment or clicking through a link: the content is all the slides, not
+   the first one.
 
 **Interim ack on slow link work.** Carousel/DocSend/multi-page scrapes run 5+ minutes; a
 tapback on a link card is easy to miss, and silence reads as failure — Tom re-shares and
@@ -236,9 +241,22 @@ preferences without bloating context. Two duties every turn:
 **2. CAPTURE (v1 explicit) — when a sender states a DURABLE rule.**
 - If Tom or Elsie expresses a general, forward-looking preference/correction — cues:
   "always…", "never…", "from now on…", "going forward…", "I prefer…", "stop …ing",
-  "don't ever…" — persist it:
-  `python3 ~/.claude/skills/sms-listener/prefs.py add <domain> "<concise rule>"`, apply it
-  now, and acknowledge ("Got it — I'll always … from now on").
+  "don't ever…" — persist it in its FINAL home, apply it now, and acknowledge ("Got it —
+  I'll always … from now on"). An explicitly-stated durable rule carries no uncertainty, so
+  it does NOT go through a confirm/graduation gate — decide its home by nature:
+  - **Skill-core behavior** (changes how a skill fundamentally acts) → compile it straight
+    into that skill's SKILL.md (behavior-match + write-if-missing, as in step 3). Skip the
+    corpus entirely — don't stage a rule you're already certain about.
+  - **Narrow runtime override** (a domain-scoped tweak) → the corpus tier:
+    `python3 ~/.claude/skills/sms-listener/prefs.py add <domain> "<concise rule>"`.
+- **Blessing is surface- AND format-agnostic — dedup before persisting.** Tom blesses a pref in
+  more than one way: a 👍 tapback, a structured "confirm pN", a free-form "just always do X" over
+  text, or an instruction in the Claude-app/Code session. All are equally a durable bless — a
+  free-form statement is NOT lesser than "confirm pN". Before persisting a free-form rule, check
+  `python3 prefs.py candidates`: if it RESTATES a pending candidate (semantic match, not just
+  exact text), resolve THAT candidate to its tagged home (corpus → `confirm pN`; skill → compile
+  + `graduated pN`) instead of writing a parallel entry — else you get a dup beside a still-
+  pending candidate. Same check against the target skill/corpus so you compile/add exactly once.
 - **Only persist GENERAL rules, not one-off commands.** "add soccer Thursday 8" is a task,
   not a preference. If it's ambiguous whether they mean "just this time" vs "always," ask a
   one-line clarifier BEFORE persisting. Better to under-capture than learn a wrong rule.
@@ -256,28 +274,31 @@ preferences without bloating context. Two duties every turn:
 I Noticed" proposal) texts Tom candidate prefs with ids (e.g. `p1`, `p3`). If he replies
 "confirm p3" / "yes p3" → `prefs.py confirm p3`; "no p3" / "reject p3" → `prefs.py reject p3`.
 
-- **"confirm all" is a BLANKET yes — it covers the 📌 graduation flags too, not just the
-  numbered `pN` candidates.** For that same digest: `prefs.py confirm` each pending `pN`, AND
-  execute every `📌 Ready to bake into <skill>: <prefs>` line. For each flag, in order:
-  1. **Open the named skill's SKILL.md and search for the SPECIFIC behavior** the pref
-     describes — not a similarly-worded rule. Match on what the rule DOES, not on shared
-     keywords. (Bug, Tom 2026-09-06: a "check calendar first before web-searching a scheduling
-     question" flag was declared "already present" because SKILL.md had a *dedup-before-create*
-     rule — different behavior, same word "calendar" — and the corpus line was dropped, losing
-     the pref from both layers.)
-  2. **If the exact behavior isn't compiled in, WRITE it** — add a concise, self-contained
-     rule to the right section. Do NOT assume "close enough" existing text covers it; when in
-     doubt, add the explicit rule.
-  3. **Only after the rule is actually in SKILL.md** (you just wrote it, or you quoted the
-     exact line that already encodes THIS behavior) — delete the matching pref line(s) from the
-     corpus (`preferences/<domain>.md`). Never drop a corpus line on an unverified "already
-     there." A dropped-but-not-compiled pref is lost from both layers — worse than not
-     graduating.
-  In the reply, name each skill you edited AND say which flags were already-present (quote the
-  line) vs newly written, so Tom can eyeball. A bare "confirm all" with no `pN` pending but 📌
-  flags present → still graduate the flags. To graduate flags WITHOUT the candidates (or
-  vice-versa), Tom says "graduate all" / "confirm prefs only"; "reject" a flag ("skip the
-  haircut bake") leaves the pref in the corpus.
+- **Confirm lands each pref in its FINAL home in ONE step — there is no separate
+  "graduate" ceremony.** Every candidate carries a DESTINATION, shown in the digest and in
+  `prefs.py candidates` as either `corpus:<domain>` or `skill:<name>`. A confirm ("confirm p3",
+  "confirm all", a 👍 tapback) resolves by destination — never leaves a "confirmed-but-not-yet-
+  baked" pref sitting in the corpus:
+  - **`corpus:<domain>`** (a narrow runtime override — legitimate permanent tier, loaded
+    on-demand) → `python3 prefs.py confirm pN`. Done; it lives in `preferences/<domain>.md`.
+  - **`skill:<name>`** (skill-CORE behavior) → compile it straight into that skill, no corpus
+    hop. `prefs.py confirm pN` prints a `COMPILE …` directive instead of writing the corpus.
+    Then, for that flag:
+    1. **Open `<name>/SKILL.md` and search for the SPECIFIC behavior** the pref describes — not
+       a similarly-worded rule. Match on what the rule DOES, not on shared keywords. (Bug, Tom
+       2026-09-06: a "check calendar first before web-searching" flag was declared "already
+       present" because SKILL.md had a *dedup-before-create* rule — different behavior, same
+       word "calendar" — and the pref was dropped, losing it from both layers.)
+    2. **If the exact behavior isn't compiled in, WRITE it** — a concise, self-contained rule in
+       the right section. Don't assume "close enough" existing text covers it; when in doubt, add
+       the explicit rule.
+    3. **Only after the rule is actually in that SKILL.md** (you just wrote it, or you quoted the
+       exact line that already encodes THIS behavior) → `python3 prefs.py graduated pN` to clear
+       the candidate. Never call `graduated` on an unverified "already there" — a dropped-but-not-
+       compiled pref is lost from both layers.
+  In the reply, name each skill you edited and say which prefs were already-present (quote the
+  line) vs newly written, so Tom can eyeball. "confirm all" resolves EVERY pending candidate by
+  its own destination; "reject pN" drops one.
 
 - **⚠️ Disambiguating a bare "confirm" / "yes" / "ok" (Tom bug 2026-08-31).** More than one
   thing can await a yes at once (a pref candidate `p1`, a pending calendar-event proposal, a
@@ -306,9 +327,10 @@ I Noticed" proposal) texts Tom candidate prefs with ids (e.g. `p1`, `p3`). If he
   it's absent on the job, the inbound wasn't an inline-reply, or the gateway didn't surface
   it → fall through to recency/clarifier.)
 
-(Durable, proven prefs get baked into the skills themselves and drop out of the corpus —
-that graduation keeps this lean. The miner flags candidates with 📌; Tom's "confirm all" (or
-"graduate all") executes the bake + corpus-drop inline, per the blanket-confirm bullet above.)
+(Destination is decided by NATURE, not by a later step. Skill-core behavior compiles into the
+skill on confirm; narrow runtime overrides live permanently in the corpus tier. The corpus is
+never a waiting room for confirmed skill-core prefs — there's no "confirmed but not graduated"
+state, so Tom is never asked to bless the same pref twice.)
 
 **4. CONFIRM deal proposals (🆕).** The deal-text-scanner texts Tom `🆕 Opportunity: <Company>`
 / `🆕 Opportunity: -1 (<Founder>)` cards ending "👍 to Add to CRM" (audit line:

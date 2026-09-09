@@ -134,6 +134,21 @@ output_path = '/Users/tomseo/Downloads/<FILENAME>.pdf'
 images[0].save(output_path, 'PDF', save_all=True, append_images=images[1:], resolution=150)
 ```
 
+## Step 1.5: Email-Verification Gate (link sent to inbox) — SOLVED, do not give up
+
+Some single-doc DocSends require **email verification** on top of the ordinary email gate: after the Step 1 form POST, the page does NOT release `page_data` URLs and instead shows "Please verify that you own the entered email address — we emailed a link to tom@invertedcap.com" (often with `CAPTCHA_ENABLED:true` in `window.ENV`). DocSend emails a one-time verify link and won't unlock the doc until it's followed.
+
+**This IS bypassable headlessly because we have inbox access.** The trap that wastes time: DocSend binds the verification to the **cookie of the session that submitted the email** (`_dss_`). Following the emailed link in a *fresh* `requests` session (or bare `presentation_users/<token>` URL with no prior submit) authorizes nothing — the viewer stays gated. You must thread the verify link back through the **same** session.
+
+Working recipe (proven Paravel Health, 2026-09-08):
+
+1. **Submit in a session and keep its cookie jar.** GET the viewer, POST the `link_auth_form[email]` form (Step 1's minimal fields: `utf8`, `_method`, `authenticity_token`, `link_auth_form[email]`, `link_auth_form[timezone_offset]` — do NOT add the `email_sniffing[...]` fields; newer form versions omit them and the extra keys can break the POST). Persist the cookies: `pickle.dump(s.cookies, open('/tmp/ds_cookies.pkl','wb'))`. Note the submit epoch.
+2. **Pull the verify link from Gmail** — search `from:no-reply@docsend.com subject:verify newer_than:1h`, take the message whose `internalDate` matches your submit (each submit sends its own email). The plaintext body has `Follow the link below...` with a `track.pstmrk.it/...presentation_users%2F<token>%3Fredirect_url%3D...` URL. The un-wrapped target is `https://docsend.com/presentation_users/<token>?redirect_url=<viewer>`.
+3. **Follow the verify link in the SUBMITTING session** (reload the pickled cookies into a fresh `requests.Session`, then `s.get(verify_url, allow_redirects=True)`). Success looks like a redirect to `...view/<slug>?just_verified=true` and a new `remember_presentation_user_token` cookie in the jar.
+4. **Re-GET the viewer in that same session** → `page_data` URLs now appear. Proceed with Step 1's image-fetch + PDF-compile as normal.
+
+If it's STILL gated after a correctly-threaded verify: the doc may also carry a passcode, or the founder disabled the email you used — flag for interactive capture. But email-verification alone is not a blocker. Driving Tom's Chrome is a fallback only when JS-over-AppleEvents is enabled (it is usually OFF — `View → Developer → Allow JavaScript from Apple Events`); the in-session Gmail recipe above needs no browser at all.
+
 ## Step 2: Name the PDF File
 
 Use the **document title from the DocSend `<meta>` tag** (extracted in Step 1) to name the file:
@@ -214,7 +229,7 @@ For data room URLs (`/view/s/{slug}`):
 
 The Dropbox-redesigned data room viewer is a React SPA backed by GraphQL at `https://docsend.com/presentation/graphql`. Production React is compiled without DevTools hooks — `__reactFiber` keys are NOT present on rendered nodes (the old fiber-walk approach returns `null` for every row). The doc list lives in the GraphQL response, not the DOM.
 
-**The user's existing authorized Chrome session is the auth source.** Email-verified data rooms (a server-side flag Harsh-style founders enable) cannot be bypassed from a fresh Playwright context — the verification link goes to email. Operate inside Tom's already-loaded Chrome tab.
+**The user's existing authorized Chrome session is the auth source.** Note: for a SINGLE doc, email verification IS bypassable headlessly via the submit→Gmail→verify-in-same-session recipe in Step 1.5 (we have inbox access). Data ROOMS are the harder case — their auth is a GraphQL `authorize` mutation against `/presentation/graphql`, not the simple `presentation_users` verify link, so the in-session trick does not carry over; operate inside Tom's already-loaded Chrome tab for those.
 
 ### Step 1: Get the folder slug (spaceLayout query)
 

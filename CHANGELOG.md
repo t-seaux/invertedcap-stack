@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-09-09] (Week of 2026-09-08)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- deal-text-scanner — contact name resolution moved upstream: sweep.sh now resolves sender names from AddressBook at enqueue time via resolve_contacts.sh; skill prefers pre-resolved `sender_name` field and falls back to MCP contact lookup only when null
+- investor-update — alert format updated from two sections to three: Portfolio (archived), Portfolio-filtered (email content mismatch — transaction docs, referrals, scheduling chatter from a portfolio-set company), and Non-Portfolio (company not in portfolio set); prevents portfolio companies from appearing under Non-Portfolio when their email is filtered on content grounds
+**Total skills:** 53 visible
+**Functions:** No changes
+
+---
+
 ## [2026-09-08] (Week of 2026-09-08)
 
 **Added:** None

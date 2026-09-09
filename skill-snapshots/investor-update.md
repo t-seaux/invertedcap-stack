@@ -187,7 +187,7 @@ Two shapes to reject:
 
 2. **Fresh note about a different company.** Sender is in the matched Opp's Contact (e.g. coinvestor on the cap table, advisor, or even a portfolio founder) and writes a fresh email tipping Tom on a different company — no `Fwd:` prefix, but the body's primary subject is some OTHER company by name, with pitch/intro framing. Identify by: the body names a company that is NOT the matched Opp, plus pitch markers, plus the email reads as third-person commentary about that company rather than first-person reporting on the matched Opp's metrics.
 
-When either shape is detected, log under "Non-Portfolio (filtered)" in Step 5's Slack alert with reason "referral — content does not match Opp" and exit without writing.
+When either shape is detected, log under "Portfolio — filtered (not an update)" in Step 5's Slack alert with reason "referral — content does not match Opp" and exit without writing.
 
 Common drivers Tom flagged: (a) portfolio founders sometimes refer Tom to investment opportunities; (b) coinvestors who attended a joint meeting may sit in the Opp's Contact and later forward or write up unrelated deals.
 
@@ -720,7 +720,7 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 
 **Do NOT use `mcp__claude_ai_Slack__slack_send_message`** — that posts as `tom` (your user identity) and conflates with messages you actually sent. Mode B misclassification alerts and Mode A summaries both go via send-alert.
 
-**Alert format (Slack):** Organize by **company**. Bold company names using GFM double asterisks (`**Quiet AI**`). Split into two sections: `**Portfolio**` (companies with Status in the Active Portfolio set, where the update was archived to Notion) and `**Non-Portfolio (filtered)**` (companies that didn't qualify — pipeline-only, unknown sender, or personal newsletter).
+**Alert format (Slack):** Organize by **company**. Bold company names using GFM double asterisks (`**Quiet AI**`). Three sections: `**Portfolio**` (Status in the portfolio set, update archived to Notion), `**Portfolio — filtered (not an update)**` (the COMPANY is in the portfolio set but the EMAIL was filtered on content grounds — transaction/legal doc like a DocuSign notice, referral about a different company, scheduling chatter), and `**Non-Portfolio (filtered)**` (the company itself didn't qualify — pipeline-only Status, unknown sender, or personal newsletter). Never put a portfolio-set company under "Non-Portfolio" — the section names the company's status, not the email's disposition (Tom flagged this on Hansa 2026-09-08: a DocuSign completion notice from an Active Portfolio company was listed under Non-Portfolio, implying Hansa wasn't portfolio).
 
 ```
 📬 PORTFOLIO UPDATES — YYYY-MM-DD
@@ -732,6 +732,10 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 **Jobs Linked**
 • **<Company>** — [<Role Title>](<drive_or_live_url>) → `Jobs` field
 • (omit section entirely if Step 4.6 found no hiring links this run)
+
+**Portfolio — filtered (not an update)**
+• **<Company>** — "<subject>" — <reason filtered> (e.g., DocuSign completion notice — transaction doc, not an investor update; or referral — content does not match Opp)
+• (omit section if empty)
 
 **Non-Portfolio (filtered)**
 • **<Company>** — "<subject>" — <reason filtered> (e.g., Status: Scheduled → saved as Diligence Material; or Not in Opportunities DB — personal newsletter)
@@ -745,7 +749,7 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 Rules:
 - **Bold the company name** with double asterisks (GFM). The `send.sh` converter handles this correctly.
 - **The Notion page link MUST be a GFM markdown link** `[label](url)` (e.g., `[Quiet AI update](https://www.notion.so/3ab00beff4aa81cf857bd7b2a69e82d1)`) — never a bare URL. `send.sh`/`md_to_blocks.py` only linkifies `[text](url)`; a pasted bare URL ships as plain, un-tappable text in the Block Kit rich_text output. Use the canonical host `https://www.notion.so/{page_id_no_dashes}` — **never `app.notion.com/p/{id}`** (that form is not a resolvable page URL). Same page-id you write to the `Company`/created-page URL in Step 4.
-- Portfolio section = companies with Status in the Active Portfolio set (per the skill's Step 3 eligibility rule). Everything else goes under Non-Portfolio.
+- Portfolio section = companies with Status in the Active Portfolio set (per the skill's Step 3 eligibility rule) whose email was archived. A portfolio-set company whose email was filtered on content grounds goes under "Portfolio — filtered (not an update)". Only companies outside the portfolio set go under Non-Portfolio.
 - **Jobs Linked** section only appears when Step 4.6 actually added a chip this run — never an empty placeholder row. Link the chip's own URL (Drive snapshot, or the live posting on the render-failure fallback), not the Opportunity page.
 - For each Non-Portfolio entry, include a one-line reason so Tom can see why it didn't land in Notion as a portfolio update (e.g., "Status: Scheduled — saved as Diligence Material instead", "Not in Opportunities DB").
 - The header uses the 📬 emoji, an em dash (—), and ISO date format. Example: `📬 PORTFOLIO UPDATES — 2026-03-06`.

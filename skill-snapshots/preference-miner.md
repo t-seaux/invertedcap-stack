@@ -5,8 +5,9 @@ description: >
   threads and the agent's own action logs, INFERS candidate preferences from behavior
   (repeated corrections, choices, approval patterns), and proposes them to Tom for a
   one-tap confirm. Never auto-adopts. Runs nightly (launchd) and on demand ("run
-  preference miner", "learn from recent"). Confirmed candidates graduate into the prefs
-  corpus (prefs.py) and, once stable, into the skills themselves.
+  preference miner", "learn from recent"). Each candidate is proposed WITH a destination
+  (corpus tier vs a skill's SKILL.md); a single confirm lands it in that final home — no
+  separate graduation step.
 ---
 
 # Preference Miner (v2 — proactive)
@@ -39,43 +40,47 @@ Write each as a concise, self-contained rule + the evidence. Assign a domain
 ## 3. Dedup + propose
 For each candidate, skip if already covered:
 `python3 ~/.claude/skills/sms-listener/prefs.py load --all` (active) and
-`... prefs.py candidates` (already pending). Only propose genuinely NEW ones:
+`... prefs.py candidates` (already pending). Only propose genuinely NEW ones — and tag each
+with its DESTINATION at propose-time, so that on confirm it lands in its final home in one
+step (no separate graduation):
 ```bash
+# narrow runtime override → lives in the corpus tier:
 python3 ~/.claude/skills/sms-listener/prefs.py propose <domain> "<rule>" "<evidence>"
+# skill-CORE behavior → compiles into that skill's SKILL.md on confirm (append the skill name):
+python3 ~/.claude/skills/sms-listener/prefs.py propose <domain> "<rule>" "<evidence>" <skill>
 ```
+Judge the destination: if the rule changes how a skill fundamentally behaves (e.g. how
+family-inbox phrases finance alerts, how sms-listener handles a shared link) → tag the skill.
+If it's a narrow domain tweak (a time bound, a format nit) → leave it corpus-bound. When
+genuinely unsure, leave it corpus-bound (the cheaper, reversible home).
 **Be conservative** — a wrong "learned" preference is worse than none. When unsure, don't
 propose. Aim for 0–4 high-signal candidates per run, never a pile of speculation.
 
 ## 4. Digest to Tom (1:1, not the group — agent-tuning is his call)
 If ≥1 new candidate, text Tom via `~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<digest>"`.
 Honor the formatting prefs (`prefs.py load core`): Title Case header, blank line, no bold.
+Show each candidate's destination so Tom knows where a "confirm" sends it — `→ <skill>` for
+skill-core prefs, `(corpus)` for narrow overrides:
 ```
 🧠 Preferences I Noticed
 
-• p3 (purchases): Default to grocery re-orders without re-quoting under $50
+• p3 (purchases, corpus): Default to grocery re-orders without re-quoting under $50
    — you approved the last 3 grocery quotes instantly, no changes
-• p4 (calendar): Don't schedule you before 10am on Mondays
-   — you moved 2 early-Monday events last week
+• p4 (family-inbox → skill): Finance alerts — always say automatic vs needs-action upfront
+   — you asked twice which payments needed your input
 
-Reply "confirm p3" to save, "reject p3" to drop (or "confirm all").
-```
-When the digest ALSO carries 📌 graduation flags, tell Tom the blanket confirm covers them:
-```
-📌 Ready to bake into <skill>: "<pref>"
-
-Reply "confirm p3" to save, "reject p3" to drop. "confirm all" saves + graduates every 📌
-above; "graduate all" does just the 📌 flags.
+Reply "confirm p4" to save, "reject p4" to drop (or "confirm all").
 ```
 Nothing new → send nothing.
 
-## 5. Graduation flag (keep the corpus lean)
-If an ACTIVE pref (from `prefs.py load --all`) is stable + general enough to belong in a
-skill's core behavior, add one line to the digest: `📌 Ready to bake into <skill>: "<pref>"`
-— Tom promotes it and it drops from the corpus. **Don't edit skills HERE** (the miner only
-flags). The bake happens when Tom replies: **"confirm all" is a blanket yes that graduates
-every 📌 flag in the digest** (bake into the named skill + drop the pref from the corpus) in
-addition to confirming the numbered `pN` candidates — see sms-listener step 3. So when the
-digest carries 📌 flags, the reply line MUST advertise it (below).
+## 5. One-step confirm — no separate graduation
+Every candidate is proposed WITH its destination (step 3), so a single "confirm" lands it in
+its final home — skill-core prefs compile into the named `SKILL.md`, narrow ones stay in the
+corpus tier. There is no "📌 ready to graduate" flag and no "graduate all" reply: a pref Tom
+has confirmed is never left loitering in the corpus waiting for a second blessing. **The miner
+never edits skills itself** — it only proposes with the right destination; the bake happens on
+Tom's confirm, handled by sms-listener step 3 (open the target SKILL.md, behavior-match,
+write-if-missing, then `prefs.py graduated pN`).
 
 ## Notes
 - Manual trigger: "run preference miner" / "learn from recent" → run steps 1–5 once.

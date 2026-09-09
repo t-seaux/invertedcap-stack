@@ -67,7 +67,11 @@ Unattended. Never ask questions.
      - **Health** — doctor's office visits, appointment confirmations/reschedules,
        Magnus Health alerts, pharmacy.
      - **Bills/payments** due, delivery problems, and anything else time-sensitive or
-       addressed directly to Tom/Elsie.
+       addressed directly to Tom/Elsie. **Finance/payment alerts (bill reminders,
+       auto-debits, tuition, etc.): state upfront whether it's automatic (nothing needed —
+       headline as "automatic payment reminder" or similar) vs requires action from
+       Tom/Elsie. Never leave that ambiguous** — the "nothing to do" vs "needs action" call
+       is the whole point of the alert.
    - **Outside all of the above** (Tom 2026-09-02: "if I'm missing anything above and
      you deem something important enough to alert, do it") — use judgment. The category
      list is a floor, not a ceiling: something genuinely important/time-sensitive that

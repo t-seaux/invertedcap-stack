@@ -114,8 +114,36 @@ payment yet = an open reminder and nothing on the sheet.
 
 ## Step 1 – Read the thread and pair events
 
-Scan the Lupe Hernandez thread (contact `+19176135344`) over the scan window
-via `tool_get_recent_messages`. Extract, in timestamp order:
+Get the Lupe Hernandez thread (contact `+19176135344`), then filter to the scan
+window yourself. **The source depends on how you were invoked:**
+
+- **Reconcile/job mode — the thread is ALREADY snapshotted for you.** `sweep.sh`
+  reads `chat.db` in its FDA-granted launchd bash and writes the thread to a plain
+  file, passing the path as `thread_rows_file` (lines of `TS<TAB>sender<TAB>text`,
+  same format as `imessage-read.sh`). **Read that file** (`cat "$thread_rows_file"`
+  or the Read tool) — it is an ordinary file, NOT `chat.db`, so no Full Disk
+  Access is needed. **Do NOT read `chat.db` yourself** — not via `imessage-read.sh`,
+  not via the imessages MCP. A headless job runs under a node/claude parent with NO
+  Full Disk Access, so ANY chat.db read it attempts (MCP *or* a Bash-tool
+  `imessage-read.sh` call) fails "Full Disk Access denied" (2026-09-08, job
+  D71A7346). Only if `thread_rows_file` is missing/empty, fall through to the
+  manual command below.
+
+- **Manual mode (Tom asks directly) — read it live via the bash helper, never
+  the MCP:**
+  ```bash
+  "$HOME/.claude/scripts/imessage-read.sh" thread "+19176135344" --limit 200
+  ```
+  This works interactively because your session inherits Tom's FDA grant.
+
+Why bash, not MCP: `imessage-read.sh` reads `chat.db` under a bash process that
+holds Full Disk Access (the `/bin/bash` grant covers launchd bash jobs like
+`sweep.sh` and `lupe-paid-watch`). The imessages MCP runs under a node/uv
+process whose grant is fragile and absent in unattended runs (see
+`reference_tcc_responsible_process`: TCC blames the responsible process). Never
+route this read through the MCP.
+
+Extract, in timestamp order:
 
 - **Confirmations**: messages from Lupe reporting a completed clean. Cleaning
   date = date named in the message, else the message timestamp's date.
