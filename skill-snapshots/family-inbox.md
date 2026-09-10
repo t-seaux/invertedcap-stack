@@ -55,6 +55,16 @@ args: { messageId, from, subject, date, body }   # body = first ~2000 chars, pla
 ```
 Unattended. Never ask questions.
 
+0. **Self-sent replies are SIGNAL, not noise (Tom 2026-09-09).** A message from
+   `kenyonseo@gmail.com` itself is the family's own reply landing back in the thread —
+   an RSVP, a confirmation, a scheduling commitment. Process it for what the family
+   COMMITTED to: fold who's-attending / confirmed-time details into the matching
+   calendar event (the 2026-09-09 case correctly updated Jeremy's-birthday with
+   "Elsie + Andy + Benny attending, Tom not"). The heads-up (step 4) phrases it as an
+   update to something they did ("Updated RSVP: …"), never as if new mail arrived —
+   and the same-thread cooldown in step 4 applies with full force: two of their own
+   replies minutes apart must produce at most ONE text.
+
 1. **Classify** from the args:
    - **NOTABLE** — anything time-sensitive, dated, or personally addressed. Categories
      (Tom 2026-09-02 — **illustrative, not exhaustive**; new activities/vendors get
@@ -174,6 +184,20 @@ Day, First/Second Day), so most will already exist.
   assignment, conflicting info in the email) hold it as a 🆕 ask instead of guessing.
 
 ### 4. Text ONE consolidated heads-up (Sendblue) — to the FAMILY GROUP
+
+**Same-thread cooldown FIRST (Tom 2026-09-09).** Each job is one email, but the family
+should get ONE heads-up per underlying event, not one per message. Before sending, grep
+this month's sweep-log for an entry from the **last 30 minutes** with the same thread —
+match on subject with `Re:`/`Fwd:` prefixes stripped — that has `texted=y`:
+```bash
+grep -i "subject=.*<normalized subject>" ~/.claude/skills/family-inbox/sweep-log/$(date +%Y-%m).log | tail -5
+```
+If a recent texted entry exists, the family has already been pinged about this thread.
+Still do the calendar work (dedup/enrich/fix per step 3), but only text again if THIS
+message adds genuinely new information the earlier heads-up didn't cover (a changed
+time, a new date, a correction) — and then say only the delta. Otherwise skip the text
+and log `texted=n reason=thread-cooldown`. (Same shape as the Katya companion check in
+4b, generalized to any sender.)
 (Load prefs first — `python3 ~/.claude/skills/sms-listener/prefs.py load core email` — and
 honor them, esp. the header/formatting rules.)
 Kid/family stuff goes to the **family group** (Assistant + Tom + Elsie) so both parents
@@ -284,7 +308,9 @@ confirmation email.
 
 ### 5. Log
 Append to `~/.claude/skills/family-inbox/sweep-log/YYYY-MM.log`:
-`[ts] msg=<messageId> from=<from> dates_found=<n> enriched=<k> proposed=<j> texted=<y/n>`.
+`[ts] msg=<messageId> from=<from> subject="<subject>" dates_found=<n> enriched=<k> proposed=<j> texted=<y/n>`.
+**`subject=` is mandatory on every line** — the step-4 same-thread cooldown greps the
+log by subject; a line without it makes the next job on the same thread double-text.
 
 **Calendar access:** the processor's cold-path `claude --print` inherits the Google
 Calendar MCP, so `list_events` / `update_event` work here. `SENDBLUE_API_SECRET` is

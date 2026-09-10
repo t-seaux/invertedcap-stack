@@ -85,15 +85,17 @@ must match.
   state machine below with zero LLM: reminder + text on confirmation; sheet
   POST + reminder check-off + ONE combined text on payment. Any change to the
   state machine or notification contract must be made THERE and mirrored here.
-- **Job mode (daily reconcile)** — a daily 8:10 AM launchd job
-  (`~/.claude/scheduled-tasks/office-cleaning-expense/sweep.sh`) enqueues
+- **Job mode (weekly reconcile)** — a weekly launchd job (Monday 8:10 AM,
+  `~/.claude/scheduled-tasks/office-cleaning-expense/sweep.sh`) enqueues
   `{mode:"reconcile", window_hours:168}` on the claude-job-queue → this skill
-  re-scans the full 168h window and repairs anything the watcher missed. It
+  re-scans the full 168h window (which lines up 1:1 with the weekly cadence, so
+  coverage rolls with no gap) and repairs anything the watcher missed. It
   exists because the watcher was silently dead 2026-09-03→07 (launchd PATH
   lacked `uv`; `imessage-read.sh` used `immutable=1`, which hides WAL-fresh
   chat.db rows) and the 2026-08-22 cleaning was lost to the old weekly sweep
-  failing the same silent way. All actions idempotent; text Tom ONLY about
-  things actually repaired. NEVER narrow the 168h window.
+  failing the same silent way. All actions idempotent; alert Tom (Slack
+  `#claude-alerts`, per Step 5) ONLY about things actually repaired or real
+  problems. NEVER narrow the 168h window.
 - **Manual** — Tom asks directly ("log the cleaning expense", "Lupe
   confirmed", maintenance ops). Same state machine.
 
@@ -247,43 +249,34 @@ error.
 
 ## Step 5 – Send Alert
 
-**Delivery: TEXT Tom via the Sendblue bot — NOT Slack.** (Changed 2026-09-07
-per Tom: this workflow's source surface is his iMessage thread with Lupe, and
-alerts follow the surface — spotted in text → text back. See
-`feedback_alert_routing_by_source_surface` + `feedback_text_lane_alerts` in
-memory. No Slack dupe.)
+**Delivery depends on mode.** The live 5-min watcher (`lupe_watch.sh`) owns the
+real-time office-is-clean / paid TEXTS to Tom — that is the genuine text-lane
+surface and is hardcoded there, NOT executed via this step. This step runs in
+**reconcile/job mode** and **manual mode** only:
 
-**The notification contract (Tom, 2026-09-07) — exactly two events text him:**
+- **Reconcile/job mode → Claude alert to Slack `#claude-alerts`, NOT a text.**
+  (Tom, 2026-09-09: the weekly reconcile is an infra/self-heal backstop, so its
+  notifications belong in `#claude-alerts` — not the Lupe text lane, which the
+  live watcher already covers.) Alert ONLY when the sweep either **repaired
+  something** or **hit a real problem** (e.g. the `thread_rows_file` snapshot was
+  empty despite Lupe messages existing, sheet write failed, etc.). A clean run
+  that repaired nothing → **silent, no alert.**
 
-1. **Reminder created** (confirmation seen, unpaid) → one text.
-2. **Payment seen** → reminder checked off + expense logged, and ONE combined
-   text covering all three (payment detected / sheet logged / reminder
-   checked). Never three separate texts.
+  ```bash
+  printf '%s\n' "$BODY" | "$HOME/.claude/skills/send-alert/send.sh"
+  ```
 
-Nothing changed → no text. If a single run does both (confirmation AND payment
-arrived within the same window), the payment text alone suffices — fold the
-reminder lifecycle into it ("reminder created + checked off").
+  Body is GitHub-flavored markdown. Body shapes:
 
-```bash
-export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
-printf '%s\n' "$BODY" | SENDBLUE_API_SECRET="$(sops -d "$HOME/.claude/.sendblue-api-secret.enc")" \
-  "$HOME/.claude/skills/sms-listener/send_imessage.sh" +12012567714 --stdin
-```
+  ```
+  🧹 **Office cleaning reconcile** — repaired: cleaning MM/DD logged to the expense sheet ($100, MC tab) + reminder checked off.
+  🧹⚠️ **Office cleaning reconcile** — snapshot was empty but Lupe messages exist in the 168h window. Check `sweep.sh` logs; the watcher may be silently dead.
+  ```
 
-- `+12012567714` = Tom's own iPhone (bot-to-owner). Never text Lupe.
-- Body goes on **stdin** (quoted heredoc or `printf`) — never argv; the shell
-  eats `$100` otherwise (`feedback_imessage_send_never_double_quote`).
-- Plain text, no markdown (this is iMessage, not Slack).
+- **Manual mode (Tom asks directly) → just report the outcome inline** in the
+  session. No text, no Slack.
 
-Body shapes (include only the lines that apply):
-
-```
-🧹 Lupe confirmed cleaning (MM/DD) — reminder created: Pay Lupe $100. Sheet logs when you pay.
-🧹 Payment detected — cleaning MM/DD logged to the expense sheet ($100, MC tab) and reminder checked off.
-```
-
-On send failure, log the error to the scheduled task's `audit-log/` — do not
-fall back to Slack or any other channel.
+On send failure, log the error to the scheduled task's `audit-log/`.
 
 ---
 

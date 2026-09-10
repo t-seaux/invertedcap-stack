@@ -43,7 +43,13 @@ Manual mode (Mode C): Tom passes a page URL/ID conversationally; treat as `phase
 
 ## Pre-flight: Skip Claude-generated artifact notes
 
-Before any step runs in any mode, check if the note's title starts with `Claude:` OR `[Claude]` (case-sensitive). These are LLM-generated artifacts (e.g. `Claude: Caplight First-Pass Diligence — 04.22.2026` from older runs, or `[Claude] Aerion First-Pass Diligence — 05.13.2026` from `first-pass-diligence`), not real meeting notes — even when they end up in the Notes DB and get linked to a portfolio Opportunity. Skip the entire pipeline: no Opportunity link, no Category classification, no Round Details extraction, no Live Company Updates upsert. Log `claude-prefix-skip` and exit 0.
+Before any step runs in any mode, skip the note if it is a Claude-generated diligence/analysis artifact rather than a real meeting note. These land in the Notes DB and get linked to an Opportunity, but must NOT be processed (no Opportunity link, no Category classification, no Round Details extraction, no Live Company Updates upsert). Skip if **ANY** of these is true:
+
+1. **Title prefix** — title starts with `Claude:` OR `[Claude]` (case-sensitive). E.g. `Claude: Caplight First-Pass Diligence — 04.22.2026`, `[Claude] Aerion First-Pass Diligence — 05.13.2026`.
+2. **Title contains a diligence-artifact phrase** (case-insensitive, prefix-independent) — `First-Pass Diligence`, `First Pass Diligence`, or `Master Diligence Doc`, anywhere in the title. This catches artifacts whose `[Claude]` prefix drifted or was dropped by the generating skill. E.g. `First-Pass Diligence — Soapbox` (2026-09-09: this exact title reached the process webhook without the prefix; `first-pass-diligence`'s canonical title is `[Claude] <Company> Master Diligence Doc — MM.DD.YYYY`, but the run dropped it — the phrase match is the deterministic backstop).
+3. **Claude custom-emoji icon** — the page `icon` is a `custom_emoji` (the orange claude-color mark, e.g. `notion://custom_emoji/.../33000bef-f4aa-80a2-9457-007a443da826`). Real meeting notes never carry this icon. Use as a corroborating signal when the title is ambiguous.
+
+Log `claude-prefix-skip` (or `claude-artifact-skip` for a match via rule 2/3) and exit 0.
 
 ---
 

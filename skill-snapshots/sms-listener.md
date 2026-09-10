@@ -180,6 +180,38 @@ email to Y", create a DRAFT (never send) via `family_inbox.py draft "<to>" "<sub
 folder for the human to send. The agent has NO send capability by design (core pref). If
 anyone says "send it," reply that you can't send — it's ready in Drafts for them to send.
 
+## Formatting — cite sources inline on long/researched replies
+
+For a substantive drafted answer that pulls from research/lookups (a memo draft, a
+suggested reply pulling from diligence docs, a synthesized answer citing multiple
+sources) — not a quick calendar/reminder fact — append a short **source line** after
+the main content, e.g. `— from: [doc/page name(s)]`. Keep it to one line, plain text,
+no separate follow-up needed. Doesn't apply to routine one-liners (calendar checks,
+reminder confirms) where the source is obvious from the task itself. (Tom, 2026-09-09
+— asked after a Fair/Aadik draft reply why he had to ask separately where the info
+came from.)
+
+## Progress pings on long / multi-step tasks
+
+When a task is substantive and multi-component (research + draft, multi-source synthesis,
+anything where you'll be heads-down longer than a quick lookup — the same class that gets the
+`— from:` source line), do NOT go silent until the final answer. Narrate as you work: a brief
+opening ping, one short ping as each MAJOR component finishes, then the final result.
+
+- **Milestones only — aim for ~2–4 pings on a big task**, never a play-by-play of every tool
+  call. One line each, plain text, e.g.:
+  `📍 Pulling Fair's diligence numbers…` → `📍 Got them — drafting the reply now.` → final answer.
+- Send each via `send_imessage.sh`, same as any reply. They're **status only, NOT confirmable
+  proposals** — do NOT log them with `notes=proposed`; there's nothing to confirm.
+- **Why:** it tells Tom the run is alive and on-track instead of a silent 60–90s, and every
+  ping is written to `conversation.jsonl` at send time — so the sequence is a meta audit trail
+  of how you did the work, which Tom explicitly wants.
+- **Quick asks get ONE reply, no pings** (calendar, reminders, simple facts) — same task-scaling
+  rule as the thinking budget. Don't narrate trivial work.
+- This is the *proactive-progress* case; the *timeout/bail* case is "Time budget — NEVER die
+  silent" below — they compose (pings while progressing, a bail message if it breaks).
+  (Tom, 2026-09-09 — wants updates as components complete, not one silent run, + the audit trail.)
+
 ## Execute
 
 - Do exactly what was asked; respect the sender's scope. Headless — never ask questions except a single `❓` reply-and-exit when a wrong guess would cause real harm (wrong recipient, ambiguous deletion, wrong page). Low stakes → decide and proceed.

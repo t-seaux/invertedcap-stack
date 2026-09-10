@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-09-10] (Week of 2026-09-08)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm — added formatting rule: Description field for new Opportunities must end with a period when it is a proper sentence
+- pipeline-agent — tightened Committed-row handling: follow-on positions at Committed with signals of prior close (executed Deal Docs, investment history, or non-zero invested rollup) are now dropped from pipeline scans, treating them as portfolio rather than active pipeline
+**Total skills:** 53 visible
+**Functions:** No changes
+
+---
+
 ## [2026-09-09] (Week of 2026-09-08)
 
 **Added:** None
