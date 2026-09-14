@@ -352,7 +352,7 @@ Key points: each paragraph and each bullet is separated by a single blank line. 
 Read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Use the consolidator-style format below — header with colon + date, no intro line, one bold/underlined entity header per company with a Notion link, drafted-for line directly underneath, no trailing call-to-action. Compose with `md_to_blocks.py` using GFM (per memory `feedback_md_to_blocks_format_traps.md`).
 
 ```
-✍️ Pass Note Drafter: YYYY-MM-DD
+📬 <u>**Pass Note Drafter**</u> · YYYY-MM-DD
 
 🏢 **<u>[Company] | [Notion](url)</u>**
 Drafted for: [Founder First Name] ([founder email])
@@ -362,7 +362,7 @@ Multi-entity batches stack the entity blocks with a single blank line between ea
 
 If any opportunities failed (e.g., couldn't find founder email, draft creation failed), append:
 ```
-⚠️ Failed: [Company] — [brief reason]
+⚠ Failed: [Company] — [brief reason]
 ```
 
 This alert is the ONLY Slack message the run should produce — the per-draft ✉️ ping is muted in Step 6. Lift the mute once it's sent (also run this if you bail out early after Step 6):

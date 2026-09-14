@@ -114,7 +114,7 @@ Compile both summaries and present to the user:
 If NOT running via run-all, read the `send-alert` skill and send. Organize by **opportunity** (not by sub-scanner). Bold opportunity names using **standard markdown double asterisks** (e.g. `**Clusia**`). The `mcp__claude_ai_Slack__slack_send_message` tool renders standard markdown — single asterisks produce italic, not bold. Under each opportunity, list only the activity for that opportunity across all 3 sub-scanners (feedback drafts, feedback replies, pass-note status).
 
 ```
-🔍 DILIGENCE — YYYY-MM-DD
+🔍 <u>**Diligence Sweep: Feedback + Pass Notes**</u> · YYYY-MM-DD
 
 **<Opportunity>**
 • Feedback outreach: <Person Name> — <draft created / already sent DATE / no new Pending Feedback entries>
@@ -134,7 +134,7 @@ Rules:
 - **Bold the opportunity name** with double asterisks (standard markdown). Never use Slack mrkdwn single-asterisks — they render as italic, not bold.
 - Only include the sub-scanner lines that apply to that opportunity. If a Clusia-only run produced zero pass-note activity on Clusia, omit the pass-note line rather than writing `n/a`.
 - If all 3 sub-scanners produced zero activity, send a single-line body: `Steady state — 0 writes across all 3 diligence sub-scanners.`
-- The header uses the 🔍 emoji, an em dash (—), and ISO date format. Example: `🔍 DILIGENCE — 2026-03-06`.
+- The header follows the shared alert grammar: one domain emoji, a Title-Case `Headline: Subject` span underlined+bold, and (because a sweep is a digest) an ISO ` · YYYY-MM-DD` date suffix. Example: `🔍 <u>**Diligence Sweep: Feedback + Pass Notes**</u> · 2026-03-06`.
 
 ---
 

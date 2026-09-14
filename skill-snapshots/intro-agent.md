@@ -29,7 +29,7 @@ All 4 Intro sub-scanners (Qualified / Outreach / Draft / Resolution) contribute 
 Use this template:
 
 ```
-🤝 INTROS — YYYY-MM-DD
+🤝 <u>**Intros: <subject>**</u> · YYYY-MM-DD
 
 **Qualified (pending outreach)**
 • **<Person Name>** → <Opportunity> — Qualified (unchanged, <context>)
@@ -55,7 +55,7 @@ Rules:
 - Use `✨ moved X → Y` for any transition this run. Use `(unchanged, <brief context>)` when the person stayed in the same stage.
 - Context in parentheses should be short and specific (e.g. `intro completed Apr 17 when Tom cc'd founder`, `no reply to follow-up`, `detected via sent email 2026-04-17`).
 - Only render a section header if it has entries, OR if it's a "primary" stage (Qualified/Outreach/Made/Declined) and empty — in which case write `_none this run_`. Omit `Needs review` entirely when empty.
-- The header date uses ISO format: `🤝 INTROS — 2026-04-18`.
+- The header date uses ISO format as a trailing suffix: `🤝 <u>**Intros: <subject>**</u> · 2026-04-18`.
 - **Never use Slack mrkdwn single-asterisks for bold.** The `mcp__claude_ai_Slack__slack_send_message` tool renders standard markdown — single asterisks produce italic. Always use `**double asterisks**` for bold.
 
 **Legacy header format (for console/chat output only, not Slack):** `INTRO AGENT - [Month] [Day], [Year]` — e.g. `INTRO AGENT - March 6, 2026`. Do NOT use this in Slack alerts; use the emoji-prefixed ISO header above.
@@ -277,7 +277,8 @@ Use `notion-update-page` with `command: "update_properties"` to update the relat
 After processing, provide Tom with a clear summary:
 
 ```
-✅ Logged [N] intro(s) to [Opportunity Name]:
+🤝 <u>**Intros Logged: [Opportunity Name]**</u>
+✓ Logged [N] intro(s):
 - [Person Name] ([Company], [Role]) — [new entry created / existing entry linked]
 - [Person Name] ([Company], [Role]) — [new entry created / existing entry linked]
 ```
@@ -285,7 +286,7 @@ After processing, provide Tom with a clear summary:
 If any intros couldn't be processed (e.g., ambiguous company match, duplicate detection), flag them:
 
 ```
-⚠️ Needs review:
+⚠ Needs Review:
 - [Person Name] — couldn't find matching Opportunity for "[Company Name]". Please clarify.
 ```
 

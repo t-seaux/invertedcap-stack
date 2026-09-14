@@ -1,5 +1,30 @@
 # Changelog
 
+## [2026-09-14] (Week of 2026-09-08)
+
+**Added:** lp-letter-workshop (pending categorization)
+**Removed:** None
+**Modified:**
+- add-follow-on-round — expanded ownership-field handling (OS% lifecycle at round close, frozen historical snapshot vs. current); added ntn CLI workaround for Notion MCP icon-upload bug; added post-create Status verification step
+- add-reminder — added "re:" formatting rule: titles using "re" (meaning "regarding") must use "re:" with a colon
+- deal-share-out — expanded trigger-phrase inventory with additional verb forms and pre-pass heads-up phrasings; added text-command webhook mode (sms-listener enqueues deal-share-out when Tom texts a kick-out command)
+- deal-text-scanner — added mandatory feedback-relationship check before any content judgment: roster query + prior-note query must run for every inbound peer before content classification; added reconcile-pass handling for daily 36h backfill
+- family-inbox — added CTA reminder offer for emails requiring action outside the thread; Katya invoice handling simplified (now delegated elsewhere)
+- feedback-outreach-drafter — added routing note: backchannel-read vs. intro-request distinction (intro requests route to intro-outreach-drafter, not this skill); added per-draft alert mute/unmute guards for scheduled runs
+- finalize-diligence — updated Final Assessment block headers to include finalize date in "Company Overview (Updated)" and "Thesis (Updated)" labels; updated Notion block ordering to match
+- first-pass-diligence — added existing-artifact gate: runs before Step 0 in all modes; if a Master Diligence Doc already exists, routes to update-diligence-priors instead of re-first-passing
+- intro-draft-agent — added explicit headless Gmail path guardrail; all Gmail touches in headless mode must use scripted paths, not MCP connectors
+- intro-resolution-agent — added exit code 4 (benign target-add lag: write landed, person not in upstream, but target-terminal read lagged retry budget); tightened verification-failure taxonomy to distinguish genuine splits from benign lag
+- materials-handler — added label-ID→name resolution requirement before dedup gate (fixes silent pass-through when Gmail returns opaque label IDs); added rename-to-convention + duplicate-collapse guard for Gmail Attachment Saver path to match Drive Upload idempotency
+- neg1-enricher — clarified Slack card header format and Source/Presence/Arc/Spike/Gap/Timing bullet ordering; no behavior change
+- send-alert — added reference to alert-grammar.md as the single source of truth for alert shape; updated example headers to match new Title Case grammar
+- update-diligence-priors — updated artifact search to use "Master Diligence Doc" title first, with legacy fallback; added headless skip-alert when no new material found since last update
+- Multiple skills — alert header format aligned to shared alert-grammar: `🔍 <u>**Title: Subject**</u> · YYYY-MM-DD` pattern now used by pipeline-agent, diligence-agent, investor-update, intro-agent, pass-note-drafter, research-agent, word-bank, and others
+**Total skills:** 53 visible + 1 pending (lp-letter-workshop — needs categorization)
+**Functions:** No changes
+
+---
+
 ## [2026-09-10] (Week of 2026-09-08)
 
 **Added:** None

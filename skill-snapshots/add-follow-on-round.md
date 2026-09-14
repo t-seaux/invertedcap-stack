@@ -35,7 +35,15 @@ The company must already exist in the Opportunities DB — this skill adds a rou
 - `Fund` — read off the existing cards and match it (e.g. `Dash 2️⃣`). Never fall back to add-to-crm's `Inverted 1️⃣` default.
 - `Description`, `HQ`, `Website`, `Contact` — copy from the base card.
 - `🏁 Founder(s)` — copy the base card's founder relation URLs. Never auto-create People rows.
-- `icon` — reuse the base card's icon (the company logo) for visual consistency across the cluster.
+- `Current OS%` — copy from the base card (a fraction, e.g. `0.1` for 10%): entering the new round, Tom's current ownership is whatever the cluster last recorded.
+- `OS% @ Round` — **blank at creation.** Ownership lifecycle at **round close** (confirmed numbers only — never derive from SAFE terms; see the priced-round-math cap-table rule):
+  1. Set `OS% @ Round` on the FO card to the confirmed post-round ownership. This is a **frozen historical snapshot** — it never changes after close, even as later rounds dilute. (Each card's `OS% @ Round` = ownership as of that round's close.)
+  2. Update `Current OS%` to that same post-round number — it changes at close (dilution, plus any FO check) — and sync it on **every card in the cluster** (base + all FOs), since "current" means now, cluster-wide. `Current OS%` is the only living ownership field; older cards' `OS% @ Round` snapshots stay untouched.
+- `icon` — reuse the base card's icon (the company logo) for visual consistency across the cluster. ⚠️ Passing the base card's `attachment:` URI (or its signed S3 URL) to MCP `create-pages`/`update-page` **silently no-ops or breaks** — uploaded-file icons can't be set through the Notion MCP at all. Copy the file for real, via `ntn` (2026-09-10, worked):
+  1. Fetch the base card → grab the fresh signed URL from `iconMetadata` (expires in 5 min — move fast).
+  2. `curl -s -o /tmp/logo.jpeg '<signed-url>'`
+  3. `ntn files create --filename <company>_logo.jpeg --content-type image/jpeg --json < /tmp/logo.jpeg` → note the file-upload `id`.
+  4. `echo '{"icon": {"type": "file_upload", "file_upload": {"id": "<id>"}}}' | ntn api -X PATCH '/v1/pages/<new-page-id>'` (body on stdin; path with the real page id — `ntn api` rejects `-d` + inline-path combos).
 
 **From the round terms:**
 - `Name` — `<Company> (Series X FO)`. Capitalize the stage fully: `(Seed FO)`, `(Series A FO)`, `(Series B FO)`. This is the follow-on suffix the dedup logic elsewhere expects.
@@ -43,7 +51,7 @@ The company must already exist in the Opportunities DB — this skill adds a rou
 - `Round Details` — strict format: `$Xm on $Ym post` (or `$Xm on $Ym cap` for a SAFE). Lowercase `m`/`k`. Trust the terms Tom hands over; **if he attaches a term sheet or deck, cross-check the post-money against it.** Leave blank if no $ figure is disclosed.
 
 **Fixed defaults:**
-- `Status` — **`Active`**. This is the resting state; Tom moves it to `Committed` himself when he actually commits, and to `Portfolio: Follow-On` when it closes. Never set Committed/Follow-On automatically.
+- `Status` — **`Active`**. This is the resting state; Tom moves it to `Committed` himself when he actually commits, and to `Portfolio: Follow-On` when it closes. Never set Committed/Follow-On automatically. ⚠️ MCP `create-pages` has silently mis-mapped `"Active"` → `Track` (2026-09-10). After creating, read the card back via REST (`ntn api GET /v1/pages/<id>`) and verify Status + icon actually landed; fix Status with `{"properties": {"Status": {"status": {"name": "Active"}}}}` via `ntn api PATCH` if not.
 - `Inv @ Round` — **leave blank.** Tom supplies his check size separately; only set it when he gives a number in this or a later turn.
 - `Source(s)` — always **Direct**: `https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9`. Follow-ons come straight from the founder; there is no referrer.
 - `Shared` (fka `Support`) — the "N/A" entry: `https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1`.

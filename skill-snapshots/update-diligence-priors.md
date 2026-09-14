@@ -33,8 +33,12 @@ analysis, and to say so clearly.
 ## Step 1: Locate the Existing Diligence Page
 
 Search the Notes database (`collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for the existing
-first-pass diligence page. Use `notion-search` with the query "[Claude] [Company Name] First-Pass
-Diligence".
+diligence page. Use `notion-search` with the query "[Claude] [Company Name] Master Diligence Doc";
+if that returns nothing, retry with the legacy titles "[Claude] [Company Name] First-Pass
+Diligence" and "First Pass Diligence" (pre-2026-05-22 pages keep the old name). When multiple
+candidates return, the canonical doc is the one whose latest `## Update —` H2 date is most
+recent — a candidate with any Update header beats one with none, regardless of edit recency
+(memory: `feedback_update_priors_canonical_doc_with_updates`).
 
 If no existing diligence page is found, tell Tom and suggest running the `first-pass-diligence`
 skill first. Do not proceed.
@@ -170,9 +174,21 @@ that..." or forwarded content), treat that as new information too.
 
 ### If no new information is found
 
-If nothing has changed since the last analysis or update, tell Tom directly: "No new materials,
-notes, or changes found for [Company] since [date of last analysis/update]. Nothing to update."
-Do not create an empty update section.
+If nothing has changed since the last analysis or update, do NOT create an empty update
+section. Skip the run — no Notion writes, no PDF — and tell Tom:
+
+- **Interactive (Tom is in the conversation):** say it directly: "No new materials, notes,
+  or changes found for [Company] since [date of last analysis/update]. Nothing to update."
+- **Headless (webhook job, first-pass existing-artifact routing, scheduled run):** post ONE
+  Slack alert and end the run:
+
+```bash
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🔍 <u>**Update Priors Skipped: ${COMPANY}**</u>
+✓ No net-new materials, notes, or changes since <date of last analysis/update> — nothing to update
+EOF
+```
 
 ---
 
@@ -233,6 +249,37 @@ and priors from the original.
 ---
 
 ## Update — [Month Day, Year]
+
+### Company Overview (Updated [Month Day, Year])
+
+[The refreshed overview — full text, self-contained.]
+
+### Thesis (Updated [Month Day, Year])
+
+[The refreshed thesis — full text, self-contained.]
+
+**The two dated Context refresh sections lead EVERY update block — they are the first
+thing Tom reads when a new update lands (Tom, 2026-09-11).** Rules:
+
+- **Content mirrors the first-pass `Context` sections.** Company Overview stays
+  descriptive, not evaluative (what the product does, who it serves, business model,
+  stage, current round context). Thesis stays in the founder's-bet frame — what the
+  company is betting on as currently understood, not Inverted's read (that lives in
+  Prior Assessment / Net Assessment).
+- **Refresh, don't append.** Start from the most recent prior versions — the previous
+  Update block's refresh sections, or on the first update the original first-pass
+  `Context > Company Overview` / `Working Thesis` — and fold in whatever the new
+  information changes: stage, traction, round structure, ICP narrowing, positioning
+  shifts, a sharpened or recast bet. Always emit the FULL current text (Tom reads these
+  cold at the top of the doc), never a delta note like "unchanged except X".
+- **The label date names the update that last materially revised the section.** If this
+  run changes the content, stamp this update's date. If a section carries forward with
+  no material change, reproduce it verbatim and KEEP its prior label date — the date
+  always tells Tom how fresh that read is. (The lint checks presence + date format
+  only, not date equality with the block header.)
+- These sections are exempt from the "don't repeat the original analysis" rule below —
+  restating the current overview/thesis is their entire job. En dashes only in their
+  prose (U7 forbids em dashes outside the `## Update —` anchor).
 
 ### New Information Processed
 
@@ -332,7 +379,9 @@ convicted in the thesis? Be specific about what moved and what didn't.]
 - **Be explicit about confidence levels.** "This substantially de-risks NTB item 3" is more
   useful than "This is encouraging."
 - **Don't repeat the original analysis.** The update section should be additive — new information
-  and its implications only. Don't restate what the original analysis already covered.
+  and its implications only. Don't restate what the original analysis already covered. (Sole
+  exception: the two dated Context refresh sections at the top of the block, whose job is to
+  restate the current overview and thesis in full.)
 - **Speaker attribution in transcripts must trace to the actual speaker.** When Tom raises
   a framework, analogy, push-back, or industry parallel in a call transcript and the founder
   agrees (or extends the point), the framework/analogy belongs to *Tom*, not the founder.
@@ -359,10 +408,15 @@ fire any publish-progress pings during Step 5 (Notion prepend / PDF / property l
 those produced a redundant multi-message wall in Slack (the first-pass Cline pattern,
 2026-08-26). Only this ping and the Step 6 completion alert should ever fire.
 
+**Chained-mode exception (Tom, 2026-09-11):** if this run was routed here by the
+first-pass existing-artifact gate, that gate already fired the run's one early alert
+(`🔍 Update Priors Starting: <Company>`) — SKIP this audit-start ping entirely and
+post only the Step 6 completion alert.
+
 ```bash
 COMPANY="<subject company name>"
 cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🧪 Update-priors audit starting for **${COMPANY}**.
+🔍 <u>**Update Priors Audit Starting: ${COMPANY}**</u>
 EOF
 ```
 
@@ -514,10 +568,11 @@ echo "prepending from: $FINAL_UPDATE_MD"
 
 ### Audit-result surface in Step 6 Slack alert
 
-Append `⚠️ Audit: <N> untraced after <K> iterations, <M> partials normalized` as a
+Append `⚠ Audit: <N> untraced after <K> iterations, <M> partials normalized` as a
 fourth line of the Step 6 Signal alert when there are residual untraced findings OR any
-partials were normalized. If the audit ends with 0 untraced and 0 partial cleanly, no
-`⚠️` line — the alert stays at the standard three lines. The substance (residual untraced
+partials were normalized. Plain text `⚠` glyph, never the `⚠️` emoji variant (alert
+grammar). If the audit ends with 0 untraced and 0 partial cleanly, no
+`⚠` line — the alert stays at the standard three lines. The substance (residual untraced
 claims with judge notes; normalized partials as before→after diffs) is required by
 research-artifact-audit Step D; this only specifies the Slack format.
 
@@ -936,7 +991,7 @@ Read the `send-alert` skill (`**/send-alert/SKILL.md`) for formatting guardrails
 
 ```bash
 cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔄 [Company Name] — Diligence Priors Updated
+🔍 <u>**Diligence Priors Updated: [Company Name]**</u>
 
 New information processed:
 - [Source 1 one-liner]
@@ -944,8 +999,7 @@ New information processed:
 
 Net assessment: [One sentence — more convicted, less convicted, or thesis unchanged]
 
-Notion: [Notion page URL]
-PDF: [Google Drive URL to updated PDF]
+[notion](<notion_page_url>) · [pdf](<drive_pdf_url>)
 EOF
 ```
 

@@ -7,7 +7,7 @@ description: "Processes inbound iMessages to Tom's personal number via Sendblue.
 
 An allowlisted person texted Tom's Twilio number; the `body` arg is their command. Execute it and text back the result. This is a **calendar-first personal agent** — most commands are calendar queries/adds. Full tool access (filesystem + all MCP).
 
-**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. Don't read other skills' SKILL.md for calendar work (fast path below covers it); only read another skill for non-calendar commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`.
+**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. Don't read other skills' SKILL.md for calendar work (fast path below covers it); only read another skill for non-calendar commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`. **Deal share — "kick [company] out (to [firm])" / "deal share [X]" / "send/share/float [company] to Fika/Primary" → NEVER run inline; enqueue a `deal-share-out` job and ack instantly (Tom only — see the Deal share section).**
 
 ## Args (from the Worker)
 
@@ -150,6 +150,75 @@ you *answer* date/schedule questions.
 3. **Title prefixes (personal cal)** — `TS` = Tom solo · `EK` = Elsie solo · kid's name (`Andy Soccer`, `Benny Music Class`) = kid activity · no prefix = family/joint. School-feed style: `BFS: <event>`.
 4. **Busy/Free** — one test: does it occupy *Tom*? Tom-solo/joint/parent-required-school/family-OOO-trips → BUSY. Kid activities, EK events, informational all-day markers → FREE. Unsure → FREE.
 5. Confirm which calendar + time + availability in the reply.
+
+**Haircut lookups — never search just "haircut".** Meevo auto-books Tom's cut onto
+`tom@invertedcap.com` under the title `Service(s) scheduled at Les Enfants Terribles…` — NOT
+"Haircut" — so a `search_events` query for the word "haircut" silently misses it (bug, Tom
+2026-09-11: reported no upcoming cut; the 8/27 4pm appointment was sitting right there under
+the Meevo title). For "do I have a haircut scheduled" / "when's my next haircut" / any haircut
+date-check: search fullText `Hide` and/or `Enfants` (per the `haircut` skill's own guidance) on
+`tom@invertedcap.com`, not a bare "haircut" keyword search.
+## Deal share (Tom only) — enqueue, never inline
+
+Tom texting a deal-share command — "kick [company] out to [firm]", "kick out [X]", "send/share/
+shoot [company] (over) to [firm]", "pass [X] along to [firm]", "refer/forward [X] to [firm]",
+"float [X] to [firm]", "give [firm] a heads up on [X]", "loop [firm] in on [X]", "deal share
+[X] (to [firm])" — fires the outbound deal-share flow (a Gmail DRAFT to the firm's deal inbox;
+never sends). **Tom only** — work system; Elsie's fence refuses it.
+
+**Recognize, enqueue, ack — never run the flow in this session** (it's ~15 tool calls; inline
+would hang this reply 20–30s and block the texting loop). Exactly two turns of work:
+
+1. Parse `company` (the name as texted; "this one"/"that" → the company this conversation just
+   discussed) and `firms` (zero or more member names as texted — Fika, TX, Primary, etc.; no
+   firm named → empty array = full distribution list). Then enqueue + ack in ONE turn:
+
+   ```bash
+   curl -s -X POST "https://claude-job-queue.tom-182.workers.dev/enqueue" \
+     -H "Authorization: Bearer $CLAUDE_JOB_QUEUE_SECRET" -H "Content-Type: application/json" \
+     -d "$(jq -n --arg c "<company>" --arg f "<from>" --arg k "deal-share-text-<message_sid>" \
+          '{skill:"deal-share-out", args:{mode:"text", company:$c, firms:[<"Firm" names>], from:$f},
+            idempotency_key:$k, source:"sms-listener", timeout_sec:900}')"
+   ```
+
+2. Ack instantly: `✍️ On it — drafting <Company> → <Firm(s) | "the share list">. I'll text when
+   it's in Drafts.` The job itself texts the completion (deal-share-out Mode B3) — do NOT poll,
+   do NOT follow up. Audit line: `notes=enqueued deal-share <company>`.
+
+**Guard — target must be a FIRM, not a person.** "Send this to David" / "share with Erik" is a
+favor-forward or intro, NOT a deal share — only route here when the target is a distribution-list
+member (Fika/TX/Primary and future members) or absent, or the verb is unambiguous ("deal share",
+"kick out"). A person target → handle as the intro/forward it is. Unknown FIRM name → still
+enqueue (the job replies "not on the list") — don't burn warm-loop turns resolving it.
+
+## Contacts sync (Tom only)
+
+"Sync contacts" / "sync my contacts" / "run the contacts sync" / "sync contacts to
+Notion" / "push contacts to Notion" → fire the Apple Contacts ↔ Notion People sync
+(the same job that runs daily at 08:10). **Tom only** — it touches his People DB, a
+work-adjacent system; if the sender is Elsie, refuse per her fence.
+
+Do NOT run `run.sh` from this turn directly — the sync reads the AddressBook DB, which
+is TCC-granted only to the scheduled job's own launchd context, not this daemon's.
+Kickstart the authorized job instead and wait for it (the commit phase always prints a
+`commit:` line when done; plan diffs ~3.9k contacts, usually 2–5 min):
+
+```bash
+LOG=~/.claude/scheduled-tasks/contacts-notion-sync/logs/run.log
+OFF=$([ -f "$LOG" ] && wc -c < "$LOG" || echo 0)          # mark where THIS run's output starts
+launchctl kickstart -k gui/$(id -u)/com.tomseo.scheduled.contacts-notion-sync
+for i in $(seq 1 48); do                                   # up to ~8 min (inside the reply budget)
+  sleep 10
+  tail -c +$((OFF+1)) "$LOG" 2>/dev/null | grep -q "commit:" && break
+done
+tail -c +$((OFF+1)) "$LOG" 2>/dev/null                     # only this run's log slice
+```
+
+Text a SHORT summary of that slice — the counts (Notion/Apple updated, new contacts,
+conflicts) or "No changes." If the `commit:` line never appears within the loop (still
+running or plan failed), text an interim (`🔄 contacts sync still running — summary
+will hit #claude-alerts`) and let the job finish on its own; it posts the same
+`🛠️ Contacts Sync` alert to Slack when it completes.
 
 ## Family folder (shared Drive)
 
@@ -399,13 +468,24 @@ to CRM, no special pass-handling here). **Completion reply (Tom's exact spec): s
 inline-reply nested under the 🆕 CARD — reply-to = the PROPOSAL's `sent_handle` (from the
 audit log / the staged filename), NEVER `args.message_sid` (on a tapback confirm that's
 the tapback's own handle and the reply will drift out of the thread; bug hit 2026-09-01 —
-Tom never saw the MaxHeap ✅). Body EXACTLY two lines — no recap of the deal, nothing
-else:**
+Tom never saw the MaxHeap ✅). Body is the ✅ header + URL, plus the People-DB opt-in line
+whenever the card names a founder/person — no recap of the deal, nothing else:**
 ```
 ✅ Added to CRM
 <notion url of the created row> ↗
+👍 to add <Founder(s)> to People DB
 ```
-(Header is "Added to CRM" with lowercase t — an exception to Title Case headers.)
+(Header is "Added to CRM" with lowercase t — an exception to Title Case headers. **Name the
+FOUNDER(S) on the 👍 line** — the card's subject is the company, but the people added to People
+are the founders, so they differ; spell out who will be added. **Multiple founders → list them
+all** (e.g. `👍 to add Jane Smith & John Doe to People DB`); a single 👍 adds every one.
+**No founder identified on the Opp → OMIT the 👍 line entirely and stage no `people-*.json`** —
+there's no one to add, so don't offer it. The line appears only when ≥1 founder is known.)
+**When you include the 👍 line, pre-stage the opt-in exactly as intro-lane §4c does — write
+`~/.claude/skills/deal-text-scanner/staged/people-<this ✅ reply's sent_handle>.json` =
+`{type:"people-db-add", opp_url:<created row>, referrer:<source>, people:[{name, li_url:<from
+staged proposal / Opp>, email:<staged contact; omit if N/A>}, …one entry per founder]}`, audit
+line `notes=proposed people-db-add <founder(s)>`. A 👍 on this ✅ card is handled by branch 4b.**
 **Edits — "respond to make changes" is a live promise:**
 - Reply with corrections BEFORE confirming ("stage is pre-seed not seed", "HQ is NYC",
   "company is spelled MaxHeap") → apply them to the pending proposal and resend the
@@ -418,6 +498,47 @@ else:**
   (resolve via the Notion URL just sent), reply with a brief ✅ updated.
 A ❌/👎 tapback or "skip" → acknowledge, add a `rejected` line to
 `~/.claude/skills/deal-text-scanner/.proposed` so it isn't re-proposed, do nothing else.
+
+**4b. CONFIRM People DB add (👍 to add to People DB).** Two cards can end with the
+"👍 to add to People DB" line, each pre-staging a `people-<sent_handle>.json` payload with
+audit line `notes=proposed people-db-add <founder>`:
+- the `🤝 Email Captured: <Founder>` card (intro-lane §4c — a founder's email written into an
+  Opp's Contact field), and
+- the `✅ Added to CRM` completion (branch 4 above — a just-created Opp with an identified founder).
+A positive 👍 tapback quoting EITHER card — or Tom replying "add to people" / "add to contacts"
+under it — is the ONLY thing that creates a People DB row from these flows (the scanner NEVER
+auto-creates one). On confirm, **FAST PATH:** load
+`~/.claude/skills/deal-text-scanner/staged/people-<sent_handle>.json` and run
+`~/.claude/skills/add-to-contacts/SKILL.md` for **EVERY entry in the payload's `people[]` array**
+(the Email-Captured card stages one; an Opp with co-founders stages several — a single 👍 adds
+them all). Per person: `li_url` present → standard ContactOut enrich; absent → name + email +
+the web-search fallback. Dedup each first (workspace_search); update in place if that person
+already exists, else create. Reply as an inline-reply nested under the confirmed CARD — reply-to
+= the card's `sent_handle` (from the staged filename / audit log), NEVER `args.message_sid` (on a
+tapback that's the tapback's own handle and the reply drifts out of thread):
+```
+✅ Added to People DB
+<notion url of the created row> ↗
+```
+For **multiple** people, keep the `✅ Added to People DB` header and add one
+`<Name> — <notion url> ↗` line per row created/updated. (Header "Added to People DB" — lowercase
+where it falls, same Title-Case exception as "Added to CRM".) A ❌/👎 or no reaction → do nothing;
+the email/Opp stands, no People row.
+
+**5. Logging intro-landed material — flip Status in the SAME turn, don't wait to be
+corrected.** When Tom hands over a screenshot/text and says "check notion" / "add this" /
+similar for an Opp that already exists, and the material itself shows an actual intro
+thread landing — a group text where the referrer says "please meet X" with both parties
+in it, a 3-way email intro, a founder texting in directly — that meets add-to-crm's
+`Connected` criterion (per `deal-text-scanner/references/intro-lane.md` §4b: "conversation
+is live"). Append the material AND update `Status` → `Connected` in the same write, rather
+than just logging the text and leaving Status stale for Tom to catch and correct
+afterward. (Tom, 2026-09-10 — caught this exact gap on the Avy Faingezicht opp: screenshot
+of Avery's group-text intro got appended but Status was left at Qualified; Tom had to
+point out "if we are connected status should be connected.") Only skip the auto-flip if
+the material is ambiguous about whether a live thread actually exists (e.g. just a
+forwarded LinkedIn profile, or a referrer saying they'll intro "at some point") — those
+stay wherever they are and don't get bumped.
 
 ## Formatting — links (ALL texts)
 
@@ -450,6 +571,14 @@ Example:
 ```
 Keep it clean and plain — the emoji + the blank line do the visual work. (bold.py exists
 but is deprecated for messages; don't call it.)
+
+**Alert-shaped texts follow the MASTER alert grammar.** Any unattended notification texted
+to Tom (a job completion, a watcher/relay ping, a sweep finding — anything he didn't just
+ask for in-thread) renders per `send-alert/references/alert-grammar.md` → "Text lane":
+`<emoji> Headline: Subject` in Title Case, blank line, `Key: value · Key: value` meta pairs,
+`✓/⚠/✗` state line with ⚠ action-required first, links as `<url> ↗`. Conversational replies
+(Tom asked, you answer) and the functional confirm-loop formats (🆕 card + 👍 CTA, ✅/🚫/🎯,
+❓) are exempt — they're chat and routing keys, not alerts.
 
 ## Reply channel — pick by job source
 

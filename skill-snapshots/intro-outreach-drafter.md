@@ -160,8 +160,12 @@ that he should never have to. **Catching a decline is the drafter's job, not Tom
 - **Recipient already in Qualified for this Opp** → just (re)draft; don't duplicate the relation entry.
 - **Multiple recipients** → one draft each, one batched Qualified update, one report.
 - **Recipient not a clean identity match** → ask for LI URL/email; do not guess (hard rule).
-- **Wrong/updated email after drafting** → the connector can't edit or delete a draft; create a fresh draft
-  to the correct address and tell Tom which stale draft(s) to delete manually.
+- **Wrong/updated email after drafting** → the connector can't EDIT a draft (update_draft flattens the
+  signature), so create a fresh draft via `gmail-create-draft.py` — then **trash the superseded draft
+  yourself** via the Gmail connector's `trash_message` (pass the old draft's messageId), per Tom's
+  superseded-draft auto-delete rule (revised draft of the SAME email → trash the old one). Never leave
+  stale copies in Drafts or tell Tom to delete them manually. (Corrected 2026-09-11: this line previously
+  claimed the connector can't delete; `trash_message` works fine on a draft's message.)
 - **Redrafting after a bounce or a send (new address, resend, etc.)** → if Tom already SENT a version, that
   sent copy — not the base template — is the source of truth. Pull it from Sent mail (`search_threads
   in:sent` → `get_message` for the full `htmlBody`) and reproduce HIS content verbatim (his reconnect

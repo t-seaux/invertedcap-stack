@@ -66,7 +66,7 @@ Reply drafts (a draft attached to an existing thread) can't be recreated by the 
 Send ONE ping via the `send-alert` skill (GFM on stdin to `send.sh`), regardless of how many drafts were touched:
 
 ```
-**✉️ Blurb sync: [Company] drafts updated**
+🛠️ <u>**Blurb Sync: [Company]**</u>
 
 [Company]'s Company Overview was refreshed ([date/source]), so [N] open draft(s) got their *About [Company]* section swapped:
 

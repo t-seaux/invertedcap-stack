@@ -160,6 +160,24 @@ This is the event-driven auto-draft path: a draft appears in Gmail within ~a min
 
 ### Mode B: Targeted (Enqueued) — single person + opp
 
+**⛔ Headless Gmail path — read this FIRST when running under `claude --print` (queue job).**
+claude.ai Gmail MCP connectors do NOT attach to headless runs. Do not go hunting for an
+alternative (Chrome scripting, OAuth creds, repo spelunking) — the 2026-09-11 Harwitt/AgentBay
+run burned 7 of its 10 minutes rediscovering this and died at the timeout. The scripted path
+covers every Gmail touch this skill needs; a healthy headless run is ~3-5 min:
+
+- **Thread read (all guards + recipients + hand-off scan in ONE call):**
+  `cd ~/code/gmail-webhook && python3 admin_run.py _readThread <threadId>` — returns every
+  message's from/to/cc/date, label NAMES, and plaintext body. Deleted-draft guard = any
+  message carrying the `Intro Drafted` label. Group-opt-in Cc set = the original outreach
+  message's To/Cc. Hand-off scan = the latest inbound body + Cc.
+- **Draft create:** `~/.claude/scripts/gmail-create-draft.py` (already mandatory, all modes).
+- **Label the thread:** `~/.claude/scripts/gmail-label.py --label "Intro Drafted" <replyMessageId>`.
+- **Sent/draft-list searches:** headless has no Gmail search — the `Intro Drafted` label IS the
+  authoritative dedup (it's applied atomically whenever a draft is created, so label-absent =
+  never drafted). The Step 2 sent/draft searches are defense-in-depth to run only when the
+  Gmail MCP tools are actually present (interactive/manual runs).
+
 When invoked with `personId` + `oppId` args (Pattern 3), **skip Step 1 (roster build) and Step 2's inbox scan entirely** — the opt-in is already confirmed by the resolution agent. Instead:
 
 1. **Fetch the specific opp + person.** `notion-fetch` the Opportunity (`oppId`) and the person (`personId`). From the opp, get `Name`, `🏁 Founder(s)` (fetch each founder for name + email; fall back to the `Contact` field for founder emails), and the current `☎️ Intros (Outreach)` / `✉️ Intros (Made)` relations.

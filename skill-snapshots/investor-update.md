@@ -325,7 +325,8 @@ Conversion path:
 
 Alert format (Step 5 fallback only — sent via `send-alert`):
 ```
-🎯 BOARD DECK NEEDS PDF — {Company}
+📬 <u>**Board Deck: {Company}**</u>
+⚠ Needs PDF
 Slides link: {slides_url}
 Tried: invertedcap MCP (403), dashfund-slides-proxy ({error}). Deck not shared with either account.
 Action: download as PDF and text/forward — I'll resume the workflow when the PDF lands.
@@ -723,7 +724,7 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 **Alert format (Slack):** Organize by **company**. Bold company names using GFM double asterisks (`**Quiet AI**`). Three sections: `**Portfolio**` (Status in the portfolio set, update archived to Notion), `**Portfolio — filtered (not an update)**` (the COMPANY is in the portfolio set but the EMAIL was filtered on content grounds — transaction/legal doc like a DocuSign notice, referral about a different company, scheduling chatter), and `**Non-Portfolio (filtered)**` (the company itself didn't qualify — pipeline-only Status, unknown sender, or personal newsletter). Never put a portfolio-set company under "Non-Portfolio" — the section names the company's status, not the email's disposition (Tom flagged this on Hansa 2026-09-08: a DocuSign completion notice from an Active Portfolio company was listed under Non-Portfolio, implying Hansa wasn't portfolio).
 
 ```
-📬 PORTFOLIO UPDATES — YYYY-MM-DD
+📬 <u>**Portfolio Updates**</u> · YYYY-MM-DD
 
 **Portfolio**
 • **<Company>** — "<subject or period>" — <PDF source: original/email-converted>. [<Company> update](https://www.notion.so/{page_id_no_dashes})
@@ -752,6 +753,6 @@ Rules:
 - Portfolio section = companies with Status in the Active Portfolio set (per the skill's Step 3 eligibility rule) whose email was archived. A portfolio-set company whose email was filtered on content grounds goes under "Portfolio — filtered (not an update)". Only companies outside the portfolio set go under Non-Portfolio.
 - **Jobs Linked** section only appears when Step 4.6 actually added a chip this run — never an empty placeholder row. Link the chip's own URL (Drive snapshot, or the live posting on the render-failure fallback), not the Opportunity page.
 - For each Non-Portfolio entry, include a one-line reason so Tom can see why it didn't land in Notion as a portfolio update (e.g., "Status: Scheduled — saved as Diligence Material instead", "Not in Opportunities DB").
-- The header uses the 📬 emoji, an em dash (—), and ISO date format. Example: `📬 PORTFOLIO UPDATES — 2026-03-06`.
+- The header uses the 📬 emoji, the underline+bold Title-Case `<u>**Portfolio Updates**</u>` format, and a ` · ` ISO-date suffix. Example: `📬 <u>**Portfolio Updates**</u> · 2026-03-06`.
 - Internal sub-agent summary (returned to orchestrator) can be more verbose — include Gmail thread IDs, PDF paths, match attempts — but the Slack body stays to the format above.
 - **Freshness rule (per `feedback_alert_freshness_framework.md`):** Sweep alert content is restricted to the run's lookback window. The window size is `RUN_LOOKBACK_HOURS` exported by `run.sh` — 24h on Tue–Fri, 72h on Mondays (catches Sat/Sun/Mon since the sweep skips weekends). Do NOT add an "Already-present" or "Webhook activity also created" line for entries the webhook handled before the window. If sweep had no work because every fresh update was already webhook-processed within the window, list those entries in the Portfolio section with the same one-line shape (the entry exists and is fresh — sweep just didn't write it). If nothing landed in the window at all (webhook or sweep), report "No new investor updates or board materials found in the past {N} hours" (interpolating the actual window) and stop — no reconciliation breakdown.

@@ -39,6 +39,49 @@ materials handling for the new round.
 
 ---
 
+## Existing-artifact gate: route to update-priors, never re-first-pass
+
+Runs BEFORE Step 0, in every mode (webhook, diligence-agent worker, manual). The
+semantic of every trigger into this skill is "make diligence current" — a Status flip
+to Active must not produce a second first-pass when an artifact already exists (e.g.,
+a deal first-passed ad hoc while still at Exploration, then moved to Active later —
+Soapbox, 2026-09).
+
+1. Search the Notes data source (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for an
+   existing diligence artifact for this company: one title search per pattern in
+   `~/.claude/skills/shared-references/triggers/first-pass-diligence.json` →
+   `dedup_title_patterns` (`Master Diligence Doc` + both legacy `First-Pass Diligence`
+   variants), matching `[Claude] <Company> <pattern>` with ANY date suffix. This is
+   NOT the Resume Protocol's `<today>`-dated search — that detects THIS run's partial
+   output; this gate detects any prior run's artifact, whatever its date. Title-only —
+   never fetch page bodies here.
+2. **No hit** → proceed to Step 0 and run first-pass normally.
+3. **Hit** → do NOT first-pass. Fire the run's ONE early alert immediately — it names
+   the routing decision (Tom, 2026-09-11: one start alert, and it should say first
+   pass was skipped in favor of update priors):
+
+   ```bash
+   COMPANY="<company name>"
+   cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+   🔍 <u>**Update Priors Starting: ${COMPANY}**</u>
+   ✓ First pass skipped – Master Diligence Doc exists · updating priors on new material
+   EOF
+   ```
+
+   Then read `~/.claude/skills/update-diligence-priors/SKILL.md` in full and run THAT
+   skill for this Opp in the same session/job. Its incremental diff picks up everything
+   added since the artifact's last update. Because this routed-start alert already
+   fired, SKIP update-priors' Step 4.5 audit-start ping — the run posts exactly this
+   alert plus the completion (or zero-delta skip) alert, nothing else. If update-priors
+   finds no net-new materials, it skips and alerts per its own zero-delta clause — that
+   outcome is expected and correct, not a failure; do not fall back to running
+   first-pass.
+4. **Manual override:** if Tom explicitly asks for a fresh first-pass despite an
+   existing artifact ("redo the first pass on X", "run a fresh first pass"), honor it.
+   The gate guards automated triggers and casual asks, not an explicit redo.
+
+---
+
 ## Step 0: Set up per-job workspace
 
 Concurrent first-pass-diligence jobs (webhook-triggered runs and
@@ -136,7 +179,8 @@ alert at Step 6b.
 ```bash
 COMPANY="<subject company name>"
 cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🚀 First-pass diligence started for **${COMPANY}**.
+🔍 <u>**First Pass: ${COMPANY}**</u>
+Started.
 EOF
 ```
 
@@ -664,6 +708,14 @@ superscript rendering. Both formats are handled automatically — just write the
 
 Sources that are obvious from context may be cited without a number — reserve footnote
 markers for cases where the specific source artifact matters.
+
+**Never use source-shorthand tags.** Do NOT anchor a claim with an internal abbreviation
+in brackets — `[MEMO]`, `[MN]` (meeting note), `[T:MASON]` (Mason's transcript),
+`[MEMO:Tuor]`, or any all-caps `[TAG]` / `[TAG:Qualifier]` form. These are drafting
+scaffolding, not citations, and they render as raw brackets in the PDF (Ardent first-pass,
+2026-09-10). The ONLY citation form is the numbered `[N]` footnote with a matching `^N`
+definition. If mid-draft you reach for a shorthand tag, either assign it a real footnote
+number then and there, or drop it. The lint check `source_shorthand_tokens` blocks these.
 
 The analysis follows this exact structure:
 
@@ -1378,6 +1430,21 @@ data point cited in the analysis is linked to its source URL.
   a single analytical thread with evidence and caveats. One-to-two sentence paragraphs lack the
   nuance and fidelity this analysis demands. If a paragraph is too short, it either needs more
   evidence or should be merged into an adjacent paragraph.
+- **Under-sourced sections: state the gap, never pad (Tom, 2026-09-10).** When a section — Product,
+  Operating Model, GTM, whichever — lacks the source material to analyze substantively, keep it
+  brief and say so *explicitly*, e.g. "The materials don't yet support a Product assessment: one
+  agent (insurance verification) has shipped, the PMS is unbuilt, and no roadmap detail was shared
+  on the intro call." Do NOT manufacture analysis, invent mechanics, or inflate to hit a length
+  target just to fill the section. An honest "insufficient information to assess X at this stage,
+  here's the little that's known" is strictly better than fabricated substance — Tom would rather
+  read a short section than a padded one. This **qualifies the "Paragraphs must be substantive"
+  rule above**: the 4-6 sentence floor applies when you have the evidence to develop the thread; it
+  is never a license to invent evidence to reach it. The bar is a *genuine source gap*, not
+  difficulty writing — where transcripts and materials DO support synthesis, synthesize (see the
+  Working Thesis "do not punt with 'thesis unclear'" rule) and where they don't, flag the gap
+  plainly. Brevity that tracks thin inputs is correct and expected for very early / lightly-sourced
+  deals; a six-week-old pre-product company yields a shorter doc than a company with a shipped
+  product and multiple calls, and that is the right outcome, not a defect to pad away.
 - **Prose over lists.** Default to flowing prose with data woven into the argument. Use bullet
   lists only for Open Questions, Need to Believe items, and Suggested Additional Analysis. For
   everything else — market dynamics, competitive positioning, product analysis, team assessment,
@@ -1709,7 +1776,8 @@ flow:
 ELAPSED_MIN=$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 ))
 COMPANY="<subject company name>"
 cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🧪 First-pass audit starting for **${COMPANY}** — T+${ELAPSED_MIN} min from job start
+🔍 <u>**First Pass Audit: ${COMPANY}**</u>
+Started — T+${ELAPSED_MIN} min from job start.
 EOF
 ```
 
@@ -2174,7 +2242,7 @@ Tom's thread replies are routed through `claude-alerts-listener` and appended to
 Template (substitute the three values directly — do not keep angle brackets around the placeholders):
 
 ```
-🪏 <u>**First Pass Diligence: [COMPANY_NAME](OPP_URL) ([PDF](PDF_URL))**</u>
+🔍 <u>**First Pass Diligence: [COMPANY_NAME](OPP_URL) ([PDF](PDF_URL))**</u>
 ONE_LINER_SUMMARY
 💬 Reply in thread with any takeaways for next time.
 ```
@@ -2182,13 +2250,13 @@ ONE_LINER_SUMMARY
 Concrete example of the rendered body that should be piped into `send.sh`:
 
 ```
-🪏 <u>**First Pass Diligence: [Shine](https://www.notion.so/35700beff4aa8147b93ede0f63694110) ([PDF](https://drive.google.com/file/d/1mjbovMWmrjdYWCqc6RNnlbhHfuxFxdHW/view))**</u>
+🔍 <u>**First Pass Diligence: [Shine](https://www.notion.so/35700beff4aa8147b93ede0f63694110) ([PDF](https://drive.google.com/file/d/1mjbovMWmrjdYWCqc6RNnlbhHfuxFxdHW/view))**</u>
 Moderate founder pair; wedge is real but UserEvidence and Listen Labs are 10-50x better-capitalized.
 💬 Reply in thread with any takeaways for next time.
 ```
 
 Conventions:
-- **Line 1 — bolded title with two links.** `🪏` (pickaxe emoji) outside the wrapper, then `<u>**...**</u>` wrapping the title `First Pass Diligence: COMPANY (PDF)`. The company name is hyperlinked to the Notion Opportunity URL (NOT the analysis page URL). The literal text `PDF` (in parens) is hyperlinked to the Drive PDF URL returned from step 6a.
+- **Line 1 — bolded title with two links.** `🔍` (magnifying-glass emoji) outside the wrapper, then `<u>**...**</u>` wrapping the title `First Pass Diligence: COMPANY (PDF)`. The company name is hyperlinked to the Notion Opportunity URL (NOT the analysis page URL). The literal text `PDF` (in parens) is hyperlinked to the Drive PDF URL returned from step 6a.
 - **Line 2 — one-liner summary.** Plain text, no bold, no bullets, no links. 1–2 sentences max — what Tom needs to know before clicking through. Lead with the most important signal (e.g., "Strong founder fit + obvious market, but $3M seed is later than my typical entry — fund-fit pass.").
 - **Line 3 — feedback prompt.** Literal text `💬 Reply in thread with any takeaways for next time.` Do not modify or personalize. The static prompt is the trigger `claude-alerts-listener` keys on for routing first-pass feedback to `FEEDBACK_PATTERNS.md`.
 

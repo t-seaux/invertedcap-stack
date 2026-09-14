@@ -129,7 +129,7 @@ a webhook-watched property, so the restore fires no jobs.
 4. **Compose the draft** per the conveying convention above: diff the draft model against
    `.last_snapshot.json` (labels/kinds mirror `soi_notify.flatten`), render the changed sections with
    `old → new` arrows, and include the company-modal block for the affected Opp. Header line MUST start
-   with the `🧾` emoji, bolded, in the form `🧾 **LP Portal SOI Update: <Company> (<Stage>) <Event>**` —
+   with the `🧾` emoji, bolded, in the form `🧾 <u>**LP Portal SOI Update: <Company> (<Stage>) <Event>**</u>` —
    claude-alerts-listener routes replies on the emoji alone, not the wording, so `<Event>` names the
    actual trigger (Tom 2026-07-27), e.g.:
    - `Entering Active Portfolio` — new Opp → Active Portfolio

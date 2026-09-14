@@ -32,7 +32,7 @@ The scan operates in two tiers: a curated list of ~60 firms Tom actively tracks 
 
 When running standalone (not via run-all), read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Include URLs for any letters found so Tom can read them immediately. If running via run-all, an override instruction will suppress the notification (the orchestrator handles notifications centrally).
 
-**Message header format:** The first line of the message must be `🔬 RESEARCH AGENT — YYYY-MM-DD` using the ISO date format (four-digit year, two-digit month, two-digit day) and an em dash. Example: `🔬 RESEARCH AGENT — 2026-03-06`.
+**Message header format:** The first line of the message must be `🔍 <u>**Research Agent: Investor Letters**</u> · YYYY-MM-DD` using the ISO date format (four-digit year, two-digit month, two-digit day) and a mid-dot date suffix. Example: `🔍 <u>**Research Agent: Investor Letters**</u> · 2026-03-06`.
 
 ---
 

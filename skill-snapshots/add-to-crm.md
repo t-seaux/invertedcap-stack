@@ -477,7 +477,7 @@ Skip this step in manual mode — Tom is in the conversation and reads the reply
 
 In webhook mode, post a single Slack alert via the `send-alert` skill (read `~/.claude/skills/send-alert/SKILL.md`). One alert per webhook job — never batch.
 
-**Header line:** `📥 NEW DEAL — YYYY-MM-DD HH:MM ET`
+**Header line:** `🏢 <u>**New Deal: <Company>**</u>`
 
 **Body — one of:**
 

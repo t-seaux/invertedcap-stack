@@ -33,7 +33,7 @@ Wired via `~/Library/LaunchAgents/com.tomseo.scheduled.coop-finances-prompt.plis
 
 Posts to `#personal-alerts` via `send-alert` (`send.sh --channel personal-alerts`, since 2026-07-27):
 
-> 📒 **Coop finances — monthly drop**
+> 💸 <u>**Coop Finances: Monthly Drop**</u>
 >
 > Drop the latest as thread replies:
 > 1. Citi CHK-7926 CSV (operating account — past month or more)
@@ -119,7 +119,7 @@ Save xlsx in place. iCloud handles sync. No Drive upload unless Tom explicitly a
 Post to the same thread (Mode B) or `#claude-alerts` (Mode A first run after data drop):
 
 ```
-📒 Coop finances updated
+💸 <u>**Coop Finances: Updated**</u>
 • N txns ingested, M deduped
 • Maintenance: Mar/Apr/May fully posted ($4,400 ea)
 • Reserve interest: $X.XX (Jan-May 2026)

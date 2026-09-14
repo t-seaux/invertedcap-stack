@@ -52,7 +52,7 @@ Behavior:
 Use this exact shape via `~/.claude/skills/send-alert/send.sh`. The first line is the header (bold, with the company name + Notion link). The bullets follow on the **very next line** — no blank line in between (md_to_blocks treats a blank line as a `\n\n` paragraph spacer, which renders as visible empty space; that gap is a bug). Use GFM `**bold**`, not Slack mrkdwn.
 
 ```
-**🪙 add-to-companies — <Company Name> enriched ([Notion](<page_url>))**
+🏢 <u>**Company Enriched: <Company Name>**</u> ([Notion](<page_url>))
 - **Category:** <Category emoji + label>
 - **HQ:** <metro> (<actual city/region if differs from metro>)
 - **Total Funding:** <amount with investors> or "—"
@@ -61,7 +61,7 @@ Use this exact shape via `~/.claude/skills/send-alert/send.sh`. The first line i
 ```
 
 Rules:
-- Header line is GFM bold (double asterisks). The 🪙 emoji is part of the header, not a separate icon-binding.
+- Header line is GFM bold (double asterisks). The 🏢 emoji is part of the header, not a separate icon-binding.
 - Bullets use the GFM dash convention (`- `), not `• `. md_to_blocks renders `- ` as Slack bullets correctly. Do NOT use `*` or `•`.
 - The bullet list starts on the line **immediately after** the header line — single `\n` separator, never `\n\n`.
 - For Funds / Schools, omit the Total Funding / Deal Digest / Headcount lines (those fields are categorically blank per the spec).

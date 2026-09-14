@@ -41,7 +41,8 @@ Idempotency: if Tom sends a second message in the same thread after the flip, St
 
 Slack alert format:
 ```
-📞 **{Opp name}** — opted in, Qualified → Outreach
+🏢 <u>**Outreach: {Opp name}**</u>
+→ opted in · Qualified → Outreach
 [Open in Notion]({opp.url})
 ```
 
@@ -63,7 +64,8 @@ Execute:
 3. **Flip Status.** PATCH `{ Status: { status: { name: "Outreach" } } }` via Notion MCP.
 4. **Alert.** Send a Slack note to Tom's DM-to-self via the `claude` webhook (see `send-alert` skill). Same format as Mode B but flag it as manual:
    ```
-   📞 **{Opp name}** — opted in, Qualified → Outreach (manual)
+   🏢 <u>**Outreach: {Opp name}**</u>
+   → opted in · Qualified → Outreach (manual)
    [Open in Notion]({opp.url})
    ```
 5. **Confirm.** One-line reply to Tom: `Flipped {Opp name} · Qualified → Outreach.`

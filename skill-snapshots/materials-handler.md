@@ -49,7 +49,7 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 The consolidated `#claude-alerts` ping fires deterministically from inside `notion_files_property.py` whenever the `--batch-json` (or a non-`--no-alert` single `--url`) call lands ≥1 new chip on Diligence Materials / Deal Docs. This is the fix for the silent-append bug (Cline, 2026-08-25): the alert can no longer be skipped because it's a side effect of the write, not a step the model has to remember. Your only jobs are to (a) pass `--email-message-id` so the header carries the `(Email)` link, and (b) NOT compose or send any separate materials alert. The format the helper emits (for reference only):
 
 ```
-**📎 Materials: [{Opp Name}](https://www.notion.so/{oppId}) ([Email](https://mail.google.com/mail/u/0/#all/{messageId}))**
+🔍 <u>**Materials: [{Opp Name}](https://www.notion.so/{oppId}) ([Email](https://mail.google.com/mail/u/0/#all/{messageId}))**</u>
 
 - **Page Body:** {comma-separated body section names — plain text, no links}
 - **Diligence Materials:** {comma-separated chip labels, each WRAPPED as [label](url)}
@@ -75,7 +75,7 @@ The consolidated `#claude-alerts` ping fires deterministically from inside `noti
 **Worked example (matches Emily/Inlets):**
 
 ```
-**📎 Materials: [Inlets](https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002) ([Email](https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41))**
+🔍 <u>**Materials: [Inlets](https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002) ([Email](https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41))**</u>
 
 - **Page Body:** Company Blurb
 - **Diligence Materials:** [Inlets - One-Pager (2026)](https://drive.google.com/file/d/.../view), [Inlets - Oncology Case Study](https://drive.google.com/file/d/.../view), [Inlets Demo (login: demo@inlets.ai; pw: ***)](https://app.inlets.ai/)
@@ -217,7 +217,7 @@ The chip-add helper (`notion_files_property.py`) takes `--prop "Deal Docs"` or `
 
 **Before processing each message in the working set:**
 
-1. Read its labels. If it carries `claude/materials-processed`, drop it from the working set — already handled. A message carrying only `claude/materials-failed` (see below) STAYS in the working set — it's the retry surface; `notion_files_property.py`'s URL-idempotency prevents duplicating the chips that already landed on the prior attempt. (Mode B: the trigger message itself is exempt only when the webhook just fired *because* of new content on that message — in practice the trigger is unlabeled by construction; do not bypass the check.)
+1. Read its labels. **Gmail returns opaque label IDs (`Label_6`, `Label_15`), NEVER names — you cannot see `claude/materials-processed` in `labelIds` directly.** Resolve IDs → names via `list_labels` (one call, cache the map for the whole run) BEFORE comparing; comparing the name string against raw `labelIds` always misses and silently passes the gate. (2026-09-10 Ardent incident: the pipeline-materials sweep read `labelIds: ["STARRED","INBOX","Label_6"]`, concluded "no materials-processed label," and re-processed a message the webhook had correctly labeled 6 hours earlier — recreating a duplicate an interactive cleanup had removed minutes before.) If the label map can't be fetched, treat the gate as FAILED for the run — skip processing, don't guess. If it carries `claude/materials-processed`, drop it from the working set — already handled. A message carrying only `claude/materials-failed` (see below) STAYS in the working set — it's the retry surface; `notion_files_property.py`'s URL-idempotency prevents duplicating the chips that already landed on the prior attempt. (Mode B: the trigger message itself is exempt only when the webhook just fired *because* of new content on that message — in practice the trigger is unlabeled by construction; do not bypass the check.)
 2. After processing, keep only the messages that lack the label — the "delta set."
 3. If the delta set is empty, exit cleanly: no Notion writes, no Drive uploads, no Slack alert. Log the skip with reason `already-processed`.
 
@@ -286,6 +286,17 @@ For each email containing relevant attachments:
 3. **Extract file metadata from the response**: Each file in `result["files"]` contains `fileName`, `fileId`, `url` (direct Drive link), `mimeType`, and `size`. Use `url` directly for Notion linking — no separate Drive MCP search needed.
 
 4. **Error handling**: If `result["success"]` is `false`, log the error and fall back to generating a Gmail deep link (`https://mail.google.com/mail/u/0/#all/<messageId>`) for manual download. Do not retry more than once.
+
+5. **Rename to convention + dedup guard (MANDATORY — this path is the one that accumulates duplicates).** Unlike the Drive Upload Apps Script (3B–3D), the Gmail Attachment Saver keeps the attachment's **original filename verbatim and never trashes-and-replaces** — so a founder attachment literally named `Memo.pdf` lands as `Memo.pdf`, and every re-run (webhook + manual + delegated `add-to-crm` Step 6 / `pipeline-agent` Task 5) mints a *new* `Memo.pdf` with a fresh fileId. URL-idempotency at the chip layer can't catch it (new fileId = new URL), so the copies silently pile up. Close it here, per saved file:
+   1. **Rename to the same convention as 3B–3D:** `[Company Name] - [Descriptive Title].pdf` (e.g. `Memo.pdf` → `Ardent - Founder Memo.pdf`, `deck.pdf` → `Ardent - Deck.pdf`). Derive the title from the attachment name / email subject; strip a redundant leading company name. This kills bare generic names, makes collisions detectable, and prevents cross-company `Memo.pdf` clashes. Batch via `drive_rename.py`:
+      ```bash
+      echo '[{"fileId":"<newFileId>","newName":"Ardent - Founder Memo.pdf"}]' \
+          | python3 ~/.claude/scripts/drive_rename.py --batch
+      ```
+      **A failed rename is a fatal per-item failure** (label `claude/materials-failed`, no chip) — never fall back to chipping the raw-named file under a convention label. That fallback is what the 2026-09-10 Ardent run did when `drive_rename.py` crashed under the system python (`ModuleNotFoundError: google` — since fixed with a re-exec guard inside the script): it left a raw `Memo.pdf` in Drive, a chip labeled `Ardent - Founder Memo.pdf` pointing at it, and — because step 2 below keys on the *renamed* filename — the older duplicate survived uncollapsed. A failed rename means the dedup guard cannot run; fail loud instead of silently recreating the duplicate state.
+   2. **Collapse older duplicates:** `listFolder` the target folder (Drive Upload Apps Script, `drive-upload.md` §4). If the just-renamed convention name now matches one or more **older** files (lower `createdTime`) in that folder, they are prior copies of this same artifact — trash all but the newest via `drive_rename.py --trash --confirm --file-id <olderId>`. This is the byte-identical same-name replace the Drive Upload script does silently; scope the trash strictly to an **exact convention-name match that is older than the file this run just wrote** — never a different-named file. (This is the one auto-trash exempt from the confirm-with-Tom rule, because it only ever removes a same-name older copy of the file just re-saved — identical to the Drive Upload replace path already treated as "safe and idempotent." Any broader cleanup still needs Tom's OK.)
+
+Deterministic convention names + this list-and-trash step give 3A the same re-run idempotency 3B–3D already get from the Drive Upload endpoint. (Underlying trap for the record: the two Apps Scripts behave differently — Drive Upload trashes-and-replaces on same name, the Gmail Attachment Saver does not. If that endpoint ever gains a trash-and-replace mode, this guard becomes redundant.)
 
 ### 3B: DocSend Links (No Chrome Needed)
 

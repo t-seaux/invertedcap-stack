@@ -349,7 +349,7 @@ Format per `send-alert/SKILL.md`. Every figure quoted here must already appear, 
 ` · ` separating pairs. Header line is exactly:
 
 ```
-🛒 AGENTIC COMMERCE – YYYY-MM-DD
+🛒 <u>**Agentic Commerce**</u> · YYYY-MM-DD
 ```
 
 Sections, in this order. **Omit any section that is empty** rather than printing "none".

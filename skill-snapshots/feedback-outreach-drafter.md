@@ -157,6 +157,15 @@ background invites them to evaluate the bet instead of the merits (and can bias 
 blurb at the product. Confirmed preference, 2026-07-31 — supersedes the team line shown in the
 STYLE.md worked example.
 
+> **Scope: this no-name/no-link rule applies to a pure backchannel READ** — where the recipient
+> gives *Tom* a gut take and never talks to the founders. It does **NOT** apply when the ask is to
+> connect the recipient **directly with the founders** (e.g. "would you be open to connecting with
+> [Founder] @ [Company]?" for GTM/operating advice). That is an **intro request**, not a backchannel
+> read — route it through `intro-outreach-drafter` / `writing-style/intro-outreach/STYLE.md`, which
+> requires naming the specific founder and embedding links (founder name → LinkedIn, company name →
+> site) in the ask line. Never write a generic "chat with the [Company] founders" with no name and
+> no links (Tom, 2026-09-10). See [[feedback_intro_request_embed_links]].
+
 ### Step 4: Draft the diligence questions
 
 Write 2–3 sharp questions tailored to this specific opportunity. Each question should:
@@ -181,6 +190,14 @@ canonical phrasing (`a company` is an acceptable alt). Confirmed preference, 202
 The fact that Tom reached out to this specific person implies the relevance — it does not need to be stated.
 
 ### Step 6: Create Gmail draft(s)
+
+**First, mute the per-draft `✍️ Email Draft` ping** — Tom's completion notice is the diligence-agent consolidated sweep alert (scheduled) or the Step 9 report (manual), so the per-draft ping is redundant and would fire once per recipient:
+
+```bash
+~/.claude/scripts/draft_alert_mute.sh on --label feedback-outreach-drafter
+```
+
+The mute is session-scoped and self-expires after 30 minutes; Step 9 lifts it explicitly.
 
 Create one draft per recipient **AND write the draft-feedback snapshot atomically** via
 `~/.claude/scripts/gmail-create-draft.py` (same helper as `founder-outreach` Step 7 — draft +
@@ -292,6 +309,12 @@ Summarize what was done:
 - Whether the blurb and questions were drawn from a memo/transcript or from the opportunity page alone (so Tom knows the depth of sourcing)
 - Whether any recipients were skipped due to missing email
 - Whether each recipient was newly added to `📣 Pending Feedback` or was already present
+
+Then lift the per-draft mute set in Step 6 (also run this if you bail out early after Step 6):
+
+```bash
+~/.claude/scripts/draft_alert_mute.sh off
+```
 
 ---
 

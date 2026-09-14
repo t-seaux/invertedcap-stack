@@ -281,7 +281,9 @@ pre-mortem). Mirrors `draft-investment-memo` Step 7.
 
 ## Step 8: Slack alert via send-alert
 
-Read `~/.claude/skills/send-alert/SKILL.md` and post to `#claude-alerts`:
+Read `~/.claude/skills/send-alert/SKILL.md` and post to `#claude-alerts`. Compose
+the header per the shared alert grammar (`send-alert/references/alert-grammar.md`):
+`🔍 <u>**Diligence Q&A: [Company]**</u>` (single-event → no date suffix), then:
 
 - Company + Drive URL (GFM link — `[text](url)`, never Slack mrkdwn `<url|text>`,
   per memory `feedback_send_alert_gfm_not_mrkdwn`)

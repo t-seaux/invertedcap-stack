@@ -269,8 +269,10 @@ surface and is hardcoded there, NOT executed via this step. This step runs in
   Body is GitHub-flavored markdown. Body shapes:
 
   ```
-  🧹 **Office cleaning reconcile** — repaired: cleaning MM/DD logged to the expense sheet ($100, MC tab) + reminder checked off.
-  🧹⚠️ **Office cleaning reconcile** — snapshot was empty but Lupe messages exist in the 168h window. Check `sweep.sh` logs; the watcher may be silently dead.
+  💸 <u>**Office Cleaning: Reconcile**</u>
+  ✓ Repaired: cleaning MM/DD logged to the expense sheet ($100, MC tab) + reminder checked off.
+  💸 <u>**Office Cleaning: Reconcile**</u>
+  ⚠ Snapshot was empty but Lupe messages exist in the 168h window. Check `sweep.sh` logs; the watcher may be silently dead.
   ```
 
 - **Manual mode (Tom asks directly) → just report the outcome inline** in the

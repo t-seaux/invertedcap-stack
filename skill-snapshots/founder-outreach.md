@@ -29,7 +29,7 @@ Trigger gate values shared with the webhook producer live in `~/.claude/skills/s
 - **The button press is an explicit Tom request.** Draft regardless of `Claude Rec` — including `Pass ❌`. Tom flipped the status while looking at the verdict; that IS the override. The Pass-refusal rule below applies only to bare manual trigger phrases.
 - **Unscored row** (missing Eval Summary, `Signals` (+ body Eval Rationale), or Email): cannot draft. Set Status back to `Pending Enrichment` (so pipeline-agent Task 6 enriches it on the next sweep), then post a Slack alert via `send-alert` telling Tom the row wasn't scored yet and will re-enter the enrichment queue — the button press must not be silently lost. Exit without drafting.
 - **Terminal row** (`Status` already `Reached Out` or `Passed` at read time): exit without drafting, one-line Slack note.
-- **On success**: same Step 7–8 as manual (draft + snapshot + Notion writes, Status → `Draft Ready`), then post a one-line Slack alert via `send-alert` with name, spike signal, and the Gmail draft URL (webhook runs are headless — the Step 9 chat report has no reader).
+- **On success**: same Step 7–8 as manual (draft + snapshot + Notion writes, Status → `Draft Ready`), then post a Slack alert via `send-alert` (webhook runs are headless — the Step 9 chat report has no reader). Header per the shared alert grammar (`send-alert/references/alert-grammar.md`): `🧍 <u>**-1 Outreach: [Name]**</u>` (single-event → no date), then a line with the spike signal and the Gmail draft URL.
 
 
 **Store mode (v2, 2026-07-16)** — invoked inline by `neg1-sourcing-listener` on a `draft` reply, with a candidate-store row instead of a -1 Scanner row (`python3 ~/.claude/scripts/decision-ledger/candidates.py get --li <url>`). Differences from manual mode:
@@ -135,8 +135,11 @@ Then invoke:
   --subject "Introducing Inverted Capital" \
   --html-body-file /tmp/<scratch>.html \
   --snapshot-text-file /tmp/<scratch>.txt \
-  --skill founder-outreach
+  --skill founder-outreach \
+  --no-alert
 ```
+
+`--no-alert` suppresses the helper's generic `✍️ Email Draft` ping — this skill sends its own one-line Slack alert (webhook mode, with the spike signal + draft URL) or the Step 9 chat report (manual), so the generic ping would just double up.
 
 Stdout is one JSON line: `{"ok": true, "messageId": "19dd...", "threadId": "...", "draftUrl": "https://mail.google.com/mail/u/0/#drafts/19dd...", "snapshotPath": "..."}`. Use `messageId` and `draftUrl` in Step 8.
 

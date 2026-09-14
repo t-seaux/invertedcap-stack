@@ -37,7 +37,7 @@ Runs automatically once per day (scheduled task: `note-classifier-sweep`). **Rec
 5. **If any work was done**, send a brief summary via the `send-alert` skill. **Frame the alert as a reconciler** — make clear this is catching what the webhook missed:
 
    ```
-   📂 **Note Classifier — sweep (reconciler)**
+   📬 <u>**Note Classifier: Sweep (Reconciler)**</u>
    **Webhook caught:** <N> meeting notes processed live · **Sweep caught:** <M>
    <details on M items>
    ```
@@ -50,7 +50,7 @@ Runs automatically once per day (scheduled task: `note-classifier-sweep`). **Rec
        If any intros were not in the People DB, append: `⚠️ N missing from People DB`
        If no Opportunity was matched: `⚠️ no Opp match`
      - **Non-meeting rows**: `📂 <Note Title> → classified <Category>`
-   - If M = 0 (sweep found nothing the webhook hadn't already handled), send a one-liner: `📂 Note Classifier sweep — clean (webhook caught all <N>)` so Tom knows the system is healthy
+   - If M = 0 (sweep found nothing the webhook hadn't already handled), send a one-liner: `📬 <u>**Note Classifier: Sweep Clean (Webhook Caught All <N>)**</u>` so Tom knows the system is healthy
    - The "Webhook caught" count comes from a quick query: count of meeting-note rows in the last 24h where Category=Diligence AND Opportunity is set AND Round Details on the linked Opp is non-empty (heuristic — these were almost certainly handled by the webhook)
 
 ### Mode C — Manual (batch or single note)

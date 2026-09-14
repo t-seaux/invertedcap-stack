@@ -235,7 +235,7 @@ For the gated paths, post:
 
 - `is_deal: false` — suppress silently (exit 0, no Slack post). The webhook's deterministic pre-filter + Haiku gate already filtered most non-deals; the second-pass classifier saying "not a deal" is mundane and noisy if alerted.
 - `is_deal: true, confidence: low` — suppress silently (exit 0).
-- `is_deal: true, no company extracted` — `⚠️ NEW DEAL CLASSIFIER — high-confidence positive but couldn't extract company name from "<subject>" — manual triage needed. <gmail message URL>`
+- `is_deal: true, no company extracted` — `🏢 <u>**New Deal Classifier: <subject>**</u> — ⚠ high-confidence positive but couldn't extract company name; manual triage needed. <gmail message URL>`
 
 Successful-enqueue path: no Slack post here. `add-to-crm` will post the 🆕/🔁/⛔/🛡️ alert when it processes the follow-on job.
 

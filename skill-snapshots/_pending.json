@@ -1,7 +1,9 @@
 {
-  "skills": {},
+  "skills": {
+    "lp-letter-workshop": "2026-09-14"
+  },
   "launchAgents": {
-    "contacts-notion-sync": "2026-09-10"
+    "evening-digest": "2026-09-14"
   },
   "webhookHandlers": {}
 }

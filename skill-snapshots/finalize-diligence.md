@@ -218,8 +218,9 @@ iteration; caching collapses that to a stat call. Invalidate by deleting the fil
 
 ## Step 3: Draft the Final Assessment (Subagent A)
 
-Draft the standalone Final Assessment block — Overview + Thesis (with Need to Believes) +
-Diligence Journey (organized by NTB) + Standing Open Questions + Footnotes — in the
+Draft the standalone Final Assessment block — Company Overview (Updated) + Thesis (Updated)
+(with Need to Believes) + Diligence Journey (organized by NTB) + Standing Open Questions +
+Footnotes; the first two headers carry the finalize date in the label — in the
 evidence-grounded LP/memo voice, readable cold by someone who lands on the block alone.
 
 **Full procedure in `references/step-3-final-assessment-format.md` — read it now before
@@ -263,8 +264,8 @@ Proceed autonomously, but state the delete scope in the run summary.
 absent.
 
 **Post-prepend ordering verification — MANDATORY.** After the prepend lands, list the first 10
-top-level blocks and confirm the H1 → Overview → Thesis → Diligence Journey → Standing Open
-Questions → Footnotes order. If scrambled, delete the misplaced blocks and re-prepend — never
+top-level blocks and confirm the H1 → Company Overview (Updated …) → Thesis (Updated …) →
+Diligence Journey → Standing Open Questions → Footnotes order. If scrambled, delete the misplaced blocks and re-prepend — never
 silently publish a scrambled FA.
 
 ---
@@ -423,13 +424,13 @@ Body format (GFM links, NEVER Slack mrkdwn — per memory
 `feedback_send_alert_gfm_not_mrkdwn`):
 
 ```
-✅ [Company Name] — Diligence Finalized
+🔍 <u>**Diligence Finalized: [Company Name]**</u>
 
 Thesis: [One-sentence verbatim from the opening Thesis paragraph]
 
 Standing open questions: [N]
 
-[Notion](<notion_page_url>) | [PDF](<drive_url>)
+[notion](<notion_page_url>) · [pdf](<drive_url>)
 ```
 
 The alert names what the final artifact CONTAINS (the thesis the diligence record

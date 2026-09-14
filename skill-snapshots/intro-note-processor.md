@@ -196,31 +196,34 @@ This is the ONLY Slack message the run should produce — the per-draft ✉️ p
 
 Compose ONE Slack alert via `send-alert`. Read `~/.claude/skills/send-alert/SKILL.md` for delivery and format. Use the per-entity row convention (no bullets, two-line, `🧍` emoji for people).
 
-**Alert body:**
+**Alert body** (alert-grammar shape: action-required entities FIRST, footer links LAST, state glyphs only from the ✓ ⚠ ✗ → ✨ table — `⏭️` is not in it):
 
 ```
-🤝 <u>**INTRO NOTE — <opp_name>**</u>
-[note](<note_url>) · [opp](<opp_url>)
-
-🧍 <u>**<Person Name> | [Notion](<person_url>) | [draft](<gmail_draft_url>)**</u>
-**Type:** coinvestor · **Status:** Qualified ✓ + draft saved
+🤝 <u>**Intro Note: <opp_name>**</u>
 
 🧍 <u>**<Person Name> | [Notion](<person_url>)**</u>
 **Type:** customer · **Status:** ⚠️ not in People DB — please add
 **Context:** <one-line context sentence from the note>
 
+🧍 <u>**<Person Name> | [Notion](<person_url>) | [draft](<gmail_draft_url>)**</u>
+**Type:** coinvestor · **Status:** Qualified ✓ + draft saved
+
 🧍 <u>**<Person Name> | [Notion](<person_url>)**</u>
-**Type:** advisor · **Status:** ⏭️ already in Outreach — no action
+**Type:** advisor · **Status:** ✓ already in Outreach — no action
+
+[note](<note_url>) · [opp](<opp_url>)
 ```
 
 Conventions:
 - Use `🧍` emoji for each candidate row (per pinned `reference_slack_notification_channel.md` row convention).
+- **Row order = ⚠️ rows first, then ✓ happy-path rows, then ✓ no-action rows** — the thing Tom must act on never sits below no-action noise.
+- **Footer links go BELOW the entity rows** (2026-09-11 retrofit — jamming `note · opp` under the headline is a named anti-pattern in alert-grammar.md).
 - Status values:
   - `Qualified ✓ + draft saved` — happy path
   - `⚠️ not in People DB — please add` — surfaced for Tom; one-line context line follows
   - `⚠️ thin-context-draft — review before sending` — draft was saved but framing is soft
-  - `⏭️ already in <stage> — no action` — dedup hit
-  - `⏭️ intro already sent — no action` — subject-agnostic sent-check found Tom's own send (dual-recipient = Made); Made relation should be updated by the scanner or manually
+  - `✓ already in <stage> — no action` — dedup hit
+  - `✓ intro already sent — no action` — subject-agnostic sent-check found Tom's own send (dual-recipient = Made); Made relation should be updated by the scanner or manually
   - `⚠️ ambiguous People DB match — please clarify` — multiple candidates with same name
   - `⚠️ no email on file — add to People DB or send manually` — found in DB but no `Email` field
 - For `[draft]` link: Gmail draft URLs follow `https://mail.google.com/mail/u/0/#drafts/<draft_id>`. Use the draft ID returned by `gmail_create_draft`.

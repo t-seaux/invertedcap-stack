@@ -127,6 +127,9 @@ Tom it's the fallback — clearly, with the real reason, not a generic "unavaila
   if Tom names it. Never ask — infer and proceed.
 - **Title**: the reminder text verbatim, lightly cleaned ("remind me to send Shivan
   $15" → "Send Shivan $15"). Sentence case, imperative.
+- **"re" → "re:"** — when a title contains the word "re" meaning "regarding" (e.g.
+  "ping X re Y"), format it as "re:" with a colon ("Ping X re: Y"), never bare "re"
+  (Tom, 2026-09-10).
 - **One reminder per item**: split conjoined asks ("A and B") into separate reminders.
 - **Assignee prefix** — see the **List + prefix convention** above: applies on
   `Kenyon-Seo`, not on `Work` (Tom's own list, no prefix). Where it applies, bracketed

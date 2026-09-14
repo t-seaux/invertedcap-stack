@@ -19,6 +19,13 @@ description: >
 
 Every scheduled agent or skill that needs to notify Tom MUST follow this file rather than maintaining its own inline notification config.
 
+**Shared visual identity:** `references/alert-grammar.md` is the single source of
+truth for how every alert *reads* — headline grammar (Title Case `Headline —
+Subject`, one domain emoji), the domain-emoji + state-glyph taxonomy, and
+before→after exemplars. This file (SKILL.md) owns the *transport*; alert-grammar.md
+owns the *shape*. Every emitter — the `claude` webhook, the `google` Apps Script
+bot, and the AI-draft hook — conforms to it. Read it before composing any alert.
+
 ---
 
 ## Delivery Channel
@@ -51,7 +58,7 @@ Pipe the GitHub-markdown body on stdin to the helper script:
 
 ```bash
 cat <<'EOF' | /Users/tomseo/.claude/skills/send-alert/send.sh
-📬 AGENT NAME — 2026-04-23
+📬 Agent Name: Digest · 2026-04-23
 
 **Section**
 - **Company** — [Title](https://example.com) — key point
@@ -139,7 +146,7 @@ Conventions:
 **Good (multiple entities — one blank line between, none within):**
 
 ```
-📬 **Pipeline sweep — 2026-04-25**
+📬 <u>**Pipeline Sweep: 2 Movers**</u> · 2026-04-25
 🏢 <u>**Acme Corp | [Notion](https://notion.so/acme)**</u>
 **Status:** Outreach → Connected ✨
 
@@ -161,7 +168,7 @@ Conventions:
 Some alerts are pure summaries with no per-entity headers — just a title line + body. For these, use a header line with emoji + bold (no underline needed since there's no entity to scan past):
 
 ```
-📬 **Diligence Agent — 2026-04-25 evening sweep**
+📬 <u>**Diligence Agent: Evening Sweep**</u> · 2026-04-25
 - **Pass notes drafted:** 2
 - **Backchannel replies logged:** 3
 - **No new feedback outreach**

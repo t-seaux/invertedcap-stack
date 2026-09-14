@@ -574,7 +574,7 @@ Send using the delivery config from the `send-alert` skill (see Notification Beh
 Organize the alert by **opportunity**, grouped by movement type. Bold opportunity names using **standard markdown double asterisks** (e.g. `**Refix**`). The `mcp__claude_ai_Slack__slack_send_message` tool renders standard markdown — single asterisks produce italic, not bold. Never list out the full Tracking view — only opportunities where something moved or flagged for manual review.
 
 ```
-🔄 PIPELINE — YYYY-MM-DD
+📬 <u>**Pipeline: Daily Sweep**</u> · YYYY-MM-DD
 
 **New deals this run**
 • **<Opportunity>** — <source/detection>, logged as <Status> (<stage>)

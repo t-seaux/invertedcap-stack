@@ -26,6 +26,12 @@ text, attachments, attachment_paths}]}` — new messages since the last sweep, p
 code by `sweep.sh` (1:1 threads plus ≤4-member groups; family, short codes, and Tom's own
 agent number already excluded).
 
+A **`reconcile:true`** flag marks a daily backfill (`reconcile.sh`) — a re-scan of the last 36h
+that catches any batch whose classify job timed out and was dropped past the watermark. Treat it
+EXACTLY like a normal scan: the per-lane dedup ledgers (`.proposed` etc.) make re-seeing an
+already-processed message harmless (no duplicate card/alert). Only caveat — these rows may be up
+to 36h old, so weight anything already-resolved or stale toward silence.
+
 `sender` = the thread's peer handle. **`from_me:1` rows are TOM'S OWN messages** — never
 candidates in the deal lane, but load-bearing everywhere else: they carry his opt-in/pass
 (intro lane) and his outbound asks (feedback lane).
@@ -52,11 +58,30 @@ lane; classify each independently and never let one lane's silence suppress anot
 — "90 yard line starting ai lab / chem biz… We'll need like $8-10m" — which is a live
 `-1`/NewCo signal.)
 
+**Step 0 — MANDATORY feedback-relationship check, before any content judgment.** For EVERY
+thread with an inbound peer, run TWO cheap deterministic checks: (1) query the Opportunities
+DB for rows with a non-empty `📣 Pending Feedback` and resolve whether this sender is on that
+roster (People row → phone vs. the thread handle); (2) query the Notes DB
+(`collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for a feedback note titled with this
+sender's name (`Name LIKE '<Sender Full Name>%'`, giver-first title convention) on a live Opp
+— the roster empties after the FIRST piece of feedback lands (Tom, 2026-09-10: pending = first
+feedback only, never re-added), so a follow-up debrief (the second call, a later text) is
+invisible to the roster and is caught ONLY by the prior-note check; it appends a new dated
+Response block to that same note. **A hit on EITHER check FORCES loading
+`references/feedback-lane.md`, no matter what the messages say.** A person with an open ask texting Tom substantively IS presumptively
+the debrief — debriefs routinely name no company (the connective "I spoke to your red wagon
+guy" may have landed hours earlier in a different sweep batch). This check is NOT optional and
+NOT content-gated: the 2026-09-10 miss happened exactly here — the 22:30 sweep held Byron
+Edwards' full Redwagon read ("I can see the problem, we don't have it specifically…"), even
+summarized it as him evaluating a founder's business, then concluded "no feedback signals"
+because no one asked the roster. The 16:35 sweep the same day roster-matched him and classified
+correctly. Content can't tell you someone owes Tom a read — only the roster can.
+
 | Signal in the thread | Lane | Load |
 |---|---|---|
 | Intro offer to a founder; a company + round details; a deck/LinkedIn with a pitch | **Deal** | `references/deal-lane.md` |
-| Tom replying opt-in/pass on a deal; an unknown number that may be an intro'd founder; an email or scheduling exchange on a known deal | **Intro** | `references/intro-lane.md` |
-| Peer sits in some Opp's `📣 Pending Feedback`; or Tom asks someone for a read | **Feedback** | `references/feedback-lane.md` |
+| Tom replying opt-in/pass on a deal; an unknown number that may be an intro'd founder; a REFERRER announcing an intro is live ("meet / re-meet X", "you two connect", "I'll let you find time"); an email or scheduling exchange on a known deal | **Intro** | `references/intro-lane.md` |
+| **Step 0 roster hit (mandatory check above)**; or Tom asks someone for a read | **Feedback** | `references/feedback-lane.md` |
 | Anything else | none | — exit silently |
 
 **The bar is high and silence is the default.** Not lanes: scheduling chatter, social talk,
@@ -76,6 +101,12 @@ offer. Judge against `~/.claude/skills/shared-references/feedback-ask-signals.md
   `sms-listener` writes. The feedback lane DOES write directly (see its file for why).
 - **Never message the family group** from this skill.
 - **Never put a raw handle** where a name belongs.
+- **Every alert follows the canonical alert grammar**
+  (`~/.claude/skills/send-alert/references/alert-grammar.md`): one domain emoji + Title Case
+  `Headline: Subject` (colon, never a dash), state glyph (→/✓/⚠) inline on its own line, no
+  date suffix on single events. These are iMessage texts, so render the grammar's SHAPE in
+  plain text — NOT the Slack `<u>`/`**`/`[label](url)` markup — with the Opp URL as a raw
+  footer line. Applies to every net-new alert, no exceptions.
 
 ## Exit
 

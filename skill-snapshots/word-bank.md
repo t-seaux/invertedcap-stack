@@ -79,7 +79,7 @@ The helper (SA-authenticated, no MCP) reconciles the cache against Drive every r
 4. **Render** in this form factor:
 
    ```markdown
-   🟩 **Word Bank — week of Jul 21–25** · 3 new
+   📬 <u>**Word Bank: Week of Jul 21–25**</u> · 3 new
 
    **synoptic (adj.)** — a broad, at-a-glance view of a whole.
    ↳ You wrote (Q1 2026 LP Letter): "Here's a quick rundown of where the fund stands."

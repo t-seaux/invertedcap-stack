@@ -171,11 +171,12 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
    - **Declined** (explicit decline or hard deferral) → invoke the JS-backed write (Step 7).
    - **Opt-in, no intro sent yet** (verdict = clear opt-in, the inline-intro check did NOT fire, and no standalone double-opt-in was found → the contact said yes but Tom has not made the intro): **first confirm Gate 3 (Step 2.9) did not trip — reference-check outreach must never reach this branch.** If clear, do NOT write a terminal state (person stays in ☎️ Outreach), but **enqueue `intro-draft-agent` to auto-draft the double-opt-in intro** (Step 6a). Then post the **Opt-in ping** (below), log `single-message resolution: <person> on <opp> — opt-in → kept in Outreach, draft queued`, and exit 0.
 
-     **Opt-in ping (snappy — this is a high-frequency, templatized alert, so keep it to ONE line):**
+     **Opt-in ping (snappy — this is a high-frequency, templatized alert; headline + one body line, per alert-grammar):**
 
-     > 🔔 **<person>** opted in → **<founder>** (<opp>) — kept in ☎️ Outreach, double-opt-in draft queued.
+     > 🤝 <u>**Intro Opt-In: <person> → <founder> (<opp>)**</u>
+     > ✓ Kept in ☎️ Outreach · double-opt-in draft queued
 
-     Rules: exactly one line. No job/UUID (it's internal noise). No code block. **Never paste the `single-message resolution: …` run-log string into Slack** — that string is for the run log only, and echoing it under the prose is the redundancy to avoid. If the Step 6a enqueue came back dedup/error, drop the "double-opt-in draft queued" clause rather than adding a second line.
+     Rules: exactly these two lines (the underlined-bold Title Case headline is the alert-grammar contract — never a raw prose sentence, never 🔔). No job/UUID (it's internal noise). No code block. **Never paste the `single-message resolution: …` run-log string into Slack** — that string is for the run log only, and echoing it under the prose is the redundancy to avoid. If the Step 6a enqueue came back dedup/error, drop the "· double-opt-in draft queued" clause rather than adding a second line.
    - **Soft-deferral / ambiguous** → no write, no draft, no alert. Log `single-message resolution: <person> on <opp> — <verdict> → kept in Outreach`. Exit 0.
 6a. **Auto-draft handoff (opt-in path only).** For the opt-in-without-intro case above, enqueue a follow-on `intro-draft-agent` job so a Gmail draft of the double-opt-in intro is created within ~a minute (event-driven, not waiting on the next scheduled scan). Target opp = the candidate Opp where this person currently sits in ☎️ Outreach (from `oppCandidateIds`; if multiple, enqueue one job per such Opp). Write a typed args JSON and call the canonical helper — do NOT read `intro-draft-agent/SKILL.md` or draft inline:
    ```bash
@@ -207,9 +208,10 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
 
    Exit codes:
    - 0 = wrote (or noop) AND `verifiedClean === true` (person in target, scrubbed from upstream)
-   - 1 = wrote but verification failed (split-state still present post-write)
+   - 1 = wrote but a GENUINE split persists (`residual === 'upstream-dupe'`) — person still in an upstream field post-write; needs review
    - 2 = invocation/network error
    - 3 = endpoint returned an error
+   - 4 = write landed but the target-terminal read lagged the retry budget (`residual === 'target-add-lag'`) — benign eventual-consistency, person is NOT in any upstream field, true state is clean; **NOT a failure, do not alert Tom**
 
    Parse the JSON response and use the observed state to compose the alert.
 
@@ -219,7 +221,8 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
    - **Split-state cleanup** (`splitStateDetected === true`, `verifiedClean === true`):
      `removed from <upstream> — already in <target>` (matches the existing 2:42 PM cleanup phrasing).
    - **Clean terminal NOOP** (`wrote === false`, `wasAlreadyInTarget === true`, no split-state): emit no Slack alert. Already a no-op.
-   - **Verification failed** (`ok === true` but `verifiedClean === false`): post Slack with `⚠️ verification failed — person still in <upstream> after write` and include the raw `observed` flags. Do NOT use the word "moved".
+   - **Genuine split — exit 1** (`verifiedClean === false`, `residual === 'upstream-dupe'`): person is still in an upstream field after the write. Surface in Needs Review with `⚠️ verification failed — person still in <upstream> after write` and the raw `observed` flags. Do NOT use the word "moved".
+   - **Benign target-add lag — exit 4** (`verifiedClean === false`, `residual === 'target-add-lag'`): the write LANDED and the person is NOT in any upstream field — only the target-terminal read lagged the retry budget. True state is clean and self-heals next sweep. Do NOT surface to Tom, do NOT claim a failure, and NEVER write "person still in <upstream>" (that is false here). Treat as a successful `moved <source> → <target>`; if this is a scheduled sweep, drop a self-healing note to the reconciliation inbox for a no-alert re-verify. (Byron Edwards / Redwagon, 2026-09-10.)
    - **Endpoint error** (`ok === false`): post Slack with `❌ endpoint error: <error>`. No state claims.
    - **Wrapper exit 2** (no JSON parseable on stdout — network failure, missing secret, etc.): post Slack with `❌ intro-resolution-write.py invocation failed: <stderr>`. No state claims. Do NOT silently retry the LLM-driven write path — loud failure is the design (Tom can fix and re-run manually).
 9. Skip Step 3+'s scheduled-scan reporting. Emit a single-line run-log summary: `single-message resolution: <person> on <opp> — <verdict> → <action>` where `<action>` reflects observed state.
@@ -381,15 +384,16 @@ For each move:
 
 `--message-id` is used for audit logging. For Mode A (sweep), pass the Gmail message ID of the signal message that triggered the move (the reply or double-opt-in email). For Mode C (manual), pass a tag like `manual-YYYY-MM-DD` or the Gmail/iMessage ID Tom referenced.
 
-The wrapper exits with one of four codes:
+The wrapper exits with one of five codes:
 - `0` — wrote (or noop) AND `verifiedClean === true` (person in target field, scrubbed from both upstream fields, no split-state). Standard success.
-- `1` — wrote, but post-write re-fetch shows split-state still present. Treat as a failure: do NOT claim "moved" in the report; flag in Needs Review.
+- `1` — wrote, but a GENUINE split persists (`residual === 'upstream-dupe'`): person is still in an upstream field post-write. Treat as a failure: do NOT claim "moved"; flag in Needs Review.
 - `2` — invocation/network error (no JSON parseable on stdout). Flag in Needs Review with the stderr message.
 - `3` — endpoint returned `ok: false` (auth fail, validation error, etc.). Flag in Needs Review.
+- `4` — write landed but the target-terminal read lagged the retry budget (`residual === 'target-add-lag'`): the person is NOT in any upstream field — only the target-add hasn't propagated to the read replica yet. True state is clean and self-heals next sweep. **NOT a failure — do NOT flag in Needs Review and do NOT surface to Tom.** Record it in the observed/self-healed report (and the reconciliation inbox) as `<person> → <target>: verifiedClean lag, self-heals` for a silent re-verify. NEVER write "person still in <upstream>" — that assertion is false for exit 4.
 
-Stdout returns a JSON response: `{ ok, wrote, wasAlreadyInTarget, splitStateDetected, observed: { inQualified, inOutreach, inMade, inDeclined }, verifiedClean, error }`. Parse `observed` and use it to compose the Step 4 report. Never compose the report from intended state — always from `observed`.
+Stdout returns a JSON response: `{ ok, wrote, wasAlreadyInTarget, splitStateDetected, observed: { inQualified, inOutreach, inMade, inDeclined }, verifiedClean, residual, error }`. Parse `observed` and use it to compose the Step 4 report. Never compose the report from intended state — always from `observed`.
 
-**Failure handling in batch mode (Mode A):** if a single move returns exit 1/2/3, log it and continue with the remaining moves. Do not abort the entire sweep. The failed move shows up in Needs Review with the raw response.
+**Failure handling in batch mode (Mode A):** if a single move returns exit 1/2/3, log it and continue with the remaining moves. Do not abort the entire sweep. The failed move shows up in Needs Review with the raw response. Exit 4 is NOT a failure — continue and do not add it to Needs Review.
 
 **Verdicts that do NOT invoke the wrapper** (no write, person stays in current upstream field):
 - Soft-deferral (specific near-term re-engagement path expressed)

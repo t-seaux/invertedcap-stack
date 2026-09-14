@@ -190,7 +190,7 @@ Catches replies the webhook missed (Worker down, route not yet added, Slack even
 1. `slack_read_channel` on `#neg1-sourcing`, lookback `$RUN_LOOKBACK_HOURS` (default 24h; 72h Mondays).
 2. For each message containing a `[neg1:...]` fingerprint, `slack_read_thread` and collect Tom's replies (user-ID check; ignore bot messages).
 3. For each reply, run `handled.py check <ts>` and branch on the exit code per the Idempotency table above (`0` → run Mode B Steps 1-4, claiming first; `10`/`30` → skip silently; `20` → verify-then-repair, and report it). Never decide by grepping `handled.json` directly — the status field, not mere presence, is what distinguishes a completed run from a dead one.
-4. Single-line summary via `send-alert` ONLY if any actions were taken: `📡 -1 sourcing sweep: {N} replies processed ({verbs})`. Silent when idle.
+4. Single-line summary via `send-alert` ONLY if any actions were taken: `🛠️ <u>**-1 Sourcing Sweep: {N} replies processed ({verbs})**</u>`. Silent when idle.
 
 ## Hard rules
 

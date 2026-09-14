@@ -20,9 +20,19 @@ description: >-
   strings stripped — founder-authored content ONLY, a source investor's note never appears; N/A
   for anything missing, no closing or signature. Named recipients resolve through the skill's
   registry and land in Bcc (To stays empty, so multiple firms can stack on one send) — "Primary"
-  (any of "refer / kick out / send / share to Primary") = deal-agent@primary-os.com. Trigger on "kick [company] out to
-  [firm]", "refer [company] to [firm]", "send/share [company] to/with [firm]", "deal share
-  [company] out", "pass [company] along to [firm]". Distinct from log-deal-share (logging a
+  (any of "refer / kick out / send / share to Primary") = deal-agent@primary-os.com.
+  **Trigger phrases** — all fire Mode C. `[X]` = a company, OR "this / this one / that" when a
+  company is already in context; the firm may be omitted (→ full Distribution List). Verbs, any of:
+  "kick [X] out to [firm]", "kick out [X] to [firm]", "kick [X] to [firm]", "kick this out to
+  [firm]"; "send [X] to [firm]", "send [X] over to [firm]", "shoot [X] over to [firm]", "send this
+  one to [firm]"; "share [X] with/to [firm]", "share the [X] deal with [firm]", "share this with
+  [firm]"; "pass [X] along to [firm]", "pass [X] to [firm]"; "refer [X] to [firm]", "forward [X] to
+  [firm]"; "loop [firm] in on [X]", "put [X] in front of [firm]", "flag [X] for [firm]"; "deal
+  share [X]", "deal share [X] to [firm]", "run a deal share on [X]". **Pre-pass heads-up** phrasings
+  (same flow, before any pass — the `Shared` ledger records the recipient on send so the later
+  auto-pass share excludes them): "give [firm] a heads up on [X]", "early heads up to [firm] on
+  [X]", "let [firm] know about [X] early", "float [X] to [firm]". Bare "kick [X] out" / "deal share
+  [X]" with no firm → full Distribution List (minus exclusions). Distinct from log-deal-share (logging a
   dealflow share Tom RECEIVED), outreach-decliner / deal-decline (replying "sit this one out" to a
   received share), and the intro flows (people intros, not deal payloads). Creates a Gmail draft
   only — no Notion writes, no status changes, never sends.
@@ -44,12 +54,17 @@ sitting in his drafts folder for review — this skill never sends, and never wr
   (deterministic gates in `notion-webhook/src/dispatch.ts`, deployed 2026-08-20), enqueuing
   `{skill: "deal-share-out", args: {mode: "webhook-status", page_id, status, oppName}}`. The
   draft just appears in Tom's Drafts folder — no reaction needed. See Mode B section.
+- **Mode B3 — Webhook (text command).** Tom texts "kick [X] out to [firm]" (or any trigger
+  phrase) to his agent iMessage line; `sms-listener` recognizes it, sends an instant ack, and
+  enqueues `{skill: "deal-share-out", args: {mode: "text", company, firms, from}}` via
+  claude-job-queue — the heavy flow never runs inside the warm texting loop. See Mode B section.
 - **Mode C — Manual.** Tom asks in conversation ("kick [X] out to [firm]"). Steps 1–6 below are
-  the canonical flow; both webhook modes reference them.
+  the canonical flow; the webhook modes reference them.
 
 **The -1 / FO exclusion gates the B2 AUTO-trigger only** (Tom, 2026-08-20). An explicit ask —
-Mode C ("kick out [the -1 opp]") or a 👣 reaction on a -1 card — is Tom's call: just run it, no
-pushback, no confirmation (precedent: the Eyal Binshtock -1 share, drafted and sent same day).
+Mode C ("kick out [the -1 opp]"), a texted B3 command, or a 👣 reaction on a -1 card — is Tom's
+call: just run it, no pushback, no confirmation (precedent: the Eyal Binshtock -1 share, drafted
+and sent same day).
 
 **Opportunities data_source_id:** `fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`
 **Agent View (for name-filter fallback):** `https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673`
@@ -117,6 +132,20 @@ to an existing attachment draft: re-create-with-full-Bcc + `deleteDraft` the sta
 
 ---
 
+## Performance — batch the independent reads
+
+The canonical flow has exactly one hard dependency chain: Opp fetch → recipients/fields →
+compose → create. Everything else is independent — run these in ONE parallel batch, not
+sequentially (2026-09-10; sequential runs were ~2× slower for no correctness gain):
+
+- The Step 5 dedup pair (`list_drafts` + sent search) needs only the company name — fire it
+  alongside the Step 1 `notion-fetch`, not after Steps 1–4.
+- Drive metadata for materials-provenance vetting (multiple files → one batched turn).
+- Source-person / Funding-History relation fetches (independent of each other).
+
+The Rung-0 LI check (Step 1) is part of this: read the URL off the record you already fetched
+before spending any enrichment round-trip.
+
 ## Step 1: Resolve the Opportunity
 
 `notion-search` for the company name scoped to the Opportunities DB. **Empty search ≠ absent** —
@@ -134,8 +163,15 @@ If the company has multiple round cards, share from the card Tom means — defau
   ambiguous LI slug like `danieliu3120` does NOT resolve one).
 - Founder LinkedIn URL — **the LI field should NOT render `N/A`** (Tom, 2026-08-28). Founders
   have LinkedIn profiles; an `N/A` here reads as "didn't look" and is treated as a defect, not an
-  acceptable value. Climb the FULL ladder for EACH named founder — in order (deck first — same
-  reason):
+  acceptable value.
+  **Rung 0 — the Opp record itself (check FIRST, skip the ladder on a hit).** If a founder's
+  LinkedIn profile URL is already sitting anywhere in the Opp — the page body (source texts and
+  intro notes routinely carry the LI card, e.g. Ardent's `linkedin.com/in/mz21` in Original
+  Text), a property, or the founder's People row linked on the card — use it and DO NOT run the
+  ladder for that founder. The ladder is the single slowest stretch of this skill
+  (deck page-reads + up to three ContactOut round-trips); climbing it when the URL is already on
+  the record is pure latency (2026-09-10). Only when the record has no URL for a founder, climb
+  the FULL ladder — in order (deck first — same reason):
   1. **The Diligence Materials deck** — the contact/team slide usually carries the profile URL,
      and the deck is in-scope founder material, not outside research (Solderable 2026-08-20;
      DocSend captures have no text layer — Read the PDF pages visually).
@@ -239,11 +275,23 @@ inner fragments per the stylebook — the script owns labels, line breaks, separ
 blockquote styling. Applies to BOTH creation paths and ALL modes (the webhook runtime has
 Python; this is the same pattern as the endpoint POST).
 
-**Materials line = deck + memo ONLY** (Tom, 2026-08-28). List the pitch deck and, if one exists,
-the memo — nothing else. **Label the memo just `Memo`, never `Investment Memo`** (Tom,
-2026-08-28). NEVER surface a demo/product video, data-room link, loom, or any other artifact on
-the Materials line, even when it's sitting in the Opp's Diligence Materials. Attached items read
-`(attached)` (e.g. `Deck (attached), Memo (attached)`).
+**Materials line = deck + memo ONLY** (Tom, 2026-08-28). List the founder's primary artifact
+(pitch deck OR written overview — see labeling rule below) and, if one exists, the memo — nothing
+else. **Label the memo just `Memo`, never `Investment Memo`** (Tom, 2026-08-28). NEVER surface a
+demo/product video, data-room link, loom, or any other artifact on the Materials line, even when
+it's sitting in the Opp's Diligence Materials. Attached items read `(attached)` (e.g. `Deck
+(attached), Memo (attached)`).
+
+**Label materials by what the file ACTUALLY IS — never assume "Deck"** (Tom, 2026-09-10; caught
+on the Root → Fika share, which attached Root's 4-page written overview but labeled it `Deck
+(attached)` and named the file `Root Deck.pdf` — Root never had a deck). The Diligence Materials
+slot holds whatever the founder sent, and the Drive filename is not authoritative (Root's file
+was literally titled `Root - One-Pager.pdf` yet ran 4 pages). BEFORE writing the Materials label
+and the attachment `filename`, OPEN the file and read it: a slide deck → `Deck`; a written prose
+overview / narrative memo (regardless of the founder calling it a "1-pager", and regardless of
+page count) → `Overview`; an investment memo → `Memo`. The body label and the attachment filename
+MUST match the real artifact (`Materials: Overview (attached)` ↔ `Root - Overview.pdf`). When the
+type is genuinely ambiguous, prefer the founder's own naming over guessing "Deck".
 
 **Attach ONLY company-provided materials — never another firm's diligence material, even from
 inside the Opp's Diligence Materials field** (Tom, 2026-09-01; caught on the MaxHeap → Primary
@@ -323,7 +371,9 @@ base64 through the MCP `attachments` param (bytes transit the model's token stre
      "bcc": "<registry address(es), comma-separated>",
      "subject": "Deal Share: <Company>",
      "bodyHtml": "<compose_body.py bodyHtml>", "bodyText": "<compose_body.py bodyText>",
-     "attachments": [{ "driveFileId": "<id>", "filename": "<Company> Deck.pdf" }]
+     "attachments": [{ "driveFileId": "<id>", "filename": "<Company> <Type>.pdf" }]
+     // <Type> = the artifact's REAL type after opening it — Deck / Overview / Memo
+     // (see "Label materials by what the file ACTUALLY IS"). Never default to "Deck".
    }
    ```
 
@@ -345,15 +395,28 @@ sends ONE consistent alert itself, in all modes:
 
 1. **Before** creating the draft, mute the generic hook so path (a) doesn't double-fire:
    `~/.claude/scripts/draft_alert_mute.sh on --label deal-share-out`
-2. **After** the draft lands, pipe a summary to `send-alert` (`send-alert/send.sh`):
+2. **After** the draft lands, pipe a summary to `send-alert` (`send-alert/send.sh`). Follow the
+   house grammar (`send-alert/references/alert-grammar.md`) exactly — `✍️` domain emoji, Title-Case
+   `Headline: Subject` headline (Subject = the company alone, NO stage in the headline, NO date
+   suffix — single event), a `**Key:** value · …` meta line (never a `→ … — in Drafts` prose
+   line), a `✓`/`⚠` state line, and any action-required caveat led by `⚠` (never a prose blob):
 
    ```bash
    cat <<'EOF' | ~/.claude/skills/send-alert/send.sh
-   ✍️ Deal share drafted — <Company> (<Stage>)
-   → <Firm(s)> (bcc) — in Drafts
-   <caveats, one per line: couldn't resolve LI for <founder> — supply before sending; Materials N/A; no founder email; …>
+   ✍️ <u>**Deal Share: <Company>**</u>
+   **To:** <Firm(s)> · **Stage:** <Stage> · **Materials:** <what's attached — e.g. "Memo (attached)", "Deck, Memo (attached)" | "N/A">
+   ✓ Drafted<qualifier: ", on pass" | " — pre-pass share, <Company> still Active" | " — 👣 re-share">
+   <⚠ ONE line per genuinely action-required caveat, ONLY when present — "⚠ Couldn't resolve LI for <founder> — supply before sending" · "⚠ Pass (Met) but no pass note found" · "⚠ Attachment omitted — another firm's material">
    EOF
    ```
+
+   - **`To:` names the firm(s) only** — recipients are ALWAYS Bcc, so never write "(bcc)"; it's implied.
+   - **`Materials:` states only what IS attached.** Never flag what's missing — "no deck on file",
+     a dead Notion link, an absent memo are NOT caveats. Nothing attached → `Materials: N/A`, full stop.
+   - **No footer draft link** — Tom reviews in Mail; the alert never links to Drafts.
+   - Neutral context (intro-sourced, no Original Email block, source note withheld) is EXPECTED
+     behavior, not a caveat — keep it off the alert. `Headline` stays `Deal Share:` (no
+     claude-alerts-listener branch keys off it, so it's safe to keep terse).
 
 This fires in Mode C, B1, and B2. Mode B1 STILL posts its `#decision-retros` close-loop reply in
 addition (that answers the 👣 reaction; the #claude-alerts ping is the standard draft notice).
@@ -401,6 +464,42 @@ FRESH from that same fetch and honor every entry regardless of who wrote it** �
 entries in Notion (often right before flipping the status), so the already-shared exclusion must
 run off the live relation, never off assumptions about which shares went through the email flow.
 On failure exit non-zero (lands in the queue's failed state).
+
+**B3 (text command)** — `args: {mode: "text", company, firms, from}`, enqueued by
+`sms-listener` when Tom texts a trigger phrase (see the description's trigger list). `company`
+= the name as texted; `firms` = member names as texted (may be `[]` → full Distribution List);
+`from` = Tom's E.164 for the reply. Deltas from the canonical steps:
+
+1. **Headless — NEVER ask questions.** Resolve the Opp from `company` via Step 1's search +
+   Agent View name-filter fallback. Not found → text Tom (see delta 4's send recipe)
+   `✗ Deal share: no Opp found for "<company>"` and exit 0.
+2. **Recipients**: each `firms` entry resolves through the Distribution List registry;
+   an unregistered firm → text `✗ <firm> isn't on the deal-share list` and exit 0 — never
+   guess an address. Empty `firms` → full list minus exclusions (source + already-`Shared`).
+3. **Always create via the gmail-webhook draft endpoint** (Step 5 path (b)), even with no
+   attachments — zero Gmail-MCP dependency in the headless runtime. The endpoint path never
+   trips the generic draft hook, so SKIP the Step 5 mute/unmute steps entirely.
+4. **Alerts follow the surface (Tom's standing rule): a text-triggered share confirms by TEXT,
+   not Slack.** Skip the Step 5 #claude-alerts alert. When the draft lands, text Tom the
+   master-grammar text rendering (`send-alert/references/alert-grammar.md` → "Text lane";
+   `SENDBLUE_API_SECRET` is injected by the processor; body on stdin, NEVER a double-quoted
+   argv — zsh eats `$<digits>`):
+
+   ```bash
+   ~/.claude/skills/sms-listener/send_imessage.sh "<args.from>" --stdin <<'MSG'
+   ✍️ Deal Share: <Company>
+
+   To: <Firm(s)> · Stage: <Stage> · Materials: <what's attached | N/A>
+   ✓ Drafted<same qualifier rules as the Slack alert>
+   <⚠ lines, same rules as the Slack alert: action-required only>
+   MSG
+   ```
+
+5. **Dedup exits also text** (never silent — Tom asked for this share seconds ago): existing
+   draft → `Deal Share: <Company> — already in Drafts`; already sent → `already sent <date>,
+   Shared has <firm>` so Tom knows the dedup was the reason.
+6. On any failure text `✗ Deal share <company> failed: <one-line reason>` and exit non-zero
+   (lands in the queue's failed state).
 
 **B1 (👣 reaction)** — `args: {mode: "webhook", channel_id, thread_ts, reply_ts, user, text:
 "👣"}` when Tom reacts 👣 `:foot:` to a card in `#decision-retros`. Still useful for re-runs and

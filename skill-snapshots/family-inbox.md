@@ -238,45 +238,44 @@ Cover both buckets, clearly separated:
   (`family_inbox.py draft …`, threaded via the source Message-ID) → creates a kenyonseo@
   DRAFT for review. NEVER sends. (Non-date notes with a reply CTA — like a class volunteer
   ask — are notable on their own; text the heads-up + draft offer even with no dates.)
-- If, after the relevance filter, there are NO relevant dates, no reply CTA, and nothing
-  else notable → exit silently.
+- **CTA = a task/call outside email → offer to add a reminder.** If the notable email's
+  call-to-action requires Tom/Elsie to actually DO something outside the email thread
+  (call a number, show up somewhere, collect/hand over an item) rather than just reply,
+  close the heads-up with an offer to add a reminder — e.g. append a line like
+  `Want me to add a reminder to call them? reply "remind me"`. On that reply, create it
+  via the `add-reminder` skill (native Apple Reminder, not eventkit-freeform). This is
+  separate from the reply-CTA bullet above — a message can carry both action shapes
+  (draft-reply AND a call-back), in which case offer both CTAs. (Tom, 2026-09-10 — a
+  Little Gym "call to collect payment info" alert offered only "draft it" with no
+  reminder offer.)
+- If, after the relevance filter, there are NO relevant dates, no reply CTA, no task CTA,
+  and nothing else notable → exit silently.
 
-### 4b. Special case — "Nourishment By Katya" weekly chef invoices (Tom 2026-09-02)
+### 4b. Special case — "Nourishment By Katya" weekly chef invoices — SKIP, owned elsewhere
 QuickBooks payment-request emails from `Nourishment By Katya LLC <quickbooks@notification.intuit.com>`
-(the weekly household chef) arrive as **two invoices back-to-back** (minutes apart). Handle
-as ONE unit, not two separate heads-ups:
-- These emails have **no plain-text part** — pull the dollar amount from the HTML body:
-  `grep -oE '\$[\d,]+\.[0-9]{2}'` (first match is the invoice total) and the due date from
-  subject/body context.
-- Before texting, check `family_inbox.py recent 10` for a companion Katya invoice received
-  within the last ~30 min that hasn't been texted yet (or was texted separately by a race).
-  If both are in hand, send **ONE** combined text:
-  ```
-  📬 Nourishment By Katya — Weekly Invoices
-
-  Two invoices in, both due <date>:
-
-  • Invoice <#> — $<amt>
-  • Invoice <#> — $<amt>
-
-  Total: $<sum>
-  ```
-  If only one has arrived so far, it's fine to wait briefly for the companion rather than
-  firing immediately — these two are reliably paired.
-- **Always** (whether sent solo or combined) create an all-day reminder via eventkit, due
-  the NEXT calendar day from processing (not the invoice's own due date):
-  `eventkit add --title "[TS] Pay Katya Invoice" --list Kenyon-Seo --due tomorrow --notes "<breakdown + due date>"`.
-  **List = Kenyon-Seo, not Tasks** (Tom 2026-09-02) — this is personal/household, not work.
-- **Auto-completes itself — no manual check-off needed** (Tom 2026-09-02): a launchd
-  watcher (`com.invertedcap.katya-paid-watch`, every 30 min) runs
-  `check_katya_paid.py`, which reads the Katya iMessage thread (+19178224622) for a
-  payment-confirmation message ("Sent", "paid", "Zelle'd", etc.) sent by **either Tom
-  or Elsie** after the reminder's creation time, and if found calls `eventkit complete`
-  on it + texts the family group a one-line ✅. It's a single 3-way iMessage GROUP
-  (Tom, Elsie, Katya) — Elsie's replies sync to this Mac's chat.db too, so either of
-  them confirming is enough. Script lives alongside this SKILL.md; the watcher plist +
-  wrapper live at `~/.claude/scheduled-tasks/family-inbox/katya_paid_watch.sh`
-  (machine-local, not in this repo).
+(the weekly household chef) are **fully owned by the dedicated code watcher**
+`~/.claude/scheduled-tasks/family-inbox/katya_invoice_watch.sh` → `check_katya_invoice.py`
+(every 5 min, built 2026-09-03). It aggregates paired invoices into ONE
+`[TS] Pay Katya Invoice: $<total>` reminder on Kenyon-Seo and posts the one-line
+family-group alert itself.
+- **This triage agent must NOT act on these emails at all** — no reminder, no text, no
+  calendar entry. Just skip them silently. (2026-09-11 incident: this section's old
+  per-email "always create a reminder" instruction ran once per invoice email on top of
+  the watcher's own create — three reminders and three texts for one invoice pair. The
+  alert body also picked up Zelle/card-fee commentary Tom doesn't want; the watcher's
+  one-liner is the only sanctioned message.)
+- **Auto-completes itself — no manual check-off needed** (Tom 2026-09-02): the
+  meal-prep-reschedule 5-min sweep (`com.tomseo.scheduled.meal-prep-reschedule`)
+  piggybacks `check_katya_paid.py` on every tick (Tom 2026-09-11 — the standalone
+  `com.invertedcap.katya-paid-watch` job is retired to `_disabled-plists`). It reads
+  the Katya 3-way thread (+19178224622) for a payment-confirmation message ("Sent",
+  "paid", "Zelle'd", etc.) AND the KSeo Bot family thread (hard payment words only —
+  "paid"/"zelled"/"venmoed"), from **either Tom or Elsie** after the reminder's
+  creation time, and if found calls `eventkit complete` + texts the family group a
+  one-line ✅. Elsie's replies sync to this Mac's chat.db too, so either of them
+  confirming is enough. Script lives alongside this SKILL.md; the wrapper lives at
+  `~/.claude/scheduled-tasks/family-inbox/katya_paid_watch.sh` (machine-local, not
+  in this repo).
 
 ### 4c. Special case — family travel bookings, one event PER LEG not per email (Tom 2026-09-02)
 Root cause of a real incident: 6 separate flight-confirmation emails came in for one trip

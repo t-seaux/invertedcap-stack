@@ -76,11 +76,11 @@ For **each** identified person, run the standard person pipeline from this skill
 After processing everyone, post a **single** `send-alert` message that lists **only the net-new contacts created** — one line per newly-created person with a Notion link. Do **not** mention people who were already in the People DB at all (no per-line entries, no trailing count). e.g.:
 
 ```
-📇 Contacts — 1 net-new
+📬 <u>**Contacts: 1 net-new**</u>
 • Libby Fidel (Investor, CoFound) — <notion link>
 ```
 
-If there were **no** net-new contacts (everyone already existed, or only Tom / automated senders), still post one short line so the queue run is never silent, e.g. `📇 Contacts — 0 net-new`. Never list existing people, and never send a separate alert per person.
+If there were **no** net-new contacts (everyone already existed, or only Tom / automated senders), still post one short line so the queue run is never silent, e.g. `📬 <u>**Contacts: 0 net-new**</u>`. Never list existing people, and never send a separate alert per person.
 
 ## Fields to Populate
 

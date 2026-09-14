@@ -171,7 +171,9 @@ run them:
   surface, do not publish.
 - **Step 7** — link the Doc URL into the Opp's `Diligence Materials` via
   `notion_files_property.py`.
-- **Step 8** — Slack alert via `send-alert`.
+- **Step 8** — Slack alert via `send-alert`. Header per the shared alert grammar
+  (`send-alert/references/alert-grammar.md`): `🔍 <u>**Question Bank: [Company]**</u>`
+  (single-event → no date suffix).
 
 (Skip `diligence-qa` Steps 1–4 — the source-gather + auto-draft — entirely.
 This skill replaced them with the Step 1 context-load + Step 2 capture loop.)

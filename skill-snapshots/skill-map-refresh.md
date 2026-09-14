@@ -65,6 +65,7 @@ Scan the skills directory to build a complete inventory.
      | `neg1-sourcing-listener` | `neg1-sourcing-listener` |
      | `investing-style-quarterly` | `investing-style` (propose-only quarterly Jan/Apr/Jul/Oct-15 refresh; human-gated, never publishes) |
      | `com.tomseo.scheduled.meal-prep-reschedule` | `meal-prep-reschedule` |
+     | `contacts-notion-sync` | `intro-management` |
 
    **Excluded LaunchAgents** — infrastructure-only agents that do not correspond to a skill and must NOT be rendered on the Platform Map or Quick Reference. Listed here so the Step 0 guardrail finds them and does not flag them as unclassified.
 
@@ -657,7 +658,7 @@ Update skill map visuals -- [DATE]
 Use the `send-alert` skill to notify Tom via Signal Note to Self:
 
 ```
-🗺️ Skill Map Refresh
+🛠️ <u>**Skill Map Refresh: Platform Map + Quick Reference**</u>
 
 Updated Platform Map and Quick Reference.
 [Summary of changes: e.g. "+1 skill (backchannel-drafter) in Diligence Management"]
