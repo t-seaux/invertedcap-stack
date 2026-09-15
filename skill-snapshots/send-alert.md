@@ -54,6 +54,26 @@ Current named channels:
 
 ## How to send
 
+> **PRE-SEND CONVENTION CHECK — MANDATORY (Tom's standing rule, 2026-09-14).**
+> Before piping ANY body to `send.sh`, verify the composed alert against
+> `references/alert-grammar.md` and **fix any deviation before sending** — never send
+> first and correct after. Check, at minimum:
+> - **Headline** — exactly one domain emoji from the closed table, *outside* the
+>   `<u>**…**</u>` wrapper; Title Case `Headline: Subject` joined by a colon; date
+>   suffix only on digests/sweeps.
+> - **State** — glyphs `✓ ⚠ ✗ → ✨` inline only (never a second header emoji, never
+>   the `⚠️ ✅ ❌` emoji variants); any action-required line leads, starting with `⚠`.
+> - **Footer** — links on their own line *below* the rows, not jammed under the headline.
+> - **Progress pings (multi-phase runs)** — follow open → hinge → close, with `→` as the
+>   hinge connective and the verdict reserved for the close (see alert-grammar's
+>   "Progress ping sequencing").
+> - **Routing keys** — preserve any documented routing-key token verbatim, and do NOT
+>   put a routing token (or its reserved emoji) on an alert that shouldn't route.
+>
+> If the alert goes out as a **text** instead of Slack, apply the text-lane rules
+> (plain render, mandatory blank line after the headline, no markup/Unicode bold,
+> ~5-line budget, links as bare URL + trailing `↗`, never message-final).
+
 Pipe the GitHub-markdown body on stdin to the helper script:
 
 ```bash
@@ -178,6 +198,10 @@ Some alerts are pure summaries with no per-entity headers — just a title line 
 
 ## Guardrails
 
+0. **Convention check before every send (Tom's standing rule, 2026-09-14).** Verify the
+   composed body against `references/alert-grammar.md` and fix any deviation BEFORE piping
+   to `send.sh` — never send then correct. See the "PRE-SEND CONVENTION CHECK" gate under
+   "How to send" for the checklist.
 1. **Webhook channels ONLY.** Default is `#claude-alerts`; a skill may route to a named channel ONLY via `--channel <name>` with a webhook file that exists (see "Named channel webhooks"). Never attempt any other redirect, and do not try the Slack MCP as a fallback (it posts as `tom`, which defeats the bot-identity split).
 2. **Do NOT use iMessage, Beeper, Signal, or any other notification channel.**
 3. **One message per skill invocation.** Each calling skill produces at most one alert.

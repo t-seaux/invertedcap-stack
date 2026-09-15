@@ -192,7 +192,14 @@ drafting miss. Memory `feedback_finalize_diligence_notion_link_map` applies in f
    the check is skipped with a warning. See memory
    `feedback_transcript_speaker_attribution_to_tom` for the failure mode this catches.
 4. **Every Diligence Material** — Drive PDFs, Google Docs, Notion attachments, DocSend links.
-   Use the type-specific access methods from `first-pass-diligence` Step 1c.
+   Use the type-specific access methods from `first-pass-diligence` Step 1c. **Click through
+   links inside materials (Tom, 2026-09-14):** same rule as first-pass Step 1c — when a
+   material cites external URLs (market studies, industry reports, essays the founder
+   flagged), fetch each one and treat its contents as first-class evidence in the Diligence
+   Journey and footnotes, cited with its URL. If a prior first-pass/update run already read
+   and cited a linked source, reuse that citation rather than re-fetching; fetch fresh only
+   the links no prior run incorporated. Dead or paywalled links get flagged as gaps, never
+   silently skipped.
 5. **Investment memo manifest** — read every memo in the canonical Drive folder
    `1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`. The Evidence Synthesis pulls comparative anchors from
    the manifest the same way the original first-pass does.

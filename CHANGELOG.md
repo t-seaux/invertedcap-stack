@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-09-15] (Week of 2026-09-15)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- finalize-diligence — added click-through-links rule: when materials cite external URLs, fetch each one and treat contents as first-class diligence evidence; dead/paywalled links flagged as gaps
+- first-pass-diligence — added context-gathered ping (Step 1g) as third early alert in multi-phase runs; link-through rule for cited external URLs in materials; audit self-healing: runner auto-sub-splits failed batches, removing need for manual whole-grid re-run
+- materials-handler — alert grammar update: headline now plain text (no inline links), links moved to footer line; sent-date naming convention added (MM.DD.YY appended to every filename); email-body-as-material judgment rule clarified
+- research-artifact-audit — failed-batch handling updated: runner now self-heals via per-batch sub-splitting; manual re-run at smaller --draft-batch-size is no longer needed; irreducible failures surface and stop
+- send-alert — pre-send convention check gate added: verify against alert-grammar.md before every send; checklist covers headline, state glyphs, footer links, progress-ping sequencing, routing keys
+- skill-map-refresh — lp-letter-workshop resolved from pending to Admin category
+- update-diligence-priors — added click-through-links rule: fetch external URLs cited in new materials as first-class evidence; dead/paywalled links flagged as gaps
+**Pending resolved:** lp-letter-workshop → Admin (hidden)
+**Total skills:** 53 visible
+**Functions:** No changes
+
+---
+
 ## [2026-09-14] (Week of 2026-09-08)
 
 **Added:** lp-letter-workshop (pending categorization)

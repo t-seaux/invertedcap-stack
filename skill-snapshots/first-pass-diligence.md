@@ -156,9 +156,11 @@ Then re-enter at the furthest completed step, keeping everything upstream:
 Iteration snapshots (`draft.iterN.md`) and prior audit JSONs found in the
 workspace count toward the audit gate's iteration cap — do not delete them on
 resume. A resumed run posts the same alerts as a fresh one — the run-start ping
-(Step 1), the audit-started ping (Step 4b), and the single completion alert
-(Step 6b) — with " (resumed)" appended to the run-start line so Tom knows it
-picked up a prior run.
+(Step 1), the context-gathered ping (Step 1g), the audit-started ping (Step 4b),
+and the single completion alert (Step 6b) — with " (resumed)" appended to the
+run-start line so Tom knows it picked up a prior run. The context-gathered ping
+is skipped only when the run re-enters past the gather phase (draft already
+present) — see Step 1g.
 
 ---
 
@@ -172,19 +174,21 @@ date +%s > "$WORKSPACE/start_ts.txt"
 ```
 
 **Fire the run-start Slack alert** immediately after anchoring the start time,
-before gathering context. This is the first of the run's two early alerts (the
-second is audit-started at Step 4b); the completion side collapses to a single
-alert at Step 6b.
+before gathering context. This is the first of the run's three early alerts
+(context-gathered at Step 1g, then audit-started at Step 4b); the completion side
+collapses to a single alert at Step 6b.
 
 ```bash
 COMPANY="<subject company name>"
 cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
 🔍 <u>**First Pass: ${COMPANY}**</u>
-Started.
+Started — gathering context.
 EOF
 ```
 
-Single line, no feedback prompt, no links. Do NOT include `💬 Reply in thread`
+This is the series **open** (per alert-grammar's progress-ping sequencing: open →
+hinge → close). No prior phase to close, so it's start-only. Single line, no feedback
+prompt, no links. Do NOT include `💬 Reply in thread`
 (that string is reserved for the Step 6b completion alert — the listener routes
 thread replies based on it). On a resumed run, append ` (resumed)`.
 
@@ -274,6 +278,20 @@ diligence signal — include the file with a `(deprecated)` qualifier inline, an
 contrast between deprecated and current as material for the analysis (what changed, what was
 walked back, what the rename or pivot signals). Memory:
 `feedback_diligence_materials_deprecated_not_skip`. Caught after AgentBay 2026-06-25.
+
+**HARD RULE — click through links inside materials (Tom, 2026-09-14).** When any material
+(email-body PDF, memo, deck, investor update) cites external URLs — market studies, industry
+reports, benchmark data, essays the founder flagged — fetch each one (WebFetch; Chrome only
+when the page is JS-walled beyond what WebFetch can render) and fold its contents into the
+analysis as first-class research inputs: cite each with its URL in the Sources list, use its
+data in the Market / competitive sections, and note any gap between what the founder's
+citation implies and what the source actually says. A founder-curated reading list is
+high-signal twice over — the sources carry the market data, and the curation shows what
+evidence the founder finds credible. Read them; don't just archive the links. Reference
+example: the Paravel Health "Next Steps" email PDF carries seven market reports (Health
+Affairs, Hint Health, Macbach, Milbank, etc.) that belong in the Market section, not just in
+the materials inventory. Dead or hard-paywalled links get flagged as gaps in Materials &
+Sources Reviewed, never silently skipped.
 
 **Classification rule.** All company-provided artifacts (decks, financial models, docs,
 slides, transcripts, screenshots founders sent) belong in the Sources list as company-provided
@@ -549,6 +567,41 @@ saw the pattern and chose to deviate.
 
 If the file is empty or only contains the header comment, that's fine — the corpus
 builds over time. No action needed beyond reading.
+
+### 1g. Fire the Context-Gathered ping
+
+Now that the full evidence base is assembled (1a–1f) and before spawning the Step 2
+research lanes, fire the **context-gathered** progress alert. This is the second of the
+run's THREE early alerts (run-start at Step 1, this one, audit-started at Step 4b); the
+completion side still collapses to the single Step 6b alert.
+
+This ping MUST carry substance, not a bare status — it is the one Tom relies on to see
+what landed and, critically, **what's missing** before the run commits compute to research.
+Summarize the actual gather result in one dense line: which materials were ingested (deck
+OCR, investor update, term sheet), how the founder(s) were resolved (name + enrichment path,
+e.g. "via ContactOut") **and any founder that could NOT be resolved** (name the gap
+explicitly — this is the highest-value part), how many portfolio memos were read, and the
+count of research lanes about to launch. Omit any element that genuinely doesn't apply
+rather than writing "N/A".
+
+```bash
+ELAPSED_MIN=$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 ))
+COMPANY="<subject company name>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🔍 <u>**First Pass: ${COMPANY}**</u>
+Context Gathered — <deck OCR'd / update ingested>, founder LinkedIn (<Name via path>; <gap noted>), <N> portfolio memos read → launching <N> parallel research lanes. T+${ELAPSED_MIN} min.
+EOF
+```
+
+This is a **hinge** (per alert-grammar's progress-ping sequencing): it closes the
+gather phase (carrying its finding) and opens the research phase, joined by the `→`
+transition glyph. The trailing `T+${ELAPSED_MIN} min` is the cumulative elapsed marker
+(from the Step 1 start anchor) that rides every ping — the gap between consecutive pings
+is each phase's duration, so this one reports how long gather took. Single line of body,
+no feedback prompt, no links. Do NOT include
+`💬 Reply in thread` (reserved for the Step 6b completion alert). On a resumed run this
+ping still fires if the run re-enters at or before Step 2; skip it only when resuming
+past the gather phase (draft already present).
 
 ---
 
@@ -1768,28 +1821,38 @@ that file in full before continuing this step.
 | `NORMALIZED_DRAFT` | `$WORKSPACE/draft.normalized.md` |
 
 **Fire the audit-started Slack alert BEFORE building the source bundle.** This is
-the second of the run's two early alerts (the first is run-start at Step 1). It is
-a diligence-specific progress ping, not part of research-artifact-audit's generic
-flow:
+the third of the run's three early alerts (run-start at Step 1, context-gathered
+at Step 1g). It is a diligence-specific progress ping, not part of
+research-artifact-audit's generic flow.
+
+Structure it as a **hinge** (per alert-grammar's progress-ping sequencing): it closes
+the research + draft phase — carrying that phase's *factual* finding (how many lanes
+returned, and any concrete flags the draft raised) — and opens the audit, joined by the
+`→` transition glyph. Report facts and flags ONLY; do NOT state a verdict here — the
+verdict is earned after the audit and belongs solely in the Step 6b close. Keep the
+headline in the series form (`First Pass: ${COMPANY}`, matching the run-start and
+context-gathered pings); the body says it's the audit phase.
 
 ```bash
 ELAPSED_MIN=$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 ))
 COMPANY="<subject company name>"
 cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔍 <u>**First Pass Audit: ${COMPANY}**</u>
-Started — T+${ELAPSED_MIN} min from job start.
+🔍 <u>**First Pass: ${COMPANY}**</u>
+Research Complete — <N> lanes back<, key flags if any> → auditing draft. T+${ELAPSED_MIN} min.
 EOF
 ```
 
-Single line, no feedback prompt, no links. Do NOT include `💬 Reply in thread`
+Single line of body, no feedback prompt, no links. Do NOT include `💬 Reply in thread`
 (that's reserved for Step 6b — the listener routes thread replies based on that
-exact string).
+exact string). Do NOT use the `First Pass Diligence:` headline here either — that
+exact token is the Step 6b routing key and would misroute this ping's replies.
 
 **Do NOT fire any publish-progress pings during Step 4/Step 6.** Everything on the
 completion side (Notion published, PDF uploaded, property linked, done) collapses
 into the SINGLE completion alert at Step 6b — separate progress pings produced a
-redundant multi-message wall in Slack (observed Cline, 2026-08-26). Only the two
-early alerts above and the one completion alert should ever fire.
+redundant multi-message wall in Slack (observed Cline, 2026-08-26). Only the three
+early alerts (run-start, context-gathered, audit-started) and the one completion
+alert should ever fire.
 
 **Diligence-specific source bundle structure (Step A in research-artifact-audit).**
 Write `$WORKSPACE/sources.md` with this layout (the runner chunks at the
@@ -1868,13 +1931,25 @@ any regex but whose substance isn't traceable to the source bundle. Both gates
 must pass before publish.
 
 **Diligence-specific Slack publish-summary surface (Step D in research-artifact-audit).**
-The Slack alert appends `⚠️ Audit: <N> untraced after <K> iterations, <M>
-partials normalized` as a fourth line when there are residual untraced findings
-OR any partials were normalized. If the audit ends with 0 untraced and 0
-partial cleanly, no `⚠️` line — the alert stays at three lines. The substance
-(residual untraced claims with judge notes; normalized partials as before→after
-diffs) is required by research-artifact-audit; this paragraph only specifies
-the Slack format.
+The Slack alert appends `⚠ Audit: <N> unverifiable claim(s) after <K> iterations;
+<M> over-reaching claim(s) tightened to source` as a fourth line when there are
+residual untraced findings OR any claims were tightened. If the audit ends with 0
+untraced and 0 partial cleanly, no `⚠` line — the alert stays at three lines.
+(State glyph is the plain char `⚠`, never the emoji `⚠️` — alert-grammar anti-pattern.)
+
+**Operator-facing wording (mandatory).** Never use the raw audit jargon "untraced"
+or "partial" / "partials normalized" in the Slack line — those read as either alarming
+or half-assed to a human. Translate:
+- `untraced` → "unverifiable claim" (nothing in the sources backs it — flag to check),
+  naming the claim and why (e.g. "founder title — deck-only, no corroboration").
+- `partial` (post Step C) → "claim tightened to source" / "over-reaching claim
+  corrected to match its source" — these are **complete** fixes, not partial ones.
+- irreducibly failed batch → "section left unaudited — too claim-dense for one judge
+  pass" (see B.2.2). This is the one that's a genuine gap, not a content signal.
+
+The substance (residual unverifiable claims with judge notes; tightened claims as
+before→after diffs) is required by research-artifact-audit; this paragraph specifies
+the Slack format and the human-facing translation.
 
 ### Notion Table Formatting
 
@@ -2243,7 +2318,7 @@ Template (substitute the three values directly — do not keep angle brackets ar
 
 ```
 🔍 <u>**First Pass Diligence: [COMPANY_NAME](OPP_URL) ([PDF](PDF_URL))**</u>
-ONE_LINER_SUMMARY
+ONE_LINER_SUMMARY · T+TOTAL_MIN min
 💬 Reply in thread with any takeaways for next time.
 ```
 
@@ -2251,16 +2326,16 @@ Concrete example of the rendered body that should be piped into `send.sh`:
 
 ```
 🔍 <u>**First Pass Diligence: [Shine](https://www.notion.so/35700beff4aa8147b93ede0f63694110) ([PDF](https://drive.google.com/file/d/1mjbovMWmrjdYWCqc6RNnlbhHfuxFxdHW/view))**</u>
-Moderate founder pair; wedge is real but UserEvidence and Listen Labs are 10-50x better-capitalized.
+Moderate founder pair; wedge is real but UserEvidence and Listen Labs are 10-50x better-capitalized. · T+34 min
 💬 Reply in thread with any takeaways for next time.
 ```
 
 Conventions:
 - **Line 1 — bolded title with two links.** `🔍` (magnifying-glass emoji) outside the wrapper, then `<u>**...**</u>` wrapping the title `First Pass Diligence: COMPANY (PDF)`. The company name is hyperlinked to the Notion Opportunity URL (NOT the analysis page URL). The literal text `PDF` (in parens) is hyperlinked to the Drive PDF URL returned from step 6a.
-- **Line 2 — one-liner summary.** Plain text, no bold, no bullets, no links. 1–2 sentences max — what Tom needs to know before clicking through. Lead with the most important signal (e.g., "Strong founder fit + obvious market, but $3M seed is later than my typical entry — fund-fit pass.").
+- **Line 2 — one-liner summary + total runtime.** Plain text, no bold, no bullets, no links. 1–2 sentences max — what Tom needs to know before clicking through. Lead with the most important signal (e.g., "Strong founder fit + obvious market, but $3M seed is later than my typical entry — fund-fit pass."). This is the series **close**, so it carries the verdict. Append ` · T+<N> min` as the cumulative elapsed marker (total run time), computed `T+$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 )) min` — same anchor every ping uses; the gap from the audit ping's T+N is how long audit + publish took.
 - **Line 3 — feedback prompt.** Literal text `💬 Reply in thread with any takeaways for next time.` Do not modify or personalize. The static prompt is the trigger `claude-alerts-listener` keys on for routing first-pass feedback to `FEEDBACK_PATTERNS.md`.
 
-If the lint or audit surfaced findings that publish-proceeded with caveats, append a fourth line (after the feedback prompt) starting with `⚠️ ` and naming the count and category — e.g. `⚠️ Audit flagged 2 untraced claims; see Notion page note for details.`
+If the lint or audit surfaced findings that publish-proceeded with caveats, append a fourth line (after the feedback prompt) starting with the plain state glyph `⚠ ` (never the emoji `⚠️` — alert-grammar anti-pattern) and naming the count and category in **plain-impact language, not raw audit jargon** (see the operator-facing wording rule under "Diligence-specific Slack publish-summary surface") — e.g. `⚠ Audit flagged 2 unverifiable claims; see Notion page note for details.` (not "untraced claims").
 
 If for any reason the PDF upload (step 6a) failed and only the Notion analysis exists, replace `([PDF](PDF_URL))` on line 1 with `([analysis](NOTION_ANALYSIS_URL))` so the user always has one click-through. Do NOT skip the alert.
 

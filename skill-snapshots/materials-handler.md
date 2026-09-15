@@ -46,21 +46,21 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 
 **Slack alert — code-enforced by the write, NOT model-executed:**
 
-The consolidated `#claude-alerts` ping fires deterministically from inside `notion_files_property.py` whenever the `--batch-json` (or a non-`--no-alert` single `--url`) call lands ≥1 new chip on Diligence Materials / Deal Docs. This is the fix for the silent-append bug (Cline, 2026-08-25): the alert can no longer be skipped because it's a side effect of the write, not a step the model has to remember. Your only jobs are to (a) pass `--email-message-id` so the header carries the `(Email)` link, and (b) NOT compose or send any separate materials alert. The format the helper emits (for reference only):
+The consolidated `#claude-alerts` ping fires deterministically from inside `notion_files_property.py` whenever the `--batch-json` (or a non-`--no-alert` single `--url`) call lands ≥1 new chip on Diligence Materials / Deal Docs. This is the fix for the silent-append bug (Cline, 2026-08-25): the alert can no longer be skipped because it's a side effect of the write, not a step the model has to remember. Your only jobs are to (a) pass `--email-message-id` so the footer carries the `email` link, and (b) NOT compose or send any separate materials alert. The format the helper emits (for reference only — alert-grammar compliant: plain-subject headline, no bullet glyphs, links on the footer line):
 
 ```
-🔍 <u>**Materials: [{Opp Name}](https://www.notion.so/{oppId}) ([Email](https://mail.google.com/mail/u/0/#all/{messageId}))**</u>
-
-- **Page Body:** {comma-separated body section names — plain text, no links}
-- **Diligence Materials:** {comma-separated chip labels, each WRAPPED as [label](url)}
-- **Deal Docs:** {comma-separated chip labels, each WRAPPED as [label](url)}
+🔍 <u>**Materials: {Opp Name}**</u>
+**Page Body:** {comma-separated body section names — plain text, no links}
+**Diligence Materials:** {comma-separated chip labels, each WRAPPED as [label](url)}
+**Deal Docs:** {comma-separated chip labels, each WRAPPED as [label](url)}
+[opp](https://www.notion.so/{oppId}) · [email](https://mail.google.com/mail/u/0/#all/{messageId})
 ```
 
 **Alert rules:**
 
 - Write GFM only — `send-alert/send.sh` converts to Slack Block Kit. Do NOT hand-write Slack mrkdwn (`*bold*`, `<url|text>`); it ships as literal text and breaks link tap targets.
-- Header line is fully bolded with `**...**`. Two clickable segments: the Opp name (links to Notion `https://www.notion.so/{oppId}`) and the literal word `Email` wrapped in parens (links to the Gmail deep link `https://mail.google.com/mail/u/0/#all/{messageId}`). Use parens, not brackets.
-- Bullet lines use `- ` (GFM list). Each bullet's field name is bolded with `**...**`, followed by `:`, then a comma-separated list — no inner bullets, no per-artifact lines.
+- Header line is underlined + fully bolded with `<u>**...**</u>`, subject as plain text — NO links inside the headline (alert grammar: links live on the footer line). The footer is lowercase `[opp](notion-url) · [email](gmail-deep-link)`; the `· [email]` segment appears only when `--email-message-id` was passed.
+- Field rows carry no bullet glyphs (alert grammar: no `- ` / `•`). Each row's field name is bolded with `**...**`, followed by `:`, then a comma-separated list — no per-artifact lines. Single-line spacing throughout, no blank line after the header.
 - **Page Body items are plain text** (no links — the Opp link in the header already covers it).
 - **Page Body bullet reflects actual writes only** — list `Company Blurb` ONLY if the section was newly written on this run (not skipped due to existing section, not a no-op rewrite of identical content, not a precondition-fail per the Step 4 hard-precondition gate). If the section existed before and was untouched, omit the entire `Page Body:` bullet. Mis-reporting a no-op as a write is a bug, not a cosmetic issue — Tom uses these alerts to audit what changed.
 - **Diligence Materials and Deal Docs items are each individually linked** via `[label](url)`:
@@ -75,10 +75,10 @@ The consolidated `#claude-alerts` ping fires deterministically from inside `noti
 **Worked example (matches Emily/Inlets):**
 
 ```
-🔍 <u>**Materials: [Inlets](https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002) ([Email](https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41))**</u>
-
-- **Page Body:** Company Blurb
-- **Diligence Materials:** [Inlets - One-Pager (2026)](https://drive.google.com/file/d/.../view), [Inlets - Oncology Case Study](https://drive.google.com/file/d/.../view), [Inlets Demo (login: demo@inlets.ai; pw: ***)](https://app.inlets.ai/)
+🔍 <u>**Materials: Inlets**</u>
+**Page Body:** Company Blurb
+**Diligence Materials:** [Inlets - One-Pager (2026)](https://drive.google.com/file/d/.../view), [Inlets - Oncology Case Study](https://drive.google.com/file/d/.../view), [Inlets Demo (login: demo@inlets.ai; pw: ***)](https://app.inlets.ai/)
+[opp](https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002) · [email](https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41)
 ```
 
 **Demo chip label format reminder:** `[Company] Demo (login: <email>; pw: <password>)` — see Step 3F.
@@ -100,7 +100,8 @@ The consolidated `#claude-alerts` ping fires deterministically from inside `noti
 7. **Upload autonomy — Drive Upload Apps Script, never ask** — use the Drive Upload Apps Script (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`) for every non-Gmail file: call `createFolder` to get or create the company folder under the routing-appropriate root (Step 3 target folder gate: Deal Docs–routed artifacts → `Deal Docs/[Company]/`, everything else → `Diligence/[Company]/`), then `upload` with the returned `folderId` and the base64-encoded file content. On failure, retry once, then note the failure in the summary. Do not ask Tom to upload files manually.
 8. **Per-company subfolders in Diligence** — all Diligence Materials–routed artifacts for a given opportunity (NOT Deal Docs–routed ones; those follow rule 9) go into a dedicated subfolder: `Diligence/[Company Name]/`. Use the Apps Script's `createFolder` action to get-or-create the subfolder idempotently under the Diligence root (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Use the company name exactly as it appears in Notion (the opportunity title). When linking in Notion, link to the specific file URL whenever possible, and the company subfolder URL as a fallback.
 9. **Deal Docs go to the canonical top-level `Deal Docs/` store — FLAT, not the Diligence tree** — anything routed to the Notion `Deal Docs` property (term sheets, SAFEs, SPAs, voting agts, IRA/ROFR/co-sale, stockholder consents, cert of incorp, wire SSI, pro forma cap tables, closing binders) goes into `Deal Docs/[Company Name]/` under the canonical Deal Docs root (`1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`) — NOT under `Diligence/…`. Get-or-create the company folder idempotently with `createFolder` passing `parentId = 1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`, then upload the file directly into it. **Flat by default (Tom, 2026-08-21): no round subfolder.** Only once a company has raised a NEW round do deal docs break into `<Stage> (<Mon YYYY>)` round subfolders (and at that transition the first round's docs bucket into their own round folder too). Diligence Materials chips continue to land directly in `Diligence/[Company Name]/`. Keep one copy of each distinct version in Drive (older versions/redlines stay for audit) but no byte-for-byte duplicates; the Notion `Deal Docs` property holds only the latest version of each doc. See the deal-docs layout memory.
-10. **Pin a Drive-folder chip at the top of Diligence Materials.** Every Opp's Diligence Materials property carries a permanent first chip linking to its whole Drive subfolder, labeled `[G DRIVE] [Company Name] Diligence Materials` and pointing at `https://drive.google.com/drive/folders/<company subfolder id>`. This gives one click to the full materials folder — including anything not individually chipped — without disturbing the per-file chips below it. Check for it (by folder URL) before any new chips are added on a run; if missing, add it first via `--prepend` so it leads the list (subsequent default-append chips then naturally land after it). See Step 4.
+10. **Every saved material's filename carries its SENT date (Tom, 2026-09-14).** Canonical convention: `[Company Name] - [Descriptive Title] MM.DD.YY.pdf` — the date appended at the end of the name, before the extension (e.g. `Paravel Health - Next Steps Email 09.14.26.pdf`, `Paravel Health - Deck 09.08.26.pdf`). The date is when the material was SENT to Tom — the email's internal date for attachments and body PDFs; for converted links (DocSend, Papermark, direct URLs), the date of the email that delivered the link. NOT the processing date — a run that catches up on a week-old email stamps the email's date. Chip display labels match the filename exactly. Applies to every Drive-hosted artifact (3A, 3B, 3C, 3D, 3G) on both Diligence Materials and Deal Docs routing, AND to link-only chip labels (3E/3F/3H — Figma, demos, videos): the chip label ends with the sent date, e.g. `Bloom - Deck (Figma) 09.14.26`, `Inlets Demo (login: demo@inlets.ai; pw: Password124!) 09.14.26` — Tom wants the date he was sent every material, live links included. The only undated chips are infrastructure (the `[G DRIVE]` folder pin) and diligence-output snapshots (`_Master_Diligence_*`), which keep their own established naming.
+11. **Pin a Drive-folder chip at the top of Diligence Materials.** Every Opp's Diligence Materials property carries a permanent first chip linking to its whole Drive subfolder, labeled `[G DRIVE] [Company Name] Diligence Materials` and pointing at `https://drive.google.com/drive/folders/<company subfolder id>`. This gives one click to the full materials folder — including anything not individually chipped — without disturbing the per-file chips below it. Check for it (by folder URL) before any new chips are added on a run; if missing, add it first via `--prepend` so it leads the list (subsequent default-append chips then naturally land after it). See Step 4.
 
 ## Inputs
 
@@ -177,6 +178,7 @@ Classify each relevant email's materials into **delivery categories** (how to fe
 
 **Delivery category** (drives Step 3 sub-path):
 - **Gmail attachment** (binary file attached to the email)
+- **Email body with standalone substance** — the body itself qualifies as a material even when the email ALSO carries attachments; this is a judgment call, not an explicit-ask-only path (Tom, 2026-09-14). Route to Step 3D when the body contains content a future diligence pass would cite: linked research reports / market studies, inline metrics or traction updates, a written thesis or market narrative, a founder-curated reading list. Skip when the body is only cover text for the attachments ("attached is our deck"), scheduling, or pleasantries. Canonical yes: Paravel Health's "Next Steps" email (seven linked market reports framing the founder's market view). Canonical no: "here's the deck, happy to chat." Applies in every mode — a Mode B webhook run saving an attachment should ALSO save the body when it passes this bar.
 - **DocSend link** (URL matching `docsend.com/view/`)
 - **Direct file URL** (Google Drive share link, Dropbox link, raw PDF URL)
 - **Data room link** (DocSend `/view/s/` or similar multi-doc container)
@@ -288,7 +290,7 @@ For each email containing relevant attachments:
 4. **Error handling**: If `result["success"]` is `false`, log the error and fall back to generating a Gmail deep link (`https://mail.google.com/mail/u/0/#all/<messageId>`) for manual download. Do not retry more than once.
 
 5. **Rename to convention + dedup guard (MANDATORY — this path is the one that accumulates duplicates).** Unlike the Drive Upload Apps Script (3B–3D), the Gmail Attachment Saver keeps the attachment's **original filename verbatim and never trashes-and-replaces** — so a founder attachment literally named `Memo.pdf` lands as `Memo.pdf`, and every re-run (webhook + manual + delegated `add-to-crm` Step 6 / `pipeline-agent` Task 5) mints a *new* `Memo.pdf` with a fresh fileId. URL-idempotency at the chip layer can't catch it (new fileId = new URL), so the copies silently pile up. Close it here, per saved file:
-   1. **Rename to the same convention as 3B–3D:** `[Company Name] - [Descriptive Title].pdf` (e.g. `Memo.pdf` → `Ardent - Founder Memo.pdf`, `deck.pdf` → `Ardent - Deck.pdf`). Derive the title from the attachment name / email subject; strip a redundant leading company name. This kills bare generic names, makes collisions detectable, and prevents cross-company `Memo.pdf` clashes. Batch via `drive_rename.py`:
+   1. **Rename to the same convention as 3B–3D:** `[Company Name] - [Descriptive Title] MM.DD.YY.pdf`, date = the email's sent date per principle 10 (e.g. `Memo.pdf` → `Ardent - Founder Memo 09.10.26.pdf`, `deck.pdf` → `Ardent - Deck 09.10.26.pdf`). Derive the title from the attachment name / email subject; strip a redundant leading company name. This kills bare generic names, makes collisions detectable, and prevents cross-company `Memo.pdf` clashes. Batch via `drive_rename.py`:
       ```bash
       echo '[{"fileId":"<newFileId>","newName":"Ardent - Founder Memo.pdf"}]' \
           | python3 ~/.claude/scripts/drive_rename.py --batch
@@ -305,7 +307,7 @@ Deterministic convention names + this list-and-trash step give 3A the same re-ru
 Follow the `docsend-to-pdf` skill at `/Users/tomseo/.claude/skills/docsend-to-pdf/SKILL.md` for the exact Python conversion approach:
 
 1. Use the `requests` + `Pillow` method to convert the DocSend document to PDF.
-2. Name the file using the DocSend `<meta>` title: `[Company Name] - [Document Title].pdf`. Strip redundant company name if present in the title. Fallback: `[Company Name] - Deck.pdf`.
+2. Name the file using the DocSend `<meta>` title: `[Company Name] - [Document Title] MM.DD.YY.pdf` (date = when the link was sent, per principle 10). Strip redundant company name if present in the title. Fallback: `[Company Name] - Deck MM.DD.YY.pdf`.
 3. Save to `/Users/tomseo/Downloads/[filename].pdf`.
 4. Present to user via `present_files`.
 5. **Upload to the target folder via Drive Upload Apps Script**: See `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`. First run the Step 3 target folder gate (`createFolder` with the routing-appropriate parent — decks are Diligence Materials, so normally `Diligence/[Company]/`), then call `upload` with the returned `folderId` and the base64-encoded file content. On success, use the returned `fileId` and `url` directly — no separate Drive MCP search needed. On failure, retry once, then note the failure in the summary but do not ask Tom to upload manually.
@@ -330,10 +332,10 @@ Drive v3 export/download runs through the `gmail-reconciler` service account wit
 
 ### 3D: Email Body → PDF (Chrome Headless)
 
-Use this path when the email *body itself* is the material — no attachment, no DocSend link. Typical triggers: investor updates, inline memos, "save this email as a diligence material for [company]".
+Use this path when the email *body itself* is the material. Two entry routes: (a) explicit — Tom says "save this email as a diligence material for [company]", or the email is a body-only investor update / inline memo; (b) **judgment call** — the body passes the "standalone substance" bar defined in Step 2's delivery categories (linked research reports, inline metrics, market narrative, reading list), even when the email also has attachments being saved via 3A. Route (b) needs no ask — save it and note the judgment in the Step 5 summary.
 
-1. Fetch the full message content via `gmail_get_thread` (`messageFormat: FULL_CONTENT`) to get `plaintextBody`, subject, sender, and date.
-2. Render an HTML file at `/Users/tomseo/Downloads/<slug>.html` that wraps the body in a clean layout: title (subject), a meta line (company · sender · date · subject), and the body content. Preserve sections and bullets from the source — don't invent structure. Use the standard print-friendly CSS (`@page { size: Letter; margin: 0.75in; }`, `-apple-system` font stack, 12pt body, bordered header).
+1. Fetch the full message content via `gmail_get_thread` (`messageFormat: FULL_CONTENT`) to get `htmlBody`, `plaintextBody`, subject, sender, and date. Prefer `htmlBody` as the render source when the body carries inline hyperlinks — the plaintext form mangles anchor text and URLs.
+2. Render an HTML file at `/Users/tomseo/Downloads/<slug>.html` that wraps the body in a clean layout: title (subject), a meta line (company · sender · date · subject), and the body content. Preserve sections and bullets from the source — don't invent structure. **Preserve every inline hyperlink clickable, and when the body cites external links (reports, studies, articles), append a "Linked references" section listing each link's full URL spelled out** — anchor text alone dies in print, and those URLs are exactly what a later diligence pass clicks through. Use the standard print-friendly CSS (`@page { size: Letter; margin: 0.75in; }`, `-apple-system` font stack, 12pt body, bordered header).
 3. Shell out to Chrome headless to convert to PDF:
    ```bash
    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
@@ -341,7 +343,7 @@ Use this path when the email *body itself* is the material — no attachment, no
      --print-to-pdf="/Users/tomseo/Downloads/<Filename>.pdf" \
      "file:///Users/tomseo/Downloads/<slug>.html"
    ```
-4. Name the PDF `[Company Name] - [Descriptive Label].pdf`. For investor updates, derive the label from the subject (e.g. "Week 20 Investor Update"). Don't include emojis or special punctuation in the filename.
+4. Name the PDF `[Company Name] - [Descriptive Label] MM.DD.YY.pdf` (date = the email's sent date, per principle 10). For investor updates, derive the label from the subject (e.g. "Week 20 Investor Update"). Don't include emojis or special punctuation in the filename.
 5. Upload to the target folder (Step 3 gate — investor updates/inline memos are Diligence Materials → `Diligence/[Company]/`) via the Drive Upload Apps Script (same `createFolder` → `upload` pattern). Use the returned `fileId` / `url` for Notion linking.
 
 ### 3E: Link-only / Non-convertible Materials (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, Brieflink, etc.)
@@ -349,7 +351,7 @@ Use this path when the email *body itself* is the material — no attachment, no
 Use this path for interactive/hosted materials that can't be cleanly downloaded or PDF-rendered. Skip Drive entirely — the external URL itself is the canonical artifact and goes directly into both Notion locations (page body bullet AND Diligence Materials property field).
 
 1. **Do NOT attempt to download, headless-render, or DocSend-convert these URLs.** Figma decks and Miro boards don't print usably via Chrome headless, and Loom/Pitch.com/Brieflink require auth or JS interactivity that breaks conversion. Trying wastes time and produces a broken artifact.
-2. **Derive a display label** from the email subject or URL slug: `[Company] - Deck (Figma)`, `[Company] - Brainstorm (Miro)`, `[Company] - Walkthrough (Loom)`, `[Company] - Deck (Brieflink)`, etc. Keep the parenthetical platform tag — it tells a future reader why the link is external instead of Drive-hosted.
+2. **Derive a display label** from the email subject or URL slug, ending with the sent date per principle 10: `[Company] - Deck (Figma) MM.DD.YY`, `[Company] - Brainstorm (Miro) MM.DD.YY`, `[Company] - Walkthrough (Loom) MM.DD.YY`, `[Company] - Deck (Brieflink) MM.DD.YY`, etc. Keep the parenthetical platform tag — it tells a future reader why the link is external instead of Drive-hosted.
 3. **Page body bullet** — see format in Step 4.
 4. **Property field** — the external URL goes into the Diligence Materials Files property directly (Step 4's "always link the specific file URL" rule is relaxed for this path; see Step 4 for details).
 
@@ -360,9 +362,9 @@ Use this path when the source email includes a live product demo — typically a
 **Single chip, credentials in the label:**
 
 1. **Do NOT download, render, or screenshot the app.** The live URL is the artifact.
-2. **Display label format** — `[Company] Demo (login: <email>; pw: <password>)`. Examples:
-   - `Inlets Demo (login: demo@inlets.ai; pw: Password124!)`
-   - `Acme Demo (login: investor@acme.app; pw: Demo2026)`
+2. **Display label format** — `[Company] Demo (login: <email>; pw: <password>) MM.DD.YY` (sent date last, per principle 10). Examples:
+   - `Inlets Demo (login: demo@inlets.ai; pw: Password124!) 09.14.26`
+   - `Acme Demo (login: investor@acme.app; pw: Demo2026) 09.14.26`
 3. **Property field** — pass the demo URL and the label above to `addLinkToFilesProperty` exactly like a Step 3E link-only material. One chip per demo.
 4. **Page body** — do not duplicate the demo into the page body. The chip carries everything.
 5. **Multiple credential pairs** — if the founder provides separate logins for different roles (admin/viewer/etc.), create one chip per pair with role appended: `Inlets Demo - Admin (login: ...; pw: ...)`.
@@ -388,7 +390,7 @@ Then upload the PDF to `Diligence/<Company>/` via `drive-upload.md`, link the Dr
 
 Any YouTube (`youtube.com/watch`, `youtu.be/…`), Loom, Vimeo, or other hosted-video URL that arrives as diligence material gets **two** things, not one:
 
-1. **File the link as a chip — verbatim (Step 3E rules apply).** The video URL is the canonical artifact; it goes straight into Diligence Materials via `add-link-to-files-property.md`. **Pass the URL byte-for-byte as the founder sent it — never retype, normalize, or convert between forms** (`youtu.be/<id>` → `watch?v=<id>`, stripping `?feature=shared`, etc.). That rewrite is how a video ID gets silently truncated and the chip dies (Cline demo filed as `watch?v=9wKiITaLA` when the founder sent `youtu.be/069wKiITaLA` — Tom, 2026-08-26). Label: `[Company] - <Video Title> (YouTube)` or `[Company] Demo (YouTube)`.
+1. **File the link as a chip — verbatim (Step 3E rules apply).** The video URL is the canonical artifact; it goes straight into Diligence Materials via `add-link-to-files-property.md`. **Pass the URL byte-for-byte as the founder sent it — never retype, normalize, or convert between forms** (`youtu.be/<id>` → `watch?v=<id>`, stripping `?feature=shared`, etc.). That rewrite is how a video ID gets silently truncated and the chip dies (Cline demo filed as `watch?v=9wKiITaLA` when the founder sent `youtu.be/069wKiITaLA` — Tom, 2026-08-26). Label: `[Company] - <Video Title> (YouTube) MM.DD.YY` or `[Company] Demo (YouTube) MM.DD.YY` (sent date per principle 10).
 2. **Rip a transcript and create a Notes-DB entry tagged to the Opp.** Delegate to the **`log-transcript-to-notion`** skill (read `/Users/tomseo/.claude/skills/log-transcript-to-notion/SKILL.md`), passing the video URL and the resolved Opportunity page URL so the note's `Opportunity` relation is set. That skill rips the captions with `yt-dlp`, builds the note (Source / Speaker / Summary + Frameworks + Transcript), sets the `:claude-color:` icon, and runs `note-classifier` (an Opp-linked pipeline note classifies as **Diligence**). Note title follows that skill's format, e.g. `Transcript: <Company> Product Demo — <Company> (Mon DD, YYYY)`.
 
 **yt-dlp reality check (learned on the Cline rip, 2026-08-26).** Modern YouTube blocks yt-dlp's default path. The recipe that works for unlisted founder demos:
@@ -493,7 +495,7 @@ python3 ~/.claude/scripts/notion_files_property.py \
 
 **Link-only materials (Step 3E) are the explicit exception** — for Figma, Miro, Loom, Pitch.com, Canva, Notion.site etc., pass the external URL itself (e.g. `https://figma.com/deck/...`). These materials have no Drive counterpart; the external URL is the canonical artifact and MUST still be written to the property field — "no Drive URL" is not a reason to skip.
 
-Give each file a descriptive display name that matches the PDF filename (e.g., `Chief Rebel - Week 20 Investor Update.pdf`); for link-only materials, use the external URL and a label like `Bloom - Deck (Figma)`. Assemble all of them into the single `--batch-json` call above — one call per drop, not one per file — so the consolidated ping lists them together.
+Give each file a descriptive display name that matches the PDF filename, including its sent date (e.g., `Chief Rebel - Week 20 Investor Update 09.02.26.pdf`); for link-only materials, use the external URL and a dated label like `Bloom - Deck (Figma) 09.14.26`. Assemble all of them into the single `--batch-json` call above — one call per drop, not one per file — so the consolidated ping lists them together.
 
 Skip this step only if the batch call reports every item failed. In that case, note it in the summary and continue — the page body link is the interim record.
 

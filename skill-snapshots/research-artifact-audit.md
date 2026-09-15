@@ -242,9 +242,9 @@ if [ "$FAILED_BATCHES" != "0" ]; then
   # NOT clean, regardless of untraced: one or more draft batches produced zero
   # audits, so their claims went entirely UNAUDITED. `untraced` only counts
   # claims the judge actually saw — a failed batch is a silent coverage gap.
-  # Re-run the audit ONCE with a halved --draft-batch-size to shrink the
-  # offending batch under the output ceiling (see B.2.2). Do NOT publish.
-  echo "audit gate: BLOCKED — $FAILED_BATCHES draft batch(es) unaudited; re-run smaller (B.2.2)"
+  # The runner already tried to self-heal these (per-batch sub-split re-audit);
+  # a batch still failing here is irreducible. Do NOT re-run — surface and stop (B.2.2).
+  echo "audit gate: BLOCKED — $FAILED_BATCHES draft batch(es) irreducibly unaudited (B.2.2)"
 elif [ "$UNTRACED" = "0" ] || [ "$ITER_N" -ge "$MAX_ITER" ]; then
   # PUBLISH NOW — skip to Step C. Do not edit draft. Do not re-run audit.
   echo "audit gate: exit (untraced=$UNTRACED iter=$ITER_N)"
@@ -298,17 +298,26 @@ un-chunked STILL reports untraced > 0, those are real findings — proceed to B.
 Full procedure (exact re-run + `$AUDIT_JSON` reassignment) in
 `references/step-b-audit-iteration.md`; **read it now before proceeding.**
 
-### B.2.2 — Failed-batch re-run (MANDATORY when `_failed_draft_batches` is non-empty)
+### B.2.2 — Failed-batch handling (when `_failed_draft_batches` is non-empty)
 
 A non-empty `_failed_draft_batches` means one or more draft batches produced zero
-parseable audits, so their claims are UNAUDITED and the gate blocks publish
-regardless of `untraced`. Re-run ONCE with a halved `--draft-batch-size` to break
-the offending section into smaller batches. If it STILL reports
-`_failed_draft_batches`, do NOT publish clean — surface `⚠️ Audit incomplete:
-batches <list> unaudited — judge output overflow` in the Slack publish-summary
-and stop (treat like residual untraced after the iteration cap). Full procedure
-(exact re-run) in `references/step-b-audit-iteration.md`; **read it now before
-proceeding.**
+parseable audits (almost always output-token overflow on a claim-dense section), so
+their claims are UNAUDITED and the gate blocks publish regardless of `untraced`.
+
+**The runner now self-heals this.** As of 2026-09-14, `first_pass_audit.py`
+automatically re-splits each failed batch's own text into smaller sub-batches and
+re-audits ONLY that batch, stepping the sub-batch size down until it parses or hits
+an indivisible `## ` section — so you do NOT need to re-run the whole audit at a
+smaller `--draft-batch-size` (that old whole-grid second pass was the biggest runtime
+tax on dense drafts and is now redundant). A `_failed_draft_batches` that survives to
+the gate means the runner already exhausted sub-splitting — another whole-audit re-run
+will not help.
+
+So when `_failed_draft_batches` is still non-empty here: do NOT publish clean, do NOT
+re-run — surface `⚠ Audit incomplete: batches <list> unaudited — irreducible section
+overflowed the judge output cap` (plain `⚠`, not `⚠️`) in the Slack publish-summary and stop (treat like
+residual untraced after the iteration cap). Full context in
+`references/step-b-audit-iteration.md`.
 
 ### B.3 — Iteration loop (only when the gate says "continue")
 
@@ -396,9 +405,15 @@ After the loop terminates and Step C has run, the caller's publish summary
 - The final iteration count and the audit JSON output path.
 - Every remaining `untraced` claim (if any) with the judge's notes — so Tom
   can see what the drafter couldn't resolve.
-- Every normalized partial as a before → after diff (Step C output) so Tom
-  can spot-check the rewrite. Unnormalized partials should not exist in the
-  published draft — Step C is mandatory when `audit.summary.partial > 0`.
+- Every claim that was tightened to its source as a before → after diff (Step C
+  output) so Tom can spot-check the rewrite. (A `partial` verdict means the claim
+  over-reached what its cited source literally supports; Step C rewrites it down to
+  the source — a *complete* fix, not a partial one. Never describe these as
+  "partials" or "half-fixed" in an operator-facing summary — say "claims tightened
+  to source" or "over-reaching claims corrected to match sources." "partial" is
+  internal audit jargon and reads as sloppy work to a human.) Unresolved over-reach
+  should not exist in the published draft — Step C is mandatory when
+  `audit.summary.partial > 0`.
 - Every `external_research` claim whose judge confidence is below 0.9,
   flagged as `borderline — check manually`. (The judge emits a numeric
   0.0–1.0 `confidence` on external_research verdicts; sub-0.9 surfaces in
@@ -425,10 +440,11 @@ and the publish** — investigate the failure.
 ### Never use the "audit invocation failed" Slack escape hatch
 
 Tom explicitly rejected this pattern on 2026-05-15: publishing the draft with
-a `⚠️ Audit invocation failed on chunk N` line as a workaround when the audit
-hit exit 2 is **not acceptable**. The `⚠️` 4th line in the publish summary is
-reserved ONLY for the case where the audit RAN cleanly but finished with
-residual untraced/partial findings after the iteration cap.
+a `⚠ Audit invocation failed on chunk N` line as a workaround when the audit
+hit exit 2 is **not acceptable**. The `⚠` 4th line in the publish summary (plain
+state glyph, never the emoji `⚠️`) is reserved ONLY for the case where the audit
+RAN cleanly but finished with residual untraced/partial findings after the
+iteration cap.
 
 If the audit script itself failed to execute (exit 2: timeout, parse failure on
 all chunks, judge crash), the response is to fix the audit script or the judge

@@ -126,6 +126,14 @@ For each new item found, fetch its full content. Call notes and transcripts are 
 important — read them carefully for founder signal, new data points, and answers to previously
 open questions.
 
+**Click through links inside new materials (Tom, 2026-09-14).** Same rule as
+`first-pass-diligence` Step 1c: when a new material (email-body PDF, memo, deck, update)
+cites external URLs — market studies, industry reports, benchmark data, essays the founder
+flagged — fetch each one (WebFetch) and incorporate its contents into the Prior Assessment
+as first-class evidence, citing each with its URL in the footnotes. Don't just log the
+material and leave its links unread; the linked sources are usually the substance. Dead or
+paywalled links get flagged as gaps, never silently skipped.
+
 **CRITICAL — `include_transcript: true` is mandatory on every Notes-DB fetch in this step.**
 When fetching a linked note via `notion-fetch`, ALWAYS pass `include_transcript: true`. Without
 it, meeting notes return only the Notion AI summary block — and that summary compresses
