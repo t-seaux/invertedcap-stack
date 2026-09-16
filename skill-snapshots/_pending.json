@@ -1,7 +1,7 @@
 {
-  "skills": {},
-  "launchAgents": {
-    "evening-digest": "2026-09-14"
+  "skills": {
+    "add-missed-to-crm": "2026-09-16"
   },
+  "launchAgents": {},
   "webhookHandlers": {}
 }

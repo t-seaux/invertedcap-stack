@@ -1,5 +1,22 @@
 # Changelog
 
+## [2026-09-16] (Week of 2026-09-15)
+
+**Added:** add-missed-to-crm (pending categorization — recommend Pipeline Management)
+**Removed:** None
+**Modified:**
+- deal-share-out — added `Lost` to terminal-status trigger set; added `page.created` path so rows created with a pass/missed/lost status already set (e.g. from add-missed-to-crm) also trigger a deal-share draft; pass-note source resolution now falls back to Gmail sent search when Notes archive is absent
+- founder-outreach — updated draft dedup and duplicate-removal to use API-level Gmail operations, replacing a Chrome UI automation that failed silently; duplicate removal now verifies success and alerts if extras remain
+- intro-draft-agent — added headless runtime guidance for deleted-draft contract check; headless idempotency checks now work without MCP connectors
+- investor-update — added explicit positioned-insert transport for Formal-section ordering (REST children-PATCH with `after: ""`) and shared reference for mechanics; added note that ordering never requires internal API access
+- neg1-sourcing-listener — added `punt` as synonym for `track` command (snooze/watch/hold/later also accepted)
+- pass-note-drafter — updated dedup check to work in headless runtime; clarified EDIT_PATTERNS archival path (archive before deletion so single-occurrence patterns are weighed for canon promotion before aging out)
+- pipeline-agent — updated draft-gone check to use API-level Gmail search, replacing MCP-only call that was unavailable in headless runtime
+**Total skills:** 53 visible + 1 pending (add-missed-to-crm — needs categorization)
+**Functions:** No changes
+
+---
+
 ## [2026-09-15] (Week of 2026-09-15)
 
 **Added:** None

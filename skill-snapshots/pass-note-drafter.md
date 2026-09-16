@@ -120,7 +120,11 @@ This keeps the lookup targeted: you're only querying Gmail for companies you alr
 
 > This step is the only mechanism by which an Opportunity moves out of "Pass Note Pending" — the drafting steps below deliberately do not update Notion status, since Tom reviews and sends the draft himself.
 
-**Deduplication check:** For remaining entries, run `gmail_list_drafts` and check for an existing draft subject matching `[Company Name] - Inverted follow up`. If a draft already exists, skip drafting for that company and note it in the Signal summary as "draft already exists — review and send."
+**Deduplication check:** For remaining entries, run a `searchMail` query
+`in:draft subject:"[Company Name] - Inverted follow up"` via the gmail-webhook endpoint
+(`shared-references/gmail-label.md` — works in every runtime; `gmail_list_drafts` exists only
+where the Gmail MCP is connected). If a draft already exists, skip drafting for that company
+and note it in the Signal summary as "draft already exists — review and send."
 
 Proceed to draft for any remaining entries.
 
@@ -224,7 +228,7 @@ Before drafting, read the pass-note stylebook:
 
 - `~/.claude/skills/writing-style/pass-note/ANCHOR_EXAMPLES.md` — **read this FIRST and IN FULL, every run.** A small, curated set of Tom's gold-standard pass notes, each annotated with the specific dimensions to emulate (concision, clarity, the concern-with-an-off-ramp tonal move). When calibrating voice, structure, and tone, these anchors **outrank** the rolling `VOICE_EXAMPLES.md` and license compression of the canonical scaffold (e.g., a tighter feedback-framing line). Concision is a feature — emulate the *move*, then execute it fresh for the company at hand.
 - `~/.claude/skills/writing-style/pass-note/STYLE.md` — canonical voice + scaffold + anti-patterns. Read in full.
-- `~/.claude/skills/writing-style/pass-note/EDIT_PATTERNS.md` — two sections: **Style Canon** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted pass notes — apply as priors). Read both sections in full. (Re-introduce a recency/frequency cap on Recent Edits if the file ever grows large enough that drafts start coming out derivative or over-fit.)
+- `~/.claude/skills/writing-style/pass-note/EDIT_PATTERNS.md` — two sections: **Style Canon** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted pass notes — apply as priors). Read both sections in full. (If the file ever grows large enough that drafts come out derivative or over-fit, archive the oldest Recent Edits to `EDIT_PATTERNS_ARCHIVE.md` — never delete; before an entry is archived, its still-unpromoted patterns must be weighed for canon promotion so single-occurrence signal doesn't age out.)
 - `~/.claude/skills/writing-style/pass-note/VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth, but the curated `ANCHOR_EXAMPLES.md` above takes precedence when they disagree.
 - `~/.claude/skills/founder-taste/PILLARS.md` — the recurring **substantive arguments** Tom reuses when passing (as distinct from the voice patterns above). Read in full, then see the selection rule below.
 
@@ -287,7 +291,7 @@ Do NOT send the email — only create it as a draft for Tom to review. Do NOT up
 
 **After draft creation, write the Drive snapshot for `draft-feedback`.**
 
-`gmail_create_draft` returns an `r-XXXX` transaction ID — call `gmail_list_drafts` with `query: "to:{email}"` and grab the most recent entry's persistent hex `id` (e.g., `19da8bae7d10166e`) plus its `threadId`. Then write a JSON snapshot to:
+`gmail_create_draft` returns an `r-XXXX` transaction ID — run `searchMail` `in:draft to:{email}` via the gmail-webhook endpoint (`shared-references/gmail-label.md`; or `gmail_list_drafts` when the MCP is connected) and grab the most recent entry's persistent hex `messageId` (e.g., `19da8bae7d10166e`) plus its `threadId`. Then write a JSON snapshot to:
 
 ```
 ~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/_system/draft-snapshots/<hex_id>.json

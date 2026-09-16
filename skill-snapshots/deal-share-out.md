@@ -5,7 +5,8 @@ description: >-
   sends). Modes: (B1) Webhook — Tom reacts 👣 :foot: to a #decision-retros card; slack-retro-webhook
   enqueues via claude-job-queue, the [opp:] fingerprint resolves the Opp, close-loop reply posts
   in-thread. (B2) Webhook — AUTO on pass: notion-webhook fires when a non-(-1), non-FO Opp's
-  Status flips to Pass (Met) / Pass (DNM) / NR / Missed; the draft just lands in Drafts, silent.
+  Status flips to — or the row is created with — Pass (Met) / Pass (DNM) / NR / Missed / Lost;
+  the draft just lands in Drafts, silent.
   (C) Manual — Tom asks in conversation; an explicit ask overrides the -1/FO exclusion (that
   gates only the B2 auto-trigger). Recipients = the Distribution List (pilot: Primary
   deal-agent + investments@fika.vc) in Bcc, minus any member ANYONE at whose firm sourced the
@@ -50,8 +51,10 @@ sitting in his drafts folder for review — this skill never sends, and never wr
   `{skill: "deal-share-out", args: {mode: "webhook", channel_id, thread_ts, ...}}` via
   claude-job-queue. See the Mode B section at the bottom.
 - **Mode B2 — Webhook (auto on pass).** The `notion-webhook` Worker fires on any Opportunities
-  Status flip to `Pass (Met)` / `Pass (DNM)` / `NR / Missed` on a non-(-1), non-FO card
-  (deterministic gates in `notion-webhook/src/dispatch.ts`, deployed 2026-08-20), enqueuing
+  Status flip to `Pass (Met)` / `Pass (DNM)` / `NR / Missed` / `Lost` on a non-(-1), non-FO card,
+  AND on a row *created* with one of those statuses already set (`page.created` path — how
+  `add-missed-to-crm` rows are born; both added 2026-09-15). Deterministic gates in
+  `notion-webhook/src/dispatch.ts` (`DEAL_SHARE_STATUSES` / `dispatchDealShare`), enqueuing
   `{skill: "deal-share-out", args: {mode: "webhook-status", page_id, status, oppName}}`. The
   draft just appears in Tom's Drafts folder — no reaction needed. See Mode B section.
 - **Mode B3 — Webhook (text command).** Tom texts "kick [X] out to [firm]" (or any trigger
@@ -132,14 +135,28 @@ to an existing attachment draft: re-create-with-full-Bcc + `deleteDraft` the sta
 
 ---
 
+## Headless runtime — pinned tooling (webhook + text modes)
+
+Headless runs have NO claude.ai MCP connectors — Gmail/Notion/Slack MCP tools are absent.
+Never spend turns rediscovering this or hunting for binaries (the 2026-09-15 Ardent run burned
+~11 min on tool discovery + a Mail.app dedup improvisation):
+
+- **Notion reads**: `/usr/local/bin/ntn` (on PATH — never `find` for it). Page + properties:
+  `ntn pages get <page-id>`. Raw API: `ntn api <path>`.
+- **ALL Gmail ops** — dedup search, draft create/delete — go through the gmail-webhook `/exec`
+  endpoint: URL in `~/.claude/skills/shared-references/gmail-label.md`, secret at
+  `~/.claude/secrets/gmail-label-webhook.txt`, actions `searchMail` / `createDraft` /
+  `deleteDraft`. POST via Python `requests` with `allow_redirects=True` — never `curl -L`.
+- **Slack alert**: `~/.claude/skills/send-alert/send.sh`, unchanged.
+
 ## Performance — batch the independent reads
 
 The canonical flow has exactly one hard dependency chain: Opp fetch → recipients/fields →
 compose → create. Everything else is independent — run these in ONE parallel batch, not
 sequentially (2026-09-10; sequential runs were ~2× slower for no correctness gain):
 
-- The Step 5 dedup pair (`list_drafts` + sent search) needs only the company name — fire it
-  alongside the Step 1 `notion-fetch`, not after Steps 1–4.
+- The Step 5 dedup `searchMail` POST needs only the company name — fire it alongside the
+  Step 1 Opp fetch, not after Steps 1–4.
 - Drive metadata for materials-provenance vetting (multiple files → one batched turn).
 - Source-person / Funding-History relation fetches (independent of each other).
 
@@ -237,7 +254,7 @@ OUTSIDE research (web, ContactOut, memory); nothing qualifying → `N/A`.
 3. **No founder-authored content at all** (grapevine-sourced Opp, or source-only email) → normal
    case, not an error: drop the entire *Original Email* block per the stylebook and note
    "no founder email — <grapevine deal | source email only>" in the Step 6 confirmation.
-4. Apply the anonymity rules in `writing-style/deal-share-out/STYLE.md` exactly: drop the
+4. Apply the anonymity rules in `~/.claude/skills/writing-style/deal-share-out/STYLE.md` exactly: drop the
    salutation line, redact remaining Tom-identifying strings, un-escape Notion artifacts, change
    nothing else.
 
@@ -250,20 +267,25 @@ own section under Original Email (stylebook "Pass Note rules"):
 
 1. **Find it**: Notes DB entry titled `[Company] - Inverted follow up` with this Opp in its
    `Opportunity` relation (the pass-note-sent webhook archives every sent note there). Fallback:
-   Gmail sent search `subject:"[Company] - Inverted follow up" in:sent -subject:"Re:"`.
+   `searchMail` with query `in:sent subject:"[Company] - Inverted follow up" -subject:"Re:"`.
+   The Gmail fallback is a FULL source, not a hint — if the sent message exists, quote its body.
+   The Notes archive is a convenience copy; its absence is NEVER a reason to omit the section or
+   flag "archive not available" (2026-09-15 Redwagon: Tom flipped Status manually so the webhook
+   skipped the archive, the run found the sent note in Gmail but still omitted it, and the share
+   went out without the pass note).
 2. **Prepare it**: verbatim minus the stylebook's listed strips — `📧 View sent email` line,
    the `Best, Tom` close onward, line-wrap artifacts (reflow), and source-identifying references
    (redact with `[…]`, same as the Original Email treatment). Header carries the sent date:
    `Pass Note (<Month DD, YYYY>)`, from the Gmail sent message / Notes archive date.
-3. **Not found** (note never sent, or pre-dates the archive): omit the section and flag
-   "Pass (Met) but no pass note found" in the Step 6 confirmation.
+3. **Not found in EITHER source** (note never sent, or pre-dates the archive): omit the section
+   and flag "Pass (Met) but no pass note found" in the Step 6 confirmation.
 
 ---
 
 ## Step 5: Compose and create the draft
 
-Read `writing-style/deal-share-out/STYLE.md` and follow its subject line, scaffold, and rules
-exactly.
+Read `~/.claude/skills/writing-style/deal-share-out/STYLE.md` and follow its subject line,
+scaffold, and rules exactly.
 
 **Body composition is scripted — NEVER hand-write the scaffold HTML** (added 2026-08-21: the
 B2 headless run hand-built `<p>`-tag HTML that rendered double-spaced in Mail, dropped the
@@ -315,10 +337,17 @@ Materials line only ever names things the recipient can open from the email itse
 deck nor a memo can be attached → `Materials: N/A`.
 
 **Dedup first** — `create_draft` is not idempotent and deleting drafts is unreliable
-([[feedback_founder_outreach_draft_dedup]]): check BOTH `list_drafts` with
-`query: subject:"Deal Share: <Company>"` AND sent mail
-(`search_threads: in:sent subject:"Deal Share: <Company>"`). Draft exists → don't create
-another (surface it in Mode C; exit silently in webhook modes). Already SENT → the share
+([[feedback_founder_outreach_draft_dedup]]): ONE `searchMail` POST to the gmail-webhook
+`/exec` endpoint (same URL + secret as `createDraft`; works in EVERY mode including headless
+— added v246 after the Ardent run spent ~8 min improvising dedup via Mail.app):
+
+```json
+{ "action": "searchMail", "secret": "<secret>",
+  "query": "subject:\"Deal Share: <Company>\" (in:draft OR in:sent)" }
+```
+
+Any result with `"draft": true` → a draft exists → don't create another (surface it in
+Mode C; exit silently in webhook modes). Any non-draft result → already SENT → the share
 happened; exit silently in webhook modes (re-fires after a status correction land here),
 surface in Mode C so Tom can decide whether a re-share is really intended.
 
@@ -361,7 +390,7 @@ base64 through the MCP `attachments` param (bytes transit the model's token stre
 2. Files > 25MB combined (common for DocSend-captured decks — the Clara pair measured
    67MB / 78MB): attach what fits, render the rest as direct Drive-link anchors in the
    Materials line (confirm link-sharing first).
-3. POST to the `/exec` URL in `shared-references/gmail-label.md`, secret from
+3. POST to the `/exec` URL in `~/.claude/skills/shared-references/gmail-label.md`, secret from
    `~/.claude/secrets/gmail-label-webhook.txt` (Python `requests`, `allow_redirects=True` —
    never `curl -L`):
 
@@ -420,6 +449,15 @@ sends ONE consistent alert itself, in all modes:
 
 This fires in Mode C, B1, and B2. Mode B1 STILL posts its `#decision-retros` close-loop reply in
 addition (that answers the 👣 reaction; the #claude-alerts ping is the standard draft notice).
+
+**Ad-hoc deal-share drafts follow the same convention.** Any draft created outside the main flow
+but belonging to a deal share — a follow-up in the share thread (e.g. a pass-note addendum), a
+correction, a re-send — gets the SAME treatment: mute the generic hook first
+(`draft_alert_mute.sh on --label deal-share-out`), then send the ✍️ `Deal Share: <Company>` alert
+above with the state line qualified (e.g. `✓ Drafted — follow-up: pass note addendum, in share
+thread`). Never let such a draft fall through to the generic `Email Draft:` hook ping (2026-09-15
+Redwagon: the pass-note follow-up surfaced as "Email Draft … To: (recipient unknown)" because the
+recipients ride Bcc and the ad-hoc path had no convention).
 
 ---
 

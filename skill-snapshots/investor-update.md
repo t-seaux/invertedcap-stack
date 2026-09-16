@@ -456,7 +456,7 @@ The Company Updates DB (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`) hol
 
 For non-email origins (iMessage / manual uploads), fall back to checking the row body for the same 📄 PDF filename link.
 
-**Step 4d — Insert the dated Formal section at the TOP of the body.** Formal text always leads the row — insert this section above everything (older formal sections and all call sections). Formal sections order newest-first among themselves; call sections live below the formal zone. Section shape:
+**Step 4d — Insert the dated Formal section at the TOP of the body.** Formal text always leads the row — insert this section above everything (older formal sections and all call sections). Transport: REST children-PATCH with `after: ""` (see "Positioned inserts – transport mechanics" in the shared reference — public API only, never report ordering as blocked). Formal sections order newest-first among themselves; call sections live below the formal zone. Section shape:
 
 ```
 ### {Mon DD} – Formal Update ([Email](https://mail.google.com/mail/u/0/#inbox/{message_id}))
@@ -604,7 +604,7 @@ pages: [{
 }]
 ```
 
-**Row exists (upsert):** use `notion-update-page` to (a) insert the Formal section into the body at its date position, (b) merge properties — Update Type array-union, Period array-union, Update Date bump-if-newer, Source Email set-if-newest-formal, Summary/Traction regenerated per the rolling precedence rules (shared reference). Never drop existing Update Type values, Period values, or body sections.
+**Row exists (upsert):** (a) insert the Formal section at the top of the body via REST `PATCH /v1/blocks/{page_id}/children` with `after: ""` — hand-built block JSON, NOT `notion-update-page` `insert_content` — then verify placement, per "Positioned inserts – transport mechanics" in `~/.claude/skills/shared-references/company-updates-db.md` (ordering never requires internal API access; never report it blocked), (b) merge properties via `notion-update-page` — Update Type array-union, Period array-union, Update Date bump-if-newer, Source Email set-if-newest-formal, Summary/Traction regenerated per the rolling precedence rules (shared reference). Never drop existing Update Type values, Period values, or body sections.
 
 The dual relation automatically links the row back to the Opportunity — the `🗄️ Investor Updates` field on the Opportunity page shows it.
 

@@ -146,7 +146,7 @@ you *answer* date/schedule questions.
 
 **Rules for adds:**
 1. **Dedup first, always** — `list_events` over the day; same date + overlapping time + equivalent title (judge semantically) → skip, report as existing. BFS school feed pre-populates milestones.
-2. **Times** — America/New_York; bare hour: soccer/sports = PM; default duration 1h.
+2. **Times** — America/New_York; bare hour: soccer/sports = PM; default duration 1h. **"Full day"/"all day" = `allDay: true`, never a timed range standing in for it** (Tom 2026-09-15).
 3. **Title prefixes (personal cal)** — `TS` = Tom solo · `EK` = Elsie solo · kid's name (`Andy Soccer`, `Benny Music Class`) = kid activity · no prefix = family/joint. School-feed style: `BFS: <event>`.
 4. **Busy/Free** — one test: does it occupy *Tom*? Tom-solo/joint/parent-required-school/family-OOO-trips → BUSY. Kid activities, EK events, informational all-day markers → FREE. Unsure → FREE.
 5. Confirm which calendar + time + availability in the reply.

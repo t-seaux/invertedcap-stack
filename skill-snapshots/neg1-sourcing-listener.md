@@ -83,7 +83,7 @@ Parsed from Tom's thread reply on a candidate card (case-insensitive, first toke
 |---|---|---|
 | `draft [<why>]` | **`add`**, **`load`** — Tom's own words for the affirmative, see notes below; plus ANY affirmative-pursuit word: yes, pursue, go, reach out, let's do it, send it, in, 👍 as text — the class is open, not a fixed list | Draft + CRM birth (v2 block above); optional `<why>` = positive taste signal, logged like pass reasons |
 | `pass <why>` | no, skip | Status → `Passed` + ledger row + `<why>` logged as retro |
-| `track <dur>` | snooze, watch, hold, later | Set `Re-surface` date (default 3mo — one quarter; accept `3mo`/`6mo`/`12mo`/`1y`) |
+| `track <dur>` | snooze, watch, hold, later, **punt** | Set `Re-surface` date (default 3mo — one quarter; accept `3mo`/`6mo`/`12mo`/`1y`) |
 | `more` | details, breakdown | (Courtesy verb, not shown on the card footer) Post full Eval Summary + Signals line into the thread |
 
 **`load` is also a full alias of `draft` (Tom, 2026-08-11): "(also load should be an alias btw)"** — runs the complete draft branch identically to `add` and `draft`.

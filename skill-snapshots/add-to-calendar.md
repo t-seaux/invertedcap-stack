@@ -59,6 +59,11 @@ what's there:
   the workday leans AM; a dinner/social event leans PM). State the assumption in the
   confirmation so Tom can correct.
 - **All-day event**: `allDay: true`, `startTime` = the date, `endTime` = next day.
+- **"Full day" / "all day" is a literal event-type instruction, not a duration hint**
+  (Tom 2026-09-15). When Tom says "add a full day block/event for X" or "all day on X",
+  create it with `allDay: true` — never a timed range (e.g. 9am–5pm) standing in for the
+  whole day. The phrase names the event TYPE Tom wants, the same way "timed" or a clock
+  time would.
 - **No date named → TODAY, all-day** (Tom 2026-09-03). When Tom asks to add something
   without naming a day or time, it goes on today as an all-day event — never assume
   tomorrow. (Don't confuse this with the proactive-reminder flow, where a to-do spotted

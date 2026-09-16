@@ -206,7 +206,7 @@ Tags should be short: `format-tweak`, `denylist-edit`, `notion-update`, `memory-
   | Reactions on Tom's reply | Meaning | Do |
   |---|---|---|
   | 🏁 present (or legacy ✅ added by a pre-2026-08-24 run) | a prior run completed | exit 0 with an audit note |
-  | 👀 present, no 🏁/✅ | **a prior run started and died mid-branch** | side effects may be partially applied — verify before acting (for NEW DEAL: `list_drafts` on the referrer's thread and reuse any existing draft instead of creating a second), finish only the remainder, and say so in the close-loop |
+  | 👀 present, no 🏁/✅ | **a prior run started and died mid-branch** | side effects may be partially applied — verify before acting (for NEW DEAL: check for an existing draft via `searchMail` `in:draft to:<referrer>` — gmail-webhook endpoint, `shared-references/gmail-label.md`, works headless — and reuse it instead of creating a second), finish only the remainder, and say so in the close-loop |
   | neither | fresh | proceed normally |
 
   Step 0 already writes 👀 **before any work**, so the tombstone has existed all along — nothing ever read it. Add 🏁 (`checkered_flag`) when Step 4's close-loop is posted, so the two reactions form a claim/complete pair. **NEVER react ✅/✔️/☑️/👍 as a tombstone** — those are in the Worker's CONFIRM_REACTIONS set (they mean "Tom confirmed"), and a listener-added one on a bot alert would enqueue a phantom confirm job. 🏁 was chosen precisely because it's disjoint from that set (tombstone moved off ✅ on 2026-08-24 when the ✅-family became confirm triggers).
