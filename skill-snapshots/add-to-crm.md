@@ -30,7 +30,7 @@ This skill has three entry points:
    ```
 
    In webhook mode:
-   - **Skip Step 1's source-type discrimination.** Use `mcp__claude_ai_Gmail__get_thread` with `threadId` to fetch the email (needed for the dedup signal harvesting in Protected Status Guard, which walks inner forwarded headers).
+   - **Skip Step 1's source-type discrimination.** Fetch the email via the **headless Gmail path** — `cd ~/code/gmail-webhook && python3 admin_run.py _readThread <threadId>` (returns per-message `from/to/cc/date/labels/body` in thread order; needed for the dedup signal harvesting in Protected Status Guard, which walks inner forwarded headers). The claude.ai Gmail MCP connectors do NOT attach to this headless run — **do not** fall back to the Apple Mail `Envelope Index` sqlite store, Chrome, or OAuth. Use `mcp__claude_ai_Gmail__get_thread` only in an interactive run where the MCP is actually present.
    - **Use `classifierHints` as starting points** for Step 1's extraction. Enrichment (Step 2+) may override.
    - **Honor `statusDirective` verbatim** — do not let Step 5 Status inference flip it.
    - **Honor `sourceDirective` verbatim** — if `"Direct"`, use the canonical Direct People DB page; if `{email, name}`, resolve against People DB and populate `Source(s)`. Do NOT auto-create a People row if the referrer isn't found (per Tom's standing rule — surface the gap in the Slack alert instead).
@@ -49,7 +49,7 @@ This skill has three entry points:
    ```
 
    In explicit-command mode, treat this exactly like **manual mode** content — run Step 1's normal source-type discrimination and every downstream inference (Status, Source, Stage) exactly as if Tom had pasted this material into a live chat and said "add to crm":
-   - `sourceShape: "forwarded-email"` → treat `sourceText` as the "Forwarded email" input. Still call `mcp__claude_ai_Gmail__get_thread` with `threadId` to read the full thread (later thread progression, dedup signal harvesting) — same reason webhook mode does this.
+   - `sourceShape: "forwarded-email"` → treat `sourceText` as the "Forwarded email" input. Still read the full thread (later thread progression, dedup signal harvesting) — same reason webhook mode does this — via the **headless Gmail path** `cd ~/code/gmail-webhook && python3 admin_run.py _readThread <threadId>` (NOT the Gmail MCP, which is absent headless; never spelunk the local Mail store as a fallback). Reserve `mcp__claude_ai_Gmail__get_thread` for interactive runs only.
    - `sourceShape: "screenshot"` → `Read` each path in `screenshotFilePaths` (multimodal) and run Step 1's "Screenshot" extraction. Any non-empty `sourceText` is Tom's accompanying context, not the primary source.
    - `sourceShape: "pasted-text"` → treat `sourceText` as Step 1's "Pasted text" input.
    - **Skip Step 4's "Present Summary"** (no human watching), same as webhook mode.
@@ -319,7 +319,17 @@ Look for the founder's contact email using the following priority order. Stop as
    - **LinkedIn URL lookup** (preferred): Use `contactout_enrich_person` with the founder's LinkedIn URL. Set `include_work_email=true` and `include_personal_email=true`.
    - **Name + company fallback**: If the LinkedIn lookup returns no email, try `contactout_enrich_person` with `full_name` + `company` array.
 
-3. **Domain inference fallback (last resort):** If ContactOut also returns nothing, infer email from the company domain if known (e.g., `vincent@pantainsure.com`). Flag inferred emails as unverified in the page body.
+3. **Domain inference fallback (last resort):** If ContactOut also returns nothing, infer email from the company domain if known (e.g., `vincent@pantainsure.com`). **Any inferred/unconfirmed email MUST be flagged** (Tom endorsed this on the Ripper entry, 2026-09-16 – "make it a thing"). Placement depends on whether the page has a 🏁 Founder callout:
+
+   - **Founder callout exists** (the usual case — an inferred email implies a known company/founder): the flag lives INSIDE the callout, appended to the founder's line after the LI parens — semicolon, then lowercase `c` (Tom, 2026-09-16):
+
+     ```
+     **Founder:** Full Name ([vanity](https://www.linkedin.com/in/vanity/)); ⚠️ contact email inferred from domain – unverified.
+     ```
+
+   - **No Founder callout** (no LI found anywhere): standalone line at the top of the page body, verbatim: `⚠️ Contact email inferred from domain – unverified.` (capital C when standalone). Same slot as the `⚠️ Incomplete` deck flag in schema.md's Special flags; sanctioned exception to the single-section body.
+
+   En dash, not em dash, in both forms. Remove the flag (just the clause, when inside the callout) if the email is later confirmed (founder replies from it, or a verified source surfaces it).
 
 For `-1` opportunities (pre-company / bare LinkedIn profiles), **prioritize personal email** (e.g. Gmail) over work email, since the person is not yet attached to a specific company from Tom's pipeline perspective.
 
@@ -395,6 +405,18 @@ See `references/schema.md` for the canonical body structure. The body has **exac
 ```
 
 **Header naming by source type:** `**Original Email**` for email. For other source types, swap the noun: `**Original DM**` (LinkedIn DM), `**Original Text**` (iMessage / SMS screenshot), `**Original Post**` (Twitter / Slack / LinkedIn post), `**Original LI Profile**` (bare LinkedIn URL with no other context).
+
+**Founder callout — MANDATORY whenever a founder LinkedIn URL appears anywhere in the source** (Tom's invocation text, a profile screenshot, the email body, a ContactOut result). Directly ABOVE the Original section, add a 🏁 callout (default background, no color attribute) with one line per founder:
+
+```
+<callout icon="🏁">
+	**Founder:** Full Name ([vanity](https://www.linkedin.com/in/vanity/))
+</callout>
+```
+
+(Exact format per Tom's hand-edit on Ripper, 2026-09-16: full name, then the bare LI vanity slug — `jimmyfong`, not `linkedin.com/in/jimmyfong` — hyperlinked inside parentheses. No dash. Callout, not a plain line, so Tom doesn't accidentally delete it when editing the body.)
+
+This is the ONLY exception to the one-section rule, and it exists because the founder's full name + LI have no other home on the card: there is no Opp property for them (Tom rejected adding one, 2026-09-16), and DNM founders don't get People rows (no-auto-create rule). Without this line the data dies at logging time and `deal-share-out` renders `LI: N/A` — which Tom treats as a defect (Ripper, 2026-09-16: he supplied `linkedin.com/in/jimmyfong/` plus a profile screenshot in the invocation itself and the card captured neither). Full name comes from the profile/screenshot, not the DM greeting ("Jimmy" in the DM, "Jimmy Fong" on the profile — write the latter). URL-fidelity rule still applies: the URL must be literally present in the source or a tool result, never pattern-guessed.
 
 **Material links go in property fields, NOT the body.** The Diligence Materials Files property is the canonical home for deck/memo URLs. Do not add a body section duplicating those chips. DocSend materials must be converted to PDF and linked as the Drive URL — never link `docsend.com/view/...` URLs anywhere on the page.
 

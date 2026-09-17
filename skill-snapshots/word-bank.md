@@ -1,6 +1,6 @@
 ---
 name: word-bank
-description: Maintain Tom's personal word bank — words he's encountered but doesn't know precisely and wants to eventually use in his writing. Two modes. (C) Manual add — when Tom says "add to word bank [word]", "add [word] to word bank", "word bank: [word]", "wordbank [word]", or hands over one or more words with intent to save them, look up a concise definition + a natural example sentence and append the entry to word_bank.md. (A) Weekly refresher — when Tom says "word bank refresher", "refresh my word bank", "what words did I add", "word bank recap", or a scheduled weekly run fires, list the words added that week and show a grounded retrofit for each (a real sentence from Tom's investment memos + LP letters, rewritten to use the word). Corpus is Tom's final investment memos + LP letters, synced from Drive (source of truth) into a local cache by refresh_corpus.py — incremental (only new/changed docs downloaded), final-only (drafts + docs edited in the last 7 days excluded), citing the exact source doc. Zero-new-words cost gate. Scheduled weekly Sunday 9 PM ET to Slack #personal-alerts. The bank is a single local Markdown file (no Notion/DB). Always trigger inline — no confirmation needed to add.
+description: Maintain Tom's personal word bank — words he's encountered but doesn't know precisely and wants to eventually use in his writing. Two modes. (C) Manual add — when Tom says "add to word bank [word]", "add [word] to word bank", "word bank: [word]", "wordbank [word]", or hands over one or more words with intent to save them, look up a concise definition + a natural example sentence and append the entry to word_bank.md. (A) Weekly refresher — when Tom says "word bank refresher", "refresh my word bank", "what words did I add", "word bank recap", or a scheduled weekly run fires, list the words added that week and show a grounded retrofit for each (a real sentence from Tom's investment memos + LP letters, rewritten to use the word). Corpus is Tom's final investment memos + LP letters, synced from Drive (source of truth) into a local cache by refresh_corpus.py — incremental (only new/changed docs downloaded), final-only (drafts + docs edited in the last 7 days excluded), citing the exact source doc. Zero-new-words cost gate. Scheduled weekly Sunday 9 PM ET, texted to Tom's 1:1 thread via Sendblue. The bank is a single local Markdown file (no Notion/DB). Always trigger inline — no confirmation needed to add.
 ---
 
 # Word Bank
@@ -53,7 +53,7 @@ Trigger: "add to word bank [X]", "add [X] to word bank", "word bank: [X]", "word
 
 Trigger: "word bank refresher", "refresh my word bank", "what words did I add [this week]", "word bank recap", or (once wired) a scheduled **weekly** run.
 
-**Cadence:** weekly — scheduled **Sunday 9:00 PM ET** via LaunchAgent `com.tomseo.scheduled.word-bank-refresher` (wrapper at `~/.claude/scheduled-tasks/word-bank-refresher/`), delivered to Slack `#personal-alerts` via `send.sh --channel personal-alerts` (token route in `send-alert/channels.conf`; falls back to `#claude-alerts` if the route breaks). On-demand runs (Tom asks in chat) render inline instead of posting to Slack.
+**Cadence:** weekly — scheduled **Sunday 9:00 PM ET** via LaunchAgent `com.tomseo.scheduled.word-bank-refresher` (wrapper at `~/.claude/scheduled-tasks/word-bank-refresher/`), delivered as a **text** to Tom's 1:1 thread via Sendblue (`sms-listener/send_imessage.sh`; falls back to the `#claude-alerts` webhook if the send fails — moved off Slack `#personal-alerts` 2026-09-16, Tom: "move the word bank to text"). On-demand runs (Tom asks in chat) render inline instead of texting.
 
 The refresher isn't a plain re-list. It's a **grounded retrofit**: for each word added this week, find a real sentence from Tom's own polished writing — his **investment memos and LP letters** — and show how the word could have sharpened it (before → after, in his own voice).
 
@@ -89,6 +89,7 @@ The helper (SA-authenticated, no MCP) reconciles the cache against Drive every r
    ```
    - One block per in-window word: bolded `word (pos)` + short definition recap, then the grounded retrofit. **Always name the exact source doc** (from the manifest) in the `↳ You wrote (<doc name>): "…"` line — never a vague "a memo" or "an LP note". → line shows the rewrite with the word bold.
    - Close with a one-line note of any words carried forward (no fit).
+   - **Scheduled runs render this form factor PLAIN for the iMessage text lane** (alert-grammar text-lane rules: same headline rendered without markup, mandatory blank line after it, no bold anywhere) — the wrapper's SKILL.md at `~/.claude/scheduled-tasks/word-bank-refresher/` is authoritative for that rendering. The markdown form above is for on-demand in-chat runs.
 
 ### Cost guardrails (do not remove)
 

@@ -16,7 +16,7 @@ Invoked by `gmail-webhook/add-to-crm-detect.js` with:
 
 ## Step 1: Fetch and re-verify
 
-Call `mcp__claude_ai_Gmail__get_thread` with `threadId`. Locate the message whose `id` matches `messageId`. Grab the plain-text body, `From`, `Subject`, and the attachment list.
+**⛔ Headless Gmail path (this skill always runs under `claude --print`).** The claude.ai Gmail MCP connectors do **NOT** attach to headless queue jobs — do not spelunk the Apple Mail `Envelope Index` sqlite store, Chrome, OAuth creds, or repo files as a fallback. Fetch the thread via the deployed Apps Script endpoint: `cd ~/code/gmail-webhook && python3 admin_run.py _readThread <threadId>` → per-message `{messageId, subject, from, to, cc, date, labels, body}` (plaintext, 4000-char trim) in thread order. Locate the message whose `messageId` matches. (Only in an interactive run where the Gmail MCP is actually present may you use `mcp__claude_ai_Gmail__get_thread` instead.) Grab the plain-text body, `from`, and `subject`. Note: the headless read endpoints (`_readThread`/`_readMessageBody`) return body/headers only, **not** attachment metadata. For Step 2's attachment handling, rely on the body's own references to a deck/link; binary attachments are fetched downstream by `materials-handler` (its Gmail Attachment Saver Apps Script), not here — do not block or thrash trying to enumerate attachments from the headless read.
 
 **Re-verify the trigger before doing anything else** (the webhook gate already checked this, but re-confirm since a job can be retried against stale state):
 

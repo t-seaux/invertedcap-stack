@@ -48,9 +48,15 @@ When invoked with `{mode: "email", messageId, threadId, ...}`, Tom asked to capt
 
 This runs **fully unattended** — apply the guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md`: never ask, skip-and-log on missing data, always reach Slack with a result line. When Tom forwards several emails at once they arrive as separate jobs; the Step C2 dedup (`workspace_search` → create-or-update) is what guarantees repeated people yield **net-new rows only**, never duplicates.
 
+**⛔ Headless Gmail path — read this FIRST (Mode C always runs under `claude --print`).**
+The claude.ai Gmail MCP connectors (`get_message`/`get_thread`) do **NOT** attach to headless queue jobs. Do not go hunting for an alternative — **do NOT spelunk the Apple Mail `Envelope Index` sqlite store, Chrome scripting, OAuth creds, or repo files.** The 2026-09-16 Philipp Seifert run burned ~13 of its 20 minutes improvising trial-and-error `Envelope Index` queries and had to be killed. The scripted path below covers every Gmail read this skill needs; a healthy headless run is ~2-4 min:
+- **Single message:** `cd ~/code/gmail-webhook && python3 admin_run.py _readMessageBody <messageId>` → JSON `{messageId, subject, from, to, cc, date, body}` (plaintext body, 4000-char trim).
+- **Full thread (when a one-line forward hides the real content, or you need surrounding messages):** `cd ~/code/gmail-webhook && python3 admin_run.py _readThread <threadId>` → per-message `{from, to, cc, date, labels, body}` in thread order.
+Only in an **interactive** (non-headless) run where the Gmail MCP tools are actually present may you use `get_message`/`get_thread` instead.
+
 ### Step C1 — Read the message and identify who to add
 
-1. Fetch the message with the Gmail MCP (`get_message` by `messageId`; use `get_thread` on `threadId` if you need surrounding context — e.g. a one-line forward with the real content below). Read the From / To / Cc headers, the signature block, and the body (including any forwarded/quoted original).
+1. Fetch the message via the **headless Gmail path above** — `python3 ~/code/gmail-webhook/admin_run.py _readMessageBody <messageId>` (use `_readThread <threadId>` for surrounding context — e.g. a one-line forward with the real content below). Read the `from` / `to` / `cc` fields, the signature block, and the body (including any forwarded/quoted original). If both endpoints return an `error` field (e.g. message not found), skip-and-log per the unattended guard and post a Slack line — never fall back to scraping the local Mail store.
 2. **Determine the external counterparty/counterparties** — the person or people this email is *about*, whom Tom wants captured. This depends on how Tom used the alias:
    - **Tom replied/sent and BCC'd the alias** → the counterparties are the external **To/Cc recipients** (the people Tom is corresponding with).
    - **Tom forwarded a received email to the alias** → the counterparty is the **original sender** of the forwarded message (read it out of the forwarded `From:` line or the quoted header block), plus any other external people quoted on it.

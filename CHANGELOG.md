@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-09-17] (Week of 2026-09-15)
+
+**Added:** add-missed-to-crm (Pipeline Management — resolved from pending, now rendered)
+**Removed:** None
+**Modified:**
+- pipeline-agent — fixed neg1 draft-gone check to use deterministic draft-ID lookup, preventing false-passes when `in:draft` search missed live drafts; auto-pass now only fires on confirmed deletion
+- add-to-crm — added mandatory Founder callout (🏁) output when LinkedIn URL is present in source material; inferred email now flagged inline on the callout when unverified
+- add-to-contacts — added mandatory Founder callout (🏁) output when LinkedIn URL present; improved inferred-email flagging with placement rules for founder-callout and standalone contexts
+- add-to-crm-detect — added headless Gmail path guardrail; uses Apps Script endpoint instead of MCP connector for all headless runs
+**Total skills:** 54
+**Functions:** Pipeline Management +1 (add-missed-to-crm)
+
+---
+
 ## [2026-09-16] (Week of 2026-09-15)
 
 **Added:** add-missed-to-crm (pending categorization — recommend Pipeline Management)
