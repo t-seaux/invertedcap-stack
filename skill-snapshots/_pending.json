@@ -1,8 +1,18 @@
 {
   "skills": {
-    "dash-lp-update-email": "2026-09-17",
-    "nysif-payroll-report": "2026-09-17"
+    "dash-deal-detect": "2026-09-18",
+    "log-document-to-notes": "2026-09-18",
+    "log-thread-to-notes": "2026-09-18"
   },
   "launchAgents": {},
-  "webhookHandlers": {}
+  "webhookHandlers": {
+    "calendar-scheduled-detect": "2026-09-18",
+    "feedback-ask-intent": "2026-09-18",
+    "feedback-founder-backchannel": "2026-09-18",
+    "intro-offer-intent": "2026-09-18",
+    "label-endpoint": "2026-09-18",
+    "draft-endpoint": "2026-09-18",
+    "outbound-intent": "2026-09-18",
+    "portfolio-contact-audit": "2026-09-18"
+  }
 }

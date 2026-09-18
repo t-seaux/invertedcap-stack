@@ -1,6 +1,6 @@
 ---
 name: log-transcript-to-notion
-description: Rip a YouTube (or other video) transcript and save it as a new entry in the Notion Notes database. Trigger whenever the user says "log this transcript", "save this transcript to Notion", "add this transcript to Notion", "log the transcript", "transcript to Notion", or provides a YouTube URL with any intent to archive or log it. Also trigger when the user has already ripped a transcript in the current conversation and asks to save or log it. Always trigger inline — no confirmation needed before acting.
+description: Rip a YouTube (or other video) transcript and save it as a new entry in the Notion Notes database. Trigger whenever the user says "log this transcript", "save this transcript to Notion", "add this transcript to Notion", "log the transcript", "transcript to Notion", or provides a YouTube/video/interview/podcast URL with any intent to archive or log it. Also trigger when the user has already ripped a transcript in the current conversation and asks to save or log it. CONTEXT-DEPENDENT "log": a bare "log" whose object is a video/interview URL routes HERE (log the transcript); if the object is instead a text-thread screenshot/pasted chat → log-thread-to-notes; a letter/report/memo link or PDF → log-document-to-notes (investor-firm letter → log-investor-letter-to-notion); if nothing is attached and we've just been conversing → add-conversation-to-notion. Always trigger inline — no confirmation needed before acting.
 ---
 
 # Log Transcript to Notion (Notes Database)

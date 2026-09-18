@@ -1,5 +1,42 @@
 # Changelog
 
+## [2026-09-18] (Week of 2026-09-15)
+
+**Added:** log-document-to-notes, log-thread-to-notes, dash-deal-detect (pending categorization)
+**Removed:** None
+**Modified:**
+- add-conversation-to-notion -- added context-dependent routing to new sibling skills; bare "log" now routes to log-thread-to-notes (text screenshot), log-document-to-notes (doc/PDF), or log-transcript-to-notion (video) when an object is attached
+- add-to-crm -- added mandatory inline flag when contact email is inferred from domain rather than sourced; placement rules differ by whether a Founder callout is present
+- add-to-crm-detect -- added Dash lane: reads from local Apple Mail store and passes Fund field to the enqueued add-to-crm job; Inverted lane unchanged
+- dash-lp-update-email -- updated alert reference to new convention file name; behavior unchanged
+- deal-share-out -- updated alert reference to new convention file name; behavior unchanged
+- deal-text-scanner -- INTRO lane now explicitly covers the REVERSE arrow: opt-ins and declines to Tom's own portco-intro offers are handled inline; sender on Active-Portfolio intro roster forces INTRO lane load regardless of message content
+- diligence-agent -- updated alert reference to new convention file name; behavior unchanged
+- diligence-qa -- updated alert reference to new convention file name; behavior unchanged
+- draft-investment-memo -- updated alert reference to new convention file name; behavior unchanged
+- feedback-outreach-scanner -- updated alert reference to new convention file name; behavior unchanged
+- first-pass-diligence -- updated alert reference to new convention file name; behavior unchanged
+- founder-outreach -- updated alert reference to new convention file name; behavior unchanged
+- intro-draft-agent -- added text-lane variant: when opt-in arrives over iMessage (no Gmail opt-in thread), drafts using People row email directly; Gmail thread guards skipped; idempotency key prefixed with intro-draft-text-
+- intro-note-processor -- updated alert reference to new convention file name; behavior unchanged
+- intro-resolution-agent -- updated alert reference to new convention file name; behavior unchanged
+- log-investor-letter-to-notion -- tightened scope to external investment-firm letters (hedge fund / public-equity / VC / family-office); general reports/docs/white papers now routed to log-document-to-notes instead
+- log-transcript-to-notion -- added context-dependent routing carve-outs: text-thread screenshots route to log-thread-to-notes, letter/report/doc PDFs route to log-document-to-notes; bare "log" now disambiguates by object type
+- materials-handler -- added Dash follow-up variant: when a contact on an existing Dash Opp sends materials, dash-deal-detect enqueues this skill with mail_source="dash-local"; reads via dash_mail.py instead of Gmail API
+- neg1-enricher -- updated exception reference to new convention file name; behavior unchanged
+- pro-forma-round -- added prior-round pro formas from Deal Docs as a sanity-check source; reads executed cap table spreadsheets to verify SOI ownership and make tranche splits exact
+- question-bank -- updated alert reference to new convention file name; behavior unchanged
+- send-alert -- renamed visual identity reference file from alert-grammar.md to alert-convention.md; behavior unchanged
+- skill-map-refresh -- added dash-lp-update-email to Portfolio Management canonical mapping; added nysif-payroll-report to Family hidden category
+- sms-listener -- added screenshot stitch feature: inbound image bursts are staged; "stitch" command combines them top-to-bottom with chrome-dedup into a single file saved to Downloads by default
+- update-diligence-priors -- updated alert reference to new convention file name; behavior unchanged
+- word-bank -- updated alert reference to new convention file name; behavior unchanged
+- writing-style -- added no-bold-hyperlink rule: link text in Gmail-bound drafts must never be bolded; surrounding prose may still be bold
+**Total skills:** 55
+**Functions:** Portfolio Management +1 (dash-lp-update-email, previously categorized but missing from canonical mapping)
+
+---
+
 ## [2026-09-17] (Week of 2026-09-15)
 
 **Added:** add-missed-to-crm (Pipeline Management — resolved from pending, now rendered)

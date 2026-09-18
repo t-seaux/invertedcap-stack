@@ -111,7 +111,7 @@ EOF
 
 ## Step 7 — Slack draft alert
 
-After the draft is saved and verified, post ONE alert via `~/.claude/skills/send-alert/send.sh` (default #claude-alerts channel), shaped per `send-alert/references/alert-grammar.md`:
+After the draft is saved and verified, post ONE alert via `~/.claude/skills/send-alert/send.sh` (default #claude-alerts channel), shaped per `send-alert/references/alert-convention.md`:
 
 ```
 ✍️ <u>**Email Draft: Dash LP Update <Mon YYYY>**</u>

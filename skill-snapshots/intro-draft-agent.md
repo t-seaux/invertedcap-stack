@@ -6,7 +6,9 @@ description: >-
   yet sent, creates a Gmail draft. (2) Manual — "draft the intro for X", "X opted in, draft the email", "prepare
   the intro email for X", "X is interested — draft it". (3) Targeted/webhook — invoked with {messageId,
   personId, oppId, threadId, senderEmail} by intro-resolution-agent on an opt-in reply; drafts directly for that
-  person+opp, no inbox scan, via claude-job-queue. Trigger phrases: "draft intro", "draft the email", "prepare
+  person+opp, no inbox scan, via claude-job-queue. Text-lane variant of (3): invoked with {personId, oppId,
+  channel:"text", optInText, senderHandle} by deal-text-scanner when the opt-in arrived over iMessage — same
+  targeted draft, Gmail-thread guards skipped (no opt-in thread exists). Trigger phrases: "draft intro", "draft the email", "prepare
   intro", "write the intro", "opted in draft", "create intro email", "draft double opt in", "queue the intro".
 ---
 
@@ -197,6 +199,11 @@ When invoked with `personId` + `oppId` args (Pattern 3), **skip Step 1 (roster b
 5. **Report** a one-line summary: `intro-draft (targeted): <person> → <founder(s)> (<company>) — draft created | skipped (<reason>)`; append `— handoff → <colleague>` when a hand-off was applied. No Slack alert of its own (consistent with the other modes).
 
 The founder-email / target-email edge cases in the **Edge Cases** section apply identically — if a required email is missing, do NOT create the draft; flag it.
+
+**Text-lane variant (`channel:"text"` in the args — enqueued by deal-text-scanner §5, opt-in arrived over iMessage, 2026-09-17).** Same targeted flow with three adjustments, because there is NO Gmail opt-in thread:
+- **Guards:** skip guard (1), the deleted-draft/`Intro Drafted` thread-label check, and skip the colleague hand-off scan (both are reads of a `threadId` that doesn't exist). Guards (2) already-sent and (3) already-present-draft still run and ARE the dedup — search on the person's email + the standard subject shape. A re-enqueue after Tom deletes the text-lane draft is therefore recreated on the next opt-in ONLY if the scanner's `.portco_optins` ledger missed it — the queue idempotency key (`intro-draft-text-<handle>-<oppid8>`) is the primary re-fire stop.
+- **Relation state:** the scanner moves the person Qualified → `☎️ Outreach` just before enqueueing, but don't hard-fail on eventual consistency — treat **Qualified-or-Outreach as a pass**; `✉️ Made` / `🚫 Declined` skip as usual (use the person's presence in Made with `--message-id "imsg-<ledger rowid>"` for the split-state heal if needed).
+- **Recipient email:** the opt-in carries no sender email. Use the People row's `Email`; if empty, do NOT draft — report `skipped (no email on People row)` so the scanner's alert tells Tom to grab it in-thread.
 
 ### Step 1: Build Outreach Roster
 

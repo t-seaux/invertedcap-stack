@@ -126,6 +126,64 @@ tapback on a link card is easy to miss, and silence reads as failure — Tom re-
 seeds dupe jobs. If the work will exceed ~90s, send a one-line interim FIRST
 (`👀 On it — pulling the carousel, ~5 min`), then work. The minute-10 rule still stands.
 
+## Stitch screenshots into one image
+
+Sender texts a batch of scrolling screenshots (a chat, an article, a thread) and wants them
+combined top-to-bottom into ONE long image. Scripts live in `~/.claude/scripts/stitch/`.
+Available to Tom and Elsie (harmless, household-safe).
+
+**Each inbound image → stage it.** Any inbound message carrying image media, run in the same
+turn as the ack:
+```
+/opt/homebrew/bin/python3 ~/.claude/scripts/stitch/stitch_sms.py stage "<from>" <media_url> [<media_url>...]
+```
+Then, if the message has **no actionable directive** (a bare image, or a burst of them, with no
+"save this / add to X / stitch" instruction): tapback 👀 and **exit silently** — do NOT ❓ a
+bare image, and do NOT reply once per screenshot. A run of images is a batch; the directive that
+acts on them comes in its own message. (This does not change the existing *save-to-Drive* flow:
+a media job whose adjacent directive says "save this to [folder]" still saves to Drive as before
+— staging is a cheap parallel copy that only a "stitch" command consumes.)
+
+**"stitch" / "stitch these" / "stitch them together" / "combine these screenshots" → drive it.**
+Order does not matter (the command may arrive before or after the images).
+
+**Default → Downloads (Tom, 2026-09-17: "unless I specify, drop stitched files into downloads").**
+Unless the sender names a destination, run WITHOUT `--folder`:
+```
+/opt/homebrew/bin/python3 ~/.claude/scripts/stitch/stitch_sms.py deliver "<from>"
+```
+It settle-polls (~10–100s) until image arrivals stop, stitches in arrival order (auto-detecting
+and de-duplicating the status-bar/nav/input-bar chrome and the scroll overlap), saves into Tom's
+iCloud **Downloads** folder (syncs to his iPhone Files app), and prints `local<TAB>PATH<TAB>WxH<TAB>count`.
+
+**Only when the sender names a home → Drive + private link.** ("…into the EvenUp diligence folder",
+"save to the Rengo deal docs".) Resolve the folder id (diligence root
+`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d` → `createFolder` the company subfolder idempotently; Deal Docs
+root `1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`; see materials-handler for routing), then:
+```
+/opt/homebrew/bin/python3 ~/.claude/scripts/stitch/stitch_sms.py deliver "<from>" --folder <FOLDER_ID>
+```
+prints `drive<TAB>URL<TAB>WxH<TAB>count`. Exit 3 = fewer than 2 images staged (reply asking them to
+send the screenshots first).
+
+**Reply** — terse chat (Tom asked, the bot answers → conversational, NOT alert convention):
+- Default (Downloads): `Stitched your 5 shots — it's in your Downloads folder (Files app) 📁` (no link; it syncs to his phone).
+- Named Drive destination: the private link as a bare URL + trailing ` ↗` so it previews and stays private:
+```
+Stitched your 5 shots into EvenUp diligence 👇
+<drive_url> ↗
+```
+**Privacy:** the Downloads default is fully private (local/iCloud, never leaves Tom's devices). A
+Drive-destination image is delivered as a private, owner-only LINK, NOT inline — Sendblue can only
+send inline media from a credential-free public URL, which Tom declined. Never make a file public or
+shareable, and never paste a public/temporary URL.
+
+**"stitch and log" → chain into Notes.** If the sender says "stitch and log" (or stitches then "log
+it" / "log to notes" / "log thread"), after stitching run the `log-thread-to-notes` skill: because
+the note must link a clickable image, upload the stitched PNG to the relevant **Drive** folder (the
+thread's company diligence folder, not the Downloads default), then create the Notes row — giver-first
+title, Summary + verbatim `## Raw Thread` — linking that Drive file. Reply with the note link.
+
 ## Calendar fast path
 
 (Digest of `add-to-calendar` — the full skill is the source of truth; keep in sync.)
@@ -489,6 +547,25 @@ all lookups, deck-reading, and the Drive upload at proposal time). From it, imme
 2. Chip `deck_drive_link` onto the Opp's Materials via `notion_files_property.py
    --no-alert` (skip if null).
 3. Reply (the ✅ format below). Target: Tom's 👍 → ✅ in well under a minute.
+
+**Dash-lane branch (staged `mail_source == "dash-local"`, from `dash-deal-detect`).** When the
+staged file carries `mail_source: "dash-local"`, `rowid`, and `fund` (a Dash-inbox deal, not an
+iMessage one), do THREE extra things — everything else in step 1 is identical:
+- **Set the new Opp's `Fund` select to the staged `fund`** (e.g. `Dash 2️⃣`). This is the one field
+  that must NOT be inferred or left at default — Dash rows are mis-filed without it. (iMessage
+  proposals have no `fund` and keep the CRM's default — do not touch Fund for those.)
+- **Any fallback fetch uses the Dash mail source, never the Gmail API.** If the staged file is
+  missing and you must fall back to the full pipeline, run `add-to-crm` in its **Dash lane**
+  (`{mail_source:"dash-local", rowid, fund}`) — it fetches the email via
+  `~/.claude/scripts/dash_mail.py`. See `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
+- **After the row is created, post the Slack new-Opp alert** — Tom's explicit ask (2026-09-17):
+  "after the thumbs up and create, alert me in Slack re new Opp, just like inverted." Fire the
+  SAME `#claude-alerts` ping `add-to-crm` Step 8 emits for a webhook-created Opp (reuse that
+  format via `send-alert` — alert-convention-compliant already), in ADDITION to the ✅ text
+  reply below. The ✅ text confirms in-thread on the surface Tom 👍'd; the Slack ping mirrors the
+  Inverted email-deal alert. (This Slack ping fires ONLY for the Dash lane — an iMessage-sourced
+  deal stays text-only per the alerts-follow-the-surface rule.)
+
 Do NOT re-derive anything already in the staged file; do NOT run the full add-to-crm
 pipeline unless the staged file is missing (then fall back to executing
 `~/.claude/skills/add-to-crm/SKILL.md` with what the proposal captured). CRM conventions
@@ -601,15 +678,24 @@ Example:
 Keep it clean and plain — the emoji + the blank line do the visual work. (bold.py exists
 but is deprecated for messages; don't call it.)
 
-**Alert-shaped texts follow the MASTER alert grammar.** Any unattended notification texted
+**Alert-shaped texts follow the MASTER alert convention.** Any unattended notification texted
 to Tom (a job completion, a watcher/relay ping, a sweep finding — anything he didn't just
-ask for in-thread) renders per `send-alert/references/alert-grammar.md` → "Text lane":
+ask for in-thread) renders per `send-alert/references/alert-convention.md` → "Text lane":
 `<emoji> Headline: Subject` in Title Case, blank line, `Key: value · Key: value` meta pairs,
 `✓/⚠/✗` state line with ⚠ action-required first, links as `<url> ↗`. Conversational replies
 (Tom asked, you answer) and the functional confirm-loop formats (🆕 card + 👍 CTA, ✅/🚫/🎯,
 ❓) are exempt — they're chat and routing keys, not alerts.
 
 ## Reply channel — pick by job source
+
+**HARD RULE — transport.** `send_imessage.sh` is the ONLY send path, for every reply and
+every unattended text. NEVER use the imessages MCP `tool_send_message`, osascript, or any
+local Messages.app route: those send from Tom's own Apple ID to his own number, so the
+message lands in his SELF-thread ("Tom Seo", every bubble duplicated) instead of the Bot
+thread, and it bypasses the conversation ledger + audit log (2026-09-17 incident — Tom was
+answered in the wrong thread and the session wrongly asserted the self-thread was the wired
+lane). If `send_imessage.sh` fails, log the failure in the audit line — do NOT fall back to
+a local send.
 
 The args block's `source` (in the job-start line) decides HOW you send the reply:
 - **`source=sendblue`** (iMessage via Sendblue — the live blue-bubble path) → send directly.

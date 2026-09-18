@@ -132,6 +132,10 @@ tracking URL instead of the site. The fix, for every stylebook and every ad-hoc 
   as the alternative with bare-domain link text.
 - Links inside quoted/forwarded founder content follow the same rule — re-anchor them, don't leave
   bare URLs.
+- **Never bold a hyperlink** (Tom 2026-09-10, re-flagged 2026-09-17 on Tuor intro drafts): no
+  `<b><a>…</a></b>` anywhere — link text renders in Gmail's default link styling only. Where a
+  stylebook bolds a sentence containing a link (e.g. intro-outreach blurb first sentence), the
+  anchor text stays un-bold and only the surrounding prose is bolded.
 
 **Two documented exceptions — do not add a signature here:**
 - `deal-share-out` — Tom's hand-built template (2026-08-20, Sage Care) ends at the quoted

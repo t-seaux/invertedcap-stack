@@ -89,7 +89,7 @@ The helper (SA-authenticated, no MCP) reconciles the cache against Drive every r
    ```
    - One block per in-window word: bolded `word (pos)` + short definition recap, then the grounded retrofit. **Always name the exact source doc** (from the manifest) in the `↳ You wrote (<doc name>): "…"` line — never a vague "a memo" or "an LP note". → line shows the rewrite with the word bold.
    - Close with a one-line note of any words carried forward (no fit).
-   - **Scheduled runs render this form factor PLAIN for the iMessage text lane** (alert-grammar text-lane rules: same headline rendered without markup, mandatory blank line after it, no bold anywhere) — the wrapper's SKILL.md at `~/.claude/scheduled-tasks/word-bank-refresher/` is authoritative for that rendering. The markdown form above is for on-demand in-chat runs.
+   - **Scheduled runs render this form factor PLAIN for the iMessage text lane** (alert-convention text-lane rules: same headline rendered without markup, mandatory blank line after it, no bold anywhere) — the wrapper's SKILL.md at `~/.claude/scheduled-tasks/word-bank-refresher/` is authoritative for that rendering. The markdown form above is for on-demand in-chat runs.
 
 ### Cost guardrails (do not remove)
 

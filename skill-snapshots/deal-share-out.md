@@ -425,7 +425,7 @@ sends ONE consistent alert itself, in all modes:
 1. **Before** creating the draft, mute the generic hook so path (a) doesn't double-fire:
    `~/.claude/scripts/draft_alert_mute.sh on --label deal-share-out`
 2. **After** the draft lands, pipe a summary to `send-alert` (`send-alert/send.sh`). Follow the
-   house grammar (`send-alert/references/alert-grammar.md`) exactly — `✍️` domain emoji, Title-Case
+   house grammar (`send-alert/references/alert-convention.md`) exactly — `✍️` domain emoji, Title-Case
    `Headline: Subject` headline (Subject = the company alone, NO stage in the headline, NO date
    suffix — single event), a `**Key:** value · …` meta line (never a `→ … — in Drafts` prose
    line), a `✓`/`⚠` state line, and any action-required caveat led by `⚠` (never a prose blob):
@@ -519,7 +519,7 @@ On failure exit non-zero (lands in the queue's failed state).
    trips the generic draft hook, so SKIP the Step 5 mute/unmute steps entirely.
 4. **Alerts follow the surface (Tom's standing rule): a text-triggered share confirms by TEXT,
    not Slack.** Skip the Step 5 #claude-alerts alert. When the draft lands, text Tom the
-   master-grammar text rendering (`send-alert/references/alert-grammar.md` → "Text lane";
+   master-grammar text rendering (`send-alert/references/alert-convention.md` → "Text lane";
    `SENDBLUE_API_SECRET` is injected by the processor; body on stdin, NEVER a double-quoted
    argv — zsh eats `$<digits>`):
 

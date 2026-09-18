@@ -31,6 +31,24 @@ The processing logic (Steps 1–5) is shared across modes. Mode-specific deltas 
 }
 ```
 
+**Dash follow-up variant (`mail_source: "dash-local"`).** The Dash inbox has no Gmail webhook, so
+the `dash-deal-detect` follow-up lane enqueues this skill when an email from a contact on an
+EXISTING Dash Opp arrives with materials. Inputs are keyed to the local Apple Mail store instead
+of Gmail:
+
+```json
+{ "mail_source": "dash-local", "rowid": 202459,
+  "oppId": "<notion page id>", "oppName": "<company>", "fund": "Dash 2️⃣" }
+```
+
+On this variant: skip every Gmail-API step (Step 2 search, Step 2.5 label gate, 3A Attachment
+Saver, `admin_run.py`). Fetch the body via `dash_mail.py get <rowid>` and attachments via
+`dash_mail.py attachments <rowid> <dir>` (the 3A Dash branch), then Drive-upload + chip exactly as
+normal — property routing (Deal Docs vs Diligence Materials), naming, and the code-enforced alert
+are all shared. Idempotency uses the Dash `.processed` ledger below (no Gmail labels). Fund is
+already resolved (`fund`), so the Step 1.5 lookup is a no-op. See
+`/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
+
 The skill is bound to a specific message + Opp; do not search Gmail freshly (Step 2 is replaced by the inputs).
 
 **Idempotency:** per-message gate uses the `claude/materials-processed` Gmail label — see the canonical "Step 2.5: Per-message Idempotency Gate" below, which applies to all modes. For Mode B, the message set is every message in `threadId`; the trigger message is in the delta set by definition (the gate fired *because* of new content). If the delta set is empty (every message in the thread is already labeled), exit cleanly — no Notion writes, no Slack alert.
@@ -46,7 +64,7 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 
 **Slack alert — code-enforced by the write, NOT model-executed:**
 
-The consolidated `#claude-alerts` ping fires deterministically from inside `notion_files_property.py` whenever the `--batch-json` (or a non-`--no-alert` single `--url`) call lands ≥1 new chip on Diligence Materials / Deal Docs. This is the fix for the silent-append bug (Cline, 2026-08-25): the alert can no longer be skipped because it's a side effect of the write, not a step the model has to remember. Your only jobs are to (a) pass `--email-message-id` so the footer carries the `email` link, and (b) NOT compose or send any separate materials alert. The format the helper emits (for reference only — alert-grammar compliant: plain-subject headline, no bullet glyphs, links on the footer line):
+The consolidated `#claude-alerts` ping fires deterministically from inside `notion_files_property.py` whenever the `--batch-json` (or a non-`--no-alert` single `--url`) call lands ≥1 new chip on Diligence Materials / Deal Docs. This is the fix for the silent-append bug (Cline, 2026-08-25): the alert can no longer be skipped because it's a side effect of the write, not a step the model has to remember. Your only jobs are to (a) pass `--email-message-id` so the footer carries the `email` link, and (b) NOT compose or send any separate materials alert. The format the helper emits (for reference only — alert-convention compliant: plain-subject headline, no bullet glyphs, links on the footer line):
 
 ```
 🔍 <u>**Materials: {Opp Name}**</u>
@@ -59,8 +77,8 @@ The consolidated `#claude-alerts` ping fires deterministically from inside `noti
 **Alert rules:**
 
 - Write GFM only — `send-alert/send.sh` converts to Slack Block Kit. Do NOT hand-write Slack mrkdwn (`*bold*`, `<url|text>`); it ships as literal text and breaks link tap targets.
-- Header line is underlined + fully bolded with `<u>**...**</u>`, subject as plain text — NO links inside the headline (alert grammar: links live on the footer line). The footer is lowercase `[opp](notion-url) · [email](gmail-deep-link)`; the `· [email]` segment appears only when `--email-message-id` was passed.
-- Field rows carry no bullet glyphs (alert grammar: no `- ` / `•`). Each row's field name is bolded with `**...**`, followed by `:`, then a comma-separated list — no per-artifact lines. Single-line spacing throughout, no blank line after the header.
+- Header line is underlined + fully bolded with `<u>**...**</u>`, subject as plain text — NO links inside the headline (alert convention: links live on the footer line). The footer is lowercase `[opp](notion-url) · [email](gmail-deep-link)`; the `· [email]` segment appears only when `--email-message-id` was passed.
+- Field rows carry no bullet glyphs (alert convention: no `- ` / `•`). Each row's field name is bolded with `**...**`, followed by `:`, then a comma-separated list — no per-artifact lines. Single-line spacing throughout, no blank line after the header.
 - **Page Body items are plain text** (no links — the Opp link in the header already covers it).
 - **Page Body bullet reflects actual writes only** — list `Company Blurb` ONLY if the section was newly written on this run (not skipped due to existing section, not a no-op rewrite of identical content, not a precondition-fail per the Step 4 hard-precondition gate). If the section existed before and was untouched, omit the entire `Page Body:` bullet. Mis-reporting a no-op as a write is a bug, not a cosmetic issue — Tom uses these alerts to audit what changed.
 - **Diligence Materials and Deal Docs items are each individually linked** via `[label](url)`:
@@ -154,13 +172,49 @@ Extract from the opportunity page:
 - **Page ID** (for later update)
 - **Name** (title)
 - **Status** (for the Step 0 guard — abort if portfolio-set)
+- **Fund** (select — for the Step 1.5 fund-context / mail-source branch)
 - **Contact** (founder email addresses)
 - **🏁 Founder(s)** (founder names from the relation, for Gmail search)
 - **Existing page content** (to check for an existing Diligence Materials section)
 
 If the company is not found in Notion, inform the user and stop. If the Status fails the Step 0 guard, abort per the guard's rules.
 
+## Step 1.5: Resolve Fund Context (all modes)
+
+This skill is fund-aware — one pipeline, many funds, no mirrored copies. Read
+`/Users/tomseo/.claude/skills/shared-references/fund-context.md` for the full
+model. Resolve the Opp's fund → account context:
+
+```bash
+python3 ~/.claude/scripts/fund_context.py opp <opportunity_page_id>
+# -> {mail_source, gmail_account, drive_deal_docs_root, drive_diligence_root, alert_channel, fund_value, ...}
+```
+
+The **only** thing that branches on fund is **where mail comes from** (`mail_source`).
+Everything downstream — Drive upload, `notion_files_property.py` chip writes,
+naming, property routing, the code-enforced alert — is shared verbatim, using the
+`drive_deal_docs_root` / `drive_diligence_root` / `alert_channel` from the context.
+
+- `mail_source == "inverted-gmail"` (Inverted / SPV / Primary) → the existing
+  Gmail path: Step 2 Gmail search + Step 3A Gmail Attachment Saver + `admin_run.py`.
+- `mail_source == "dash-local"` (Dash 1️⃣ / Dash 2️⃣) → the **Dash local mail path**:
+  `tom@dashfund.co` has no Gmail API/Pub/Sub, so use `~/.claude/scripts/dash_mail.py`
+  against the local Apple Mail store (see the dash branch in Steps 2 & 3A below).
+- `mail_source == "manual"` (PA) → no inbound mail pipeline; process only material
+  Tom hands over directly.
+
+Use `drive_deal_docs_root` / `drive_diligence_root` from the context anywhere the
+Step 3 target-folder gate references a Drive root, instead of the hardcoded IDs.
+
 ## Step 2: Search Gmail for Materials
+
+> **Dash branch (`mail_source == "dash-local"`).** Skip the Gmail MCP queries
+> below — that account is not on the Gmail API. Instead find candidate messages
+> in the local store: `python3 ~/.claude/scripts/dash_mail.py list --from
+> <founder_local_part> --subject <company> --since <YYYY-MM-DD> --limit 15`
+> (returns `{rowid, date, folder, from, subject}` JSON). Confirm relevance with
+> `dash_mail.py get <rowid>`. The same Include/Exclude and delivery/destination
+> classification below applies. Then use the **3A Dash branch** for attachments.
 
 Run targeted Gmail searches combining the company name, founder names, and contact emails with attachment and link signals. Use these queries (adjust based on available founder info):
 
@@ -184,7 +238,8 @@ Classify each relevant email's materials into **delivery categories** (how to fe
 - **Data room link** (DocSend `/view/s/` or similar multi-doc container)
 - **Papermark deck** (URL matching `papermark.com/view/` or `*.papermark.io/view/`) — email-gated image deck. **Convert to a Drive PDF** via the pure-HTTP extractor (Step 3G), NOT linked as-is. Works headless — no GUI/webhook fallback needed anymore (unless the link is password/agreement-gated).
 - **Video link** (YouTube `youtu.be`/`watch`, Loom, Vimeo — demo walkthroughs, founder videos) — **Step 3H**. Linked verbatim as a chip AND ripped to a transcript note tagged to the Opp. Do not treat a video as a plain link-only material — it gets the extra transcript step.
-- **Link-only / non-convertible** (Figma, Miro, Pitch.com, Canva, Notion.site, **Brieflink (`brieflink.com`)**, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
+- **Notion-site memo** (URL matching `*.notion.site/...`) — founder memo published as a public Notion page. **Step 3I**: capture to a Drive PDF with every toggle expanded AND keep the live link — dual chips, the PDF does not supersede the link (Tom, 2026-09-17, Vygor).
+- **Link-only / non-convertible** (Figma, Miro, Pitch.com, Canva, **Brieflink (`brieflink.com`)**, etc.) — interactive/hosted materials that cannot be cleanly downloaded or converted to PDF. These get linked as-is; the external URL is the canonical artifact.
   - **Pass the URL to `notion_files_property.py` byte-for-byte as it arrived — copy-paste from the source, never retype or reconstruct it.** Do NOT normalize, shorten, or convert between equivalent forms (e.g. `youtu.be/<id>` → `youtube.com/watch?v=<id>`, stripping `?feature=shared`, canonicalizing a Figma/Loom path). These rewrites are where video/share IDs get silently truncated and the link dies — Cline's demo was filed as `watch?v=9wKiITaLA` when the founder sent `youtu.be/069wKiITaLA`, dropping two chars (Tom, 2026-08-26). The founder's original string is the only safe input; if you can't copy it verbatim, don't file it.
 
 **Destination category** (drives Step 4 chip routing — see "Property Routing" below):
@@ -262,6 +317,22 @@ The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `g
 Get-or-create the company folder idempotently via the Drive Upload Apps Script `createFolder` with the routing-appropriate `parentId` from the table. A mixed email (deck + term sheet) resolves the gate **per attachment**, not per email. Wherever a step below says "the target folder," it means the folder this gate selected.
 
 ### 3A: Gmail Attachments (Apps Script)
+
+> **Dash branch (`mail_source == "dash-local"`).** The Gmail Attachment Saver
+> Apps Script is scoped to `tom@invertedcap.com` and CANNOT reach the Dash
+> mailbox. Extract attachments from the local Apple Mail store instead:
+> `python3 ~/.claude/scripts/dash_mail.py attachments <rowid> <staging_dir>`
+> → JSON manifest `[{filename, path, bytes, mimetype}]`. Then upload each file
+> from `path` to the routing-appropriate target folder via the **Drive Upload
+> Apps Script** (`createFolder`→`upload`, same as 3B–3D — the Drive side is
+> shared, only the fetch differs). Apply the same convention rename (principle
+> 10) and Deal-Docs vs Diligence routing. For body-delivered materials (wire
+> instructions, inline memos), use `dash_mail.py body-pdf <rowid> <outpath>
+> --company <Company>` — a faithful render of the email as-received (this is the
+> Dash equivalent of Step 3D; never transcribe a Deal Docs artifact). **If the
+> manifest is empty or a file shows `error: unreadable_or_not_downloaded`, Mail
+> hasn't synced that attachment yet — surface it, don't file an empty artifact.**
+> Skip the rest of 3A (it's Gmail-API specific).
 
 Use the Gmail Attachment Saver Apps Script to save attachments directly to the target folder on Google Drive. No Chrome required.
 
@@ -346,7 +417,7 @@ Use this path when the email *body itself* is the material. Two entry routes: (a
 4. Name the PDF `[Company Name] - [Descriptive Label] MM.DD.YY.pdf` (date = the email's sent date, per principle 10). For investor updates, derive the label from the subject (e.g. "Week 20 Investor Update"). Don't include emojis or special punctuation in the filename.
 5. Upload to the target folder (Step 3 gate — investor updates/inline memos are Diligence Materials → `Diligence/[Company]/`) via the Drive Upload Apps Script (same `createFolder` → `upload` pattern). Use the returned `fileId` / `url` for Notion linking.
 
-### 3E: Link-only / Non-convertible Materials (Figma, Miro, Loom, Pitch.com, Canva, Notion.site, Brieflink, etc.)
+### 3E: Link-only / Non-convertible Materials (Figma, Miro, Loom, Pitch.com, Canva, Brieflink, etc. — notion.site moved to 3I)
 
 Use this path for interactive/hosted materials that can't be cleanly downloaded or PDF-rendered. Skip Drive entirely — the external URL itself is the canonical artifact and goes directly into both Notion locations (page body bullet AND Diligence Materials property field).
 
@@ -407,6 +478,21 @@ Any YouTube (`youtube.com/watch`, `youtu.be/…`), Loom, Vimeo, or other hosted-
 - If captions genuinely don't exist (the metadata shows no manual subs and `has no automatic captions`), file the chip per (1), note `⚠️ no captions available — transcript not logged` in the Step 5 summary, and move on. Do not block the chip write on the transcript.
 
 Both outputs are independent — a failed transcript rip never blocks the chip, and vice versa.
+
+### 3I: Notion-Site Memos (`*.notion.site`) — capture a toggle-expanded PDF AND keep the live link
+
+Founder memos published as public Notion pages get BOTH artifacts (Tom, 2026-09-17 — Vygor):
+
+1. **Capture the PDF:**
+   ```bash
+   python3 ~/.claude/scripts/notion_site_pdf.py "<notion.site URL verbatim>" \
+       "/Users/tomseo/Downloads/[Company] - Memo MM.DD.YY.pdf"
+   ```
+   Self-bootstraps its venv (`~/.claude/scripts/.cdp_venv`) on first run; headless Chrome CDP — expands every toggle (`[aria-expanded=false]` click loop), unclamps the `.notion-scroller` so print lays out the full document instead of clipping to the viewport, keeps the page cover as a cropped banner. Date = sent date per principle 10. Do NOT re-derive this recipe by hand — the script encodes two non-obvious traps (print clips to the scroller; hiding/removing cover or discussion nodes shifts the layout left and clips the first character of every line).
+2. **Validate before upload — mandatory.** Fetch ground truth via Notion MCP `notion-fetch` (it accepts notion.site URLs and returns the full markdown including toggle interiors), then `pdftotext -layout` the captured PDF and grep ~6-10 phrases spanning toggle-interior content AND end-of-document content (tail truncation is the observed failure mode). Any miss = fix the capture, don't ship.
+3. **Upload** to `Diligence/[Company]/` (drive-upload.md) and chip: `[Company] - Memo MM.DD.YY.pdf`.
+4. **Keep the live link as a second chip**, URL byte-for-byte verbatim, labeled `[Company] - Memo MM.DD.YY (Notion)`. Explicit exception to Step 4.4: the PDF does NOT supersede the notion.site chip — the live page carries margin comments and founder edits the snapshot can't.
+5. **Fallback:** capture fails (login/password-gated site, render break) → file the link per 3E and flag `⚠️ notion.site memo linked as-is — PDF capture failed, re-run interactively`.
 
 ## Step 4: Update the Notion Opportunity Page
 
@@ -493,7 +579,7 @@ python3 ~/.claude/scripts/notion_files_property.py \
 
 **Critical: Always link the specific file URL** (`https://drive.google.com/file/d/<fileId>/view`), never the folder URL. The file ID comes from the Drive Upload Apps Script `upload` response — use it directly, don't re-search.
 
-**Link-only materials (Step 3E) are the explicit exception** — for Figma, Miro, Loom, Pitch.com, Canva, Notion.site etc., pass the external URL itself (e.g. `https://figma.com/deck/...`). These materials have no Drive counterpart; the external URL is the canonical artifact and MUST still be written to the property field — "no Drive URL" is not a reason to skip.
+**Link-only materials (Step 3E) and the 3I live-link chip are the explicit exception** — for Figma, Miro, Loom, Pitch.com, Canva, notion.site etc., pass the external URL itself (e.g. `https://figma.com/deck/...`). These materials have no Drive counterpart; the external URL is the canonical artifact and MUST still be written to the property field — "no Drive URL" is not a reason to skip.
 
 Give each file a descriptive display name that matches the PDF filename, including its sent date (e.g., `Chief Rebel - Week 20 Investor Update 09.02.26.pdf`); for link-only materials, use the external URL and a dated label like `Bloom - Deck (Figma) 09.14.26`. Assemble all of them into the single `--batch-json` call above — one call per drop, not one per file — so the consolidated ping lists them together.
 

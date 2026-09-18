@@ -134,7 +134,7 @@ Rules:
 - **Bold the opportunity name** with double asterisks (standard markdown). Never use Slack mrkdwn single-asterisks — they render as italic, not bold.
 - Only include the sub-scanner lines that apply to that opportunity. If a Clusia-only run produced zero pass-note activity on Clusia, omit the pass-note line rather than writing `n/a`.
 - If all 3 sub-scanners produced zero activity, send a single-line body: `Steady state — 0 writes across all 3 diligence sub-scanners.`
-- The header follows the shared alert grammar: one domain emoji, a Title-Case `Headline: Subject` span underlined+bold, and (because a sweep is a digest) an ISO ` · YYYY-MM-DD` date suffix. Example: `🔍 <u>**Diligence Sweep: Feedback + Pass Notes**</u> · 2026-03-06`.
+- The header follows the shared alert convention: one domain emoji, a Title-Case `Headline: Subject` span underlined+bold, and (because a sweep is a digest) an ISO ` · YYYY-MM-DD` date suffix. Example: `🔍 <u>**Diligence Sweep: Feedback + Pass Notes**</u> · 2026-03-06`.
 
 ---
 

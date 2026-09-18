@@ -196,7 +196,7 @@ This is the ONLY Slack message the run should produce — the per-draft ✉️ p
 
 Compose ONE Slack alert via `send-alert`. Read `~/.claude/skills/send-alert/SKILL.md` for delivery and format. Use the per-entity row convention (no bullets, two-line, `🧍` emoji for people).
 
-**Alert body** (alert-grammar shape: action-required entities FIRST, footer links LAST, state glyphs only from the ✓ ⚠ ✗ → ✨ table — `⏭️` is not in it):
+**Alert body** (alert-convention shape: action-required entities FIRST, footer links LAST, state glyphs only from the ✓ ⚠ ✗ → ✨ table — `⏭️` is not in it):
 
 ```
 🤝 <u>**Intro Note: <opp_name>**</u>
@@ -217,7 +217,7 @@ Compose ONE Slack alert via `send-alert`. Read `~/.claude/skills/send-alert/SKIL
 Conventions:
 - Use `🧍` emoji for each candidate row (per pinned `reference_slack_notification_channel.md` row convention).
 - **Row order = ⚠️ rows first, then ✓ happy-path rows, then ✓ no-action rows** — the thing Tom must act on never sits below no-action noise.
-- **Footer links go BELOW the entity rows** (2026-09-11 retrofit — jamming `note · opp` under the headline is a named anti-pattern in alert-grammar.md).
+- **Footer links go BELOW the entity rows** (2026-09-11 retrofit — jamming `note · opp` under the headline is a named anti-pattern in alert-convention.md).
 - Status values:
   - `Qualified ✓ + draft saved` — happy path
   - `⚠️ not in People DB — please add` — surfaced for Tom; one-line context line follows

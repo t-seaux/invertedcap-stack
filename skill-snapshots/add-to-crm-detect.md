@@ -9,12 +9,32 @@ Tom forwards an email — or composes a fresh one with a screenshot attached —
 
 ## Args
 
-Invoked by `gmail-webhook/add-to-crm-detect.js` with:
+Invoked by `gmail-webhook/add-to-crm-detect.js` (Inverted lane) with:
 
 - `messageId` (required) — Gmail message ID.
 - `threadId` (required) — Gmail thread ID. Use this for the fetch (see Step 1) — the MCP toolset has no "get message by API ID" tool.
 
+**OR** invoked by the `dash-mail-watch` listener (Dash lane) with:
+
+- `mail_source: "dash-local"` — routes Step 1's fetch to the local Apple Mail store.
+- `rowid` (required) — the Dash Envelope-Index rowid of the message.
+- `fund` (required) — the Fund to stamp on the created Opp (e.g. `Dash 2️⃣`), passed through to the enqueued `add-to-crm` job in Step 3.
+
+Fund-context model: `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
+The Inverted lane's `mail_source` is `inverted-gmail` (default when unset).
+
 ## Step 1: Fetch and re-verify
+
+> **Dash branch (`mail_source == "dash-local"`).** The Inverted headless Gmail
+> endpoint (`admin_run.py`) cannot read `tom@dashfund.co`. Fetch from the local
+> store instead: `python3 ~/.claude/scripts/dash_mail.py get <rowid>` →
+> `{from, to, cc, subject, date, body}`. Run the SAME re-verify gate below
+> against that `from`/`body`. **The trigger gate differs by lane:** the Dash
+> lane fires on Tom RECEIVING a deal at `tom@dashfund.co` (the listener already
+> applied the deal-detection gate — see the CRM entry gate, WHO SENT IT), so the
+> "From must be Tom + 'add to crm' phrase" check below is the Inverted-lane gate
+> and does not apply to the Dash lane; re-confirm the listener's deal signal
+> instead. Then continue to Step 2 (package) and Step 3 (enqueue with `fund`).
 
 **⛔ Headless Gmail path (this skill always runs under `claude --print`).** The claude.ai Gmail MCP connectors do **NOT** attach to headless queue jobs — do not spelunk the Apple Mail `Envelope Index` sqlite store, Chrome, OAuth creds, or repo files as a fallback. Fetch the thread via the deployed Apps Script endpoint: `cd ~/code/gmail-webhook && python3 admin_run.py _readThread <threadId>` → per-message `{messageId, subject, from, to, cc, date, labels, body}` (plaintext, 4000-char trim) in thread order. Locate the message whose `messageId` matches. (Only in an interactive run where the Gmail MCP is actually present may you use `mcp__claude_ai_Gmail__get_thread` instead.) Grab the plain-text body, `from`, and `subject`. Note: the headless read endpoints (`_readThread`/`_readMessageBody`) return body/headers only, **not** attachment metadata. For Step 2's attachment handling, rely on the body's own references to a deck/link; binary attachments are fetched downstream by `materials-handler` (its Gmail Attachment Saver Apps Script), not here — do not block or thrash trying to enumerate attachments from the headless read.
 
@@ -70,6 +90,28 @@ This skill runs on the default tier and easily *could* just read `add-to-crm/SKI
   "screenshotFilePaths": ["<local /tmp path>", ...],
   "idempotencySuffix": "-cmd"
 }
+```
+
+**Dash lane passthrough.** When invoked with `mail_source: "dash-local"`, add
+these to the args so `add-to-crm` fetches from the right place and stamps the
+right Fund (instead of `messageId`/`threadId`/`gmailMessageUrl`, which don't
+exist for the Dash account):
+
+```json
+{
+  "mail_source": "dash-local",
+  "rowid": <dash rowid>,
+  "fund": "<fund arg, e.g. Dash 2️⃣>"
+}
+```
+
+`add-to-crm` must set the new Opp's `Fund` property to this value, and use
+`~/.claude/scripts/dash_mail.py` (via the fund-context mail_source branch) for
+any body/attachment fetch rather than the Gmail Attachment Saver. For screenshot
+staging on the Dash lane, use `dash_mail.py attachments <rowid> <scratch_dir>`
+in place of the Gmail Attachment Saver in Case B above.
+
+```json
 ```
 
    `idempotencySuffix` is always the literal `"-cmd"` — fixed, not company-name-derived (contrast `inbound-deal-detect`'s per-company slug). This makes the resulting idempotency key `add-to-crm-<messageId>-cmd`, deliberately DIFFERENT from whatever key `inbound-deal-detect` would produce for the same message (its slug depends on the company name its classifier extracted). The two keys are not expected to collide — both `add-to-crm` jobs enqueue independently and are visible separately in queue history, which keeps this trigger's activity traceable even when `deal-scanner` also fires on the same message. **Duplicate-Opportunity prevention does not depend on key collision** — it depends on the two mechanisms below.

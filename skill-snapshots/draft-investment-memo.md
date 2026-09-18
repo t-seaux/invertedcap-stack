@@ -365,8 +365,8 @@ canonical artifact. Notes DB is reserved for Claude analytical artifacts
 ## Step 8: Slack alert via send-alert
 
 Read `~/.claude/skills/send-alert/SKILL.md` and post a summary to
-`#claude-alerts`. Compose the header per the shared alert grammar
-(`send-alert/references/alert-grammar.md`): `✍️ <u>**Investment Memo: [Company]**</u>`
+`#claude-alerts`. Compose the header per the shared alert convention
+(`send-alert/references/alert-convention.md`): `✍️ <u>**Investment Memo: [Company]**</u>`
 (single-event → no date suffix), then:
 
 - Company name + Drive URL of the memo

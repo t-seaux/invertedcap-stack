@@ -1,6 +1,6 @@
 ---
 name: add-conversation-to-notion
-description: Save the current Claude conversation as a new entry in the Notion Notes database. Trigger whenever the user says "add this thread to Notion", "log this conversation", "save this chat to Notion", "add this to Notes", "save this thread", "add to Notion", "log this", or any variant asking to record/archive the current Claude conversation in Notion. Always trigger inline — no confirmation needed before acting.
+description: Save the current Claude conversation as a new entry in the Notion Notes database. Trigger whenever the user says "add this thread to Notion", "log this conversation", "save this chat to Notion", "add this to Notes", "save this thread", "add to Notion", "log this", or any variant asking to record/archive the current Claude conversation in Notion. CONTEXT-DEPENDENT: a bare "log" / "log this" / "log to notes" during an ongoing Claude session where we've been working — with NO text-thread screenshot or video URL attached — routes HERE (log the session). If instead Tom has shared/attached a text-thread screenshot or pasted a third-party chat thread, "log" routes to log-thread-to-notes (verbatim transcript); a video/interview/YouTube URL → log-transcript-to-notion; a letter/report/memo link or PDF → log-document-to-notes (investor-firm letter → log-investor-letter-to-notion). Not this whenever any such object is present. Always trigger inline — no confirmation needed before acting.
 ---
 
 # Add Conversation to Notion (Notes Database)

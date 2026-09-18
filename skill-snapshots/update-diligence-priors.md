@@ -578,8 +578,7 @@ echo "prepending from: $FINAL_UPDATE_MD"
 
 Append `⚠ Audit: <N> untraced after <K> iterations, <M> partials normalized` as a
 fourth line of the Step 6 Signal alert when there are residual untraced findings OR any
-partials were normalized. Plain text `⚠` glyph, never the `⚠️` emoji variant (alert
-grammar). If the audit ends with 0 untraced and 0 partial cleanly, no
+partials were normalized. Plain text `⚠` glyph, never the `⚠️` emoji variant (alert convention). If the audit ends with 0 untraced and 0 partial cleanly, no
 `⚠` line — the alert stays at the standard three lines. The substance (residual untraced
 claims with judge notes; normalized partials as before→after diffs) is required by
 research-artifact-audit Step D; this only specifies the Slack format.

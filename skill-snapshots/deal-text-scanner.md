@@ -6,7 +6,9 @@ description: >
   lane's reference file. Lanes: DEAL — deal-flow signals become a "🆕 Opportunity" card texted
   to Tom, never a direct CRM write (his 👍 / "confirm", handled by sms-listener, does the add).
   INTRO — Tom's own in-thread replies move pipeline status, unknown numbers get identified as
-  intro'd founders, and the Blockit scheduling handoff gets pre-staged. FEEDBACK — backchannel
+  intro'd founders, the Blockit scheduling handoff gets pre-staged, and the REVERSE arrow is
+  covered too: opt-ins/declines to Tom's own portco-intro offers ("can I intro you to my
+  founder?") move the Opp's intro relations and queue the connect draft. FEEDBACK — backchannel
   asks and debriefs (incl. transcribed voice notes) are written to the Notion feedback notes
   and 📣 Pending Feedback, auto-written with no 👍 gate; the email side stays with
   feedback-outreach-scanner. Scheduled-sweep-only. TOM-ONLY surface: reads his personal texts,
@@ -58,8 +60,8 @@ lane; classify each independently and never let one lane's silence suppress anot
 — "90 yard line starting ai lab / chem biz… We'll need like $8-10m" — which is a live
 `-1`/NewCo signal.)
 
-**Step 0 — MANDATORY feedback-relationship check, before any content judgment.** For EVERY
-thread with an inbound peer, run TWO cheap deterministic checks: (1) query the Opportunities
+**Step 0 — MANDATORY roster checks, before any content judgment.** For EVERY
+thread with an inbound peer, run THREE cheap deterministic checks: (1) query the Opportunities
 DB for rows with a non-empty `📣 Pending Feedback` and resolve whether this sender is on that
 roster (People row → phone vs. the thread handle); (2) query the Notes DB
 (`collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for a feedback note titled with this
@@ -67,7 +69,12 @@ sender's name (`Name LIKE '<Sender Full Name>%'`, giver-first title convention) 
 — the roster empties after the FIRST piece of feedback lands (Tom, 2026-09-10: pending = first
 feedback only, never re-added), so a follow-up debrief (the second call, a later text) is
 invisible to the roster and is caught ONLY by the prior-note check; it appends a new dated
-Response block to that same note. **A hit on EITHER check FORCES loading
+Response block to that same note. And (3) resolve the sender to a People
+row (via `sender_name` / handle) and check whether it sits in ANY Active-Portfolio Opp's
+`👓 Intros (Qualified)` or `☎️ Intros (Outreach)` relations — a hit FORCES loading
+`references/intro-lane.md` (§5b): their text may be the yes/no to Tom's own intro offer, and
+content alone can't tell you (the canonical miss was a bare "Of course!" — Zack Parker/Tuor,
+2026-09-17). **A hit on check (1) or (2) FORCES loading
 `references/feedback-lane.md`, no matter what the messages say.** A person with an open ask texting Tom substantively IS presumptively
 the debrief — debriefs routinely name no company (the connective "I spoke to your red wagon
 guy" may have landed hours earlier in a different sweep batch). This check is NOT optional and
@@ -81,6 +88,7 @@ correctly. Content can't tell you someone owes Tom a read — only the roster ca
 |---|---|---|
 | Intro offer to a founder; a company + round details; a deck/LinkedIn with a pitch | **Deal** | `references/deal-lane.md` |
 | Tom replying opt-in/pass on a deal; an unknown number that may be an intro'd founder; a REFERRER announcing an intro is live ("meet / re-meet X", "you two connect", "I'll let you find time"); an email or scheduling exchange on a known deal | **Intro** | `references/intro-lane.md` |
+| Tom OFFERING one of his portfolio founders to the peer ("can I intro you to…" + portco/founder link); or ANY inbound that could be a yes/no to such an offer — `.portco_intro_asks` hit, OR the sender resolves to a People row on any Active-Portfolio Opp's `👓 Qualified`/`☎️ Outreach` roster (the reply may be a bare "Of course!") | **Intro** | `references/intro-lane.md` |
 | **Step 0 roster hit (mandatory check above)**; or Tom asks someone for a read | **Feedback** | `references/feedback-lane.md` |
 | Anything else | none | — exit silently |
 
@@ -101,8 +109,8 @@ offer. Judge against `~/.claude/skills/shared-references/feedback-ask-signals.md
   `sms-listener` writes. The feedback lane DOES write directly (see its file for why).
 - **Never message the family group** from this skill.
 - **Never put a raw handle** where a name belongs.
-- **Every alert follows the canonical alert grammar**
-  (`~/.claude/skills/send-alert/references/alert-grammar.md`): one domain emoji + Title Case
+- **Every alert follows the canonical alert convention**
+  (`~/.claude/skills/send-alert/references/alert-convention.md`): one domain emoji + Title Case
   `Headline: Subject` (colon, never a dash), state glyph (→/✓/⚠) inline on its own line, no
   date suffix on single events. These are iMessage texts, so render the grammar's SHAPE in
   plain text — NOT the Slack `<u>`/`**`/`[label](url)` markup — with the Opp URL as a raw

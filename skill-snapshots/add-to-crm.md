@@ -55,6 +55,7 @@ This skill has three entry points:
    - **Skip Step 4's "Present Summary"** (no human watching), same as webhook mode.
    - **Run Step 8 (Slack alert)** when done, same as webhook mode.
    - Do NOT invent a `statusDirective`/`sourceDirective` — infer both normally from the content, exactly like manual mode would.
+   - **Dash lane (`mail_source: "dash-local"`, args `{rowid, fund}` instead of `messageId`/`threadId`).** The email is in `tom@dashfund.co`, not on the Gmail API. Fetch its body/thread with `python3 ~/.claude/scripts/dash_mail.py get <rowid>` and attachments with `dash_mail.py attachments <rowid> <dir>` — NOT `admin_run.py` or the Gmail Attachment Saver (both are Inverted-scoped). **Set the new Opp's `Fund` property to the passed `fund` value** (this is the one field the Dash lane must not leave to inference). Everything else (Step 1 extraction, enrichment, Notion create, Step 6 materials via `materials-handler`) is identical — materials-handler is itself fund-aware. See `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
 
    If the Protected Status Guard fires (terminal-status duplicate, prior pass, or live-pipeline duplicate) in webhook mode OR explicit-command mode, still run Step 8 with the appropriate alert variant (🔁/⛔/🛡️) — do not exit silently.
 

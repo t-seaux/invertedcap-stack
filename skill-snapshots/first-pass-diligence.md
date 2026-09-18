@@ -186,7 +186,7 @@ Started — gathering context.
 EOF
 ```
 
-This is the series **open** (per alert-grammar's progress-ping sequencing: open →
+This is the series **open** (per alert-convention's progress-ping sequencing: open →
 hinge → close). No prior phase to close, so it's start-only. Single line, no feedback
 prompt, no links. Do NOT include `💬 Reply in thread`
 (that string is reserved for the Step 6b completion alert — the listener routes
@@ -593,7 +593,7 @@ Context Gathered — <deck OCR'd / update ingested>, founder LinkedIn (<Name via
 EOF
 ```
 
-This is a **hinge** (per alert-grammar's progress-ping sequencing): it closes the
+This is a **hinge** (per alert-convention's progress-ping sequencing): it closes the
 gather phase (carrying its finding) and opens the research phase, joined by the `→`
 transition glyph. The trailing `T+${ELAPSED_MIN} min` is the cumulative elapsed marker
 (from the Step 1 start anchor) that rides every ping — the gap between consecutive pings
@@ -1825,7 +1825,7 @@ the third of the run's three early alerts (run-start at Step 1, context-gathered
 at Step 1g). It is a diligence-specific progress ping, not part of
 research-artifact-audit's generic flow.
 
-Structure it as a **hinge** (per alert-grammar's progress-ping sequencing): it closes
+Structure it as a **hinge** (per alert-convention's progress-ping sequencing): it closes
 the research + draft phase — carrying that phase's *factual* finding (how many lanes
 returned, and any concrete flags the draft raised) — and opens the audit, joined by the
 `→` transition glyph. Report facts and flags ONLY; do NOT state a verdict here — the
@@ -1935,7 +1935,7 @@ The Slack alert appends `⚠ Audit: <N> unverifiable claim(s) after <K> iteratio
 <M> over-reaching claim(s) tightened to source` as a fourth line when there are
 residual untraced findings OR any claims were tightened. If the audit ends with 0
 untraced and 0 partial cleanly, no `⚠` line — the alert stays at three lines.
-(State glyph is the plain char `⚠`, never the emoji `⚠️` — alert-grammar anti-pattern.)
+(State glyph is the plain char `⚠`, never the emoji `⚠️` — alert-convention anti-pattern.)
 
 **Operator-facing wording (mandatory).** Never use the raw audit jargon "untraced"
 or "partial" / "partials normalized" in the Slack line — those read as either alarming
@@ -2335,7 +2335,7 @@ Conventions:
 - **Line 2 — one-liner summary + total runtime.** Plain text, no bold, no bullets, no links. 1–2 sentences max — what Tom needs to know before clicking through. Lead with the most important signal (e.g., "Strong founder fit + obvious market, but $3M seed is later than my typical entry — fund-fit pass."). This is the series **close**, so it carries the verdict. Append ` · T+<N> min` as the cumulative elapsed marker (total run time), computed `T+$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 )) min` — same anchor every ping uses; the gap from the audit ping's T+N is how long audit + publish took.
 - **Line 3 — feedback prompt.** Literal text `💬 Reply in thread with any takeaways for next time.` Do not modify or personalize. The static prompt is the trigger `claude-alerts-listener` keys on for routing first-pass feedback to `FEEDBACK_PATTERNS.md`.
 
-If the lint or audit surfaced findings that publish-proceeded with caveats, append a fourth line (after the feedback prompt) starting with the plain state glyph `⚠ ` (never the emoji `⚠️` — alert-grammar anti-pattern) and naming the count and category in **plain-impact language, not raw audit jargon** (see the operator-facing wording rule under "Diligence-specific Slack publish-summary surface") — e.g. `⚠ Audit flagged 2 unverifiable claims; see Notion page note for details.` (not "untraced claims").
+If the lint or audit surfaced findings that publish-proceeded with caveats, append a fourth line (after the feedback prompt) starting with the plain state glyph `⚠ ` (never the emoji `⚠️` — alert-convention anti-pattern) and naming the count and category in **plain-impact language, not raw audit jargon** (see the operator-facing wording rule under "Diligence-specific Slack publish-summary surface") — e.g. `⚠ Audit flagged 2 unverifiable claims; see Notion page note for details.` (not "untraced claims").
 
 If for any reason the PDF upload (step 6a) failed and only the Notion analysis exists, replace `([PDF](PDF_URL))` on line 1 with `([analysis](NOTION_ANALYSIS_URL))` so the user always has one click-through. Do NOT skip the alert.
 

@@ -21,6 +21,8 @@ Determine which fund holds the position (Notion Opp `Fund` property if unsure), 
 
 **Cap-table hard rule:** the SOI ownership figures are themselves derived from executed pro-forma cap tables, so they are a valid anchor for *hypothetical* scenario math. But if the round being modeled is real and closing (term sheet in hand), the final numbers must come from the actual pro-forma cap table per the priced-round hard rule — label scenario output as indicative and say what it's anchored to.
 
+**Prior-round pro formas — the sanity-check source (Tom-endorsed, 2026-09-17).** The FO Opp cards' `Deal Docs` property carries each executed round's pro forma cap table (e.g. `... Series Seed Pro Forma (Final).xlsx`, `... Series A - Pro Forma (GP Draft).xlsx`). Read them whenever they exist: they verify the SOI blended figure share-for-share AND make the Step 2 tranche split exact (each preferred class maps 1:1 to a round — no reconstruction caveat needed). Download: `ntn api /v1/pages/{opp_id}` → `properties["Deal Docs"].files[].file.url` (pre-signed S3, curl/urlretrieve it), then parse with openpyxl. Chain to check: SOI ownership ↔ last executed pro forma's post-money columns ↔ new round's pre-money columns.
+
 ## Step 2: Decompose ownership by tranche
 
 Blended ownership is exact from the source; the per-tranche split is reconstructed:

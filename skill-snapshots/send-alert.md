@@ -19,10 +19,10 @@ description: >
 
 Every scheduled agent or skill that needs to notify Tom MUST follow this file rather than maintaining its own inline notification config.
 
-**Shared visual identity:** `references/alert-grammar.md` is the single source of
+**Shared visual identity:** `references/alert-convention.md` is the single source of
 truth for how every alert *reads* — headline grammar (Title Case `Headline —
 Subject`, one domain emoji), the domain-emoji + state-glyph taxonomy, and
-before→after exemplars. This file (SKILL.md) owns the *transport*; alert-grammar.md
+before→after exemplars. This file (SKILL.md) owns the *transport*; alert-convention.md
 owns the *shape*. Every emitter — the `claude` webhook, the `google` Apps Script
 bot, and the AI-draft hook — conforms to it. Read it before composing any alert.
 
@@ -56,7 +56,7 @@ Current named channels:
 
 > **PRE-SEND CONVENTION CHECK — MANDATORY (Tom's standing rule, 2026-09-14).**
 > Before piping ANY body to `send.sh`, verify the composed alert against
-> `references/alert-grammar.md` and **fix any deviation before sending** — never send
+> `references/alert-convention.md` and **fix any deviation before sending** — never send
 > first and correct after. Check, at minimum:
 > - **Headline** — exactly one domain emoji from the closed table, *outside* the
 >   `<u>**…**</u>` wrapper; Title Case `Headline: Subject` joined by a colon; date
@@ -65,7 +65,7 @@ Current named channels:
 >   the `⚠️ ✅ ❌` emoji variants); any action-required line leads, starting with `⚠`.
 > - **Footer** — links on their own line *below* the rows, not jammed under the headline.
 > - **Progress pings (multi-phase runs)** — follow open → hinge → close, with `→` as the
->   hinge connective and the verdict reserved for the close (see alert-grammar's
+>   hinge connective and the verdict reserved for the close (see alert-convention's
 >   "Progress ping sequencing").
 > - **Routing keys** — preserve any documented routing-key token verbatim, and do NOT
 >   put a routing token (or its reserved emoji) on an alert that shouldn't route.
@@ -199,7 +199,7 @@ Some alerts are pure summaries with no per-entity headers — just a title line 
 ## Guardrails
 
 0. **Convention check before every send (Tom's standing rule, 2026-09-14).** Verify the
-   composed body against `references/alert-grammar.md` and fix any deviation BEFORE piping
+   composed body against `references/alert-convention.md` and fix any deviation BEFORE piping
    to `send.sh` — never send then correct. See the "PRE-SEND CONVENTION CHECK" gate under
    "How to send" for the checklist.
 1. **Webhook channels ONLY.** Default is `#claude-alerts`; a skill may route to a named channel ONLY via `--channel <name>` with a webhook file that exists (see "Named channel webhooks"). Never attempt any other redirect, and do not try the Slack MCP as a fallback (it posts as `tom`, which defeats the bot-identity split).

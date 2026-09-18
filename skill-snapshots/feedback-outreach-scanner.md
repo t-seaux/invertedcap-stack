@@ -49,7 +49,7 @@ In both sub-modes the queue payload includes `personId` and `oppCandidateIds` (�
 - **Skip Step 6's scheduled-scan summary.** Emit the single-line run-log entry: `single-message feedback-reply: <person> on <opp> — <classification> → <action>`. Then, **only if the reply classified as substantive**, post the **Reply-logged confirmation** (below) via `send-alert` to `#claude-alerts`. This is the standing behavior Tom asked for 2026-08-01 — substantive inbound feedback written to Notion is confirmed immediately, not just rolled up in the next Diligence Agent daily digest (the digest still lists it too). Fire the confirmation only AFTER the Notion write succeeds, so it is a genuine "it's logged" signal; if the write failed, alert the failure instead.
 - **Deferrals get NO Slack alert** (Tom confirmed 2026-08-01 — substantive only). A "will revert EOW / traveling / circle back" reply is logged to the note as usual but stays silent on Slack; it still surfaces in the daily digest. Only the substantive classification pings.
 
-**Reply-logged confirmation.** Header follows the shared alert grammar (`~/.claude/skills/send-alert/references/alert-grammar.md`): the `📝` note/feedback-logged domain emoji (FYI-only — `📝` is NOT a `claude-alerts-listener` reserved routing key, so no listener action fires). Send via `send-alert`:
+**Reply-logged confirmation.** Header follows the shared alert convention (`~/.claude/skills/send-alert/references/alert-convention.md`): the `📝` note/feedback-logged domain emoji (FYI-only — `📝` is NOT a `claude-alerts-listener` reserved routing key, so no listener action fires). Send via `send-alert`:
 
 > 📝 <u>**Feedback Logged: [Opp Company]**</u>
 > **[Person Name]** ([Person Company]) on [subject — founder name or company gut-take]
