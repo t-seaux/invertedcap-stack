@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-09-21] (Week of 2026-09-21)
+
+**Added:** dash-deal-detect (Pipeline Management), log-document-to-notes (Research Management), log-thread-to-notes (Research Management) — confirmed from 2026-09-18 pending set
+**Removed:** None
+**Modified:**
+- neg1-sourcing -- switched to CANDIDATE STORE upsert + immediate per-candidate enrichment queue; cards post to #neg1-sourcing within minutes; removed lookalike backlog lottery wording from description
+- add-conversation-to-notion -- added per-block color annotation rule for multi-block Tom turns archived in Notion; each paragraph and list item now requires a separate color annotation
+- add-to-crm -- tightened duplicate detection for Opps with terminal statuses (Pass/Lost/NR): hard-blocks creation in webhook mode; inline alert in manual mode
+- pass-note-drafter -- added Mode C (manual/conversational targeted drafting for a named Opp pre-flip, no status requirement)
+- intro-status-summary -- condensed description; investor-feedback trigger aliases now explicitly equal-weight entrypoints alongside intro-status aliases
+- inbound-deal-detect -- clarified downstream notification path: outcome Slack alert now owned by add-to-crm, not inbound-deal-detect
+**Total skills:** 58
+**Functions:** Pipeline Management +1 (dash-deal-detect), Research Management +2 (log-document-to-notes, log-thread-to-notes)
+
+---
+
 ## [2026-09-18] (Week of 2026-09-15)
 
 **Added:** log-document-to-notes, log-thread-to-notes, dash-deal-detect (pending categorization)
