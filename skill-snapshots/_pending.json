@@ -1,11 +1,5 @@
 {
-  "skills": {
-    "work-mail-event": "2026-09-21"
-  },
-  "launchAgents": {
-    "alert-convention-healer": "2026-09-21"
-  },
-  "webhookHandlers": {
-    "work-mail-event": "2026-09-21"
-  }
+  "skills": {},
+  "launchAgents": {},
+  "webhookHandlers": {}
 }

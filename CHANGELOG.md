@@ -1,5 +1,31 @@
 # Changelog
 
+## [2026-09-22] (Week of 2026-09-22)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- pipeline-agent -- added calendar-invite branch (📅 invite card with dual-calendar dedup and threaded confirm/decline/tentative); Revive Gate for known terminal-status companies; 👎 on a proposal card now creates Pass (DNM) instead of discarding; network-refresh lane added
+- add-to-crm -- Revive Gate replaces hard-block for terminal-status companies: stages a 👍-gated update card instead of alerting and stopping
+- inbound-deal-detect -- terminal-status CRM hits now trigger the Revive Gate instead of posting a stop-alert
+- dash-deal-detect -- expanded from single-lane deal classifier to three-lane router: deals → add-to-crm, diligence materials → materials-handler, portfolio updates → investor-update
+- materials-handler -- alert format changed to one bullet per artifact; auto-replaces unsigned chips with executed versions on signing; excludes e-sign completion certificates from upload
+- neg1-sourcing -- added on-demand re-surface mode: any "surface" request re-posts all unreacted queue rows without new enrichment
+- neg1-sourcing-listener -- added tapback reaction handling (👍/👎/⏱ tapbacks routed as decisions); added surface-unreacted command path for channel-level posts
+- deal-share-out -- subset-resolution for multi-founder deals: only fully-resolved founders receive LinkedIn and email fields
+- intro-outreach-drafter -- added Mode B (offer-intent webhook): triggers when a contact replies YES to a forwarded intro offer; resolves the target person and stages them as Qualified
+- investor-update -- added Dash variant: reads email body and attachments from local Apple Mail store when mail_source is dash-local
+- pass-note-drafter -- pre-flip mode added (Tom can request a draft before status reaches Pass Note Pending, preventing dual-fire race with notion-webhook); archive body formatting contract enforced; Argument Pillars source updated to pillars.json
+- add-conversation-to-notion -- multi-block Tom turns now each receive a distinct color prefix in the archive; log-command turn and everything below it is excluded
+- investing-style -- bullets derived verbatim from pillars.json (replaces PILLARS.md); 9 legacy "Other" section bullets promoted to formal pillars P41–P49
+- log-transcript-to-notion -- URL dedup guard: stops if a Notes DB page already references the given URL
+- log-investor-letter-to-notion -- URL dedup guard: stops if the URL is already logged
+- log-document-to-notes -- URL dedup + title-contains backstop to prevent duplicates; parent-DB guard ensures notes land in the Notes DB (not workspace root)
+**Total skills:** 58
+**Functions:** No changes
+
+---
+
 ## [2026-09-21] (Week of 2026-09-21)
 
 **Added:** dash-deal-detect (Pipeline Management), log-document-to-notes (Research Management), log-thread-to-notes (Research Management) — confirmed from 2026-09-18 pending set

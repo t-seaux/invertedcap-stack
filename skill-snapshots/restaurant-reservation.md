@@ -1,21 +1,8 @@
 ---
 name: restaurant-reservation
-description: >
-  Find a restaurant table for Tom (or Elsie) and hand him a booking link — VISIBILITY-ONLY
-  as of 2026-09-03 (Resy banned the automation account, so nothing auto-books anymore). Find
-  a venue, surface real open slots across Resy + OpenTable + SevenRooms, and give Tom the
-  link to tap; then, once he confirms he booked, add it to the household calendar. Trigger on
-  "book a table", "make a reservation", "reserve [restaurant]", "get us a table at [X]",
-  "dinner reservation for [N] on [date]", "find a table near [neighborhood]", "is there a
-  table at [X]", "check availability at [X]", or the sms-listener routing a reservation text
-  here. ALSO recommend mode: "recommend a spot", "where should we eat", "anything new we
-  should try", "pick somewhere for Friday" — blends live editorial sources (Eater NY 38 +
-  Heatmap, Infatuation Hit Lists), the reservation_log.jsonl regulars ledger, and real
-  availability so every rec is actually open. Defaults: party of 2, dinner, and "in the
-  neighborhood" = Brooklyn Heights / Cobble Hill / Boerum Hill. Named-venue lookups fire ALL
-  THREE platforms in parallel (availability.mjs check, with slug auto-discovery). NONE of the
-  three can be booked programmatically — always report open times + a link and let Tom tap;
-  never claim a table is booked. NOT the haircut skill (that's Meevo/reCAPTCHA-walled).
+description: |-
+  Find a restaurant table for Tom (or Elsie) and hand him a booking link — VISIBILITY-ONLY (Resy banned the automation account 2026-09-03; nothing auto-books). Surface real open slots across Resy + OpenTable + SevenRooms, give Tom the link to tap; once he confirms he booked, add it to the household calendar. Trigger on "book a table", "make a reservation", "reserve [restaurant]", "get us a table at [X]", "dinner reservation for [N] on [date]", "find a table near [neighborhood]", "is there a table at [X]", "check availability at [X]", or the sms-listener routing a reservation text here. ALSO recommend mode: "recommend a spot", "where should we eat", "anything new we should try", "pick somewhere for Friday" — live editorial sources + the regulars ledger + real availability so every rec is actually open. Defaults: party of 2, dinner, "in the neighborhood" = Brooklyn Heights / Cobble Hill / Boerum Hill. NONE of the three platforms can be booked programmatically — always report open times + a link; never claim a table is booked. NOT the haircut skill (Meevo/reCAPTCHA-walled).
+
 ---
 
 # Restaurant Reservations (visibility-only)
@@ -128,6 +115,43 @@ Quoting hits[0] on faith points Tom at the wrong restaurant. So `search` returns
 
 Use the `neighborhood` field to disambiguate when names collide — it's usually the tell.
 
+## ⚠️ OpenTable auto-discovery LIES — cross-check every OT hit against Resy
+
+`availability.mjs check`'s OpenTable leg (slug auto-discovery) produces **false-positive
+availability** and must NOT be trusted on its own. Two failure modes, both seen live
+2026-09-18 (West Village sell-dinner search):
+
+1. **Wrong-venue slug match.** `"Kingfisher"` → `king-new-york` — that's **King**, a
+   different restaurant; the OT `<title>` name-gate did NOT catch it. An OT "hit" can be a
+   *different venue's* inventory entirely.
+2. **Uniform/default slot grid.** Several unrelated venues (King, Semma, Via Carota,
+   Wallflower) all returned the **identical** grid `6:30, 6:45, 7:00, 7:15, 7:30` for the
+   same date/party. When you see the same five-slot grid repeat across different venues,
+   it's synthetic, not real inventory.
+
+**Rule: Resy is the source of truth. Treat any OT-only slot as UNVERIFIED until a Resy `find`
+on an EXACT-match venue corroborates it.** When Resy shows *none in window* but OT shows a
+full grid → believe Resy (every one of the four above was actually booked or a wrong-venue
+match). Only trust an OT hit when (a) the slug is unmistakably the right venue AND (b) the
+grid isn't the uniform default. Otherwise hand Tom the OT *link* to check himself — never
+assert the slot exists. This is the "never fabricate availability" guardrail in practice:
+the earlier "King is wide open" answer that had to be retracted came from trusting this leg.
+
+**Confirm the Resy `find` plumbing is alive before trusting a batch of empties.** If a sweep
+returns "none" across many venues, sanity-check by re-running ONE at `any`/full-day (or
+party-of-2): real late slots coming back (e.g. King → 8:30pm+) proves the tool works and the
+window is genuinely booked — distinguishes "truly full" from "tool silently erroring."
+
+**Via Carota is effectively unbookable on Resy** — returns truly-none even party-of-2
+full-day; it holds tables for walk-ins. Don't waste a check on it; note it as walk-in.
+
+**Resy fuzzy wrong-venue matches seen this run** (reinforces the name-gate): Semma→**Gemma**
+(Bowery, `close`), Wallflower→**Wildflower** (Chelsea, `weak`), Don Angie→**Don Don**
+(Midtown, `weak`). Always read `match` + `neighborhood`; skip `close`/`weak` unless confirmed.
+**Not on Resy at all** this run: Kingfisher, Fairfax (OT-only, 14-day rolling window),
+Graciela — for these, Resy `search` returns a wrong venue or nothing, so the ONLY honest
+path is the platform's own link, not an asserted slot.
+
 ## Flow
 
 Two shapes of request:
@@ -174,11 +198,18 @@ Then:
    `{"ts":"<now ISO>","venue":"…","day":"YYYY-MM-DD","time":"HH:MM","party":N,"platform":"resy|opentable|sevenrooms","status":"booked","requested_by":"tom|elsie","source":"named|recommendation|nearby"}`
    Also append `"status":"cancelled"` events when a booking is called off. This ledger is what
    powers the **regulars** axis of recommend mode — no log, no regulars.
-5. **Add to calendar — only after Tom confirms he booked.** Add the event to the **household
-   (personal) calendar** via the `add-to-calendar` skill / the sms-listener calendar
-   fast-path: title `Dinner — <Venue> (<party>)`, start = slot time, 1.5h default, location =
-   venue. Dedup first (don't double-add). The platform also emails a confirmation; the
-   calendar event is ours.
+5. **Add to calendar — only after Tom confirms he booked, and ROUTE BY EVENT NATURE.** Hand
+   off to `add-to-calendar`, which picks the calendar: **personal/date/family dinners →
+   household (Elsie-Tom); work dinners (recruiting, founder, investor, portfolio, biz) →
+   Tom's Inverted work calendar.** Don't default everything to household — that was wrong
+   (Tom 2026-09-18: a founding-engineer recruiting dinner is a WORK event; I mis-filed it on
+   the household cal and had to delete it). Title `Dinner — <Venue> (<party>)`, start = slot
+   time, 1.5h default, location = venue, Busy. Dedup first.
+   **For a work dinner with other attendees, Tom usually creates + sends the invite himself**
+   (external invitees) — so for a clearly-work dinner, ASK before auto-adding rather than
+   silently creating a parallel event he'll duplicate. The platform also emails a booking
+   confirmation regardless. NB: the claude.ai Calendar MCP can't delete — cleanup goes
+   through `~/.claude/scripts/calendar_write/calendar_write.py delete` ([[reference_calendar_write]]).
 
 ## Recommend mode ("recommend a spot", "where should we eat", "anything new to try?")
 

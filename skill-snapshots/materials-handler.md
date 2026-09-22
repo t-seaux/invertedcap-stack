@@ -1,7 +1,8 @@
 ---
 name: materials-handler
-description: >
-  Download diligence materials (decks, memos, term sheets, investor updates) for a pipeline company, save to Google Drive, and link in Notion (page body + Diligence Materials property field). Handles Gmail attachments via Apps Script, DocSend links via Python conversion, direct file URLs, and body-only emails (investor updates, memos written inline) rendered to PDF via Chrome headless. Trigger on "save materials for [company]", "add [X] as diligence material for [company]", "download materials", "grab the deck", "save the deck", "save this investor update as a material", "materials for [company]", or any variant wanting diligence materials saved and linked to a Notion opportunity. ALSO the canonical entry point for logging a transaction/deal document to an EXISTING Opp: "log the [term sheet / side letter / SAFE / SPA / cap table] in the [company] opp", "log this in [company]", "add to [company] opp", "add this to the [company] opp", "add [X] to [company] opp", "save the executed term sheet to [company] deal docs", "add the side letter to [company]", "file this SAFE under [company]" — this skill's Step 2 Property Routing auto-sorts each artifact to the correct Files property (transaction docs → Deal Docs; everything else → Diligence Materials), so a bare "add to [company] opp" / "log this in [company] opp" is sufficient — the doc type determines the destination. Disambiguation: "add to [company] opp" targets an EXISTING opportunity (this skill); "add to crm" / "log this deal" / "add this opportunity" CREATES a new opportunity (that's add-to-crm). When the named Opp already exists and a document/attachment is in context, route here. Also triggers when pipeline-agent or add-to-crm delegates materials handling. Trigger if context involves saving email attachments, email bodies, or deck files to Drive and linking them to a deal, even without the word "materials". Always trigger inline — no confirmation needed.
+description: |-
+  Download diligence materials (decks, memos, term sheets, investor updates) for a pipeline company, save to Google Drive, and link in Notion (page body + Diligence Materials property). Trigger on "save materials for [company]", "add [X] as diligence material for [company]", "download materials", "grab the deck", "save the deck", "save this investor update as a material", "materials for [company]", or any variant wanting diligence materials saved and linked to a Notion opportunity. ALSO the canonical entry point for logging a transaction/deal document to an EXISTING Opp: "log the [term sheet / side letter / SAFE / SPA / cap table] in the [company] opp", "log this in [company]", "add to [company] opp", "add this to the [company] opp", "add [X] to [company] opp", "save the executed term sheet to [company] deal docs", "add the side letter to [company]", "file this SAFE under [company]" — Property Routing auto-sorts each artifact (transaction docs → Deal Docs; everything else → Diligence Materials), so a bare "add to [company] opp" is sufficient. Disambiguation: "add to [company] opp" targets an EXISTING opportunity (this skill); "add to crm" / "log this deal" / "add this opportunity" CREATES one (that's add-to-crm). Also triggers when pipeline-agent or add-to-crm delegates, and whenever context involves saving email attachments, email bodies, or deck files to Drive for a deal — even without the word "materials". Always trigger inline.
+
 ---
 
 # Materials Handler
@@ -64,13 +65,17 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 
 **Slack alert — code-enforced by the write, NOT model-executed:**
 
-The consolidated `#claude-alerts` ping fires deterministically from inside `notion_files_property.py` whenever the `--batch-json` (or a non-`--no-alert` single `--url`) call lands ≥1 new chip on Diligence Materials / Deal Docs. This is the fix for the silent-append bug (Cline, 2026-08-25): the alert can no longer be skipped because it's a side effect of the write, not a step the model has to remember. Your only jobs are to (a) pass `--email-message-id` so the footer carries the `email` link, and (b) NOT compose or send any separate materials alert. The format the helper emits (for reference only — alert-convention compliant: plain-subject headline, no bullet glyphs, links on the footer line):
+The consolidated `#claude-alerts` ping fires deterministically from inside `notion_files_property.py` whenever the `--batch-json` (or a non-`--no-alert` single `--url`) call lands ≥1 new chip on Diligence Materials / Deal Docs. This is the fix for the silent-append bug (Cline, 2026-08-25): the alert can no longer be skipped because it's a side effect of the write, not a step the model has to remember. Your only jobs are to (a) pass `--email-message-id` so the footer carries the `email` link, and (b) NOT compose or send any separate materials alert. The format the helper emits (for reference only — alert-convention compliant: plain-subject headline, one `•` bullet line per artifact under each Files-property label, links on the footer line):
 
 ```
 🔍 <u>**Materials: {Opp Name}**</u>
 **Page Body:** {comma-separated body section names — plain text, no links}
-**Diligence Materials:** {comma-separated chip labels, each WRAPPED as [label](url)}
-**Deal Docs:** {comma-separated chip labels, each WRAPPED as [label](url)}
+**Diligence Materials:**
+• {chip label WRAPPED as [label](url)}
+• {chip label WRAPPED as [label](url)}
+**Deal Docs:**
+• {chip label WRAPPED as [label](url)}
+• {chip label WRAPPED as [label](url)}
 [opp](https://www.notion.so/{oppId}) · [email](https://mail.google.com/mail/u/0/#all/{messageId})
 ```
 
@@ -78,7 +83,7 @@ The consolidated `#claude-alerts` ping fires deterministically from inside `noti
 
 - Write GFM only — `send-alert/send.sh` converts to Slack Block Kit. Do NOT hand-write Slack mrkdwn (`*bold*`, `<url|text>`); it ships as literal text and breaks link tap targets.
 - Header line is underlined + fully bolded with `<u>**...**</u>`, subject as plain text — NO links inside the headline (alert convention: links live on the footer line). The footer is lowercase `[opp](notion-url) · [email](gmail-deep-link)`; the `· [email]` segment appears only when `--email-message-id` was passed.
-- Field rows carry no bullet glyphs (alert convention: no `- ` / `•`). Each row's field name is bolded with `**...**`, followed by `:`, then a comma-separated list — no per-artifact lines. Single-line spacing throughout, no blank line after the header.
+- Each Files-property field name (`Diligence Materials`, `Deal Docs`) is bolded with `**...**:` on its own line, then **one `•` bullet line per artifact** beneath it — each doc takes up its own line (Tom, 2026-09-18), not a comma-joined run. `Page Body` stays a single inline comma-separated line (plain text). Single-line spacing throughout, no blank line after the header.
 - **Page Body items are plain text** (no links — the Opp link in the header already covers it).
 - **Page Body bullet reflects actual writes only** — list `Company Blurb` ONLY if the section was newly written on this run (not skipped due to existing section, not a no-op rewrite of identical content, not a precondition-fail per the Step 4 hard-precondition gate). If the section existed before and was untouched, omit the entire `Page Body:` bullet. Mis-reporting a no-op as a write is a bug, not a cosmetic issue — Tom uses these alerts to audit what changed.
 - **Diligence Materials and Deal Docs items are each individually linked** via `[label](url)`:
@@ -95,7 +100,10 @@ The consolidated `#claude-alerts` ping fires deterministically from inside `noti
 ```
 🔍 <u>**Materials: Inlets**</u>
 **Page Body:** Company Blurb
-**Diligence Materials:** [Inlets - One-Pager (2026)](https://drive.google.com/file/d/.../view), [Inlets - Oncology Case Study](https://drive.google.com/file/d/.../view), [Inlets Demo (login: demo@inlets.ai; pw: ***)](https://app.inlets.ai/)
+**Diligence Materials:**
+• [Inlets - One-Pager (2026)](https://drive.google.com/file/d/.../view)
+• [Inlets - Oncology Case Study](https://drive.google.com/file/d/.../view)
+• [Inlets Demo (login: demo@inlets.ai; pw: ***)](https://app.inlets.ai/)
 [opp](https://www.notion.so/34800beff4aa81a5ba9dca2b550eb002) · [email](https://mail.google.com/mail/u/0/#all/19dcf6ceb1af7c41)
 ```
 
@@ -262,6 +270,8 @@ Every saved artifact lands in EITHER `Diligence Materials` OR `Deal Docs`, never
 
 **Deal Docs are stored as received — never mint a derived copy (Tom, 2026-08-25).** For anything routed to `Deal Docs`, the file as it arrived IS the artifact. Do not transcribe it into a Google Doc, re-render it as "machine-readable" text, or otherwise create a second copy — and never drop one into `Diligence/[Company]/`, where later diligence passes and memo drafts will read it as source material. Derived copies drift from the original, and plaintext strips the visual cues that make a transaction doc verifiable. Wire instructions are the acute case: a Doc reads as authoritative but carries none of the bank's formatting, so a tampered version is indistinguishable from a real one. If you need the contents to reason, read the original in-context and leave nothing behind.
 
+**Never upload the e-sign completion certificate — only the executed document (Tom, 2026-09-20).** DocuSign / Dropbox-Sign / MyCase / Adobe Sign attach a separate audit artifact alongside the signed doc — filenames like "DocuSign Completion Summary", "Completion Summary", "Certificate of Completion", "Signing Certificate", a bare "…Summary", "Audit Trail". This certificate is procedural exhaust, not a transaction artifact: **skip it entirely — do not upload it to Drive and do not chip it to Deal Docs.** Keep only the executed document itself (the signature packet, the countersigned SPA / SAFE / side letter / consent). This is a hard skip even though the "Completed:" e-sign subject is a Deal Docs routing signal above — the subject routes the *executed doc*; the standalone summary/certificate that rides along is dropped. Exception: if the e-sign export bundles the certificate as trailing pages *inside* the executed PDF, leave the PDF as received — the rule targets a *separate* summary/certificate file, not pages embedded in the executed doc.
+
 **Route to `Diligence Materials` (default) for everything else** — decks, memos, one-pagers, case studies, investor updates, financial models (operating projections, NOT cap tables), customer references, product demos, etc.
 
 **Ambiguous case** — if a doc is borderline (e.g. "Acme Round Overview.pdf" that includes both deal terms and a deck-style narrative), route to whichever signal dominates the first 2 pages. If still unclear, default to Diligence Materials and note the assumption in the Step 5 summary so Tom can re-route.
@@ -361,7 +371,7 @@ For each email containing relevant attachments:
 4. **Error handling**: If `result["success"]` is `false`, log the error and fall back to generating a Gmail deep link (`https://mail.google.com/mail/u/0/#all/<messageId>`) for manual download. Do not retry more than once.
 
 5. **Rename to convention + dedup guard (MANDATORY — this path is the one that accumulates duplicates).** Unlike the Drive Upload Apps Script (3B–3D), the Gmail Attachment Saver keeps the attachment's **original filename verbatim and never trashes-and-replaces** — so a founder attachment literally named `Memo.pdf` lands as `Memo.pdf`, and every re-run (webhook + manual + delegated `add-to-crm` Step 6 / `pipeline-agent` Task 5) mints a *new* `Memo.pdf` with a fresh fileId. URL-idempotency at the chip layer can't catch it (new fileId = new URL), so the copies silently pile up. Close it here, per saved file:
-   1. **Rename to the same convention as 3B–3D:** `[Company Name] - [Descriptive Title] MM.DD.YY.pdf`, date = the email's sent date per principle 10 (e.g. `Memo.pdf` → `Ardent - Founder Memo 09.10.26.pdf`, `deck.pdf` → `Ardent - Deck 09.10.26.pdf`). Derive the title from the attachment name / email subject; strip a redundant leading company name. This kills bare generic names, makes collisions detectable, and prevents cross-company `Memo.pdf` clashes. Batch via `drive_rename.py`:
+   1. **Rename to the same convention as 3B–3D:** `[Company Name] - [Descriptive Title] MM.DD.YY.pdf`, date = the email's sent date per principle 10 (e.g. `Memo.pdf` → `Ardent - Founder Memo 09.10.26.pdf`, `deck.pdf` → `Ardent - Deck 09.10.26.pdf`). Derive the title from the attachment name / email subject; strip a redundant leading company name. This kills bare generic names, makes collisions detectable, and prevents cross-company `Memo.pdf` clashes. **Fund-specific Deal Doc → put the exact fund in the title as `(Dash II)` or `(Dash II-A)` — never `Dash-A` / `Dash-A Fund` (Tom, 2026-09-20).** Dash Fund II and Dash Fund II-A invest as **parallel funds and always invest together**, so a fund-specific transaction doc (signature packet, subscription agreement, side letter) arrives once per fund — label each with its own fund, e.g. `Outmarket - Series B Signature Packet (Dash II) 09.18.26.pdf` and `Outmarket - Series B Signature Packet (Dash II-A) 09.20.26.pdf`. Batch via `drive_rename.py`:
       ```bash
       echo '[{"fileId":"<newFileId>","newName":"Ardent - Founder Memo.pdf"}]' \
           | python3 ~/.claude/scripts/drive_rename.py --batch
@@ -406,6 +416,9 @@ Drive v3 export/download runs through the `gmail-reconciler` service account wit
 Use this path when the email *body itself* is the material. Two entry routes: (a) explicit — Tom says "save this email as a diligence material for [company]", or the email is a body-only investor update / inline memo; (b) **judgment call** — the body passes the "standalone substance" bar defined in Step 2's delivery categories (linked research reports, inline metrics, market narrative, reading list), even when the email also has attachments being saved via 3A. Route (b) needs no ask — save it and note the judgment in the Step 5 summary.
 
 1. Fetch the full message content via `gmail_get_thread` (`messageFormat: FULL_CONTENT`) to get `htmlBody`, `plaintextBody`, subject, sender, and date. Prefer `htmlBody` as the render source when the body carries inline hyperlinks — the plaintext form mangles anchor text and URLs.
+
+   - **Truncation guard (mandatory).** Never render from a snippet or a webhook/job-queue payload body — those are pointers, not the artifact. After fetching, sanity-check the body against `sizeEstimate`: if the retrieved body is materially shorter than `sizeEstimate` implies, ends mid-sentence/mid-bullet, or is missing an expected closing (signature, sign-off), **re-fetch the full message** — first `gmail_get_message` (`messageFormat: PLAIN_TEXT` or `FULL_CONTENT`) by `messageId`, then the headless path `~/code/gmail-webhook/admin_run.py _readThread` (see reference_headless_gmail_fetch_path, NEVER Apple Mail). Both were verified to return complete bodies where a snippet/search path truncates.
+   - **No reconstruction — fail loud instead.** The rendered body MUST be a faithful, verbatim transcription of the retrieved message (same wording, same voice, same first/third person). Do NOT paraphrase, normalize, summarize, or "reconstruct from context" any sentence, bullet, or section — this is a diligence artifact and fabricated text reads as diligenced. If a segment is genuinely unavailable after both re-fetch attempts, insert a literal `[body unavailable — not rendered]` marker in place and **abort the render + alert Tom** (per send-alert) rather than shipping a patched PDF. An honest footnote does not license fabricated content.
 2. Render an HTML file at `/Users/tomseo/Downloads/<slug>.html` that wraps the body in a clean layout: title (subject), a meta line (company · sender · date · subject), and the body content. Preserve sections and bullets from the source — don't invent structure. **Preserve every inline hyperlink clickable, and when the body cites external links (reports, studies, articles), append a "Linked references" section listing each link's full URL spelled out** — anchor text alone dies in print, and those URLs are exactly what a later diligence pass clicks through. Use the standard print-friendly CSS (`@page { size: Letter; margin: 0.75in; }`, `-apple-system` font stack, 12pt body, bordered header).
 3. Shell out to Chrome headless to convert to PDF:
    ```bash
@@ -609,6 +622,23 @@ Skip this step only if the batch call reports every item failed. In that case, n
 3. **Never remove a chip whose PDF counterpart doesn't yet exist on the property.** This step only fires as the direct result of adding a PDF snapshot chip in the same run (or a run that's explicitly doing a materials-hygiene pass) — it is not a general "clean up old links" sweep.
 
 Log the swap in the Step 5 summary (`[title] — native chip removed, archived as .docx/.pptx to Diligence/[Company]/, PDF chip is now canonical`).
+
+## Step 4.4a: Materials Hygiene — Signed/Executed Version Replaces the Unsigned Draft
+
+**Trigger:** this run adds a chip for a **signed or executed** version of a Deal Doc that ALREADY has a chip on `Deal Docs` for the **unsigned draft of the same document** — same underlying agreement (same doc type + party/fund), differing only in execution state. A version is the executed one when its filename carries `[EXECUTED]` / `[FINAL]` / "signed" / "countersigned" / "fully executed", or it arrived as an e-sign "Completed:" export; the prior chip is the draft when it reads "draft" / "TS draft" / "unsigned" / "for review" / carries no execution marker.
+
+**Action — replace, do not accumulate (Tom, 2026-09-20). The signed version supersedes the unsigned one in BOTH the Deal Docs property AND Google Drive — never leave a second file behind:**
+1. **Trash the unsigned file in Drive:** `drive_rename.py --trash --confirm --file-id <unsignedFileId>`. Scope strictly to the matching unsigned draft of *this* document — never a different doc. This is one of the auto-trash paths exempt from the confirm-with-Tom rule (like the same-name replace at Step 3A): it only ever removes the unsigned predecessor of the executed file this run just wrote.
+2. **Remove the unsigned chip** from `Deal Docs`:
+   ```bash
+   python3 ~/.claude/scripts/notion_files_property.py \
+       --page-id <opportunity_page_id> --prop "Deal Docs" \
+       --url "<unsigned_draft_url>" --remove
+   ```
+   Exit 0 (including idempotent skip if already absent) = done; exit 1 = leave both chips in place and log it rather than risk an inconsistent state.
+3. **Only fires when the executed chip already landed this run.** Never remove an unsigned chip whose executed counterpart isn't yet on the property — this is not a general "clean up old drafts" sweep.
+
+Log the swap in the Step 5 summary (`[title] — unsigned draft replaced by executed version; draft chip removed + Drive file trashed`).
 
 ## Step 4.5: Extract Contact Signals from Materials
 

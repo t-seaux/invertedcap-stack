@@ -160,6 +160,23 @@ In this format the paren company **IS** the subject (the call is about that comp
 
 **Rule 4 — Paren company as fallback:** only use the paren company as the match candidate when no other rule above produced a subject and the title contains a clear `(<Company>)` capture.
 
+**Rule 1b — pre-company (`-1`) and NewCo Opps are titled by the PERSON, not the company (added
+2026-09-21).** When Rule 1 fires, the counterparty is `<Counterparty Name>` (the text before the
+paren). Two TJ Agnihotri calls (`TJ (FourBridge Partners) / Tom (Inverted Capital)`, 2026-07-24 and
+2026-09-17) parsed `FourBridge Partners`, found zero Opps, and stranded — the Opp is `-1 (TJ Agnihotri)`.
+So whenever Rule 1's company search in Step 3 returns zero matches, run BOTH fallbacks before giving up:
+1. **Person-title search:** `notion-search` the Opportunities DB for `-1 (<Counterparty Name>)` and
+   `NewCo (<Counterparty Name>)` (first + last; also first-name-only if the title uses a nickname —
+   `TJ` vs `Tejas`). A single title hit whose parenthetical equals the counterparty name = confident.
+2. **Contact-email match (deterministic, preferred when it resolves):** look the counterparty up in
+   the People DB (`1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`, name match → `Email`), then query the
+   Opportunities DB for `Contact` contains that email (`ntn api` / REST `data_sources/…/query`,
+   filter `{"property":"Contact","email":{"contains":"<email>"}}`). One non-terminal hit = confident.
+   This is the same Contact-alias logic the gmail-webhook uses and does not depend on how the Opp
+   is titled.
+Only after both fallbacks miss → `ambiguous-or-no-match`. Job B-process must run the SAME two
+fallbacks (it failed the 09-17 note too and mislabeled it `Other / unlinked network call`).
+
 If no rule produces a candidate → log `no-company-from-title` and exit 0. Job B will retry against the body.
 
 **Confidence rule:** only emit a link if confidence is **high**. Don't guess. Better to leave empty and let Job B / the daily sweep retry.
@@ -189,6 +206,15 @@ Command: update_properties
 Page ID: <note page ID>
 Properties: { "Opportunity": <opp page ID> }
 ```
+
+**Readback is mandatory (added 2026-09-21).** `notion-update-page` can return success without the
+relation landing (see `feedback_notion_mcp_silent_write_failures`). The 2026-07-24 TJ Agnihotri call
+was logged `WRITE … set Opportunity relation → -1 (TJ Agnihotri)` and was found UNLINKED two months
+later. After the write, re-read the note via REST (`ntn api -X GET /v1/pages/<note id>` → the
+`Opportunity` relation must contain the Opp id). If it doesn't, re-issue the write via
+`ntn api -X PATCH /v1/pages/<note id> -d '{"properties":{"Opportunity":{"relation":[{"id":"<opp id>"}]}}}'`
+and read back again. Log `linked` only after a readback confirms it; otherwise log `link-write-failed`
+so the daily sweep retries.
 
 ### Step 5: Exit silently
 

@@ -1,15 +1,8 @@
 ---
 name: neg1-sourcing-listener
-description: >-
-  Processes Tom's replies to candidate cards in #neg1-sourcing — the Slack go / no-go surface for -1 (pre-founder)
-  sourcing. Verb grammar on card threads, all against the CANDIDATE STORE (candidates.py; the -1 Scanner Notion DB
-  is deleted): "draft" (invokes founder-outreach store mode inline → set-state drafted, Gmail draft lands in ~2 min),
-  "pass <why>" (set-state passed + decision-ledger row with the why), "track" / "snooze" (set-state tracked +
-  resurface date, default one quarter; card re-posts when it arrives), "more" (posts the full eval_summary +
-  breakdown into the thread). (A) Scheduled sweep — daily reconciliation over recent card threads, catches replies
-  the webhook missed. (B) Webhook — invoked via claude-job-queue when the slack-retro-webhook Worker routes a
-  #neg1-sourcing thread reply. Never sends email — Tom sends by hand from Gmail. Not user-facing in webhook mode. Distinct from decision-retro-listener
-  (#decision-retros) and claude-alerts-listener (#claude-alerts).
+description: |-
+  Processes Tom's replies to candidate cards in #neg1-sourcing — the Slack go / no-go surface for -1 (pre-founder) sourcing, all against the CANDIDATE STORE. Verb grammar on card threads: "draft" (Gmail draft lands in ~2 min), "pass <why>" (+ decision-ledger row), "track" / "snooze" (resurface date, default one quarter), "more" (full eval posted in-thread). (A) Scheduled — daily reconciliation sweep over recent card threads, catches replies the webhook missed. (B) Webhook — via claude-job-queue when slack-retro-webhook routes a #neg1-sourcing thread reply. A TOP-LEVEL #neg1-sourcing post (thread_ts null) is a channel command: "show/surface my unreacted candidates" / "what's waiting on me" re-fires the whole surfaced queue — same re-post surface reachable by text (sms-listener) or a Claude session (neg1-sourcing skill). Never sends email — Tom sends by hand. Not user-facing in webhook mode. Distinct from decision-retro-listener (#decision-retros) and claude-alerts-listener (#claude-alerts).
+
 ---
 
 # -1 Sourcing Listener
@@ -82,9 +75,26 @@ Parsed from Tom's thread reply on a candidate card (case-insensitive, first toke
 | Verb | Aliases | Action |
 |---|---|---|
 | `draft [<why>]` | **`add`**, **`load`** — Tom's own words for the affirmative, see notes below; plus ANY affirmative-pursuit word: yes, pursue, go, reach out, let's do it, send it, in, 👍 as text — the class is open, not a fixed list | Draft + CRM birth (v2 block above); optional `<why>` = positive taste signal, logged like pass reasons |
-| `pass <why>` | no, skip | Status → `Passed` + ledger row + `<why>` logged as retro |
-| `track <dur>` | snooze, watch, hold, later, **punt** | Set `Re-surface` date (default 3mo — one quarter; accept `3mo`/`6mo`/`12mo`/`1y`) |
+| `pass <why>` | no, skip, **`👎` as text** (reaction-synthesized — see below) | Status → `Passed` + ledger row + `<why>` logged as retro |
+| `track <dur>` | snooze, watch, hold, later, **punt**, **`⏱` as text** (reaction-synthesized) | Set `Re-surface` date (default 3mo — one quarter; accept `3mo`/`6mo`/`12mo`/`1y`) |
 | `more` | details, breakdown | (Courtesy verb, not shown on the card footer) Post full Eval Summary + Signals line into the thread |
+
+**Reaction verbs (Tom, 2026-09-18: "👍 for load · 👎 to pass · ⏱️⏲️⏰ any of these to punt").**
+Tom reacting on a candidate CARD (not replying) also decides it. The `slack-retro-webhook` Worker
+synthesizes the reaction into a one-glyph text job on the card's thread — `👍` (confirm set:
+👍/✅/✔️/☑️, universal contract), `👎` (👎, neg1-channel-scoped), `⏱` (any of ⏱️/⏲️/⏰,
+canonicalized to one token, neg1-channel-scoped) — so this skill sees them as ordinary replies and
+the verb table above already routes them: `👍` → draft (the existing "👍 as text" alias), `👎` →
+pass with no why, `⏱` → track at the default one-quarter resurface. Two rules specific to the
+reaction path:
+1. **Bare `👎` ledger row:** run the full pass branch with `--why "(reaction pass — no reason
+   given)"`; the close-loop reply asks for the optional why: `Logged: passed on {Name}. Reply with
+   a one-line why to teach the taste engine.` (same teach-loop sentence as the trashed-draft pass).
+2. **Deferred why capture:** a subsequent NON-VERB text reply on a card whose store row is
+   `state=passed` with the reaction-pass placeholder why IS the why — update the ledger row's
+   `why` to the verbatim reply and run the pass branch's retro-nugget logging (DECISION_RETROS.md
+   entry + row-page Retro block). Only fires while the placeholder is in place; once a real why is
+   recorded, later replies are conversation, not capture.
 
 **`load` is also a full alias of `draft` (Tom, 2026-08-11): "(also load should be an alias btw)"** — runs the complete draft branch identically to `add` and `draft`.
 
@@ -111,6 +121,12 @@ Cards carry NO verb legend (dropped 2026-07-16 — the grammar lives in the pinn
 ## Mode B: Webhook (per-reply)
 
 Invoked by claude-job-queue with args `{mode: "webhook", channel_id, thread_ts, reply_ts, user, text, files}` — same shape as claude-alerts-listener.
+
+**Step B0 — thread vs. channel command (branch FIRST, before the card resolve).** A card reply always carries a `thread_ts` (it is a reply *on* a card). A **top-level** post in `#neg1-sourcing` arrives with `thread_ts` null (the Worker routes it here since 2026-09-19; before that top-level posts were ignored) — that is a **channel command**, not a card decision. Branch:
+- **`thread_ts` is null (top-level post):** read `text`. If it expresses an ask to see / surface / resurface / resend / re-fire / pull up / show / list the neg1 (a.k.a. -1, pre-founder) candidates or queue — with OR without "unreacted" ("surface neg1 candidates", "surface my unreacted -1s", "resend neg1s", "re-fire the neg1 cards", "what's in my neg1 queue", "who's waiting on me", "show the ones I haven't reacted to", bare "neg1 queue") → run the **surface-unreacted command** (below) and STOP — do NOT run the card-resolve steps. Match on intent, not exact words. If the text is anything else (chatter, a pasted LI URL, an unclear ask), do nothing and exit silently (no error reply — the channel is Tom's, and a top-level post that isn't a recognized command is not a decision to process). The `👀` ack in Step 0 is still fine to add.
+- **`thread_ts` is set (card reply):** proceed to Step 0 → Step 1 as normal.
+
+**Surface-unreacted command** (also the entry point for Mode C, below): run `python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py surface-unreacted`. It reads every `state='surfaced'` row from the candidate store (carded but not yet drafted/passed/tracked), posts a Warm/Cold **summary** message to `#neg1-sourcing`, then re-fires each candidate's **card** as its own message (canonical anatomy rendered in code — see `render_card` in that script — with the `[neg1:{slug}]` fingerprint and a refreshed `card_ts` so the fresh reactions/replies resolve back to the store row). The command owns all posting; this skill does not compose the cards. It prints `{"surfaced": N, "posted": M}` — nothing else to do. Do NOT `upsert` or otherwise mint rows. This is the SAME re-post surface Tom can trigger by text (sms-listener) or in a Claude session (neg1-sourcing skill) — one command, three front doors.
 
 **Step 0 — ack.** Add a 👀 reaction to Tom's reply (quiet confirmation the job picked up; the bot token at `~/.claude/skills/claude-alerts-listener/.bot_token` has `reactions:write`). If the reaction fails, log and continue. Close-loop thread replies throughout this skill use md_to_blocks.py bot-token mode with `SLACK_THREAD_TS={thread_ts}`.
 
@@ -147,7 +163,7 @@ If that returns nothing (stored URLs vary in host/trailing slash), fall back to 
       --why "{<why> verbatim}" --retro-ref "{row URL}"
     ```
   - If `<why>` is present, also log it as a retro (this is decision-retro capture mode for scope=neg1, executed inline): append a `## Retro (YYYY-MM-DD)` block with the verbatim reply to the -1 row page, and append founder-signal nuggets to `~/.claude/skills/founder-taste/DECISION_RETROS.md` in the standard entry format (`- **YYYY-MM-DD · {Name} · -1: Passed** — nugget` + Source line). Then register the capture with decision-retro's queue so the 9:05am neg1-retro-scan doesn't re-prompt: run `queue_append.py --opp-id {page_id} --opp-name {Name} --opp-url {row URL} --decision Passed --trigger-source manual`, then set that entry's `status="completed"` / `completed_at=now()` by full page id (python one-liner on `queue.json` — full-id match only).
-  - Close-loop reply: `Logged: passed on {Name}` + one line noting whether the reason contradicted or confirmed the rubric's read (e.g. `— rubric had him ✅ on Earned Reps; your reason is timing-shaped. Override recorded.`). This line is the taste-engine surface — keep it one sentence, no lecture.
+  - Close-loop reply: `Logged: passed on {Name}` + one line noting whether the reason contradicted or confirmed the rubric's read (e.g. `— rubric had him ✅ on Earned Reps; your reason is timing-shaped. Override recorded.`). This line is the taste-engine surface — keep it one sentence, no lecture. **Never echo a PF-id or W-code here** — the stored `gap`/`working_desc`/`when_gate` fields may carry codes like `PF-19` for back-testing, but spell the reason out in plain English when it surfaces in this reply (Tom, 2026-09-21: "spell out the PF. I don't know what PF 19 actually is" — write "career timing, ~15.5y past the optimal founding window", never "PF-19 boundary, 15.5y").
 
 - **track <dur>**:
   - Set the row's `Re-surface` date property to today + duration (default 3 months — one quarter). Leave Status unchanged.

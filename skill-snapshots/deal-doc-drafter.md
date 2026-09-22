@@ -1,28 +1,8 @@
 ---
 name: deal-doc-drafter
-description: >-
-  Generate execution-ready Inverted Capital deal docs — the YC Post-Money SAFE
-  (Valuation Cap Only) and the Inverted SAFE Term Sheet — as PDFs from deal
-  parameters. Tom gives the entity legal name, Inverted's purchase amount, and
-  the post-money cap (plus, for a term sheet, the maximum raise and expiration
-  date); the skill fills the pinned Google Doc template cross-run, exports PDF,
-  runs a deterministic publish gate (zero unfilled tokens, all required values
-  present), and saves to ~/Downloads as
-  `<Short> x Inverted Capital - <Stage> <SAFE|Term Sheet> <MM.DD.YY>.pdf`.
-  Fields deliberately left open render as [TBD] highlighted yellow. Also owns
-  every deal-doc VERSION event — a new turn, vFinal awaiting execution, or the
-  executed set, for the SAFE, term sheet, or side letter: same-name Drive
-  replace into the flat `Deal Docs/<Company>/` folder + swap the Notion Opp's Deal Docs chip (replace
-  mints a new file ID, so the chip is refreshed every time). Manual-only.
-  Trigger on "draft a SAFE for [company]", "generate the SAFE", "term sheet for
-  [company]", "save down a PDF of the term sheet", "we agreed terms with
-  [company]", "prep the docs for [company] — $X on $Y cap", "here's the
-  signed/executed SAFE", "new turn of the [company] docs", "final docs for
-  [company]", or any variant producing an Inverted SAFE or term sheet, or
-  handing over an updated deal-doc version. NOT for drafting side letters
-  (negotiated per deal, no template skill — but their version handling routes
-  here) and NOT for Discount/MFN SAFE variants (cap-only form only — say so and
-  stop if asked).
+description: |-
+  Generate execution-ready Inverted Capital deal docs — the YC Post-Money SAFE (Valuation Cap Only) and the Inverted SAFE Term Sheet — as PDFs from deal parameters (entity legal name, purchase amount, post-money cap; plus max raise + expiration for a term sheet). Deterministic publish gate; open fields render [TBD] highlighted yellow; saves to ~/Downloads as `<Short> x Inverted Capital - <Stage> <SAFE|Term Sheet> <MM.DD.YY>.pdf`. Also owns every deal-doc VERSION event — new turn, vFinal awaiting execution, or the executed set, for the SAFE, term sheet, or side letter: same-name Drive replace into Deal Docs/<Company>/ + swap the Notion Opp's Deal Docs chip. Manual-only. Trigger on "draft a SAFE for [company]", "generate the SAFE", "term sheet for [company]", "save down a PDF of the term sheet", "we agreed terms with [company]", "prep the docs for [company] — $X on $Y cap", "here's the signed/executed SAFE", "new turn of the [company] docs", "final docs for [company]", or any variant producing an Inverted SAFE or term sheet or handing over an updated deal-doc version. NOT side-letter drafting (negotiated per deal, no template — but their version handling routes here); NOT Discount/MFN SAFE variants (cap-only form only — say so and stop).
+
 ---
 
 # deal-doc-drafter

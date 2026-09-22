@@ -1,19 +1,8 @@
 ---
 name: lp-letter-workshop
-description: >-
-  Quarterly LP letter pipeline in three gated phases: (1) Context Pack — assemble everything the
-  letter draws on (prior letters + thinking-evolution threads, in-quarter + all-time memos, CRM
-  funnel with pass reasons, deep-dive diligence dossiers, SOI quarter diff + Company Updates
-  qualitative evidence, Notes-DB research intake, people met via People DB + meeting notes +
-  calendar, LPAC deck bridge, word-bank vocabulary) into one reviewable artifact; (2) Foundation —
-  a comprehensive pre-drafting take (thinking-evolution ledger, ALL supportable through-lines,
-  callback inventory, evidence bank) Tom reacts to; (3) Drafting — a [WIP] Google Doc matching
-  historical letter conventions exactly, iterated turn by turn. Supports mid-quarter starts and
-  post-quarter "incorporate the latest" delta refreshes at every phase. Trigger on "start the
-  [Q3] letter", "LP letter workshop", "let's work on the LP letter", "build the letter context
-  pack", "letter foundation", "draft the Q[N] letter", "refresh the letter pack", "incorporate
-  the latest into the letter". NOT fund-update-drafter (one-off LP email replies) and NOT
-  log-investor-letter-to-notion (external firms' letters). Manual-only.
+description: |-
+  Quarterly LP letter pipeline in three gated phases: (1) Context Pack — assemble everything the letter draws on (prior letters, memos, CRM funnel + pass reasons, diligence dossiers, SOI diff + Company Updates evidence, research intake, people met, LPAC bridge, word-bank vocabulary — full inventory in the skill body) into one reviewable artifact; (2) Foundation — a comprehensive pre-drafting take Tom reacts to; (3) Drafting — a [WIP] Google Doc matching historical letter conventions exactly, iterated turn by turn. Supports mid-quarter starts and post-quarter "incorporate the latest" delta refreshes at every phase. Trigger on "start the [Q3] letter", "LP letter workshop", "let's work on the LP letter", "build the letter context pack", "letter foundation", "draft the Q[N] letter", "refresh the letter pack", "incorporate the latest into the letter". NOT fund-update-drafter (one-off LP email replies) and NOT log-investor-letter-to-notion (external firms' letters). Manual-only.
+
 ---
 
 # LP Letter Workshop

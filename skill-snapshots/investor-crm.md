@@ -1,20 +1,8 @@
 ---
 name: investor-crm
-description: >
-  Build and maintain an Investor CRM (a.k.a. VC CRM) — a fundraise tracker Tom hands
-  a founder listing which investors are in the round and at what stage, in Tom's house
-  format (# / Name / Firm / Location / Status / Note(s), status color bands). One sheet
-  per company, kept in the Drive Portfolio folder. TWO modes. (A) CREATE — build a new
-  CRM for a company from its Notion Opportunity's intro relations. Trigger: "create an
-  investor CRM for [Company]", "spin up a VC CRM for [Company]", "build the investor CRM
-  for [Company]", "make an investor tracker for [Company]", or any create/spin-up/build
-  phrasing + "investor/VC CRM" + a company. (B) ADD / EDIT — incrementally change an
-  existing CRM. Trigger: "add [X] to [Company]'s investor CRM", "add [fund] to the
-  investor CRM", "mark [X] as [status/passed/avoid] in [Company]'s CRM", "remove [X]
-  from the CRM", "update [X]'s status", or any incremental edit to an investor CRM that
-  already exists. Manual-only, always trigger inline — no confirmation before acting.
-  NOT coinvestor-recommender (which suggests who to bring in); this renders/maintains the
-  tracker sheet. Does NOT sweep Gmail/iMessage.
+description: |-
+  Build and maintain an Investor CRM (a.k.a. VC CRM) — the fundraise tracker Tom hands a founder (# / Name / Firm / Location / Status / Note(s), status color bands), one sheet per company in the Drive Portfolio folder. TWO modes. (A) CREATE from the company's Notion Opportunity intro relations — "create an investor CRM for [Company]", "spin up a VC CRM for [Company]", "build the investor CRM for [Company]", "make an investor tracker for [Company]", or any create/spin-up/build phrasing + investor/VC CRM + a company. (B) ADD / EDIT an existing CRM — "add [X] to [Company]'s investor CRM", "add [fund] to the investor CRM", "mark [X] as [status/passed/avoid] in [Company]'s CRM", "remove [X] from the CRM", "update [X]'s status", or any incremental edit. Manual-only, always inline — no confirmation before acting. NOT coinvestor-recommender (which suggests who to bring in); this renders/maintains the tracker sheet. Does NOT sweep Gmail/iMessage.
+
 ---
 
 # Investor CRM

@@ -1,18 +1,8 @@
 ---
 name: deal-text-scanner
-description: >
-  Text-channel router for Tom's personal iMessages. A code-gated launchd sweep hands it new
-  1:1 (and small-group) messages; it triages each into one or more lanes and loads only that
-  lane's reference file. Lanes: DEAL — deal-flow signals become a "🆕 Opportunity" card texted
-  to Tom, never a direct CRM write (his 👍 / "confirm", handled by sms-listener, does the add).
-  INTRO — Tom's own in-thread replies move pipeline status, unknown numbers get identified as
-  intro'd founders, the Blockit scheduling handoff gets pre-staged, and the REVERSE arrow is
-  covered too: opt-ins/declines to Tom's own portco-intro offers ("can I intro you to my
-  founder?") move the Opp's intro relations and queue the connect draft. FEEDBACK — backchannel
-  asks and debriefs (incl. transcribed voice notes) are written to the Notion feedback notes
-  and 📣 Pending Feedback, auto-written with no 👍 gate; the email side stays with
-  feedback-outreach-scanner. Scheduled-sweep-only. TOM-ONLY surface: reads his personal texts,
-  nothing here is family-scoped. Most messages are NOT anything — default to silence.
+description: |-
+  Text-channel router for Tom's personal iMessages. A code-gated launchd sweep hands it new 1:1 (and small-group) messages; it triages each into one or more lanes and loads only that lane's reference file. DEAL — deal-flow signals become a 🆕 Opportunity card texted to Tom; his 👍 (via sms-listener) does the add, never a direct CRM write. INTRO — Tom's in-thread replies move pipeline status, unknown numbers get identified as intro'd founders, the Blockit handoff is pre-staged, and the reverse arrow (opt-ins/declines to Tom's own portco-intro offers) moves relations and queues the connect draft. FEEDBACK — backchannel asks and debriefs (incl. voice notes) are auto-written to the Notion feedback notes with no 👍 gate; the email side stays with feedback-outreach-scanner. Scheduled-sweep-only. TOM-ONLY surface — never family-scoped. Most messages are NOT anything — default to silence.
+
 ---
 
 # Text Scanner — lane router

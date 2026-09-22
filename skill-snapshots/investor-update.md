@@ -1,17 +1,8 @@
 ---
 name: investor-update
-description: >-
-  Process investor update emails AND board materials (board meetings/decks/updates) from PORTFOLIO COMPANIES and
-  roll them into the matching Company Updates row. The DB holds ONE row per Company × Period label
-  ({Company} – {Mon YYYY} / Q# YYYY / YYYY / YYYY (Plan)) shared with Live call content; this skill UPSERTS a
-  dated Formal section into that row (never a standalone page per email). Board materials add the `Board`
-  Update Type value (multi-select). NOT the same as investor letters. Three modes: (A) Scheduled sweep — scans
-  Gmail inbox for update/board emails from the past 24h, catching what the webhook missed. (B) Webhook — one
-  inbound message via claude-job-queue. (C) Manual — auto-detects a forwarded/pasted update or board deck;
-  phrases: investor update, quarterly/monthly/portfolio update, board meeting, board deck, board update, board
-  materials, company-update newsletters, Google Slides share notifications for portfolio decks, or any periodic
-  business/financial or board communication from a founder. All modes: extract company, find the Active
-  Portfolio Opp, upsert into the Company Updates period row, save a PDF archive, link via dual relation.
+description: |-
+  Process investor update emails AND board materials (board meetings/decks/updates) from PORTFOLIO COMPANIES into the matching Company Updates row — the DB holds ONE row per Company × Period label, and this skill UPSERTS a dated Formal section into it (never a standalone page per email); board materials add the `Board` Update Type. NOT the same as investor letters. Three modes: (A) Scheduled — 24h Gmail sweep catching what the webhook missed. (B) Webhook — one inbound message via claude-job-queue. (C) Manual — auto-detects a forwarded/pasted update or board deck; phrases: investor update, quarterly/monthly/portfolio update, board meeting, board deck, board update, board materials, company-update newsletters, Google Slides share notifications for portfolio decks, or any periodic business/financial or board communication from a founder. All modes: extract company, find the Active Portfolio Opp, upsert the period row, save a PDF archive, link via dual relation.
+
 ---
 
 # Investor Update Processor (Portfolio Companies)
@@ -140,6 +131,14 @@ Triggered by `gmail-webhook` (`investor-update.js`) on inbound mail that passes 
 - `oppId` (optional) — Notion Opportunity page ID, pre-resolved by the webhook. Use as a fast-path in Step 2 (skip the search) but verify the page is still Active Portfolio before writing.
 - `oppName` (optional) — Opportunity title, for log/Slack output before the Notion page is loaded.
 - `forwardedSenderEmail` (optional) — set when the webhook detected `Fwd:` from Tom's own address. The original founder is in the forwarded body — use this email for company resolution, not the message's `From` header.
+
+**Dash variant (`mail_source: "dash-local"`).** `tom@dashfund.co` has no Gmail webhook, so the `dash-deal-detect` portfolio-update lane enqueues this skill when an update / board-material email from a Dash portfolio founder lands. Args are keyed to the local Apple Mail store instead of Gmail:
+
+```json
+{ "mail_source": "dash-local", "rowid": <dash rowid>, "oppId": "<opp page id>", "oppName": "<company>", "fund": "Dash 2️⃣" }
+```
+
+On this variant: **do not use the Gmail MCP.** Fetch the body via `~/.claude/scripts/dash_mail.py get <rowid>` and any attached deck/letter via `dash_mail.py attachments <rowid> <dir>` (a `.partial.emlx` stores attachment bytes in a sibling `Attachments/<rowid>/` tree — see fund-context.md). Everything else — the portfolio HARD GATE (Step 2, re-verify Status), forward normalization (Step 2.5, `tom@dashfund.co` already a recognized forward source), the PDF render + Drive upload (Step 3), the Company Updates DB upsert (Step 4), and the Slack alert (Step 5) — runs **unchanged**; the DB and Drive are shared across funds. The Company Updates row is keyed by Company × Period as always (Fund is not part of the row key — the shared DB already holds Dash portfolio cos). See `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
 
 **Behavior in Mode B:**
 - Process exactly the one message identified by `messageId`. Do **not** scan the inbox for other updates in this run.

@@ -84,6 +84,7 @@ Scan the skills directory to build a complete inventory.
      | `add-contact-inbound` | infrastructure — webhook handler, no user-facing skill |
      | `family-todo-digest` | infrastructure — deterministic script that sends the Kenyon-Seo household Reminders list to the family iMessage group each morning; no SKILL.md, no user-facing skill |
      | `evening-digest` | appears to be a household/personal digest with no user-facing skill SKILL.md |
+     | `alert-convention-healer` | auto-heals Slack alert headline templates in source skills; no user-facing workflow |
 
    **Event** — the skill's primary trigger is now a Gmail webhook handler (Apps Script `gmail-webhook` project, invoked via Pub/Sub push) rather than a cron sweep. A skill is Event when its primary inbound/outbound detection happens in response to a Gmail lifecycle event. Handlers roll up into their parent skill per the table below; only the parent skill is rendered, not the handler.
 
@@ -110,6 +111,15 @@ Scan the skills directory to build a complete inventory.
      | `draft-supersede-sweep` | `pipeline-agent` |
      | `add-to-crm-detect-inbound` | `pipeline-agent` |
      | `add-contact-detect-inbound` | `add-to-contacts` |
+     | `calendar-scheduled-detect` | `pipeline-agent` |
+     | `feedback-ask-intent` | `feedback-outreach` |
+     | `feedback-founder-backchannel` | `feedback-outreach` |
+     | `intro-offer-intent` | `intro-agent` |
+     | `label-endpoint` | `pipeline-agent` |
+     | `draft-endpoint` | `pipeline-agent` |
+     | `outbound-intent` | `pipeline-agent` |
+     | `portfolio-contact-audit` | `investor-update` |
+     | `work-mail-event` | `work-mail-event` |
 
    **Ad Hoc** — the skill is invoked manually by Tom (trigger phrase in chat, no cron, no webhook).
 
@@ -132,11 +142,11 @@ Scan the skills directory to build a complete inventory.
 
 | Function | Skills |
 |---|---|
-| Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `neg1-sourcing-listener`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share`, `add-contact-inbound`, `deal-share-out`, `add-to-crm-detect`, `deal-text-scanner`, `add-missed-to-crm` |
+| Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `neg1-sourcing-listener`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share`, `add-contact-inbound`, `deal-share-out`, `add-to-crm-detect`, `deal-text-scanner`, `add-missed-to-crm`, `dash-deal-detect` |
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan`, `intro-status-summary` |
 | Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan`, `intro-outreach-drafter`, `safe-drafter`, `pro-forma-round`, `add-follow-on-round`, `investor-crm`, `fund-update-drafter`, `dash-lp-update-email` |
 | Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste`, `question-bank`, `memo-workshop`, `deal-doc-drafter`, `brain-dump` |
-| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan`, `investing-style` (composite — absorbs `founder-taste`, whose home function is Diligence Management; see Composite breakdown), `launchagent:com.tomseo.scheduled.investing-style-quarterly`, `agentic-commerce-agent` |
+| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan`, `investing-style` (composite — absorbs `founder-taste`, whose home function is Diligence Management; see Composite breakdown), `launchagent:com.tomseo.scheduled.investing-style-quarterly`, `agentic-commerce-agent`, `log-document-to-notes`, `log-thread-to-notes` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)
 
@@ -146,7 +156,7 @@ These functions are tracked internally for completeness but do NOT appear in ANY
 |---|---|---|
 | Fund Ops | `mmf-to-lp-calc`, `cpa-report`, `fund-audit` | Operational fund accounting -- not part of the deal/research workflow |
 | Family | `add-to-calendar`, `coop-finances`, `family-inbox`, `haircut`, `purchase-agent`, `restaurant-reservation`, `nysif-payroll-report` | Family/household agent skills — personal, never rendered on the work-facing stack page. Any NEW family-related skill goes in this bucket, never Admin. Repo routing rule (Tom, 2026-09-04): family capability skills live in the SHARED repo `~/code/home-agent-skills` (GitHub `t-seaux/home-agent-skills`, co-edited with Elsie), NOT `invertedcap-skills`. |
-| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `weekly-backup`, `design-language`, `writing-style`, `office-cleaning-expense`, `meeting-note-processor`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh`, `share-skills`, `lp-portal-allowlist`, `word-bank`, `remote-session-cleanup`, `data-health`, `log-company-blurb`, `add-reminder`, `update-profile-photo`, `sms-listener`, `preference-miner`, `writeback-review-triage`, `blurb-draft-sync`, `meal-prep-reschedule`, `lp-letter-workshop`, `evening-digest` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense` is a LaunchAgent-driven personal-life automation (expense logging). (`mademeals-weekly-order` DELETED 2026-08-12 — drop it from any regenerated visual.) `weekly-backup` (formerly `nightly-backup`) is the Monday 3am ET LaunchAgent (`com.invertedcap.weekly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to backup repos + SA-key rotation; lives in `~/.claude/local-agents/weekly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. `share-skills` regenerates the sanitized public skill bundle for external sharing — meta-utility over the skill corpus itself. |
+| Admin | `note-classifier`, `uhc-superbill-filer`, `docsend-to-pdf`, `drive-save`, `weekly-backup`, `design-language`, `writing-style`, `office-cleaning-expense`, `meeting-note-processor`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh`, `share-skills`, `lp-portal-allowlist`, `word-bank`, `remote-session-cleanup`, `data-health`, `log-company-blurb`, `add-reminder`, `update-profile-photo`, `sms-listener`, `preference-miner`, `writeback-review-triage`, `blurb-draft-sync`, `meal-prep-reschedule`, `lp-letter-workshop`, `evening-digest`, `work-mail-event` | Utility/subroutine skills invoked by other skills or personal automation — no standalone user-facing workflow. `design-language` and `writing-style` are visual + voice reference skills consumed by other skills, not standalone workflows. `office-cleaning-expense` is a LaunchAgent-driven personal-life automation (expense logging). (`mademeals-weekly-order` DELETED 2026-08-12 — drop it from any regenerated visual.) `weekly-backup` (formerly `nightly-backup`) is the Monday 3am ET LaunchAgent (`com.invertedcap.weekly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to backup repos + SA-key rotation; lives in `~/.claude/local-agents/weekly-backup/` and has no SKILL.md (pure infrastructure, not user-triggered). `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. `share-skills` regenerates the sanitized public skill bundle for external sharing — meta-utility over the skill corpus itself. |
 
 > **Alias — "other" ≡ Admin**: `Admin` is the catch-all bucket for utility / subroutine / personal-automation skills. When Tom answers a categorization prompt with "other" (or "misc" / "utility"), that means `Admin` — assign it there directly, do NOT re-ask.
 >

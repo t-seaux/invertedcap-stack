@@ -2,10 +2,11 @@
 name: investing-style
 description: >-
   Refresh Tom's PRIVATE "Investing Style" Google Doc from the founder-taste corpus. Bullets map 1:1 to
-  Pillars — Markets / Teams / Products / Models / Not a fit / Other — and are re-derived from PILLARS.md,
-  the decision ledger, retros, LP letters and investment memos; diffs against the last published version;
-  rebuilds the Doc in the diligence-qa visual canon (logo, HEADING_1 title, italic HEADING_2 sections,
-  justified bullets with bold "that…" lead-ins). Trigger on "refresh my investing style", "update the
+  Pillars — Markets / Teams / Products / Models / Not a fit / Other — derived VERBATIM from each pillar's
+  plain "Label – why" name in pillars.json (no redrafting; change the pillar name to change the bullet),
+  cross-checked against the decision ledger, retros, LP letters and investment memos; diffs against the
+  last published version; rebuilds the Doc in the diligence-qa visual canon (logo, HEADING_1 title, italic
+  HEADING_2 sections, justified bullets with bold plain lead-ins). Trigger on "refresh my investing style", "update the
   investing style doc", "regenerate investing style", "what's changed in my investing style", "bump the
   investing style doc", or any request to update that doc. Also republishes AUTOMATICALLY and unattended
   whenever the corpus moves — draft-feedback's save_pillars() calls sync_investing_style() on every
@@ -67,7 +68,7 @@ sqlite3 ~/.claude/data/decision_ledger.db \
 
 Then check each source for movement since `last_refreshed`:
 
-- **`founder-taste/PILLARS.md`** — pass-side Pillars refresh automatically on every sent pass note, so this is the most likely thing to have moved. New or promoted Pillars are candidate new bullets.
+- **`founder-taste/pillars.json`** — pass-side Pillars refresh automatically on every sent pass note, so this is the most likely thing to have moved. New or promoted Pillars are candidate new bullets. Read the JSON, not `PILLARS.md` — the .md is a flat one-line index (2026-09-21); the `applies_when` / `argument` fields needed to draft a bullet live only in the JSON.
 - **New investments** in the ledger — invest-side Pillars are a one-time extraction and do NOT self-update. If there are new `invested` rows since the last refresh, their retros need reading directly.
 - **New LP letters / investment memos** in `writing-style/letters-and-memos/VOICE_EXAMPLES.md` and the Drive memo folder.
 - **`DECISION_RETROS.md`** for reasoning that contradicts an existing bullet. A bullet the corpus no longer supports should be removed, not left to rot — that is the failure this whole system was built to avoid.
@@ -123,8 +124,8 @@ writes no proposal rather than manufacturing movement.
 
 - **State the pattern, never the instance.** The one content rule that survives the doc going private. Bullets are abstractions; a bullet that names a company or a founder has failed, because the corpus underneath is built entirely out of specific people and specific deals and the default failure is a bullet that reads as an anecdote.
 - **The publication-safety rules are dormant, not deleted.** Never attributing a pass to a named company, no fund economics or LP names or round terms, no unflattering reads on named founders, no verbatim lifts from CONFIDENTIAL LP letters and memos — all of that is relaxed *only* because nobody else reads this. The moment it is shared, re-apply `founder-taste/SKILL.md` Query Mode in full and re-curate. Do not assume the current contents are safe to send.
-- **Keep the "that…" construction.** Sections are plural nouns (Markets, Teams, Products, Models); every bullet's bold lead-in completes the stem "I look for …" and ends in exactly one period — `canonical_spec.normalize_label()` enforces the period, so a lead-in cannot flow into its sentence. One tight sentence of substance follows.
-- **En dashes only.** Per `writing-style/letters-and-memos/STYLE.md` rule 5, em dashes do not appear in body prose. `draft_style_bullet()` normalises them on the way in, because the model reaches for them regardless of the prompt.
+- **Bullets are the pillar one-liners, verbatim.** (Replaced the "that…" / "I look for …" completion construction, 2026-09-21 — Tom: "investing style is drafted too stylistically... needs to be more plain"; "if there are too many docs to manage we can consolidate.") Each bullet is derived mechanically from the pillar's plain `name` ("Label – why"): bold `Label.` lead-in, plain-why sentence as body — `draft_style_bullet()` in `draft-feedback/processor.py` does the split; no LLM drafting step. **Never redraft bullet prose here** — to change a bullet's wording, change the pillar's `name` in `founder-taste/pillars.json`; one canonical phrasing per pillar, everywhere. No exceptions remain: the 9 legacy "Other" bullets were promoted to pillars P41–P49 (2026-09-21), the "Other" doc section is retired, and every bullet now derives from a pillar.
+- **En dashes only.** Per `writing-style/letters-and-memos/STYLE.md` rule 5, em dashes do not appear in body prose. `draft_style_bullet()` normalises them on the way in.
 - **Formatting is not this skill's to invent.** It comes from `diligence-qa/canonical_spec.py`, which reads the measured profile off Tom's approved reference doc. If the chrome looks wrong, fix it there, not here.
 
 ## Known gaps to state when they bear on a refresh

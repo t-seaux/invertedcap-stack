@@ -56,6 +56,14 @@ For Mode B specifically:
 - Status guard: re-check the Opp's current Status before drafting. If it's no longer "Pass Note Pending" by the time the job runs (e.g., Tom flipped it to "Pass (Met)" manually), exit without drafting.
 - Step 7 alert format unchanged but reports N=1.
 
+**Mode C — Manual / Conversational (targeted, pre-flip).** Invoked when Tom asks in-conversation to draft a pass note for a *named* Opp that is **not yet** at `Pass Note Pending` (e.g., "draft the pass note for Paravel and move it to pass note pending"). This is the mode that prevents dual-firing with the `notion-webhook` status-change chain.
+
+- **Queue:** the single named Opp. Resolve it by name via `notion-search` / `notion-fetch`; skip Step 1. Do **not** require current Status to be `Pass Note Pending` — in this mode you draft *before* the flip.
+- **Ordering IS the guard — non-negotiable.** Create the Gmail draft FIRST (Steps 2–6), verify it saved (the Step 2 dedup search returns it), and only THEN flip Status → `Pass Note Pending` (same `status_allow` gate, honoring the Step 2 protected-status guard). Because the draft already exists under the canonical subject `[Company] - Inverted follow up`, the `notion-webhook` job that fires on that status change runs Mode B, hits its Step 2 idempotency check, finds the draft, and exits silently. One draft, not two. **Never flip status before the draft is confirmed saved** — doing so reopens the exact race this mode exists to close.
+- **No Slack alert, no mute dance.** Tom is in the conversation and already knows — skip Step 7 entirely, and therefore skip the Step 6 `draft_alert_mute.sh` on/off calls. Report the draft inline instead.
+- **Keep the Drive snapshot** (Step 6) — the `draft-feedback` learning loop still wants it.
+- Everything else — context gather, voice, Argument Pillars, and the mandatory Pass Note Guidance check (Step 3f) — is identical to Modes A/B.
+
 ---
 
 ## Workflow
@@ -112,7 +120,18 @@ If a sent email is found (it must be in Sent mail — not just a draft), it mean
    - **Name (title):** `[Company Name] - Inverted follow up` (use the exact company name as it appears in the Opportunity title, matching the email subject)
    - **Category:** `Diligence` (hardcoded — do NOT invoke note-classifier for this flow)
    - **Opportunity:** relation to the passed Opportunity's page URL
-   - **Body:** the full plain-text pass note as paragraphs, preserving line breaks between bullets. Do NOT include `Tom,` opener addressing wrapper formatting — write the body as it appears in the sent email.
+   - **Body:** the full plain-text pass note. Do NOT include `Tom,` opener addressing wrapper formatting — write the body as it appears in the sent email.
+
+> **Archive body formatting contract (non-negotiable — this is where past archives got corrupted).** Fetch the sent email with `messageFormat: PLAIN_TEXT` (never the HTML body) and write the note as **real Notion blocks**, one block per logical line:
+> - Each `* ` line in Tom's note becomes a real **bulleted list item** (`- ` in Notion markdown), not a paragraph beginning with a literal `*`.
+> - Every other paragraph is its own paragraph block, separated by a blank line.
+> - **Never** emit literal `<br>` / `<br><br>` as line breaks — that renders as visible text and collapses the note into one wall-of-text block. Use real block separation instead.
+> - **Never** backslash-escape `*`, `$`, or other characters (`\*`, `\$\$`, `\$3-4M`). Write them bare; the note is prose, not defensive markdown.
+> - Decode any HTML entities — no literal `&nbsp;`, `&amp;`, `&#39;` in the body.
+> - Strip the signature block from the standalone em-dash (`—`) line onward, and drop any quoted reply history (`On … wrote:`). Keep only Tom's outbound note through `Best,` / `Tom`.
+> - Prepend a single `📧 [View sent email](<gmail sent url>)` link line at the top.
+>
+> The `gmail-webhook/pass-note-sent.js` handler applies this same contract programmatically (`htmlToPlainText` + per-line `buildPassNoteBodyBlocks`); this manual path must match it so both writers produce identical, clean archives.
 
 This ensures every sent pass note has a durable record on the Opportunity alongside call notes and diligence materials, not just in Gmail. The archive is created only on the sent-detection path — never at draft time.
 
@@ -230,19 +249,19 @@ Before drafting, read the pass-note stylebook:
 - `~/.claude/skills/writing-style/pass-note/STYLE.md` — canonical voice + scaffold + anti-patterns. Read in full.
 - `~/.claude/skills/writing-style/pass-note/EDIT_PATTERNS.md` — two sections: **Style Canon** (durable, foundational rules — apply as hard rules) and **Recent Edits** (append-only log of how Tom edits Claude-drafted pass notes — apply as priors). Read both sections in full. (If the file ever grows large enough that drafts come out derivative or over-fit, archive the oldest Recent Edits to `EDIT_PATTERNS_ARCHIVE.md` — never delete; before an entry is archived, its still-unpromoted patterns must be weighed for canon promotion so single-occurrence signal doesn't age out.)
 - `~/.claude/skills/writing-style/pass-note/VOICE_EXAMPLES.md` — full pass notes Tom wrote from scratch (no Claude draft involved). Scan the 2–3 most recent for canonical voice — these are ground truth, but the curated `ANCHOR_EXAMPLES.md` above takes precedence when they disagree.
-- `~/.claude/skills/founder-taste/PILLARS.md` — the recurring **substantive arguments** Tom reuses when passing (as distinct from the voice patterns above). Read in full, then see the selection rule below.
+- `~/.claude/skills/founder-taste/pillars.json` — the recurring **substantive arguments** Tom reuses when passing (as distinct from the voice patterns above). Read in full, then see the selection rule below. **Read the JSON, not `PILLARS.md`** — the .md was flattened to one-line headlines (2026-09-21) and no longer carries the `applies_when` / `argument` / `dont_use_when` / framings fields this selection rule depends on; the JSON is the source of truth and keeps them all.
 
 **Selecting Argument Pillars — this governs the substance of the bullets.**
-The files above tell you how Tom *writes*; `PILLARS.md` tells you what he
+The files above tell you how Tom *writes*; `pillars.json` tells you what he
 actually *argues*. Work it as a matching problem, not a checklist:
 
 1. Read each active Pillar's **Applies when** against the specific opportunity
    and its diligence context. Deploy only genuine matches — typically **one to
    three** across the whole note. Zero is a valid answer when nothing fits.
-2. Honor each Pillar's **Don't use when**. `P1 (Obvious category, capital is the
-   moat)` is the most over-represented in the corpus and the easiest to reach
-   for reflexively — it needs *named* well-funded entrants and real
-   capital-velocity dynamics, not a general sense that a market is competitive.
+2. Honor each Pillar's **dont_use_when**. `P1 (Obvious category)` is the most
+   over-represented in the corpus and the easiest to reach for reflexively — it
+   needs *named* well-funded entrants and real capital-velocity dynamics, not a
+   general sense that a market is competitive.
 3. Respect the section split, which is Style Canon rule 3 in operational form:
    **Market**, **Team**, **Product** and **Model** Pillars carry a real read on
    the company; **Fit** Pillars own the constraint as Tom's own and are never a

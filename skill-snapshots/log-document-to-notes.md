@@ -9,6 +9,12 @@ Capture a letter/report/memo (link or PDF) as a ✏️ Notes DB entry: source li
 
 **Notes data_source_id:** `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb` · **Opportunities:** `fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`
 
+## Dedup guard (do FIRST, before any fetch) — [[shared-references/notes-dedup-guard]]
+Before spending any work: `notion-search` the **exact source URL/link**; if a live Notes-DB
+page (`e8afa155-…`) already references it → **STOP**, don't fetch/parse/create, and reconfirm
+the existing page: `✓ Already logged: **<title>** → <existing url>`. This is the cheap
+re-send guard (it also skips the multi-minute extraction). Backstop lives in Step 5.
+
 ## Routing check (do FIRST)
 - External **investment-firm letter** (SCGE/Oaktree/Baupost-style LP/fund/manager letter) → hand to **`log-investor-letter-to-notion`** (it files to the Non-Inverted Letters folder with investor framing). Not this.
 - **Video/interview/YouTube URL** → `log-transcript-to-notion`. Not this.
@@ -50,4 +56,11 @@ Capture a letter/report/memo (link or PDF) as a ✏️ Notes DB entry: source li
 ```
 
 ## Step 5 — Create, relate, classify
-`notion-create-pages` into the Notes data source (`Name`, `⭐️`="__NO__", body). Best-effort `Opportunity` relation via `notion-search` on a confident single match. **Readback-verify** (`notion-fetch`) — MCP writes can silently no-op ([[reference_notion_tooling]]). Set the Claude icon (`shared-references/claude-note-icon.md`). Run `note-classifier` to set `Category`. Confirm: `✓ Logged to Notes: **<title>** → <url>`.
+**Dedup backstop (before create, [[shared-references/notes-dedup-guard]] Check 2):**
+`notion-query-data-sources` on `e8afa155-…` filtering `Name` `contains` the distinctive
+title core; if a live (non-trashed) match exists → **STOP**, reconfirm the existing page,
+do not create a second. This catches the restart/interleave race the URL check can miss.
+
+`notion-create-pages` into the Notes data source (`Name`, `⭐️`="__NO__", body). **Parent
+MUST be the Notes `data_source_id`, never workspace root** — readback the parent; if it came
+back `workspace`, move it into the DB (the 9/18 ICONIQ orphan was a mis-parent). Best-effort `Opportunity` relation via `notion-search` on a confident single match. **Readback-verify** (`notion-fetch`) — MCP writes can silently no-op ([[reference_notion_tooling]]). Set the Claude icon (`shared-references/claude-note-icon.md`). Run `note-classifier` to set `Category`. Confirm: `✓ Logged to Notes: **<title>** → <url>`.

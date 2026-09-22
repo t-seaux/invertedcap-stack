@@ -1,42 +1,8 @@
 ---
 name: deal-share-out
-description: >-
-  Share a deal from Tom's OWN pipeline outbound with other venture firms, as a Gmail draft (never
-  sends). Modes: (B1) Webhook — Tom reacts 👣 :foot: to a #decision-retros card; slack-retro-webhook
-  enqueues via claude-job-queue, the [opp:] fingerprint resolves the Opp, close-loop reply posts
-  in-thread. (B2) Webhook — AUTO on pass: notion-webhook fires when a non-(-1), non-FO Opp's
-  Status flips to — or the row is created with — Pass (Met) / Pass (DNM) / NR / Missed / Lost;
-  the draft just lands in Drafts, silent.
-  (C) Manual — Tom asks in conversation; an explicit ask overrides the -1/FO exclusion (that
-  gates only the B2 auto-trigger). Recipients = the Distribution List (pilot: Primary
-  deal-agent + investments@fika.vc) in Bcc, minus any member ANYONE at whose firm sourced the
-  deal (firm-wide exclusion: resolve each Source(s) person's firm; a Primary-sourced deal never
-  goes to the Primary agent, a Fika-sourced deal never to the Fika inbox). Given an
-  Opportunity, renders Tom's canonical share
-  template —
-  Overview block (Company / Founder / Stage | HQ | LI / Description / Round Details verbatim /
-  Investor(s) as Name (Round) — funds only, stated rounds only / Materials), attached diligence
-  materials
-  when the Opp has them, and the founder's Original Email blockquoted with Tom-identifying
-  strings stripped — founder-authored content ONLY, a source investor's note never appears; N/A
-  for anything missing, no closing or signature. Named recipients resolve through the skill's
-  registry and land in Bcc (To stays empty, so multiple firms can stack on one send) — "Primary"
-  (any of "refer / kick out / send / share to Primary") = deal-agent@primary-os.com.
-  **Trigger phrases** — all fire Mode C. `[X]` = a company, OR "this / this one / that" when a
-  company is already in context; the firm may be omitted (→ full Distribution List). Verbs, any of:
-  "kick [X] out to [firm]", "kick out [X] to [firm]", "kick [X] to [firm]", "kick this out to
-  [firm]"; "send [X] to [firm]", "send [X] over to [firm]", "shoot [X] over to [firm]", "send this
-  one to [firm]"; "share [X] with/to [firm]", "share the [X] deal with [firm]", "share this with
-  [firm]"; "pass [X] along to [firm]", "pass [X] to [firm]"; "refer [X] to [firm]", "forward [X] to
-  [firm]"; "loop [firm] in on [X]", "put [X] in front of [firm]", "flag [X] for [firm]"; "deal
-  share [X]", "deal share [X] to [firm]", "run a deal share on [X]". **Pre-pass heads-up** phrasings
-  (same flow, before any pass — the `Shared` ledger records the recipient on send so the later
-  auto-pass share excludes them): "give [firm] a heads up on [X]", "early heads up to [firm] on
-  [X]", "let [firm] know about [X] early", "float [X] to [firm]". Bare "kick [X] out" / "deal share
-  [X]" with no firm → full Distribution List (minus exclusions). Distinct from log-deal-share (logging a
-  dealflow share Tom RECEIVED), outreach-decliner / deal-decline (replying "sit this one out" to a
-  received share), and the intro flows (people intros, not deal payloads). Creates a Gmail draft
-  only — no Notion writes, no status changes, never sends.
+description: |-
+  Share a deal from Tom's OWN pipeline outbound to other venture firms as a Gmail draft (never sends). Modes: (B1) 👣 reaction on a #decision-retros card; (B2) AUTO on pass — notion-webhook fires when a non-(-1), non-FO Opp flips to (or is created as) Pass (Met) / Pass (DNM) / NR / Missed / Lost; draft lands silently; (C) Manual — an explicit ask overrides the -1/FO exclusion (that gates only B2). Recipients = Distribution List in Bcc minus the sourcing firm (firm-wide exclusion); template, registry, and stripping rules live in the skill body. Trigger phrases — all Mode C; [X] = a company or "this / this one / that" in context; firm omitted → full Distribution List: "kick [X] out to [firm]", "kick this out", "send / shoot [X] over to [firm]", "share [X] with [firm]", "share the [X] deal with [firm]", "pass [X] along to [firm]", "refer [X] to [firm]", "forward [X] to [firm]", "loop [firm] in on [X]", "put [X] in front of [firm]", "flag [X] for [firm]", "deal share [X]", "run a deal share on [X]". Pre-pass heads-up phrasings (same flow; the Shared ledger records the recipient so the later auto-pass share excludes them): "give [firm] a heads up on [X]", "early heads up to [firm] on [X]", "let [firm] know about [X] early", "float [X] to [firm]". "Primary" (any of refer/kick out/send/share to Primary) = the Primary deal-agent inbox. Distinct from log-deal-share (a share Tom RECEIVED), outreach-decliner / deal-decline (declining a received share), and the intro flows (people, not deal payloads). Gmail draft only — no Notion writes, no status changes, never sends.
+
 ---
 
 # Deal Share Out
@@ -176,7 +142,11 @@ If the company has multiple round cards, share from the card Tom means — defau
   see stylebook), `Diligence Materials`, `Created` (feeds the "Originally Logged" header)
 - Founder full name: the Original Email's sign-off / body; else the deck's team or contact
   slide; else `🏁 Founder(s)` relation → People DB (last — DNM founders almost never have a
-  People row, Tom 2026-08-20). First name only resolvable → use it; never guess a surname (an
+  People row, Tom 2026-08-20). **Founder emails follow the same subset rule as LI (Tom,
+  2026-09-18):** with multiple founders, render the email in parens only for those whose address
+  resolved, and leave the rest as bare names — `Andrew Walters (andrew@…); Alex Lee`, never
+  `Alex Lee (N/A)`. Set `email` only for resolved founders; `compose_body.py` treats empty/"N/A"
+  as unresolved as a backstop. First name only resolvable → use it; never guess a surname (an
   ambiguous LI slug like `danieliu3120` does NOT resolve one).
 - Founder LinkedIn URL — **the LI field should NOT render `N/A`** (Tom, 2026-08-28). Founders
   have LinkedIn profiles; an `N/A` here reads as "didn't look" and is treated as a defect, not an
@@ -198,11 +168,17 @@ If the company has multiple round cards, share from the card Tom means — defau
      — accept a hit ONLY when its current company/role matches the deal (that verification is
      what separates it from guessing; a name-only match is not enough).
   4. The People DB row's LI field (rarely exists for shared deals).
-  Never paste an unverified slug guessed from a name — a wrong profile is worse than a hole. But
+  Never paste an unverified slug guessed from a name — a wrong profile is worse than a hole.
+  **Subset resolution (multi-founder):** when only some founders' LIs resolve, the LI field lists
+  ONLY the resolved ones (join with `; `) and NEVER pads a positional `N/A` for the unresolved —
+  `LI: andrew-walters-884994107`, not `LI: andrew-walters-884994107; N/A` (Tom, 2026-09-18).
+  Build the `li` array from resolved founders only; `compose_body.py` also filters out any entry
+  lacking a real url/slug as a backstop. But
   if the full ladder genuinely comes up empty for a founder, that is a **flag, not a silent
   `N/A`**: call it out in the Step 6 confirmation (Mode C) / the draft's Slack alert (webhook
   modes) as "couldn't resolve LI for <founder> — supply before sending", so Tom can fill it in
-  rather than the draft shipping with a blank LI.
+  rather than the draft shipping with a blank LI. If at least one founder resolved, the field still
+  ships with the resolved slug(s) — only the missing founder is flagged, the field is not blanked.
 - `🕰️ Funding History` relation (list of sibling Opp cards, one per round)
 - Page body → the **Original Email** section (bold label or heading; written by `add-to-crm`)
 - `Source Thread ID` (fallback for Step 4 if the body has no Original Email section)

@@ -42,10 +42,12 @@ Typical scenarios:
    - Cache the final verdict for 6h.
 6. If `verdict == "decline"` and `confidence ≥ 0.85`: PATCH `Status = Pass (DNM)` + Slack alert (via `claude` webhook).
 
-Slack alert format:
+Slack alert format (per alert-convention.md — underlined bold colon headline;
+transition on the outcome line; no raw confidence score):
 ```
-🚫 **{Opp name}** — declined, Qualified → Pass (DNM)
-Reasoning: {one-sentence reasoning from classifier} (confidence: 0.92)
+🚫 <u>**Pass Logged: {Opp name}**</u>
+{from status} → Pass (DNM)
+{one-sentence reasoning from classifier}
 [Open in Notion](…)
 ```
 

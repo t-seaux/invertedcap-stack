@@ -150,9 +150,12 @@ claim is only valid once every link and every attachment has actually been read.
     but add them **all-day and FREE** — they don't block the day.
 - Other mail: keep only genuinely family-relevant dates.
 
-**For EACH relevant date, dedup-check the family calendar BEFORE anything else:**
+**For EACH relevant date, dedup-check BOTH calendars BEFORE anything else** (Tom
+2026-09-19 — per the shared contract, a dupe may live on the WORK calendar instead):
 `mcp__claude_ai_Google_Calendar__list_events` on the Elsie-Tom calendar
-(`cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com`) over that date. Judge
+(`cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com`) AND on Tom's work primary
+(`tom@invertedcap.com`) over that date. A match on either = reconcile IN PLACE where it
+lives; never copy it to the other calendar. Judge
 semantically — the BFS feed already auto-adds many milestones (Labor Day, Family Visit
 Day, First/Second Day), so most will already exist.
 
@@ -182,6 +185,28 @@ Day, First/Second Day), so most will already exist.
   not a 🆕 ask. Dedup-before-add is still absolute — never skip that check just because
   adding is now automatic. If a date is genuinely ambiguous (ex: ambiguous group/time
   assignment, conflicting info in the email) hold it as a 🆕 ask instead of guessing.
+- **INVITATIONS awaiting a yes/no are ALWAYS a 🆕 ask, never an auto-add** (Tom 2026-09-19
+  — confirmed things auto-add; invites notify + 👍/reply-to-add). "You're invited",
+  "RSVP by", save-the-date, birthday-party invites → 🆕 line with when/where/RSVP deadline;
+  **the card's closing CTA line is `👍 to add to calendar` — stated explicitly, and it is
+  the ONLY CTA** (Tom 2026-09-21 — the Pink Room playdate card closed with only "draft it"
+  and left no add path; same day: no draft-offer CTAs on family-bot cards at all);
+  a 👍 or worded yes from either parent adds it
+  (dedup-reconcile first — an RSVP confirmation email may have already added it; never
+  double-add). Published school-calendar dates (BFS milestones, class events) stay
+  auto-add — they're calendar facts, not invites. **Kids' activity providers are always
+  relevant + CONFIRMED** (Tom 2026-09-19): Super Soccer Stars (Andy, soccer), Music
+  Together (Benny, music), The Little Gym (Benny), and similar enrolled classes —
+  schedules, cancellations, makeups auto-add/reconcile; title carries the kid
+  (`<Kid> – <Provider>`); enrollment promos are marketing. This lane and the personal-mail lane
+  share ONE contract: `~/.claude/skills/shared-references/calendar-event-handling.md` —
+  behavior changes land there first; keep this skill conformant.
+- **Location = `Venue Name (street address)` — never a raw maps URL** (Tom 2026-09-21,
+  shared-contract invariant 9). A maps link in the source (maps.app.goo.gl etc.) gets
+  OPENED and resolved to the address exactly as the maps place page shows it —
+  `Van Voorhees Park (Columbia St. and, Atlantic Ave, Brooklyn, NY 11201)`-style — in
+  BOTH the event's location field and the heads-up's where-line; the maps URL itself
+  goes in the event description.
 
 ### 4. Text ONE consolidated heads-up (Sendblue) — to the FAMILY GROUP
 
@@ -217,7 +242,19 @@ Cover both buckets, clearly separated:
 ✓ Already on cal: First Day of School Wed 9/9
 ✏️ Fixed: Family Visit Day Tue 9/8 — was 10:15, sign-up sheet says 10:00-10:15
 🆕 Added: Picture Day — Tue 10/7 (EC)
+📸 Photos: <link>
 ```
+- `📸` line = **class-recap photos link (Tom 2026-09-18, HARD RULE).** A *classroom* recap
+  newsletter — the Pink Room "Newsletter" from `pink@brooklynfriends.org` (Linda/Camille),
+  and any future class/activity recap — will **almost always** carry a link to *that week's
+  photos* (a Google Photos / SmugMug / class-app album; confirmed 2026-09-18 "first Pink
+  Room Newsletter" → `https://photos.app.goo.gl/...`). When enumerating the message's links
+  in step 3, spot that photo-album anchor and put it in the heads-up as a `📸 Photos:
+  <clickable link>` line. It's the parents' favorite part — never drop it. If a
+  recap genuinely has no photo link this time, just omit the line (don't announce its
+  absence). This is a link-alert only — never treat the album as a dated event.
+  **NOT "BFS: The Weekly"** — that all-school click-through shell is a different email and
+  is *not* the photo carrier; the album lives in the teacher's classroom recap.
 - `✓` lines = dupes you already handled (enriched noted). Tom asked: even when it's
   already on the calendar, still tell them you saw a relevant date in the email.
 - `✏️ Fixed:` lines = an existing event whose details CONFLICTED with the source and that
@@ -231,13 +268,15 @@ Cover both buckets, clearly separated:
   just created (you know its id from this same turn). Only fall back to a 🆕 **ask**
   (no "Added:", ends with a question) for a date that's genuinely ambiguous and you don't
   want to guess wrong — see below.
-- **CTA = a reply → offer to draft it.** If the notable email's call-to-action is
-  responding (RSVP, "reply if interested", email back to sign up, confirm attendance),
-  close the heads-up with an offer to draft the reply — e.g. append a line like
-  `Want me to draft a reply? reply "draft it"`. On that reply, use the Drafting path above
-  (`family_inbox.py draft …`, threaded via the source Message-ID) → creates a kenyonseo@
-  DRAFT for review. NEVER sends. (Non-date notes with a reply CTA — like a class volunteer
-  ask — are notable on their own; text the heads-up + draft offer even with no dates.)
+- **Draft-offer CTAs are RETIRED on this lane (Tom 2026-09-21: "i dont think we need a
+  draft as a CTA for family bot related stuff").** Never append a `reply "draft it"` /
+  "Want me to draft a reply?" line to family-group heads-ups — even when the email's
+  call-to-action is responding (RSVP, "reply if interested", sign-up, confirm attendance).
+  The Drafting path itself stays available: a WORDED request from either parent ("draft
+  it", "draft a reply saying …") still uses `family_inbox.py draft …` (threaded via the
+  source Message-ID) → creates a kenyonseo@ DRAFT for review, NEVER sends. (Non-date
+  notes that are genuinely notable — like a class volunteer ask — still get the heads-up,
+  just with no draft-offer line.)
 - **CTA = a task/call outside email → offer to add a reminder.** If the notable email's
   call-to-action requires Tom/Elsie to actually DO something outside the email thread
   (call a number, show up somewhere, collect/hand over an item) rather than just reply,

@@ -1,20 +1,8 @@
 ---
 name: share-skills
-description: >
-  Regenerate the sanitized, shareable bundle of Tom's skill library against the latest corpus.
-  Stages every publicly-mapped SKILL.md (per skill-map-refresh's canonical visible/hidden
-  classification), runs a deterministic PII scrub (emails, record IDs, endpoint URLs, paths,
-  fund identifiers) plus a semantic name-scrub via parallel subagents (real founder/investor/
-  company names → neutral placeholders), verifies zero residuals with a hard grep gate, and
-  packages a zip with README at ~/Downloads/inverted-skill-library.zip. Incremental: unchanged
-  skills reuse their cached sanitized copy (cache/manifest.json tracks source hashes); only
-  changed/new skills re-run the scrub pipeline, and a rules change invalidates the whole cache.
-  The verification gate always runs over the full bundle. Manual-only. Trigger
-  phrases: "bundle skills", "share skills", "share my skills", "skill bundle", "bundle my
-  skills", "refresh the skill bundle", "rebuild the share bundle", "regenerate the sanitized
-  skill bundle", "update the skill share zip", "refresh the share bundle", or any variant
-  asking to produce a shareable copy of the skill library. Not the skill-map-refresh skill
-  (that updates the public /stack visuals) – this produces the full sanitized SKILL.md corpus.
+description: |-
+  Regenerate the sanitized, shareable bundle of Tom's skill library — deterministic PII scrub + semantic name-scrub with a hard zero-residual grep gate, packaged with README to ~/Downloads/inverted-skill-library.zip (incremental — unchanged skills reuse the cache; pipeline detail in the skill body). Manual-only. Trigger phrases: "bundle skills", "share skills", "share my skills", "skill bundle", "bundle my skills", "refresh the skill bundle", "rebuild the share bundle", "regenerate the sanitized skill bundle", "update the skill share zip", "refresh the share bundle", or any variant asking for a shareable copy of the skill library. NOT skill-map-refresh (public /stack visuals) — this produces the full sanitized SKILL.md corpus.
+
 ---
 
 # Share Skills

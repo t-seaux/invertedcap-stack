@@ -1,25 +1,8 @@
 ---
 name: writing-style
-description: >-
-  Central router for Tom's writing-style corpus — the canonical voice + structural rules live in
-  writing-style/<type>/STYLE.md; this entry point picks the right sub-stylebook. Two families.
-  SHORT-FORM EMAIL (one stylebook per use-case, each read by its drafter): neg1-cold-outreach
-  (cold founder -1 outreach; founder-outreach); newco-cold-outreach (cold outreach to a founder who
-  ALREADY has a company; ad-hoc); intro-outreach (first-touch "open to connecting?" note;
-  intro-outreach-drafter); intro-offer (casual "would love to intro" from-a-call note;
-  intro-note-processor); intro-connect (double-opt-in connect email; intro-draft-agent);
-  feedback-outreach (diligence backchannel request; feedback-outreach-drafter); talent-outreach
-  (candidate/hire outreach; talent-scan); pass-note (founder pass notes; pass-note-drafter);
-  deal-decline ("sit this one out" deal-share declines; ad-hoc); lp-raise-outreach (prospective-LP
-  raise notes + forwardable note; ad-hoc); reference-request (cold founder reference-check asks;
-  ad-hoc); portco-ask-forward (Fwd: of a portco's ask + casual cover note; ad-hoc); deal-share-out
-  (outbound deal share to another firm's deal inbox; deal-share-out); portco-investor-list (curated
-  investor list sent TO a portco founder to fill a round; bare bullets, no signature; ad-hoc). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose,
-  investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish",
-  or "refine" any prose or email — infer the type from context and route to the matching stylebook.
-  Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right
-  VOICE_EXAMPLES.md), and on "log a new email form" / "add this to the email corpus" / "capture this
-  as a new email type" (scaffold a brand-new email stylebook from a sample and register it here).
+description: |-
+  Central router for Tom's writing-style corpus — canonical voice + structural rules live in writing-style/<type>/STYLE.md; this entry point picks the right sub-stylebook. SHORT-FORM EMAIL types: neg1-cold-outreach, newco-cold-outreach, intro-outreach, intro-offer, intro-connect, feedback-outreach, talent-outreach, pass-note, deal-decline, lp-raise-outreach, reference-request, portco-ask-forward, deal-share-out, portco-investor-list (full registry with each type's owning drafter in the skill body). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose, investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish", or "refine" any prose or email — infer the type from context and route to the matching stylebook. Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right VOICE_EXAMPLES.md), and on "log a new email form" / "add this to the email corpus" / "capture this as a new email type" (scaffold a brand-new email stylebook from a sample and register it here).
+
 ---
 
 # Writing Style — Central Router
@@ -118,6 +101,36 @@ choices Tom made himself, not misconceptions — don't "fix" them.
 signature black-on-black in dark mode. Stripped at source in `gmail-signature.md` — see the warning
 there before re-extracting the fragment from a fresh Mail-generated send.
 
+## Company blurbs — global rule for EVERY note (Tom, 2026-09-21)
+
+**Any note that carries a company blurb (the `About [Company]` block, a "note from the founder", a
+one-pager paragraph) reproduces it VERBATIM.** Source priority:
+
+1. The Opp's dated 📚 Company Overview callout in Notion, if one exists — fetch it fresh every time.
+   If the Opp carries several audience-specific overviews, use the one matching the recipient.
+2. Otherwise, exactly what the person providing the blurb supplied (founder email, intro-er's note,
+   one-pager) — and log it to the Opp via `log-company-blurb` so the next draft has a 📚 source.
+
+Never source a blurb from an earlier draft or sent email, a diligence doc, the Notion `Description`
+property, or memory. No LLM pass: no trimming, merging, "cleaning up", or dash-swapping — a founder's
+em dash inside the blurb stays (the en-dash rule governs Claude-authored prose only). The only
+permitted formatting is the stylebook's own (linked company name, bold first sentence, italic header).
+If the style gate flags punctuation inside a verbatim blurb, `--force` is the correct call. **No
+explicit blurb on file (no 📚 callout, no founder-supplied text) → COMPOSE the About block, don't drop
+it.** Write it from the Opp page body (Summary / Team) + its call notes / transcripts in the Notes DB
+(title-match the Opp name if `✍️ Notes` is empty; most recent first) — same `-- / italic About [X]`
+format as a verbatim blurb, in Tom's voice, en dashes, scrubbed of anything a founder wouldn't want
+forwarded to a stranger (client names, pricing, rev-share, hiring, personal). Tom, 2026-09-21 (Liam
+outreach for `-1 (TJ Agnihotri)`) briefly asked for body-only articulation instead ("if there is not
+explicit blurb don't add an about block"), then reversed on seeing the composed block: "leave the
+about block, it's pretty darn good." **Net: compose and keep it by default** — only fall back to a
+short body sentence when the notes are too thin to responsibly write 2-3 real sentences. "Never
+invent" means never fabricate, not "never synthesize from real notes." **Encoded identically in
+`intro-outreach/STYLE.md`, `intro-offer/STYLE.md`, `intro-outreach-drafter/SKILL.md`, and
+`intro-note-processor`'s step-7 reference — change one, change all (Tom: "make sure these parallel
+skills don't drift").** Miss that set this rule: Graham Henshaw / Soapbox,
+2026-09-21 — the About block was reused from a prior send (Harrison Hochman) and was a paraphrase.
+
 ## Links — global rule for EVERY email
 
 **Any link baked into any email draft must point DIRECTLY at its destination** (Tom, 2026-08-20,
@@ -132,10 +145,14 @@ tracking URL instead of the site. The fix, for every stylebook and every ad-hoc 
   as the alternative with bare-domain link text.
 - Links inside quoted/forwarded founder content follow the same rule — re-anchor them, don't leave
   bare URLs.
-- **Never bold a hyperlink** (Tom 2026-09-10, re-flagged 2026-09-17 on Tuor intro drafts): no
-  `<b><a>…</a></b>` anywhere — link text renders in Gmail's default link styling only. Where a
-  stylebook bolds a sentence containing a link (e.g. intro-outreach blurb first sentence), the
-  anchor text stays un-bold and only the surrounding prose is bolded.
+- **Never bold a standalone hyperlink** (Tom 2026-09-10): a link on its own, not part of a bolded
+  sentence, stays in Gmail's default link styling — no `<b><a>…</a></b>`.
+- **But if a link falls inside a sentence that's bolded, bold the link too** (Tom 2026-09-21,
+  correcting the 2026-09-10 rule): bold-ness is a property of the sentence, not something a link
+  opts out of. Where a stylebook bolds a sentence containing a link (e.g. intro-outreach blurb
+  first sentence), wrap the whole sentence in one continuous `<b>`, with the `<a>` nested inside —
+  `<b><a href="site">Name</a> is an Investment Engineer at …</b>` — don't close/reopen `<b>` around
+  the anchor.
 
 **Two documented exceptions — do not add a signature here:**
 - `deal-share-out` — Tom's hand-built template (2026-08-20, Sage Care) ends at the quoted

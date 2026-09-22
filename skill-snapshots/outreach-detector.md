@@ -39,10 +39,11 @@ Once an Opp is matched:
 
 Idempotency: if Tom sends a second message in the same thread after the flip, Status is already Outreach — the handler sees `not-flippable` and no-ops. No message-ID dedup needed.
 
-Slack alert format:
+Slack alert format (per alert-convention.md — 🤝 intro-pipeline move, underlined
+bold colon headline, transition on the outcome line):
 ```
-🏢 <u>**Outreach: {Opp name}**</u>
-→ opted in · Qualified → Outreach
+🤝 <u>**Opted In: {Opp name}**</u>
+{from status} → Outreach
 [Open in Notion]({opp.url})
 ```
 

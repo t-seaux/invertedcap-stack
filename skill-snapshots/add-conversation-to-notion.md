@@ -96,7 +96,21 @@ Use `**Letter**` as a bolded text label (not a Markdown header `##`). Reproduce 
 **Claude:** <response with full formatting — bullets, bold, line breaks — preserved>
 ```
 
-Include all turns from the beginning of the thread. Do not summarize or truncate — the goal is a complete, searchable archive.
+**Color EVERY block of Tom's message, not just the first.** The `{color="blue"}` annotation only spans a single block (one paragraph / list item / quote); it does NOT carry across a blank-line break or into list items. So when Tom's turn has multiple paragraphs, a numbered/bulleted list, or any multi-block structure, prefix `{color="blue"}` to the content of EACH block — every paragraph and every list item — or the tail blocks render white. Example of a multi-block Tom turn done right:
+
+```
+**Tom:** {color="blue"}Here are my concerns:
+
+1. {color="blue"}First concern text.
+
+2. {color="blue"}Second concern text.
+
+{color="blue"}And a closing paragraph after the list.
+```
+
+Include all turns from the beginning of the thread up to — but NOT including — the turn in which Tom issues the log instruction. Do not summarize or truncate the turns you DO include — the goal is a complete, searchable archive of the *thinking*.
+
+**Stop at the log command (capture the thinking, not the plumbing).** Tom's log request — "log this", "log this convo", "log to notes", or any turn whose actionable ask is to log / draft / execute — is an operational instruction, not part of the substance he wants preserved. Find that turn and EXCLUDE it and every turn below it: his log/execute message, Claude's execution report, and any follow-on operational back-and-forth about the drafting or logging itself. The archive ends at the last substantive turn *before* the log request. (This overrides "include all turns" — the rule is complete capture of everything above the log command, hard stop at it.)
 
 If the conversation is very long and truncation is unavoidable due to context limits, note at the bottom: `[Note: transcript truncated — view full conversation at link above]`
 

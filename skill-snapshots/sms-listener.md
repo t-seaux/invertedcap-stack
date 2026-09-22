@@ -7,7 +7,7 @@ description: "Processes inbound iMessages to Tom's personal number via Sendblue.
 
 An allowlisted person texted Tom's agent number (Sendblue); the `body` arg is their command. Execute it and text back the result. This is a **calendar-first personal agent** — most commands are calendar queries/adds. Full tool access (filesystem + all MCP).
 
-**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. Don't read other skills' SKILL.md for calendar work (fast path below covers it); only read another skill for non-calendar commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`. **Deal share — "kick [company] out (to [firm])" / "deal share [X]" / "send/share/float [company] to Fika/Primary" → NEVER run inline; enqueue a `deal-share-out` job and ack instantly (Tom only — see the Deal share section).**
+**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. Don't read other skills' SKILL.md for calendar work (fast path below covers it); only read another skill for non-calendar commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`. **Deal share — "kick [company] out (to [firm])" / "deal share [X]" / "send/share/float [company] to Fika/Primary" → NEVER run inline; enqueue a `deal-share-out` job and ack instantly (Tom only — see the Deal share section).** **-1 sourcing queue (Tom only) — re-fire the unreacted candidates.** Trigger on ANY text asking to see / surface / resurface / resend / re-fire / pull up / show / list the neg1 (a.k.a. `-1`, `neg-1`, "negative one", "pre-founder") candidates or queue — with OR without the word "unreacted". Spelling and phrasing vary freely; match on intent, not exact words. Canonical examples (all route HERE): "surface neg1 candidates", "surface unreacted neg1 candidates", "surface my neg1s", "resend neg1s", "resend the neg1 cards", "re-fire the neg1 cards", "show me the neg1 candidates I haven't reacted to", "show my neg1 queue", "what's in my neg1 queue", "what neg1s am I sitting on", "who's waiting on me in neg1 sourcing", "pull up my unreacted -1s", bare "neg1 queue" / "-1 queue". **Disambiguation:** Tom NEVER texts to run the *generative* weekly sweep (that's scheduled Mondays) — so any neg1-surfacing text = the re-post, ALWAYS `surface-unreacted`, never `neg1_sourcing.py run`. (Only an explicit "run the neg1 sweep" / "generate new neg1 candidates" means the sweep — rare; confirm before running it.) Action: run `python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py surface-unreacted` inline (one Bash call — the script posts the summary + every state=surfaced card to #neg1-sourcing itself; wait for it to finish, it can take ~30-60s for a full queue), then ack with the count it prints: `📡 Posted {N} unreacted neg1 candidates to #neg1-sourcing — react 👍/👎/⏱ on any card.` If it prints `"surfaced": 0`, ack `📡 Your neg1 queue is clear — nothing waiting on you.` Do NOT fire the cards into the text thread; the cards live in Slack (that's where the react-to-decide loop is). Audit line: `notes=surfaced {N} unreacted neg1s`.**
 
 ## Args (from the Worker)
 
@@ -93,6 +93,8 @@ React to the sender's message with a tapback as your next action — a real reac
 
 **A tapback can REPLACE a reply** when a reaction says everything and no text is needed (a pure FYI, a "thanks", a "see you at 6") — 👍 and done, no bubble. **Skip the tapback entirely** only when you're sending an instant text answer anyway and a reaction would be redundant noise. Use judgment; don't over-react to every message.
 
+**The two-beat model: a tapback acknowledges RECEIPT; the text reply comes when it's DONE (Tom, 2026-09-21).** A tapback (👀 for real work, 👍 for a trivial directive) says *"got it, I'm on this."* It does NOT say the task is finished. When you actually *complete* an action that changed durable state — a reminder/to-do (`add-reminder`), a calendar event, a CRM/contact row, a purchase, a saved doc — you send a reply bubble that names what landed (`✅ Added: "<reminder title>" — due <when>`). So the sequence for any write is **tapback on receipt → text when done**, two separate beats. Never let the receipt tapback double as the completion signal: the sender can't see a reminder object, so a lone 👍 reads as "it ignored me" even when the write succeeded. This is exactly what bit Elsie's "add a todo" (2026-09-21): reminder created in ~10s, but no done-reply, so it looked stuck. (A tapback still *replaces* a reply outright only for pure FYIs with no action — "see you at 6" → ❤️ and done; there's no "done" beat because there was nothing to do.)
+
 ## Share-sheet messages — comment + link arrive as TWO messages
 
 An iMessage share-with-comment (Instagram post, article, photo "sent with a comment") is
@@ -102,16 +104,26 @@ Korea doc" was answered "❓ no text or image came through" 13s before the Insta
 arrived):
 
 1. **Never ❓ a directive whose object is missing without waiting for the companion.** If the
-   body is a command about content that isn't in the message ("add this…", "save this", "add to
-   Korea doc") and there's no URL/media in args: tapback 👀, then poll for the companion —
-   `sleep 20` and `tail -3 ~/.claude/skills/sms-listener/conversation.jsonl` (the daemon logs
-   `dir:"in"` on arrival), up to 3 tries (~60s).
-   - Companion (URL or media from the same sender) arrived → **exit silently, send NOTHING.**
-     The companion's own job will do the work; your message supplies its context via the
+   body is a command about content that isn't inline in the message — "add this…", "save this",
+   "add to Korea doc", **"summarize this", "what's in this", "read this", "log this"** — and
+   there's no URL/media in args: tapback 👀, then look for the companion in TWO places before you
+   ever consider a `❓`:
+   - **The ledger tail** — `tail -5 ~/.claude/skills/sms-listener/conversation.jsonl`. A
+     preceding inbound may carry the object: a URL in its `text`, OR a doc/PDF/image that arrived
+     **body-empty** and is recorded on an `[attachments: <url> …]` suffix (the daemon now persists
+     inbound `media_urls`). If the object is already there, act on it — don't ask.
+   - **A still-arriving companion** — `sleep 20` and re-tail (the daemon logs `dir:"in"` on
+     arrival), up to 3 tries (~60s). If it arrives from the same sender → **exit silently, send
+     NOTHING**; the companion's own job does the work, your message supplies context via the
      replayed conversation. Two jobs must produce ONE reply, and it's the companion's.
-   - Nothing after ~60s → now the ❓ is legitimate.
+   - Nothing in the tail AND nothing after ~60s → now the ❓ is legitimate.
    Conversely, a bare URL/media job should read the immediately-preceding inbound(s) for its
-   directive ("Add to Korea doc" → that's the instruction for this link).
+   directive ("Add to Korea doc" → that's the instruction for this link; "Log" → log the doc that
+   just arrived). **Fetch + read the doc/link before answering** — a `.pdf`/CDN/Drive/website URL
+   gets pulled with plain `curl` and read, never summarized off its filename. Summarizing or
+   reading a texted doc/link is a READ and is **household-safe — it works for Elsie too**; only a
+   WRITE into a work system (logging to the Notion Notes DB, adding to CRM) stays Tom-only per her
+   fence, and is never surfaced into a group thread.
 2. **Empty-body messages** (a rich-link balloon can arrive as a second, empty message, sid
    `<orig>_1`) → if the adjacent messages already carry the URL, exit silently. Never ❓ an
    empty artifact of a share you're already handling.
@@ -183,6 +195,39 @@ it" / "log to notes" / "log thread"), after stitching run the `log-thread-to-not
 the note must link a clickable image, upload the stitched PNG to the relevant **Drive** folder (the
 thread's company diligence folder, not the Downloads default), then create the Notes row — giver-first
 title, Summary + verbatim `## Raw Thread` — linking that Drive file. Reply with the note link.
+
+## "Log" → route by the OBJECT (Tom only)
+
+Bare **"log" / "log it" / "log this" / "log to notes"** is context-dependent — routed by WHAT is
+in play, not the word. All land in the ✏️ Notes DB. The object may arrive in the SAME message, or
+as a **companion** (the word "log" first, the doc/link/image seconds later, or vice-versa) — so
+apply the share-sheet companion rule above: a bare "log" whose object is missing is NOT a `❓`; 👀,
+then poll `~/.claude/skills/sms-listener/conversation.jsonl` for the companion before answering.
+The ledger now records inbound **attachments** on an `[attachments: <url> …]` suffix — a PDF/doc
+texted body-empty is recoverable from the preceding row, so read the tail before concluding
+"nothing to log."
+
+Switch on the object:
+- **Report / letter / memo / research doc — a link or a PDF/doc attachment** (e.g. an ICONIQ
+  "State of Scaling" PDF, a `cdn.…/*.pdf`, a Drive/website doc link) → run **`log-document-to-notes`**
+  (Source link, `## Summary`, Frameworks, full text). EXCEPT an external investment-firm letter →
+  **`log-investor-letter-to-notion`**. Fetch the PDF with plain `curl` (Sendblue/CDN URLs are
+  credential-free) and read it before summarizing — never log a doc off its filename alone.
+- **YouTube / video / interview / podcast URL** → **`log-transcript-to-notion`**.
+- **Text-thread screenshot / pasted third-party chat** → **`log-thread-to-notes`** (giver-first
+  title, `## Summary` + verbatim `## Raw Thread`); "stitch and log" chains stitch → this, above.
+- **Nothing attached, we've just been conversing** → **`add-conversation-to-notion`**.
+
+Enqueue the heavy ones rather than running inline (same reasoning as deal-share — `log-document-to-notes`
+is a multi-step fetch+read+write). Ack `👀 On it — logging <the doc>`, then reply with the Notes
+link when done. See [[log-thread-triggers-and-stitch-chain]] for the full mapping.
+
+**Fence — logging is a Notion WRITE, so it is Tom-only.** All four skills above write into Tom's
+work Notes DB. If the sender is Elsie, refuse per her fence (`❓ that writes into Tom's work
+notes — can't do that one`), and never run a log from / surface a work-Notes link into a group
+thread Elsie can see. This gates only the WRITE: if Elsie (or anyone) hands over a doc/link and
+asks you to **summarize / read / pull the key points** — no work-system write — that's a
+household-safe READ, handled by the companion rule above; do it and reply in-thread.
 
 ## Calendar fast path
 
@@ -515,20 +560,116 @@ I Noticed" proposal) texts Tom candidate prefs with ids (e.g. `p1`, `p3`). If he
   it's absent on the job, the inbound wasn't an inline-reply, or the gateway didn't surface
   it → fall through to recency/clarifier.)
 
+- **A free-form reply to any confirmable alert is an actionable directive — read it and act on
+  exactly what it says; never collapse it to the binary 👍/reject (Tom, 2026-09-18).** This is
+  a BROAD rule, not specific to one card type: every proposal that invites "Respond to make
+  changes" — and any text alert where a free-form reply can be sensibly read and executed —
+  treats Tom's words as an instruction to interpret and apply, not a yes/no. Resolve WHICH
+  proposal via the disambiguation above, then do precisely what he asked:
+  - **Partial apply** — grant part of a bundled action, hold the rest. Canonical: a 🔁 revive
+    card's *"update the description but leave as pass"* → apply the info patch, keep the pass
+    status (see the REVIVE BRANCH bespoke-replies list).
+  - **Edited value** — a different status ("revive to Outreach, not Connected"), a corrected
+    field, a changed amount/date — fold it in before applying.
+  - **Alternate action / decline** — do the different thing he named, or (👎 / "leave it") do
+    nothing.
+  The default 👍 action is only the *shortcut*; a worded reply overrides it. If the bespoke ask
+  is genuinely unreadable against the pending proposal, send a one-line clarifier — but never
+  silently ignore his words and apply the canned default instead.
+
 (Destination is decided by NATURE, not by a later step. Skill-core behavior compiles into the
 skill on confirm; narrow runtime overrides live permanently in the corpus tier. The corpus is
 never a waiting room for confirmed skill-core prefs — there's no "confirmed but not graduated"
 state, so Tom is never asked to bless the same pref twice.)
 
-**4. CONFIRM deal proposals (🆕).** The deal-text-scanner texts Tom `🆕 Opportunity: <Company>`
-/ `🆕 Opportunity: -1 (<Founder>)` cards ending "👍 to Add to CRM" (audit line:
-`notes=proposed add-to-crm <founder> via <referrer>`). When Tom confirms one —
-"confirm" / "yes" / "add to crm" / a 👍 tapback
-(Sendblue delivers tapbacks as inbound text like `Liked "🆕 Opportunity…"` — treat a
-positive tapback quoting a 🆕 card as a confirm; resolve WHICH proposal via the
-standard disambiguation above) — **FAST PATH, speed is the point:** load the pre-staged
-payload `~/.claude/skills/deal-text-scanner/staged/<sent_handle>.json` (the scanner did
-all lookups, deck-reading, and the Drive upload at proposal time). From it, immediately:
+**4-CAL. CONFIRM invite cards (📅 Invited: → calendar add).** The personal-mail triage
+and the work-mail-event skill text `📅 Invited: <Event/Host>` cards ending "👍 to add to
+calendar" (header history 2026-09-19: `📅 Invite:` → `📅 Cal Invite:` → `📅 Invited:` —
+treat a tapback quoting ANY of the three as this card), each with a pre-staged payload
+`~/.claude/scheduled-tasks/outlook-mail-watch/staged-invites/<sent_handle>.json`
+(`action:"add-event"`, full event create body inside). On Tom's or Elsie's confirm — 👍
+tapback (`Liked "📅 Invited…"` or an older header variant), "we're going", "add it", or a
+worded variant; resolve
+WHICH card via the standard disambiguation above — apply the shared contract
+`~/.claude/skills/shared-references/calendar-event-handling.md`:
+1. **Dedup-reconcile FIRST, never blind-create — across BOTH calendars:**
+   `calendar_write.py list` the Elsie-Tom cal AND the work primary `tom@invertedcap.com`
+   (keyword + today→day+30 window). A match on either means the event already exists
+   (a confirmation email beat the 👍, or Tom hand-added it at work) → `patch`-enrich
+   IN PLACE where it lives per the contract instead of creating.
+2. No match → `calendar_write.py create` with the staged `event` body.
+3. Delete the staged file, audit-log it, and reply with the CANONICAL write-report header
+   for what actually happened (calendar-event-handling.md invariant 4) — never a bare `✓`
+   line: `📅 Added: <Event>` when step 2 created it; `📅 Accepted: <Event>` when step 1
+   matched an existing invite whose RSVP was pending (`needsAction`) and the 👍 set it to
+   yes (no new event, no date/time change — the Signal7 case); `📅 Enriched: <Event>` when
+   the match only gained detail; `📅 Edited: <Event>` when the match's date/time changed.
+   Text-lane shape: header, mandatory blank line, then `<day> · <time>`. **Send the confirmation as an inline-reply nested
+   under the 📅 invite CARD (same spec as the 🆕 branch below) — reply-to = the CARD's
+   `sent_handle`, NEVER `args.message_sid` (on a tapback confirm that's the tapback's own
+   handle and the reply drifts out of the thread — same failure mode as the 2026-09-01
+   MaxHeap drift bug). Resolve the anchor from the staged filename when it IS a Sendblue
+   handle (`staged-invites/<sent_handle>.json`); for a work-lane card staged by Gmail id
+   (`staged-invites/<gmail_id>.json`), the card's Sendblue root handle lives in
+   `topic_threads.json` under key `gmail-<gmail_id>` — use that.**
+A free-form reply follows the free-form rule — fold edits ("make it 6pm", "just the two of
+us") into the event body before creating. A 👎 / "we're not going": if the invite is ALREADY
+on a cal with a pending RSVP (`needsAction`), set its `responseStatus` to declined IN PLACE
+and reply `📅 Declined: <Event>` — NOT a delete (the event is the organizer's; Tom just
+isn't attending); if it's only staged (not on any cal), delete the staged file and reply
+nothing was added. A "maybe"/"tentatively" worded confirm on an already-present pending
+invite sets `responseStatus` to tentative and replies `📅 Tentative: <Event>`. A 👍 whose staged file is missing (consumed by a later
+confirmation email) → dedup-check anyway, report the event as already handled. Family-lane
+(kenyonseo@) invites keep flowing through the family 🆕-ask path, not this branch.
+
+**4. CONFIRM deal proposals (🆕 add / 🔁 revive).** The deal-text-scanner texts Tom two card
+kinds: `🆕 Opportunity: <Company>` / `🆕 Opportunity: -1 (<Founder>)` add cards ending
+"👍 to Add to CRM" (audit line: `notes=proposed add-to-crm …`), and `🔁 Revive: <Founder>`
+cards ending "👍 to revive → <Status>" (audit line: `notes=proposed revive …`) — sent when the
+founder already has a **terminal-status** Opp (Pass/Lost/NR) and Tom's 👍 is what moves it back
+into the live pipeline. When Tom confirms one — "confirm" / "yes" / "add to crm" / "revive" / a
+👍 tapback (Sendblue delivers tapbacks as inbound text like `Liked "🆕 Opportunity…"` or
+`Liked "🔁 Revive…"` — treat a positive tapback quoting EITHER card as a confirm; resolve WHICH
+proposal via the standard disambiguation above) — **FAST PATH, speed is the point:** load the
+pre-staged payload `~/.claude/skills/deal-text-scanner/staged/<sent_handle>.json` (the scanner
+did all lookups, deck-reading, and the Drive upload at proposal time).
+
+**Dispatch on the staged `action`.** `action:"revive"` (or the card was a 🔁) → run the
+**REVIVE BRANCH** below (UPDATE the existing row, never create). Absent/`"create"` (the 🆕
+add card) → run the create steps that follow. From the staged payload, immediately:
+
+**Status mapping for `lane:"network-refresh"` payloads (Monthly Network Refresh newco
+cards, Tom 2026-09-20):** a 👍/confirm creates the Opp with **Status = staged
+`confirm_status` ("Qualified")**; an explicit 👎/negative tapback (`Disliked "🆕 …"`) or a
+clear "pass" reply **STILL CREATES the Opp — with Status = staged `decline_status`
+("Pass (DNM)")** — the seen-and-passed record, never a silent dismissal. Same create
+steps either way, status is the only delta; reply `✓ Added – <title> (Qualified)` or
+`✓ Logged – <title> (Pass (DNM))`. Payloads WITHOUT `lane:"network-refresh"` keep the
+existing behavior (👍 creates per add-to-crm defaults; 👎 dismisses).
+
+**Auto-draft on 👍 (network-refresh lane only, Tom 2026-09-20: "auto draft an outreach
+note using my writing style. This is a cold outreach note. Never send. Just save to
+draft and alert me"):** after the Qualified Opp is created, draft the cold outreach:
+1. Read `~/.claude/skills/writing-style/newco-cold-outreach/STYLE.md` (+ its
+   VOICE_EXAMPLES.md) BEFORE composing — the pre-draft gate applies.
+2. Compose from the staged `description`/`source_context` + the person's cached profile
+   (`sqlite3 ~/.claude/scripts/network_cache.db "SELECT substr(raw_text,1,900) FROM
+   profiles WHERE linkedin_url='<founder_linkedin>'"`). This is COLD outreach to a warm
+   contact who just went founder — congratulate-and-open, per the stylebook.
+3. Save as a Gmail DRAFT via `~/.claude/scripts/gmail-create-draft.py --to <staged
+   contact> --subject … --html-body-file … --snapshot-text-file … --skill sms-listener`.
+   **NEVER send.** The standard ✍️ draft alert fires automatically — that is Tom's alert.
+4. Staged `contact` is "N/A" → find the email BEFORE giving up (Tom 2026-09-20:
+   "if you don't have the email address and you saw I thumbs up, you should be able
+   to find via ContactOut"): `mcp__contactout__contactout_enrich_linkedin_profile`
+   on the staged `founder_linkedin` (load via ToolSearch) — prefer work email,
+   else personal. Found → use it for the draft AND patch it onto the just-created
+   Opp's `Contact` field (⚠️-flag it per the unverified-contact convention if
+   ContactOut is the only source). Ladder exhausted → skip the draft, say so.
+5. Close-loop reply becomes `✓ Added – <title> (Qualified) · outreach drafted` (or
+   `· email found via ContactOut · outreach drafted`, or `· no email found — outreach
+   skipped`).
+A 👎 (Pass DNM) never drafts.
 1. Create the Notion Opportunity per add-to-crm conventions — ALL of them (dedup title
    check first — one search, not the full battery): `opp_title`, `stage` (exact emoji
    option), `Round Details` = `round_details` (disclosed valuation stays in the field:
@@ -545,8 +686,49 @@ all lookups, deck-reading, and the Drive upload at proposal time). From it, imme
    <notion url of the existing opp> ↗
    ```
 2. Chip `deck_drive_link` onto the Opp's Materials via `notion_files_property.py
-   --no-alert` (skip if null).
+   --no-alert` (skip if null). **`--label` = the staged `deck_label`** (the convention filename
+   `[Company] - Deck MM.DD.YY.pdf` the scanner named the Drive file), so the Notion chip label and
+   the Drive filename are byte-identical (materials-handler principle 10; Tom, 2026-09-18). If
+   `deck_label` is absent (older staged files), derive `[Company] - Deck MM.DD.YY.pdf` from the
+   proposal rather than leaving a raw founder attachment name.
 3. Reply (the ✅ format below). Target: Tom's 👍 → ✅ in well under a minute.
+
+**REVIVE BRANCH (staged `action:"revive"`).** Canonical spec:
+`~/.claude/skills/shared-references/revive-gate.md`. The staged file may come from ANY channel
+(text / Dash / inverted) — the branch is channel-agnostic. The founder already has a
+terminal-status Opp and Tom 👍'd to bring it back — UPDATE that existing row (`revive_opp_id`),
+never create a new one.
+Patch three things and nothing else: (1) `Status` → staged `target_status` (e.g. `Connected`);
+(2) `Description` → staged `description` (the refreshed one-line idea — overwrite the stale
+value); (3) append a dated body note capturing the revival —
+`YYYY-MM-DD — Revived from <revive_from_status>. <source_context>`. If the staged file carries a
+`deck_drive_link`, chip it onto Materials exactly as the create path does. Do NOT touch Source,
+HQ, Stage, or the founder relation — this is a re-open of an existing row, not a re-create.
+Completion reply, inline-reply nested under the 🔁 card (reply-to = the PROPOSAL's `sent_handle`,
+never the tapback handle — same threading rule as the add path). Same no-redundancy rule as the
+card CTA: bare `✅ Revived` when the status went to the assumed `Connected`; state the status
+ONLY when it deviates (`✅ Revived → Outreach`):
+```
+✅ Revived
+<notion url of the existing row> ↗
+```
+
+**Bespoke replies to a 🔁 card — the card says "Respond to make changes," so a free-form reply
+is a partial/edited directive, NOT the full revive. Read Tom's intent and apply only what he
+says:**
+- **Pure positive** (👍 / "revive" / "yes" / "confirm") → the full revive above (info + status →
+  `target_status`).
+- **Keep the status, update the info** ("update the description but leave as pass", "just update
+  the info", "keep it pass", "don't change the status") → apply ONLY the info patch (Description
+  / body note / materials); **leave `Status` at its current terminal value.** This is Tom
+  authorizing the info write while declining the reactivation — fully allowed (his 👍 on the info
+  is this reply). Reply: `✅ Updated — still <Status>` + the row URL.
+- **Different target status** ("revive to outreach", "set qualified not connected") → apply info
+  + that status instead of the staged `target_status`. Reply `✅ Revived → <that status>`.
+- **Field correction** ("description should say …", fix a detail) → apply the revive with the
+  correction folded in.
+- **Decline** (👎 / "no" / "leave it") → do NOTHING; the row stays as-is at its pass, no info
+  change. (A 👎 on a revive is a decline, not a status change.)
 
 **Dash-lane branch (staged `mail_source == "dash-local"`, from `dash-deal-detect`).** When the
 staged file carries `mail_source: "dash-local"`, `rowid`, and `fund` (a Dash-inbox deal, not an
@@ -554,6 +736,11 @@ iMessage one), do THREE extra things — everything else in step 1 is identical:
 - **Set the new Opp's `Fund` select to the staged `fund`** (e.g. `Dash 2️⃣`). This is the one field
   that must NOT be inferred or left at default — Dash rows are mis-filed without it. (iMessage
   proposals have no `fund` and keep the CRM's default — do not touch Fund for those.)
+- **`source: "Direct"` links the canonical Direct People page, NOT a name lookup.** A Dash founder
+  emailing Tom directly stages `source: "Direct"` (see `dash-deal-detect` — the founder is never
+  their own source). Resolve it exactly like `add-to-crm`'s `sourceDirective: "Direct"` — link the
+  canonical Direct People DB page, don't try to match a person named "Direct". A referral stages
+  the referrer's name and resolves normally.
 - **Any fallback fetch uses the Dash mail source, never the Gmail API.** If the staged file is
   missing and you must fall back to the full pipeline, run `add-to-crm` in its **Dash lane**
   (`{mail_source:"dash-local", rowid, fund}`) — it fetches the email via
@@ -602,8 +789,20 @@ line `notes=proposed people-db-add <founder(s)>`. A 👍 on this ✅ card is han
   card's originals.
 - Corrections AFTER the ✅ ("actually HQ is Austin") → update the existing CRM row
   (resolve via the Notion URL just sent), reply with a brief ✅ updated.
-A ❌/👎 tapback or "skip" → acknowledge, add a `rejected` line to
-`~/.claude/skills/deal-text-scanner/.proposed` so it isn't re-proposed, do nothing else.
+**A ❌/👎 tapback or "skip" is a PASS, not a discard (Tom, 2026-09-18) — for EVERY 🆕 card, whether
+the deal came from the Dash inbox OR was shared via text.** Do NOT just drop it. CREATE the Notion
+Opp from the staged payload EXACTLY like the 👍 path — same dedup check, Source per staged `source`,
+Fund = staged `fund` when present (Dash) else the CRM default (text/iMessage) — but force
+**`Status = Pass (DNM)`** instead of the inferred status. Tom saw it and passed; he wants the
+record. Then reply inline under the card with a `🚫 Passed (DNM)` line + the Notion URL, and add a
+`passed` line to the source lane's proposal ledger (`~/.claude/skills/dash-deal-detect/.proposed`
+for a Dash card, `~/.claude/skills/deal-text-scanner/.proposed` for a text card) so it isn't
+re-proposed. If the dedup check finds the company already has an Opp, do NOT create a second —
+reply the `🚫 Dupe` two-liner as in the 👍 path and stop.
+
+⚠️ **deal-share side effect (now applies to both lanes):** a non-(-1)/non-FO Opp landing at a Pass
+status is exactly what `deal-share-out`'s B2 auto-trigger watches — so a passed deal (text OR Dash)
+generates a deal-share DRAFT (never a send). Tom is aware; flag if he wants passes excluded.
 
 **4b. CONFIRM People DB add (👍 to add to People DB).** Two cards can end with the
 "👍 to add to People DB" line, each pre-staging a `people-<sent_handle>.json` payload with
@@ -723,6 +922,17 @@ The args block's `source` (in the job-start line) decides HOW you send the reply
   `SENDBLUE_ALLOW_ODD_NUMERICS`. Same rule for the audit-line `echo` — escape `\$` there, since
   a mangled audit line is what made a past session misread its own delivery record.
   Nesting keeps each answer visually attached to the request it belongs to, instead of a loose bubble in the thread. Multi-message conversations stay organized by topic. (1:1 only — groups thread flat.)
+
+  **Topic threading for unattended ALERTS (`--topic <key>`).** When a recurring
+  alert stream has no inbound message to reply to (mail watchers, delivery/flight
+  updates), pass `--topic <stable-key>` on a 1:1 send instead of a reply-to handle:
+  `send_imessage.sh "<from>" --stdin --topic ikea-498583558 <<'MSG' … MSG`. The
+  helper remembers the ROOT handle per key in `topic_threads.json` (30-day TTL) and
+  auto-nests every later same-key alert under the first — so all IKEA-order-498583558
+  updates form one thread without the caller tracking handles. Key = the most stable
+  real-world id (order/confirmation #, `gmail-<threadId>`); same thing → same key.
+  No-op in `--group` (Sendblue's group endpoint has no reply_to). Don't set both
+  `--topic` and an explicit reply-to handle — reply-to wins.
   Then append the audit line (status from the helper) and **include `sent_handle=$H` in it —
   mandatory whenever the message PROPOSES something confirmable** (pref candidate, pending
   calendar event, purchase quote), with a `notes=` that names the proposal (e.g.
@@ -774,3 +984,13 @@ Two rules follow, and they are hard:
 
 - Idempotency: the queue dedups on `message_sid`; if a job reprocesses, grep the audit log for the sid and exit 0 if handled.
 - Long work: see **Time budget** above — reply by minute 10, hard stop on UI automation at ~6.
+
+## Family text overrides — "skip X" / "include X" (2026-09-21)
+
+The daily 8am / Sunday 8pm family text (`scheduled-tasks/family-todo-digest` → `family_brief.py`) runs a Haiku relevance pass over school/community feed events ([BFS] …) and lists what it dropped on a `Skipped:` line. Tom or Elsie can correct it **in the family thread** — the override is permanent and keyed on the event title, so recurring feed items stay corrected:
+
+- "skip X", "don't show X", "hide X", "we're not going to X" → `python3 ~/.claude/skills/sms-listener/family_schedule.py override --skip "<title>"` → reply `✅ Skipping "<title>" in the family text.`
+- "include X", "show X", "add X back", "we should go to X" → `… override --show "<title>"` → reply `✅ Showing "<title>" in the family text.`
+- "what's overridden" → `… override --list`.
+
+`<title>` = the calendar event title as it appeared in the text (match loosely: case / punctuation-insensitive; if the sender's wording doesn't match a title on the calendar in the next 14 days, ask one short question rather than guessing). Two-beat: 👀 on receipt, ✅ reply when the override is written. Never route this to a work system — it's a household preference file (`family_schedule_state.json`).

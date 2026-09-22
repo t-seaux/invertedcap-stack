@@ -1,14 +1,17 @@
 ---
 name: dash-deal-detect
 description: >
-  Headless deal-flow detector for Tom's Dash inbox (tom@dashfund.co). The Dash mail lane has no
-  Gmail API/Pub/Sub, so `dash-deal-detect.sh` (riding the read-only watch-dash.sh watcher)
-  enqueues this job with newly-ledgered candidate messages. For each, it fetches the email from
-  the local Apple Mail store (dash_mail.py), applies Tom's high deal-flow bar, dedups against the
-  CRM, and for a genuine deal TEXTS Tom a 🆕 Opportunity card — never a direct CRM write. Tom's
-  👍 (handled by sms-listener) does the add, stamping Fund=Dash 2️⃣, then posts the Slack new-Opp
-  alert. Alert-first, review-gated (Tom, 2026-09-17). Webhook/queue-only — never triggered
-  manually. Default to SILENCE; most Dash mail is not a deal.
+  Headless inbound-mail router for Tom's Dash inbox (tom@dashfund.co) — the Dash counterpart to
+  Inverted's Gmail-webhook stack, which Dash lacks (no Gmail API/Pub/Sub). `dash-deal-detect.sh`
+  rides the read-only watch-dash.sh watcher and enqueues this job with newly-ledgered candidate
+  messages; it fetches each from the local Apple Mail store (dash_mail.py) and routes by CRM
+  match + Status into three lanes: (1) NEW DEAL (no CRM hit + deal signal) → TEXTS Tom a 🆕
+  Opportunity card, his 👍 adds it (sms-listener, Fund=Dash 2️⃣, then Slack), his 👎 creates it as
+  Pass (DNM); (2) FOLLOW-UP docs on a pipeline/Committed Opp → materials-handler Dash-lane
+  (silent auto-file to Deal Docs/Diligence); (3) PORTFOLIO UPDATE / board material on an
+  Active-Portfolio Opp → investor-update Dash-lane (Company Updates DB). Alert-first for new deals,
+  silent for follow-ups/updates — mirrors Inverted exactly. Webhook/queue-only — never triggered
+  manually. Default to SILENCE; most Dash mail is none of these.
 ---
 
 # Dash Deal Detect — 🆕 CRM proposal cards from the Dash inbox
@@ -47,9 +50,29 @@ ntn api -X POST /v1/data_sources/fab5ada3-5ea1-44b0-8eb7-3f1120aadda6/query \
   --data '{"filter":{"property":"Contact","rich_text":{"contains":"<sender email>"}},"page_size":5}'
 ```
 
-- **Hit on a non-portfolio-or-Committed Opp** (Status NOT `Active Portfolio`/`Exited` — Committed
-  IS allowed) **AND the email carries a material signal** (an attachment — check
-  `dash_mail.py attachments <rowid> <dir>` — a doc link, or ≥400 chars of substantive body):
+The CRM hit's **Status routes the message** (same split as Inverted: portfolio → investor-update;
+pipeline/Committed → materials-handler; no hit → new deal):
+
+- **Hit on a PORTFOLIO Opp** (Status `Active Portfolio` / `Portfolio: Follow-On` / `Exited`) **AND
+  the email is a portfolio update or board material** (a founder/CEO investor update, monthly/
+  quarterly update, board deck/meeting, a Google Slides/Docs share of a board deck): this is a
+  **portfolio update**, NOT a deal and NOT a Deal-Docs drop. Do NOT text a 🆕 card. Enqueue an
+  **investor-update Dash-lane** job to log it to the Company Updates DB (no 👍 gate — same silent
+  auto-log as Inverted's investor-update webhook):
+
+  ```bash
+  ~/.claude/scripts/enqueue-job.sh investor-update \
+    '{"mail_source":"dash-local","rowid":<rowid>,"oppId":"<opp page id>","oppName":"<company>","fund":"Dash 2️⃣"}' \
+    "dash-investor-update-<rowid>" 900 dash-mail-watch scheduled-sweep
+  ```
+
+  Record the rowid in `~/.claude/skills/dash-deal-detect/.updates-processed` (grep before
+  enqueuing). investor-update's own artifact-idempotency (period-row check) is the real guard;
+  this ledger just avoids re-enqueuing across ticks.
+
+- **Hit on a non-portfolio-or-Committed Opp** (Status NOT `Active Portfolio`/`Portfolio: Follow-On`/
+  `Exited` — Committed IS allowed) **AND the email carries a material signal** (an attachment —
+  check `dash_mail.py attachments <rowid> <dir>` — a doc link, or ≥400 chars of substantive body):
   this is a **follow-up**, NOT a new deal. Do NOT text a 🆕 card. Instead enqueue a
   **materials-handler Dash-lane** job to auto-file the docs (no 👍 gate — filing to an existing
   card is additive and safe, exactly like Inverted's silent materials-handler Mode B):
@@ -105,9 +128,17 @@ ntn api -X POST /v1/data_sources/fab5ada3-5ea1-44b0-8eb7-3f1120aadda6/query \
   --data '{"filter":{"or":[{"property":"Contact","rich_text":{"contains":"<founder email>"}},{"property":"Name","title":{"contains":"<company or last name>"}}]},"page_size":5}'
 ```
 
-ANY hit with a non-terminal Status → do NOT propose. If the mail carries genuinely new signal on
-an EXISTING company (a new round kicking off), that's a follow-on, not a new card — hand off to
-`add-follow-on-round` / `materials-handler`, don't fire a 🆕 card.
+ANY hit → do NOT fire a new 🆕 card; the company is already his. Route by the hit's Status:
+- **Non-terminal / live** → if the mail carries genuinely new signal on an EXISTING company (a
+  new round kicking off), that's a follow-on, not a new card — hand off to `add-follow-on-round`
+  / `materials-handler`, don't fire a 🆕 card.
+- **Terminal** (Pass (Met), Pass (DNM), Lost, NR / Missed) → run the **Revive Gate**
+  (`~/.claude/skills/shared-references/revive-gate.md`): write NOTHING to the row now — STAGE the
+  new info (Description/body/materials) AND the reactivation in a 👍-gated 🔁 revive text card +
+  `action:"revive"` payload (add the Dash-lane extras — `mail_source:"dash-local"`, `rowid`,
+  `fund` — so the confirm handler leaves `Fund` alone). His 👍 applies the info + flips the status
+  via sms-listener §4. `target_status` per the spec: founder-direct → `Connected`, referrer
+  intro-offer → `Outreach`.
 
 **Gate B — prior proposals.** `~/.claude/skills/dash-deal-detect/.proposed` (one line per prior
 proposal: `YYYY-MM-DD <founder/company> via <referrer> rowid=<rowid>`). Grep first; skip if
@@ -124,9 +155,18 @@ H=$(~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<card>") && H
 Card shape is the canonical 🆕 Opportunity format (header `🆕 Opportunity: <subject>`, then a
 blank line, then `* Source / * Stage / * HQ / * Description` bullets, closing
 `👍 to Add to CRM. Respond to make changes.`). Subject/stage/HQ rules per `deal-lane.md` §3.
-For a Dash deal the **Source** is usually the sender (the founder or the referrer who emailed
-Tom). Resolve the founder's HQ via ContactOut on an in-thread LinkedIn if the mail doesn't state
-it. Render in PLAIN TEXT (iMessage) per the alert convention's text lane — no Slack markup.
+
+**Source = provenance, NOT the founder.** A founder emailing Tom's Dash inbox **directly** (no
+referrer in the thread) is a **Direct inbound → `Source: Direct`** — the founder is never their
+own source. Only when someone else **forwarded/introduced** the founder is Source that
+**referrer's** name. Since Dash founder mail is usually the founder writing Tom directly, the
+common case is `Source: Direct`. For a referral, resolve the referrer against the People DB and
+NEVER auto-create a row for an unknown one — carry their email with a `(not in People DB)` marker
+(per `add-to-crm` Test 1). This matches `add-to-crm`'s `sourceDirective`: `"Direct"` OR
+`{email, name}`.
+
+Resolve the founder's HQ via ContactOut on an in-thread LinkedIn if the mail doesn't state it.
+Render in PLAIN TEXT (iMessage) per the alert convention's text lane — no Slack markup.
 
 Then append the audit line binding the confirm — SAME file and shape `sms-listener` already reads
 for iMessage deal cards, so no confirm-loop change is needed to FIND the proposal:
@@ -145,7 +185,8 @@ tell the confirm handler to stamp Fund and post the Slack alert:
 ```json
 {
   "opp_title": "…", "stage": "Seed 🌾", "round_details": "…", "hq": "San Francisco",
-  "description": "…", "source": "<referrer/founder>", "source_context": "<what the email said>",
+  "description": "…", "source": "Direct",   // "Direct" for a direct founder inbound; else the REFERRER's name
+  "source_context": "<what the email said>",
   "contact": "<founder email or N/A>", "website": "N/A", "icon": "…",
   "links": ["…"], "deck_drive_link": "<drive url or null>",
 
@@ -160,6 +201,12 @@ tell the confirm handler to stamp Fund and post the Slack alert:
 - If the deal email has a **deck attachment**, extract it (`dash_mail.py attachments <rowid> <dir>`)
   and upload to Drive at proposal time (Drive Upload Apps Script, `drive-upload.md`) so
   `deck_drive_link` is ready and the confirm is instant. No deck → `deck_drive_link: null`.
+  **Name the uploaded file per the internal convention (materials-handler principle 10):**
+  `[Company] - Deck MM.DD.YY.pdf`, date = the email's SENT date (e.g. `LookingPro - Deck 09.18.26.pdf`)
+  — NEVER the founder's raw attachment name (`LookingPro Seed 2026.pdf` is a defect). Stage a
+  `deck_label` field equal to that exact filename; the confirm step chips `deck_drive_link` with
+  `deck_label`, so **the Notion chip label and the Drive filename are byte-identical.** (Tom, 2026-09-18:
+  the chip and the Drive file must carry the same convention name — an ad-hoc deck name is a bug.)
 - `mail_source: "dash-local"` + `rowid` let the confirm-time create (or a fallback full
   add-to-crm run) fetch the email via `dash_mail.py` instead of the Gmail API.
 - `fund: "Dash 2️⃣"` is the one field the confirm handler must NOT infer — it stamps this Fund on

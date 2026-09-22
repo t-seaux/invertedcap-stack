@@ -74,6 +74,37 @@ Current named channels:
 > (plain render, mandatory blank line after the headline, no markup/Unicode bold,
 > ~5-line budget, links as bare URL + trailing `↗`, never message-final).
 
+**Runtime linter — `alert_lint.py` (the automated, self-healing backstop).**
+`md_to_blocks.py` runs `alert_lint.py` on every Slack body at the actual send boundary,
+so it also covers direct-webhook callers that never touch `send.sh` (e.g.
+retro-weekly-summary posting to `#decision-retros`) — a headless `curl` POST is invisible
+to Claude Code hooks, but this isn't. It lints the **headline only** (first non-blank
+line) for four high-confidence, low-false-positive rules: sentence case, spaced-dash
+separator, parenthetical `(YYYY-MM-DD)` date, and a missing `<u>**…**</u>` wrapper. Scope
+is the **Slack lane only** (the text lane renders plain, so wrapper checks don't apply).
+**Routing-key and verdict headers are protected** (`is_protected()`): the 🟢/🟡/🔴/🧾
+leaders and the listener's text-matched tokens (`First Pass Diligence`, `Exit
+Distribution`, `Created People DB entry`, `Writeback Review Triage`, `Three-way intro`)
+are never flagged and never mutated — so auto-fix can't break reply routing.
+
+Modes via the `ALERT_LINT` env var:
+- `fix` **(default)** — deterministically repair the headline in place before sending, so
+  every alert is on-convention with **zero human involvement**. Conservative (preserves
+  acronyms / proper-cased subjects; protected headers pass through untouched). Violations
+  are still logged even when fixed, as the healer's worklist.
+- `warn` — detect + append to `lint-violations.log`, still send, no mutation.
+- `block` — refuse the send (exit 3). Use where a missing alert is safer than a wrong one.
+- `off` — skip. CLI: `python3 alert_lint.py [--fix] < body.md`.
+
+**Root-cause healing — `scheduled-tasks/alert-convention-healer` (weekly Sun 6 PM ET).**
+The runtime `fix` keeps *shipped* alerts correct; this agent drains the logged violations
+back to their **source templates** so the fix isn't a permanent crutch. It traces each
+distinct off-convention headline to the emitting template, rewrites that one headline line
+to convention (same transform, placeholders preserved), and posts a quiet `🛠️ Alert Lint:
+N Templates Healed` ✓ report — **informational, never an ask**. Skips rather than guesses
+when a template can't be confidently located; protected headers are double-filtered. This
+is the fully autonomous watch → root-cause → fix → report loop; Tom does nothing.
+
 Pipe the GitHub-markdown body on stdin to the helper script:
 
 ```bash
@@ -135,9 +166,17 @@ reader which number is which.
 
 ---
 
-## Per-entity row convention (compact format, bullets removed 2026-04-27)
+## Per-entity row convention (compact format)
 
-When an alert lists one or more entities (a company, a person, an opportunity, a deal), every entity is a flat **two-line row** with an optional fingerprint — **no bullet glyphs**:
+**Bullet rule (Tom, 2026-09-20 — supersedes the 2026-04-27 no-bullets rule):
+bullets are the NORM for list rows; a leading functional glyph IS the bullet.**
+A plain-text list row (a person in a Monthly Network Refresh section, a doc in
+a Materials alert) leads with `• `. A row that already leads with a functional
+emoji glyph — the 🧍/🏢 entity emoji on two-line rows below, the 🟢🟡🔴 verdict
+circles on `#neg1-sourcing` cards — takes NO additional bullet: the glyph
+functionally looks like one, and doubling up is noise.
+
+When an alert lists one or more entities (a company, a person, an opportunity, a deal), every entity is a flat **two-line row** with an optional fingerprint — the leading emoji serves as its bullet:
 
 ```
 <emoji> <u>**<NAME> | [<LINK_LABEL>](<LINK_URL>)**</u>
@@ -147,7 +186,7 @@ When an alert lists one or more entities (a company, a person, an opportunity, a
 
 Conventions:
 
-- **No `- ` bullet prefix on entity rows.** Both lines are bare paragraphs; they render as parallel left-aligned lines in Slack/Beeper without the `•` glyph. (Updated 2026-04-27 — Tom finds the bullets visually noisy.)
+- **No `- ` bullet prefix on emoji-led entity rows** — the leading emoji is the bullet (see the bullet rule above); adding `• ` would double it. Plain-text list rows elsewhere DO take `• `.
 - **Emoji is OUTSIDE the `<u>...</u>` and `**...**` wrappers** — Tom does not want emojis underlined. Common emojis: 🏢 (company / opportunity), 🧍 (person / -1 founder), 📬 (digest / report), 🔁 (cycle / refresh), 🔔 (alert), 📈 (signal / movement).
 - **Everything after the emoji is wrapped in `<u>**...**</u>`** — name + ` | ` + link. Renders bold AND underlined with the link live.
 - **No Description, no Founders, no Round details, no domain link**. Tom prefers compact (entity name + Notion link is enough; he clicks through for context). Avoids extra Notion fetches in the scan logic.
@@ -177,7 +216,7 @@ Conventions:
 **Bad (legacy patterns to avoid):**
 
 - `🏢 **Acme (acme.com)**` — wrong: domain swallowed inside the bold, no underline, no live link
-- `- 🏢 <u>**Acme | [Notion](url)**</u>` / `- **Status:** Pass` — wrong: bullets dropped 2026-04-27, lines are bare paragraphs now
+- `- 🏢 <u>**Acme | [Notion](url)**</u>` / `- **Status:** Pass` — wrong: the 🏢 emoji is already the bullet; a `- `/`• ` prefix doubles it
 - Blank line between the two lines — wrong: emits a visible `\n\n` spacer
 - Including Description / Founders / Round details — wrong: Tom prefers compact (he clicks through to Notion for context)
 

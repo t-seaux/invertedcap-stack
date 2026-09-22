@@ -9,6 +9,8 @@ Accept an investor letter from an external firm — as a URL, pasted text, or up
 
 **Notes database data_source_id:** `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`
 
+**Dedup guard ([[shared-references/notes-dedup-guard]]):** if a URL is given, `notion-search` it FIRST; live Notes-DB match → STOP and reconfirm the existing page. Backstop before create: title `contains` check on `e8afa155-…`. Never create a second entry for the same source.
+
 ---
 
 ## Step 1: Acquire the Letter Text

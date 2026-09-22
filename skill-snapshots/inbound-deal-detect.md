@@ -237,7 +237,7 @@ For the gated paths, post:
 - `is_deal: true, confidence: low` — suppress silently (exit 0).
 - `is_deal: true, no company extracted` — `🏢 <u>**New Deal Classifier: <subject>**</u> — ⚠ high-confidence positive but couldn't extract company name; manual triage needed. <gmail message URL>`
 
-Successful-enqueue path: no Slack post here. `add-to-crm` will post the 🆕/🔁/⛔/🛡️ alert when it processes the follow-on job.
+Successful-enqueue path: no Slack post here. `add-to-crm` owns the outcome notification when it processes the follow-on job: a 🆕/🛡️ Slack alert for created / portfolio-protected outcomes, or — when the match is a **terminal/pass Opp** — a 🔁 revive TEXT card to Tom per the Revive Gate (`shared-references/revive-gate.md`; do NOT expect a ⛔ Slack post for that case anymore, and this skill posts nothing either way).
 
 ### Step 6: Exit
 

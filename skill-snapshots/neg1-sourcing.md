@@ -1,13 +1,8 @@
 ---
 name: neg1-sourcing
-description: >-
-  Weekly Monday sourcing sweep — surfaces 2-3 warm reconnects (scanned from the full ~5.8k network cache pool)
-  + 7-8 cold candidates (2 wildcards; other 5-6 drawn from the lookalike backlog reservoir via _drain_backlog — the
-  A-F recipe pass retired 2026-08-31), plus a monthly structured post-liquidity / scarred-alumnus COLD pass
-  (first Monday). Upserts each candidate to the CANDIDATE STORE (state=pending)
-  and immediately enqueues a per-candidate enrichment job (enqueue-neg1-enrich.sh) — cards post to
-  #neg1-sourcing within minutes; NO batching delay, NO Notion writes. Dedup reads the store. Slack digest posts
-  to #neg1-sourcing.
+description: |-
+  Weekly Monday -1 sourcing sweep — 2-3 warm reconnects + 7-8 cold candidates (plus a monthly structured cold pass, first Monday); upserts each candidate to the CANDIDATE STORE and immediately enqueues per-candidate enrichment — cards post to #neg1-sourcing within minutes, NO Notion writes (mechanics in the skill body). ALSO the on-demand re-post surface: trigger on ANY ask to see / surface / resurface / resend / re-fire / pull up / show / list the neg1 (a.k.a. -1, neg-1, pre-founder) candidates or queue, with or without "unreacted" — "surface neg1 candidates", "surface unreacted neg1 candidates", "surface my neg1s", "resend neg1s", "re-fire the neg1 cards", "show the candidates I haven't reacted to", "show my neg1 queue", "what's in my neg1 queue", "what neg1s am I sitting on", "who's waiting on me in neg1 sourcing", bare "neg1 queue". That is the re-post surface, NOT the generative weekly sweep (scheduled). Same command reachable by text (sms-listener) and by a top-level #neg1-sourcing post (neg1-sourcing-listener).
+
 triggers:
   - /neg1-sourcing
 ---
@@ -23,6 +18,16 @@ Runs every Monday at 08:00 ET. Produces 2-3 reconnect + 7-8 cold outreach candid
 **Unattended execution guard:** never ask questions, never halt waiting for input. If a step fails, skip it, log the error, and continue. Always reach the Slack alert even if some rows failed to write.
 
 ---
+
+## On-demand mode — surface the unreacted queue
+
+Separate from the weekly sweep. When Tom (in a Claude session) asks to see the candidates he hasn't reacted to yet — "surface my unreacted -1s", "show the ones waiting on me", "what's in my -1 queue", "re-fire the unreacted candidates" — run:
+
+```
+python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py surface-unreacted
+```
+
+It reads every `state='surfaced'` row from the candidate store (carded but not yet drafted/passed/tracked — i.e. awaiting Tom's call), posts a Warm/Cold **summary** to `#neg1-sourcing`, then re-fires **each candidate's card** as its own message (canonical anatomy rendered in code by `render_card`, `[neg1:{slug}]` fingerprint intact, `card_ts` refreshed so fresh reactions/replies route back to the store). Add `--dry-run` to print the summary + cards to stdout without posting (use this to preview before firing). The script prints `{"surfaced": N, "posted": M}`; report that back plus a one-line pointer that the cards landed in #neg1-sourcing. Do NOT compose cards yourself — the script owns rendering and posting, so the output is identical across all three front doors (Claude here, text via sms-listener, top-level #neg1-sourcing post via neg1-sourcing-listener). This mode writes NO new rows and enqueues nothing — it is a pure re-post of the existing queue.
 
 ## v2 HEADLESS FLOW (2026-07-16 — CURRENT)
 
@@ -385,7 +390,7 @@ The drain consumes 5-6 backlog rows/week; this step adds ~40–75 so the reservo
    ```
    Applies the **hard domain guard** (the pilot's "Decagon" search matched a Nigerian bootcamp, "Rogo" matched soil robots — enforced in code, a mismatched `company_domain` never lands), dedupes against the whole store, runs the mechanical warm/cold cache check, and upserts survivors as `state="backlog"`, `source="lookalike"`, `recipe="lookalike:<Co>"` via candidates.py (journal + high-water-mark guard preserved). Prints per-company stats (`in / domain_reject / dupe / upserted`).
 
-**No enrichment at restock time** — expansion is free discovery; credits are spent only on rows the weekly drain promotes. If ContactOut is unreachable, skip the step and note it in the audit log — the reservoir has weeks of buffer; never block the digest on restock. Append one line to the digest thread (not the digest itself) when restock runs: `🔁 Restocked: {Co1} (+N), {Co2} (+N), {Co3} (+N) — reservoir {total}`.
+**No enrichment at restock time** — expansion is free discovery; credits are spent only on rows the weekly drain promotes. If ContactOut is unreachable, skip the step and note it in the audit log — the reservoir has weeks of buffer; never block the digest on restock. Append one line to the digest thread (not the digest itself) when restock runs: `🌱 Restocked: {Co1} (+N), {Co2} (+N), {Co3} (+N) — reservoir {total}`. (🌱 = reservoir-growth, not the routing-key 🔁 — that emoji is reserved and must never decorate a post.)
 
 ## Step 1.75 — Monthly structured post-liquidity + scarred-alumnus COLD pass (FIRST Monday of the month only)
 
@@ -417,6 +422,8 @@ The card ends with proposed changes as a checklist; Tom approves/vetoes in-threa
 ## Step 4 — Slack digest
 
 **Channel routing (gate in code):** if `~/.claude/skills/neg1-sourcing/.sourcing_channel_id` exists, post via `send-alert/md_to_blocks.py` in bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py` (prints the message `ts` — no webhook needed) — all sourcing surfaces live in `#neg1-sourcing` (this weekly digest of raw candidates + pipeline-agent Task 6's post-enrichment Reach Out ✅ cards). If the file does not exist, fall back to the default `send-alert` channel.
+
+**This digest is the ONE AND ONLY completion post (guardrail, 2026-09-21).** run.sh tells you to "always reach the Slack alert" — *this* Warm / Cold / Filtered-out digest **is** that alert. Do NOT compose any additional "Run Complete" / run-status / ops / telemetry summary from the Step 5 audit line or the script's stdout counts. Every fact a status ping would carry already has a readable home: the kill breakdown lives in **Filtered out** with plain-English reasons (never `PF-11×1`), and reservoir/restock health rides the Step 1.5d thread-line. A freelanced ops summary shipped on 2026-09-21 — `✓ 5 upserted + enqueued | 🚫 4 killed: PF-11×1, PF-10×1… | 🔁 Restocked … reservoir=431` — and Tom flagged it: it leaked banned PF-ids, used a routing-key emoji (🔁), and read as a log line, not a notification. Never emit that shape; the only completion artifact is the digest below (plus its per-candidate cards).
 
 Invoke the `send-alert` skill with the following message. Bodies are GFM markdown (see `send-alert/SKILL.md`) — `**bold**` becomes bold, `[label](url)` becomes a clickable link, `*single asterisks*` would render as italic so avoid them.
 
@@ -517,3 +524,5 @@ Append a one-line entry to `~/.claude/scheduled-tasks/neg1-sourcing/audit-log/{Y
 ```
 [{timestamp}] run_date={date} reconnect={N} cold={N} written={N} failed={N}
 ```
+
+**LOCAL FILE ONLY — never a Slack post.** This line is the machine record the quarterly back-test reads; it carries raw `PF-id` counts and `reservoir=` telemetry precisely *because* no human reads it. NEVER post it, paraphrase it, or compose a Slack "Run Complete" / status summary from it. The Step 4 digest is the sole Tom-facing completion artifact (see its guardrail) — this file is invisible to Slack.

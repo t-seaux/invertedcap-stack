@@ -62,6 +62,11 @@ reCAPTCHA and loads instantly. So:
   names a day. **Standing pref: Tom books the NEXT cut right when he gets the current one**
   (plan ahead + block time) — so proactively tee up the next booking at confirm time.
 - **Meevo auto-creates the calendar event** on booking — do NOT add a duplicate "TS Haircut".
+- **Elsie-Tom (household) calendar sync is owned by `haircut-cal-watch`** (scheduled-tasks;
+  built 2026-09-18): it watches Tom's personal inbox (thomas.seo@outlook.com) for LET
+  booking/reschedule/cancel emails and mirrors them onto the Elsie-Tom shared cal as BUSY +
+  texts Tom. Do NOT manually add/patch an Elsie-Tom "TS Haircut" event from this flow — the
+  watcher does it off the confirmation email. See [[project_appointments]].
 
 ## Flow (pre-stage → hand Tom the tap)
 
