@@ -12,6 +12,16 @@ Scans Gmail for feedback outreach activity over the past 12 hours, using the Not
 2. **Reply scan** — detects replies from feedback contacts, appends feedback to existing notes, and removes the person from `📣 Pending Feedback` only when substantive feedback has been received
 3. **Manual reconciliation** (sweep only, Step 2c) — detects feedback Tom entered into a note by hand (phone-call notes, pasted text threads), then drops `[PENDING]` and clears the relation, since no Gmail or transcript event ever fires for those
 
+## People DB Guardrails (MANDATORY)
+
+Canonical rules and incident: `shared-references/people-db-guardrails.md` – read it before any People DB lookup or write. It overrides anything else in this skill. The People DB syncs both ways with Tom's iPhone Contacts, so a wrong write here lands on his phone.
+
+1. **Never create a People entry — text Tom and wait for his 👍.** If a person isn't found after BOTH the scoped People DB search and the workspace search, run `python3 ~/.claude/skills/shared-references/people_db_ask.py --name "<Name>" --source-skill <this skill> [--email] [--li] [--company] [--opp-id --opp-name --relation] --context "<why>"` — it texts Tom "🧍 People DB: <Name> … ⚠ Not in the People DB yet … 👍 to add to People DB" and stages the payload (idempotent: re-runs never double-text). Tom's 👍 makes sms-listener §4b create the row via add-to-contacts and finish the skipped relation write. Until then, skip every Notion write for that person, in every mode (manual, scheduled, webhook). In reports, list them as "🧍 texted for 👍: <Name>".
+2. **Never modify contact fields on an existing People page** (Email, Name, Company, Role, LI, phone) unless Tom explicitly asks. This skill writes only Opportunity-side relation fields. If a recipient's email doesn't match the People page they resolved to, flag the mismatch – never copy the email over.
+3. **Match on identity, not proximity.** Resolve a person by exact email, exact name + company, or exact LinkedIn URL. Never infer a person from a shared Opportunity relation (e.g. the Opp's Qualified roster), first name alone, or the closest fuzzy search hit.
+4. **Ambiguous → flag, don't guess.** Multiple candidates or conflicting keys → flag with the candidates and skip all writes for that person.
+
+
 ## Key IDs
 
 - **Opportunities DB:** `fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`
@@ -82,43 +92,19 @@ reference`) rather than a company gut-take. Two things differ from the normal ou
    `📣 Pending Feedback` relation (a relation needs a page id). The webhook deliberately does NOT
    mint the row itself; creation happens here, where the enrichment tooling lives.
 
-   **✅ AUTO-CREATION IS AUTHORIZED ON THIS PATH — do not stop and ask Tom.** This is a deliberate
-   carve-out from the usual "surface a new contact to Tom" norm (cf. `neg1-promote`, which never
-   creates People rows). The justification is that Tom *explicitly and deliberately* emailed this
-   person asking for feedback, so the relationship is already established — there is no judgement
-   call left for him to make. Confirmed by Tom 2026-07-31. **Post a Slack heads-up after creating**
-   (see below); the notification replaces the approval gate, it does not precede it.
-
-   **Resolution chain.** The email is the one thing always known, and since the 2026-07-31 MCP fix
-   it is a *strong* key:
-   1. `contactout_email_to_linkedin(recipientEmail)` → LinkedIn URL.
-   2. `contactout_enrich_linkedin_profile(url)` → full profile (headline, location, seniority,
-      complete experience history).
-   3. If step 1 finds nothing, `contactout_enrich_person(email=…)` returns Name / Company /
-      LinkedIn / Location and is enough for a usable row.
-   4. For *current* employer trust the profile's `is_current` experience entry over cached values.
-   5. Populate Name, Email, LI, Company, Role, Category, City, State per the field rules in
-      `add-to-contacts/SKILL.md`. **Never skip the lookup for speed** — that hard rule still binds;
-      what changed is only whether Tom is asked first, not whether enrichment runs.
-   5. If every lookup comes back empty, still create the row with the name + email you have, and say
-      so explicitly in the Slack message so Tom knows it needs manual enrichment.
-
-   Then add the new page to the Opp's `📣 Pending Feedback` relation — read the existing array and
-   write the FULL merged array back, since relation writes are a full replace.
-
-   **Slack heads-up (required whenever a row was created).** Send via `send-alert` to
-   `#claude-alerts`:
-
-   > 👤 Created People DB entry: **[Name]** ([email])
-   > Reason: feedback outreach on **[Company]** — not previously in People DB
-   > Enriched: [LinkedIn URL | "⚠️ no ContactOut match — needs manual enrichment"]
-   > [Company] · [Role] · [City]
-   > → [Notion People page URL] · [Opportunity URL]
-   > ↩️ Reply with their LinkedIn URL and I'll enrich the row.
-
-   The header MUST start with `👤 Created People DB entry` — `claude-alerts-listener` special
-   branch 8 keys on that exact string to route a LinkedIn-URL reply back into enrichment, and the
-   People page URL is how it locates the row. Include the `↩️` line whenever enrichment was empty.
+   **NO AUTO-CREATION ON THIS PATH.** The 2026-07-31 carve-out that authorized creating the row here
+   is revoked (People DB Guardrails, 2026-09-22 — the People DB syncs to Tom's iPhone Contacts, and
+   every new row needs his per-person OK). This is an unattended webhook path, so:
+   1. Re-check the People DB by exact `recipientEmail` (scoped + `workspace_search`) in case the row
+      exists under that email; an identity match → use it as `personId` and continue as the normal
+      path. Never match on name alone and never edit the row's fields.
+   2. Still missing → **skip every Notion write for this person** (no `📣 Pending Feedback` write, no
+      `[PENDING]` note) and text Tom:
+      `python3 ~/.claude/skills/shared-references/people_db_ask.py --name "<recipientName>" --email <recipientEmail> [--li <url>] --opp-id <opp> --opp-name "<Opp>" --relation "📣 Pending Feedback" --context "feedback ask on <Opp>" --then "feedback-outreach-scanner Step 3: create the [PENDING] note from sent message <messageId>" --source-skill feedback-outreach-scanner`
+      You may run `contactout_email_to_linkedin(recipientEmail)` read-only first to put a LinkedIn
+      URL on the card so Tom can verify identity — but create nothing.
+   3. Tom's 👍 on the text → sms-listener §4b creates the row via `add-to-contacts` and appends it to
+      `📣 Pending Feedback`; the next sweep writes the `[PENDING]` note.
 
 2. **`oppCandidateIds` has exactly one entry**, resolved deterministically off the founder's name
    (People row → Contact email → Active Opp, or a `-1 (Founder Name)` title). No disambiguation

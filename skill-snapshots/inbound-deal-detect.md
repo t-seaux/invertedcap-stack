@@ -21,6 +21,7 @@ The local processor invokes this skill with these args (set by `deal-scanner.js`
 - `forwardedFromReferrer` (optional, boolean) — `true` when the message is a `Fwd:` from an external third party (not Tom, not the founder) who is forwarding the founder's email along. The webhook has already swapped `senderEmail`/`senderName` to the inner forwarded sender (the founder candidate). `referrerEmail` / `referrerName` carry the outer envelope (the referrer). See Step 1C.
 - `referrerEmail` (optional) — outer envelope email when `forwardedFromReferrer` is true.
 - `referrerName` (optional) — outer envelope display name when `forwardedFromReferrer` is true.
+- `knownTerminalOpp` (optional, object `{id, name, status}`) — set by `deal-scanner.js` when the envelope sender's email is the `Contact` of an existing Opp at a **terminal** status (`Pass (Met)`, `Pass (DNM)`, `Lost`, `NR / Missed`). The webhook skips its Haiku gate for these (a known founder re-engaging is signal by definition) and routes here so the Revive Gate v2 runs. See Step 3 — the update-vs-pitch and confidence gates do NOT apply; the only question is whether the email carries new company signal.
 - `materialUrls` (optional, array of strings) — deck/material URLs the webhook extracted from the email body (Drive, DocSend, Dropbox, Brieflink, Pitch.com, Figma, Canva, Notion.site, raw PDFs). When present, this list is **authoritative**: every URL MUST be passed through to `add-to-crm` so it runs Step 1B (read for thin-body field extraction) and Step 6 (link in Diligence Materials property). Skipping a URL because "the body context didn't seem deck-shaped" is not allowed — the webhook already filtered out company-website links. See the 2026-05-12 Unicorn Snot regression for why this gate moved server-side.
 
 ## Workflow
@@ -141,6 +142,7 @@ When in doubt, return one company. False fan-out creates ghost Opps Tom has to c
 
 ### Step 3: Gate on classification
 
+- **`knownTerminalOpp` present → the revive path, BEFORE any of the gates below (Tom, 2026-09-22, Solid Credit).** A founder whose Opp Tom already closed out is writing in again. Ignore `is_deal` / `is_update_not_pitch` / `confidence`; ask only: does the email carry **new company signal** — a raise starting or planned, a deck or materials (attachment or `materialUrls`), a pivot, traction, or an ask for Tom's time *about the company*? If YES → enqueue `add-to-crm` (Step 4) with the extracted fields plus `knownTerminalOpp` passed through verbatim; add-to-crm's Protected Status Guard runs the Revive Gate v2 (enrich the existing row now, 🔁 text card for the status flip). Log `terminal-contact-revive-route opp=<name> status=<status>`. If NO (pure scheduling, social, thanks) → log `terminal-contact-no-signal` and exit 0. Never mint a new Opp for this sender.
 - `is_deal: false` → log `not-deal` with the reason and exit 0.
 - `is_update_not_pitch: true` → log `update-not-pitch-skip` and exit 0, regardless of confidence. Founder updates route through `investor-update`, never through add-to-crm.
 - `is_deal: true` AND `confidence: low` → log `low-confidence-skip` and exit 0. (Tom would rather miss a deal than create a noisy entry.)
@@ -237,7 +239,7 @@ For the gated paths, post:
 - `is_deal: true, confidence: low` — suppress silently (exit 0).
 - `is_deal: true, no company extracted` — `🏢 <u>**New Deal Classifier: <subject>**</u> — ⚠ high-confidence positive but couldn't extract company name; manual triage needed. <gmail message URL>`
 
-Successful-enqueue path: no Slack post here. `add-to-crm` owns the outcome notification when it processes the follow-on job: a 🆕/🛡️ Slack alert for created / portfolio-protected outcomes, or — when the match is a **terminal/pass Opp** — a 🔁 revive TEXT card to Tom per the Revive Gate (`shared-references/revive-gate.md`; do NOT expect a ⛔ Slack post for that case anymore, and this skill posts nothing either way).
+Successful-enqueue path: no Slack post here. `add-to-crm` owns the outcome notification when it processes the follow-on job: a 🆕/🛡️ Slack alert for created / portfolio-protected outcomes, or — when the match is a **terminal/pass Opp** — the Revive Gate v2 path (`shared-references/revive-gate.md`): add-to-crm enriches the existing row at detection (materials chip with its own Slack alert, dated body update, Stage/Round Details from the deck) and texts Tom a 🔁 revive card for the status flip. There is no ⛔ Slack post for that case, and this skill posts nothing either way.
 
 ### Step 6: Exit
 
@@ -245,6 +247,7 @@ Exit 0 on any successful path (enqueued, gated/skipped, dedup-rejected at queue 
 
 ## Notes
 
+- **Cold follow-ups never arrive (webhook gate, 2026-09-22):** `deal-scanner.js` drops, before the Haiku gate, any message from a sender who already wrote earlier in the same thread (or re-sent the same subject in a new thread) when Tom never replied in it — verdict `cold-followup-skip`. Tom: *"if there are continued outreaches / follow ups you can ignore everything past the first one."* Forwards and threads with an Opp take their existing paths.
 - **Idempotency (this skill):** the webhook keys the job by `messageId` (`idempotencyKey: 'inbound-deal-detect-' + messageId`), so Gmail Pub/Sub re-deliveries are deduped at the queue layer. The skill itself does not need its own dedup beyond `add-to-crm`'s existing duplicate check.
 - **Idempotency (fan-out):** each per-company `add-to-crm` job is keyed `add-to-crm-<messageId><idempotencySuffix>` — single-company emails use bare `add-to-crm-<messageId>` (backward compat with pre-fan-out runs), multi-company digests use `add-to-crm-<messageId>-0`, `-1`, ... If this skill retries (e.g. partial fan-out failed mid-loop), already-enqueued companies dedup at the queue and the loop continues for the rest without double-enqueuing the successes.
 - **Founder-sender exclusion is now this skill's job.** The webhook used to skip emails whose sender matched a portfolio founder, but the heuristics (Contact-field substring, People→Founder relation) misfired in both directions — referrers tripped the substring check, and Opps with no Founder relation leaked through. Removed 2026-05-06. The classifier's not-deal rubric ("Founder update on an existing portfolio company") now gates this entirely; rely on it instead of pre-screening on the sender.

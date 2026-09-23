@@ -8,6 +8,16 @@ description: >
 
 Draft feedback outreach notes (also known as backchannel notes) — diligence feedback request emails to expert contacts in Tom's network, using materials from the Notion opportunity to populate the company blurb and tailor the questions. Then log each recipient on the opportunity's `📣 Pending Feedback` relation field.
 
+## People DB Guardrails (MANDATORY)
+
+Canonical rules and incident: `shared-references/people-db-guardrails.md` – read it before any People DB lookup or write. It overrides anything else in this skill. The People DB syncs both ways with Tom's iPhone Contacts, so a wrong write here lands on his phone.
+
+1. **Never create a People entry — text Tom and wait for his 👍.** If a person isn't found after BOTH the scoped People DB search and the workspace search, run `python3 ~/.claude/skills/shared-references/people_db_ask.py --name "<Name>" --source-skill <this skill> [--email] [--li] [--company] [--opp-id --opp-name --relation] --context "<why>"` — it texts Tom "🧍 People DB: <Name> … ⚠ Not in the People DB yet … 👍 to add to People DB" and stages the payload (idempotent: re-runs never double-text). Tom's 👍 makes sms-listener §4b create the row via add-to-contacts and finish the skipped relation write. Until then, skip every Notion write for that person, in every mode (manual, scheduled, webhook). In reports, list them as "🧍 texted for 👍: <Name>".
+2. **Never modify contact fields on an existing People page** (Email, Name, Company, Role, LI, phone) unless Tom explicitly asks. This skill writes only Opportunity-side relation fields. If a recipient's email doesn't match the People page they resolved to, flag the mismatch – never copy the email over.
+3. **Match on identity, not proximity.** Resolve a person by exact email, exact name + company, or exact LinkedIn URL. Never infer a person from a shared Opportunity relation (e.g. the Opp's Qualified roster), first name alone, or the closest fuzzy search hit.
+4. **Ambiguous → flag, don't guess.** Multiple candidates or conflicting keys → flag with the candidates and skip all writes for that person.
+
+
 ## Email Format
 
 **Canonical voice + format live in the corpus: `~/.claude/skills/writing-style/feedback-outreach/STYLE.md`.**
@@ -99,34 +109,10 @@ If names are in the queue, proceed to Step 1 for each person, using the opportun
 For each name provided by Tom:
 
 1. Search the **People DB** in Notion (`collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`) using `notion-search` with the person's name. If found, fetch the full People page and retrieve the `Email` field.
-2. If the email field is blank, use `contactout_enrich_person` with full name as a fallback.
-3. **If the person is NOT found in the People DB at all**, create a new People DB entry before proceeding. **✅ Auto-creation is authorized here — do not stop and ask.** Tom explicitly named this person as someone to get feedback from, so the relationship is already established and there is no judgement call left for him (confirmed 2026-07-31). The Slack heads-up below replaces the approval gate rather than preceding it. Follow the field mapping from the `add-to-contacts` skill at `/Users/tomseo/.claude/skills/add-to-contacts/SKILL.md`:
-   - **Email IS a strong key** (as of the 2026-07-31 MCP fix). `contactout_email_to_linkedin(email)` returns the LinkedIn URL directly, and `contactout_enrich_person(email=…)` now returns Name / Headline / Company / LinkedIn / Location correctly. Both were broken before that date — `email_to_linkedin` 404'd on every call, and `enrich_person` rendered `Company: [object Object]`. If you see either symptom again, the MCP has regressed.
-   - **Best chain:** `contactout_email_to_linkedin(email)` → `contactout_enrich_linkedin_profile(url)` for the full profile (headline, location, seniority, complete experience history). `enrich_person` is fine for a quick identity check.
-   - For *current* employer trust the profile's `is_current` experience entry over any cached Notion value — Notion rows go stale (Anthony Chen's row still showed a 2017 Flexport title in July 2026).
-   - Use `contactout_enrich_linkedin_profile` if a LinkedIn URL is available to get full profile data
-   - Populate: Name, Email, LI, Company, Role, Category, City, State — per the field rules in add-to-contacts. **Never skip the lookup for speed** — that hard rule still binds; what changed is only whether Tom is asked first.
-   - Create via `notion-create-pages` with `data_source_id: 1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`
-   - Use the newly created page's ID for the `📣 Pending Feedback` relation in Step 7
-   - **Post a Slack heads-up via `send-alert` to `#claude-alerts`** for every row created:
+2. If the email field is blank, use `contactout_enrich_person` with full name as a fallback — for the draft's To line only. **Never write the looked-up email back onto the People page**; report "⚠️ [Name]'s People page has no Email – drafted to [address] from ContactOut" so Tom can decide.
+3. **If the person is NOT found in the People DB at all** (after the scoped search above AND a `workspace_search` pass), **do NOT create an entry.** The 2026-07-31 auto-create authorization is revoked (People DB Guardrails, 2026-09-22). Text Tom via `shared-references/people_db_ask.py` (`--relation "📣 Pending Feedback"`, the Opp, `--context "feedback ask on <Company>"`, `--then "feedback-outreach-drafter Steps 7–8 for this person (draft if not already drafted, then the [PENDING] note)"`) — same in manual and scheduled mode — and list them as "🧍 texted for 👍" in the report. You may still create the Gmail draft if Tom gave an email for them (the draft needs no People page), but skip Step 7's `📣 Pending Feedback` write and Step 8's note for them — both need a People page ID. Tom's 👍 makes sms-listener §4b create the row and append Pending Feedback; the next scan then picks them up for Step 8.
 
-     > 👤 Created People DB entry: **[Name]** ([email])
-     > Reason: feedback outreach on **[Company]** — not previously in People DB
-     > Enriched: [LinkedIn URL | "⚠️ no ContactOut match — needs manual enrichment"]
-     > [Company] · [Role] · [City]
-     > → [Notion People page URL] · [Opportunity URL]
-     > ↩️ Reply with their LinkedIn URL and I'll enrich the row.
-
-     The header MUST start with `👤 Created People DB entry` — `claude-alerts-listener` special
-     branch 8 keys on that string to route Tom's LinkedIn-URL reply back into enrichment. The
-     `↩️` line is required whenever enrichment came back empty, and harmless otherwise (a reply
-     also lets Tom correct a wrong ContactOut match). Always include the People page URL — the
-     listener needs it to find the row.
-
-     Batch multiple creations from one run into a single message rather than one alert per person.
-     When batching, keep one `→ [People page URL]` line per person so the listener can
-     disambiguate which row a reply refers to.
-4. If every ContactOut lookup comes back empty, **still create the row** with the name and email you have, and say so explicitly in the Slack heads-up so Tom knows it needs manual enrichment. Only skip the recipient entirely if you have neither a usable name nor an email.
+4. **Identity check on a found row** — a name hit counts only with a matching Company (or exact email / LI). Two candidates or a Company mismatch → ask Tom; don't pick one.
 
 Note: LinkedIn URLs are not needed at all in this skill — not for recipients, and (as of 2026-07-31) not for founders either, since the blurb no longer carries a team line (see Step 3).
 
@@ -323,4 +309,4 @@ Then lift the per-draft mute set in Step 6 (also run this if you bail out early 
 - **Multiple recipients, same company**: Run Steps 1–5 per recipient, Steps 6–7 together. The blurb and questions can be identical; personalization in the opener varies.
 - **No memo or transcript available**: Draft questions from the opportunity page Summary and Description alone. Note this in the Step 8 summary so Tom knows the questions are less thesis-informed.
 - **Company not found in Notion**: Alert Tom before proceeding. Do not draft without a source of truth on the company.
-- **Recipient not in People DB and ContactOut returns nothing**: Flag to Tom and skip. Do not guess emails or create a partial entry with no contact info.
+- **Recipient not in People DB**: Ask Tom per People DB Guardrails (never auto-create). If ContactOut also returns nothing, say so — do not guess emails.

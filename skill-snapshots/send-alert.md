@@ -60,7 +60,8 @@ Current named channels:
 > first and correct after. Check, at minimum:
 > - **Headline** — exactly one domain emoji from the closed table, *outside* the
 >   `<u>**…**</u>` wrapper; Title Case `Headline: Subject` joined by a colon; date
->   suffix only on digests/sweeps.
+>   suffix only on digests/sweeps; **one blank line after it** (Tom, 2026-09-22 —
+>   the send boundary inserts it if you forget, but compose it that way).
 > - **State** — glyphs `✓ ⚠ ✗ → ✨` inline only (never a second header emoji, never
 >   the `⚠️ ✅ ❌` emoji variants); any action-required line leads, starting with `⚠`.
 > - **Footer** — links on their own line *below* the rows, not jammed under the headline.
@@ -86,6 +87,12 @@ is the **Slack lane only** (the text lane renders plain, so wrapper checks don't
 leaders and the listener's text-matched tokens (`First Pass Diligence`, `Exit
 Distribution`, `Created People DB entry`, `Writeback Review Triage`, `Three-way intro`)
 are never flagged and never mutated — so auto-fix can't break reply routing.
+**Headline gap (B8, 2026-09-22):** separately from lint, `md_to_blocks.py` always runs
+`alert_lint.ensure_headline_gap()` — one blank line between line 1 and the body, on every
+alert including protected headers (the headline line itself is untouched). Not logged,
+not mode-dependent (only `ALERT_LINT=off` and threaded replies skip it). `send.sh` applies
+the same gap per section when buffering into the evening digest. The `google` bot mirrors
+it in gmail-webhook `slack-alerts.js` (`_ensureHeadlineGap_`).
 
 Modes via the `ALERT_LINT` env var:
 - `fix` **(default)** — deterministically repair the headline in place before sending, so
@@ -147,7 +154,7 @@ Supported transforms:
 
 **Recursive wrappers (`**...**`, `<u>...</u>`):** these compose with each other and with leaf patterns. `<u>**Acme** [link](url) more text**</u>` renders the entire span as both bold AND underlined with `link` as a live link. Order doesn't matter — `<u>**x**</u>` and `**<u>x</u>**` produce identical output. Updated 2026-04-25 (previously the bold pattern swallowed inner markdown literally).
 
-**Blank lines emit a `\n\n` spacer.** A blank line in the source markdown widens the visible vertical gap because `md_to_blocks.py` inserts a `rich_text_section` containing `\n\n` between blocks. For tight single-line spacing, omit blank lines. Add them only where you genuinely want extra vertical separation.
+**Blank lines emit a `\n\n` spacer.** A blank line in the source markdown widens the visible vertical gap because `md_to_blocks.py` inserts a `rich_text_section` containing `\n\n` between blocks. Exactly one is REQUIRED after the headline (Tom, 2026-09-22 — inserted automatically if missing). Below that, keep tight single-line spacing; add further blank lines only between stacked entities.
 
 **NO column-aligned tables — EVER** (Tom 2026-07-13). Tom reads these alerts on his phone, where Slack
 wraps code blocks at ~40 chars instead of scrolling: a 5-column aligned table shatters into interleaved
@@ -191,7 +198,7 @@ Conventions:
 - **Everything after the emoji is wrapped in `<u>**...**</u>`** — name + ` | ` + link. Renders bold AND underlined with the link live.
 - **No Description, no Founders, no Round details, no domain link**. Tom prefers compact (entity name + Notion link is enough; he clicks through for context). Avoids extra Notion fetches in the scan logic.
 - **Labels (other than Status) are bolded** (`**Status:**`, `**Last touch:**`, `**Decision:**`, etc.) — value follows after a colon and one space.
-- **Single-line spacing throughout.** NO blank lines between the two lines, NO blank line before a fingerprint footer. If multiple entities are stacked in one alert, separate them with one blank line between entities.
+- **Single-line spacing within the body.** NO blank line between an entity's two lines, NO blank line before a fingerprint footer. If multiple entities are stacked in one alert, separate them with one blank line between entities. The one blank line that is always present is the gap after the alert's headline (line 1) — the normalizer adds it even to a single-entity alert whose first line is the entity row.
 - **Fingerprints** (e.g. `[opp:abc12345]`, `[neg1:xyz98765]`) sit immediately under the second line, wrapped in backticks for inline-code styling so they're visually subtle.
 
 **Good (single entity):**
@@ -206,6 +213,7 @@ Conventions:
 
 ```
 📬 <u>**Pipeline Sweep: 2 Movers**</u> · 2026-04-25
+
 🏢 <u>**Acme Corp | [Notion](https://notion.so/acme)**</u>
 **Status:** Outreach → Connected ✨
 
@@ -217,7 +225,7 @@ Conventions:
 
 - `🏢 **Acme (acme.com)**` — wrong: domain swallowed inside the bold, no underline, no live link
 - `- 🏢 <u>**Acme | [Notion](url)**</u>` / `- **Status:** Pass` — wrong: the 🏢 emoji is already the bullet; a `- `/`• ` prefix doubles it
-- Blank line between the two lines — wrong: emits a visible `\n\n` spacer
+- Blank line between an entity's two lines — wrong: emits a visible `\n\n` spacer (the only mandatory blank line is the one after the alert headline)
 - Including Description / Founders / Round details — wrong: Tom prefers compact (he clicks through to Notion for context)
 
 ---

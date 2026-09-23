@@ -1,5 +1,32 @@
 # Changelog
 
+## [2026-09-23] (Week of 2026-09-22)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- pipeline-agent -- added mandatory People DB Guardrails: no path may auto-create a People row; a missing person now triggers a 👍-gated text to Tom instead, and founder-relation resolution requires an existing identity match
+- add-to-crm -- Revive Gate upgraded to v2: enriches the existing terminal-status row immediately (materials, dated update note, refreshed stage/round details from the deck) and proposes only the status flip, rather than staging all the info for later; added People DB Guardrails
+- batch-add-to-crm -- added People DB Guardrails (no auto-create; requires Tom's approval per person)
+- dash-deal-detect -- added a lookup so senders who already have a CRM row route to follow-up/update lanes instead of triggering a new-deal card; upgraded to Revive Gate v2; an upstream code gate now drops cold, never-replied-to follow-up senders before they reach this skill
+- inbound-deal-detect -- added a webhook-side gate that routes senders with a known terminal-status Opp straight to the Revive Gate v2 path, bypassing the usual deal-classifier confidence gates; cold non-replied follow-ups are now dropped upstream before reaching this skill
+- feedback-outreach-drafter -- revoked prior auto-creation of new People DB rows for feedback recipients; a missing contact now gets a 👍-gated text to Tom instead
+- feedback-outreach-scanner -- same auto-creation revocation on the webhook reply path; a missing recipient now gets a 👍-gated text instead of an auto-created row
+- intro-agent -- added People DB Guardrails; person resolution now requires an identity match (exact email, name + company, or LinkedIn URL) rather than proximity to an Opp's existing roster
+- intro-draft-agent -- revoked prior auto-create authorization for colleague hand-offs; a colleague row now requires Tom's approval before creation
+- intro-note-processor -- a missing People DB entry now gets a 👍-gated text to Tom instead of only a Slack alert
+- intro-outreach-agent -- added a talent-placement-forward suppression gate (distinct from the existing deal-opinion-ask gate) so hiring-favor emails don't get misrouted into an Opp's intro lifecycle; tightened recipient lookup to require an identity match
+- intro-outreach-drafter -- tightened target resolution to require a company match rather than an unambiguous first name alone; revoked auto-creation for unresolved targets and colleagues in favor of a 👍-gated text to Tom
+- intro-resolution-agent -- added People DB Guardrails (no functional change to resolution logic)
+- log-intro -- revoked auto-creation of People DB rows; a missing person now gets a 👍-gated text to Tom instead of an inline create
+- add-reminder -- confirmation format changed to a headline followed by a blank line and one bullet per reminder, rather than bullets directly under the headline
+- send-alert -- alert composer now auto-inserts the mandatory blank line after the headline when it's missing, applied consistently across Slack and text-lane sends
+- sms-listener -- revive-card completion flow updated for Revive Gate v2 (skips re-applying materials/notes already enriched at detection); "Added to CRM" completion reply now mirrors the proposal card's bulleted fields instead of collapsing to a URL + prose; added handling for the new People DB Guardrails 👍-to-create text card
+**Total skills:** 58
+**Functions:** No changes
+
+---
+
 ## [2026-09-22] (Week of 2026-09-22)
 
 **Added:** None

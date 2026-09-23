@@ -1,7 +1,7 @@
 ---
 name: intro-outreach-drafter
 description: |-
-  Draft first-touch intro-request notes — the "would you be open to connecting with [X]?" ask Tom sends to gauge interest BEFORE any formal double-opt-in. Purpose-agnostic: customer, investor, advisor, strategic partner, or hiring chat, on behalf of a company (portfolio or pipeline) OR a person Tom is championing. Per recipient: resolve/create their People-DB row, draft in Tom's intro-outreach voice as a Gmail DRAFT (never send), and add them to the Opp's 👓 Intros (Qualified) when the subject maps to an Opportunity; intro-outreach-agent moves them to ☎️ Outreach on send. Modes: (B) Targeted/Enqueued — gmail-webhook's handleOppHostIntroOptIn fires this when an Opp's own contact replies YES to an intro Tom offered them to someone in his network ("would love to intro you to Liam, up for it?" → "yes please"); drafts the ask to the OTHER person (the target) so their opt-in can be gathered too. Distinct trigger from intro-note-processor (which finds intro offers by scanning call TRANSCRIPTS, not Gmail replies) but identical output — kept in one skill, not duplicated. (C) Manual. Trigger on: "draft an intro note to [names] for [company/person]", "draft outreach to [X] about [Y]", "ask [X] if they'd connect with [Y]", "[founder] wants intros to [names]", "draft a note introducing [company] to [potential customer/investor]", "[person] said yes to the [target] intro, draft the note", or any variant asking for first-touch intro-request notes. Composes with talent-scan, coinvestor-recommender, network-scan, add-to-contacts. NOT intro-draft-agent (double-opt-in connect email, post BOTH opt-ins), NOT talent-scan (candidate sourcing) — this is the drafting layer. Always trigger inline.
+  Draft first-touch intro-request notes — the "would you be open to connecting with [X]?" ask Tom sends to gauge interest BEFORE any formal double-opt-in. Purpose-agnostic: customer, investor, advisor, strategic partner, or hiring chat, on behalf of a company (portfolio or pipeline) OR a person Tom is championing. Per recipient: resolve their existing People-DB row (never auto-creates; missing → asks Tom), draft in Tom's intro-outreach voice as a Gmail DRAFT (never send), and add them to the Opp's 👓 Intros (Qualified) when the subject maps to an Opportunity; intro-outreach-agent moves them to ☎️ Outreach on send. Modes: (B) Targeted/Enqueued — gmail-webhook's handleOppHostIntroOptIn fires this when an Opp's own contact replies YES to an intro Tom offered them to someone in his network ("would love to intro you to Liam, up for it?" → "yes please"); drafts the ask to the OTHER person (the target) so their opt-in can be gathered too. Distinct trigger from intro-note-processor (which finds intro offers by scanning call TRANSCRIPTS, not Gmail replies) but identical output — kept in one skill, not duplicated. (C) Manual. Trigger on: "draft an intro note to [names] for [company/person]", "draft outreach to [X] about [Y]", "ask [X] if they'd connect with [Y]", "[founder] wants intros to [names]", "draft a note introducing [company] to [potential customer/investor]", "[person] said yes to the [target] intro, draft the note", or any variant asking for first-touch intro-request notes. Composes with talent-scan, coinvestor-recommender, network-scan, add-to-contacts. NOT intro-draft-agent (double-opt-in connect email, post BOTH opt-ins), NOT talent-scan (candidate sourcing) — this is the drafting layer. Always trigger inline.
 
 ---
 
@@ -19,6 +19,16 @@ identical across all of these; only the ask-line framing and the one relevance l
 
 **Never sends.** Creates Gmail drafts only. Tom reviews and hits send.
 
+## People DB Guardrails (MANDATORY)
+
+Canonical rules and incident: `shared-references/people-db-guardrails.md` – read it before any People DB lookup or write. It overrides anything else in this skill. The People DB syncs both ways with Tom's iPhone Contacts, so a wrong write here lands on his phone.
+
+1. **Never create a People entry — text Tom and wait for his 👍.** If a person isn't found after BOTH the scoped People DB search and the workspace search, run `python3 ~/.claude/skills/shared-references/people_db_ask.py --name "<Name>" --source-skill <this skill> [--email] [--li] [--company] [--opp-id --opp-name --relation] --context "<why>"` — it texts Tom "🧍 People DB: <Name> … ⚠ Not in the People DB yet … 👍 to add to People DB" and stages the payload (idempotent: re-runs never double-text). Tom's 👍 makes sms-listener §4b create the row via add-to-contacts and finish the skipped relation write. Until then, skip every Notion write for that person, in every mode (manual, scheduled, webhook). In reports, list them as "🧍 texted for 👍: <Name>".
+2. **Never modify contact fields on an existing People page** (Email, Name, Company, Role, LI, phone) unless Tom explicitly asks. This skill writes only Opportunity-side relation fields. If a recipient's email doesn't match the People page they resolved to, flag the mismatch – never copy the email over.
+3. **Match on identity, not proximity.** Resolve a person by exact email, exact name + company, or exact LinkedIn URL. Never infer a person from a shared Opportunity relation (e.g. the Opp's Qualified roster), first name alone, or the closest fuzzy search hit.
+4. **Ambiguous → flag, don't guess.** Multiple candidates or conflicting keys → flag with the candidates and skip all writes for that person.
+
+
 ## Where this sits in the intro lifecycle
 
 ```
@@ -35,7 +45,7 @@ happens on send and is owned by `intro-outreach-agent`. Do not duplicate that lo
 - **talent-scan** — sources candidates for a hiring intro (JD → shortlist). Feed its picks here to draft.
 - **coinvestor-recommender** — surfaces investors for a deal; draft the outreach here.
 - **network-scan** — general "who do I know…" queries that produce recipient names.
-- **add-to-contacts** — creates/enriches a recipient's People row (Step 2).
+- **add-to-contacts** — creates a recipient's People row, ONLY after Tom approves that person (Step 2).
 - **intro-outreach-agent** — detects the send, moves Qualified → ☎️ Outreach.
 - **intro-draft-agent** — the later double-opt-in connect email (different stage).
 
@@ -116,12 +126,14 @@ reaching for any semantic judgment:
    real sends use verbatim ("Liam @ Level Ventures", "TJ Agnihotri @ FourBridge Partners").
 3. **Check the extracted identity (LI URL, or `<Name>`/`<Company>`) against `qualifiedPersonIds`'s
    People-DB rows first** (fetch `Name`/`LI`/`Company` for each) — a match there is the fastest path,
-   not the only valid outcome (see B2: no roster match is normal, not a failure). **First name +
-   company is high confidence, full name not required** (Tom, 2026-09-21: "Liam at Level Ventures —
-   should make it pretty darn clear that this is Liam Shalon") — a first-name match whose company
-   matches (or no other roster candidate shares that first name) resolves the target outright; don't
-   treat it as ambiguous for lacking a surname. Company mismatch, or two same-first-name candidates
-   both matching the stated company, is the actual ambiguous case.
+   not the only valid outcome (see B2: no roster match is normal, not a failure). The roster is a
+   list of CANDIDATES, not evidence (People DB Guardrails rule 3 — the 2026-09-22 Katie Fifer / Eric
+   Grant incident was exactly a roster-proximity match). A candidate resolves only on identity: exact
+   LI URL; or first name + a Company field that matches the stated company (Tom, 2026-09-21: "Liam at
+   Level Ventures — should make it pretty darn clear that this is Liam Shalon") — the company match is
+   REQUIRED, "no other roster candidate shares that first name" is NOT sufficient on its own. Company
+   mismatch, a blank Company, or two same-first-name candidates both matching is ambiguous → B2's
+   `target-ambiguous` exit.
 4. **Only fall back to LLM judgment** (reading B1's opt-in reply for affirmative language, and
    loosely matching offer phrasing to any candidate name) when NEITHER the link check (1) nor the
    `Name @ Company` text shape (2) extracts anything at all — a genuinely atypical, non-explicit
@@ -140,11 +152,11 @@ be non-empty (a separate scan may not have staged this person yet; don't depend 
 - **B1 matched a roster candidate** → that's the recipient. Fetch `Email`/`LI`, skip to Step 2's dedupe.
 - **B1 extracted a name/LI-URL/company but it's NOT on the roster (new target, nothing staged yet)**
   → this is normal, not an error. Run Step 2's full dedupe → enrich-if-missing exactly as Mode C
-  does: `notion-search` the People collection for the extracted name; if a LinkedIn URL was extracted
-  in B1, that's enough identity confirmation to invoke **`add-to-contacts`** directly (no need to ask
-  Tom — he already supplied the identity signal in his own offer email) when no existing row is
-  found. Only fall back to asking Tom for a LinkedIn URL/email when B1 found a name with no link and
-  no confident People-DB match (same bar Step 2 already uses for an unresolvable name).
+  does: scoped + `workspace_search` of the People collection for the extracted name / LI URL. **No
+  existing row → do NOT create one** (this path is unattended): log `target-not-in-people-db`, list
+  the person via `people_db_ask.py` (texts Tom a 👍 card with the extracted LI URL / company,
+  `--relation "👓 Intros (Qualified)"`, the Opp, and `--then "draft the intro-outreach note (Step 3)"` if the draft was skipped), note "🧍 texted for 👍" in the ✍️ alert, and skip the Step 4 Qualified write for them. The draft itself may still be created
+  if the target's email is known from the thread — it needs no People page — but say so in the alert.
 - **B1 found nothing at all, or two genuinely ambiguous candidates** → log `target-ambiguous`, exit
   0. Do not guess; a wrong target drafted to a stranger is the exact failure this gate exists to
   prevent.
@@ -188,14 +200,19 @@ detection, resolve Opp + target by name instead, run B3-B5.
 For each named person, in order:
 1. **Dedupe** — `notion-search` the People collection with `content_search_mode: "workspace_search"`
    and the full name. Exact title match → use that row (read `Email`, `LI`).
-2. **Not found → resolve identity, then create.** Check Gmail and the local LinkedIn network cache
-   (`~/.claude/scripts/network_cache.db`). Common names need a disambiguator — if you can't confidently
-   resolve who they are, **ask Tom for a LinkedIn URL or email** rather than guessing (never risk a wrong
-   email on an outbound intro). With a LinkedIn URL, invoke **`add-to-contacts`** (Mode C subroutine) to
-   enrich + create the row. That skill owns the People-DB creation gate and ContactOut caching.
-3. **Email quality:** if ContactOut yields only a personal email (no work email), use it but **flag it**
-   in the report so Tom can supply/confirm the right address before sending. (In practice Tom often has
-   the correct address — surface the one on file and invite a correction.)
+   A hit counts only on identity (exact email, exact full name + matching Company, or exact LI URL) —
+   never the closest fuzzy hit, never "they're already on this Opp's roster". Two candidates →
+   ask Tom.
+2. **Not found (after scoped + workspace search) → text Tom and stop for that person.** Check Gmail
+   and the local LinkedIn network cache (`~/.claude/scripts/network_cache.db`) for an email / LI URL so
+   the card shows who you think it is, then run `shared-references/people_db_ask.py` (with the Opp +
+   `--relation "👓 Intros (Qualified)"` when there is one, plus `--then "draft the intro-outreach note (intro-outreach-drafter Step 3) unless one already exists"`). Create nothing; Tom's 👍 on the text makes
+   sms-listener §4b run `add-to-contacts` and the Qualified append.
+3. **Email used for the draft vs. the People page.** Draft to the `Email` on the resolved People page.
+   If Tom (or the thread, or ContactOut) gives a different address, draft to the one Tom confirms but
+   **never write it onto the People page** — report "⚠️ Email mismatch – [Name]'s People page has [X],
+   draft uses [Y]; not updating the page." A blank page Email is reported the same way, not filled.
+   Personal-email-only from ContactOut → flag it in the report so Tom can confirm.
 4. **Self-relation guard (every recipient, every mode) — the Opp's own Contact/Founder is never a
    valid recipient for ITS OWN Opp.** Tom, 2026-09-21: "you can't add TJ's People DB entry to his -1
    TJ opportunity, that doesn't make logical sense" — you don't introduce someone to themselves. Check
@@ -234,11 +251,12 @@ If the intro subject resolved to an Opportunity, add every recipient's People pa
 relation** — fetch current value first and append; never overwrite. Recipients already in `☎️ Outreach`,
 `✉️ Made`, or `🚫 Declined / NR` for this Opp are past this stage → don't re-add; note as skipped.
 If there is **no Opp** (person subject, or company not in the pipeline), skip the relation write and say so
-in the report — the People rows still get created/deduped in Step 2.
+in the report. No People page is ever written by this skill (no creates without Tom's approval, no
+field edits ever).
 
 ### Step 5 — Report
 - **Drafts created** — per person: recipient (company), email used, subject.
-- **People rows** — created (with link) vs. matched existing.
+- **People rows** — matched existing (with link); "🧍 texted for 👍" list; any ⚠️ email mismatches.
 - **Logged to Qualified** on [Opp] — or "no Opp for this subject, relation skipped."
 - **Flags** — personal-email-only recipients; missing per-person context (offer to personalize); anyone skipped.
 - **Handoff reminder** — "Left to send. The Qualified → ☎️ Outreach flip is **automatic** once you send:

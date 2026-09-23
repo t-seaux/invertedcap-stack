@@ -31,8 +31,18 @@ Notion. Use `~/.claude/scripts/dash_mail.py` for mail, `ntn api` for the CRM, an
 { "mode": "scan", "fund": "Dash 2️⃣",
   "messages": [ { "rowid": 202459, "from": "vishal@outmarket.ai",
                   "from_name": "Vishal Sankhla",
-                  "subject": "Outmarket - Series B - Dash Fund", "folder": "Inbox" } ] }
+                  "subject": "Outmarket - Series B - Dash Fund", "folder": "Inbox",
+                  "existing_opps": [ { "id": "3be00bef-…", "name": "Outmarket (Series B FO)", "status": "Committed" },
+                                     { "id": "128bec53-…", "name": "Outmarket", "status": "Active Portfolio" } ] } ] }
 ```
+
+Each message also carries **`existing_opps`** — the CRM rows whose `Contact` contains the sender
+email, resolved IN CODE by the rider as `[{id, name, status}]` (`[]` = no match; `null` = the
+lookup failed, fall back to your own Gate A query). **Non-empty `existing_opps` = the company is
+already Tom's. It can NEVER become a 🆕 card** — route it through Step 0's follow-up / update
+lanes by the matched Status (Outmarket, 2026-09-22: Tom — "outmarket is an existing portfolio
+company so shouldn't trigger add to crm / new opp"). Multi-row matches (portfolio primary + FO
+cards) follow the multi-card routing rule below.
 
 `dash-deal-detect.sh` already dropped Tom's own sends and obvious non-humans; still treat each
 message on its merits. Read the FULL email before judging — `dash_mail.py get <rowid>` returns
@@ -40,6 +50,15 @@ message on its merits. Read the FULL email before judging — `dash_mail.py get 
 a local read (`pdftotext <path> - | head -80`). Never send an attachment anywhere; read-only.
 
 ## Step 0 — Route each message: FOLLOW-UP vs NEW DEAL
+
+> **Code gate upstream (2026-09-22) — cold follow-ups never reach this skill.** Tom: *"if there
+> are continued outreaches / follow ups you can ignore everything past the first one."*
+> `dash-deal-detect.sh` drops, in code, any message whose sender already emailed the Dash inbox
+> earlier, whom Tom never replied to (Sent Mail, same subject), who is not in the People DB, and
+> who has no live Opp (no CRM row, or only terminal ones). Dropped rows are logged as
+> `cold-followup-skip` in `watch-dash.log` and ledgered in `.cold-followups`. So a repeat sender
+> that DOES arrive here has a live Opp, a Tom reply, or a People-DB row — treat it as Step 0's
+> follow-up / update lanes, never as a fresh 🆕 card and never as a 🔁 revive card.
 
 Before the new-deal bar, check whether the message is a **follow-up to an existing deal** — the
 Dash counterpart to Inverted's `materials-detect.js`. Tom's rule (2026-09-17): follow-ups must
@@ -132,13 +151,14 @@ ANY hit → do NOT fire a new 🆕 card; the company is already his. Route by th
 - **Non-terminal / live** → if the mail carries genuinely new signal on an EXISTING company (a
   new round kicking off), that's a follow-on, not a new card — hand off to `add-follow-on-round`
   / `materials-handler`, don't fire a 🆕 card.
-- **Terminal** (Pass (Met), Pass (DNM), Lost, NR / Missed) → run the **Revive Gate**
-  (`~/.claude/skills/shared-references/revive-gate.md`): write NOTHING to the row now — STAGE the
-  new info (Description/body/materials) AND the reactivation in a 👍-gated 🔁 revive text card +
-  `action:"revive"` payload (add the Dash-lane extras — `mail_source:"dash-local"`, `rowid`,
-  `fund` — so the confirm handler leaves `Fund` alone). His 👍 applies the info + flips the status
-  via sms-listener §4. `target_status` per the spec: founder-direct → `Connected`, referrer
-  intro-offer → `Outreach`.
+- **Terminal** (Pass (Met), Pass (DNM), Lost, NR / Missed) → run the **Revive Gate v2**
+  (`~/.claude/skills/shared-references/revive-gate.md`, Tom 2026-09-22): ENRICH the row NOW —
+  save any attachment/deck via `materials-handler` (fund-aware) onto the existing page, append a
+  `## Update (YYYY-MM-DD)` body section, fill `Description` only if blank — then STAGE the
+  reactivation in a 🔁 revive text card + `action:"revive"` payload with the `enriched` block
+  (add the Dash-lane extras — `mail_source:"dash-local"`, `rowid`, `fund` — so the confirm
+  handler leaves `Fund` alone). His 👍 flips the status via sms-listener §4. `target_status` per
+  the spec: founder-direct → `Connected`, referrer intro-offer → `Outreach`.
 
 **Gate B — prior proposals.** `~/.claude/skills/dash-deal-detect/.proposed` (one line per prior
 proposal: `YYYY-MM-DD <founder/company> via <referrer> rowid=<rowid>`). Grep first; skip if

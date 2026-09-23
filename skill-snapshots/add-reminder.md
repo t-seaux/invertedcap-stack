@@ -142,7 +142,14 @@ Tom it's the fallback — clearly, with the real reason, not a generic "unavaila
   Example: Elsie texts "remind me tonight 8:30 to book a rental car" →
   title `[EK] Book a rental car for Pittsburgh` on `Kenyon-Seo`.
 - Confirm back as a compact ✅ checklist, noting the date if not today and noting if
-  the fallback path was used.
+  the fallback path was used. Shape (Tom 2026-09-22): headline, **blank line**, then one
+  `• <title>` bullet per reminder — never bullets directly under the headline.
+  ```
+  ✅ Added to Kenyon-Seo, due today:
+
+  • Buy baby shampoo
+  • Buy dishwasher tablets
+  ```
 
 ## Autonomous creation AND completion — always alert (Tom 2026-09-02, broadened 2026-09-03)
 

@@ -65,6 +65,17 @@ Only in an **interactive** (non-headless) run where the Gmail MCP tools are actu
    - Tom's own addresses: `tom@invertedcap.com`, `tom@dashfund.co`, `thomas.seo@outlook.com`, `kenyonseo@gmail.com`, and the capture alias `tom+contact@invertedcap.com` itself.
    - Automated / non-human senders: `no-reply`/`noreply`, `notifications@`, `mailer-daemon`, `updates@`, `news`/`newsletter@`, `alerts@`, `support@`, calendar-invite senders, and obvious list/blast addresses.
 4. **Add ALL remaining external people** (Tom's confirmed default). If there are several, process each; if there are none after exclusions, skip-and-log and still post a Slack line saying so.
+5. **Open ping — text Tom that work has started (MANDATORY, Tom 2026-09-22).** The moment the counterparties are known, before any enrichment, text Tom's 1:1 via Sendblue with the progress-ping OPEN shape (`~/.claude/skills/send-alert/references/alert-convention.md` → "Progress ping sequencing" + "Text lane"). `--topic contacts-<threadId>` makes this the ROOT bubble; the Step C4 close text uses the same key and nests under it. Body on stdin via quoted heredoc.
+
+   ```bash
+   ~/.claude/skills/sms-listener/send_imessage.sh +12012567714 --stdin --topic contacts-<threadId> <<'MSG'
+   📬 Contacts: Patrick Han
+
+   Started — adding Patrick Han (BCG) to the People DB from your forward
+   → enriching, then dedup + create
+   MSG
+   ```
+   Several people → list them comma-joined in the Subject and body (`Contacts: Patrick Han, Jane Doe`). This ping carries NO verdict (net-new vs existing is close-only).
 
 ### Step C2 — Enrich, dedup, and create-or-update each person
 
@@ -87,6 +98,36 @@ After processing everyone, post a **single** `send-alert` message that lists **o
 ```
 
 If there were **no** net-new contacts (everyone already existed, or only Tom / automated senders), still post one short line so the queue run is never silent, e.g. `📬 <u>**Contacts: 0 net-new**</u>`. Never list existing people, and never send a separate alert per person.
+
+### Step C4 — Close ping: text Tom the completion, threaded under the open ping (MANDATORY, Tom 2026-09-22)
+
+Tom explicitly triggered this capture (he forwarded the email / wrote "add to contacts"), so he
+wants the completion **on his phone**, not only in Slack. After the Step C3 Slack line, send
+ONE text to Tom's 1:1 via Sendblue — never `mcp__imessages__*`, never AppleScript. Same
+anatomy as the Slack alert rendered in the **text lane** of
+`~/.claude/skills/send-alert/references/alert-convention.md` (plain, no `<u>**`, blank line after
+the headline, ~5 lines, links as bare URL + ` ↗`, never message-final). Body on stdin via a
+quoted heredoc (zsh eats `$<digits>` in double quotes). Use the SAME `--topic contacts-<threadId>`
+as the Step C1 open ping (item 5) so this close nests under it as an inline reply (open → close, one
+thread per capture):
+
+```bash
+~/.claude/skills/sms-listener/send_imessage.sh +12012567714 --stdin --topic contacts-<threadId> <<'MSG'
+📬 Contacts: Patrick Han
+
+✓ Added — 1 net-new · Project Leader & Applied AI Lead, BCG · LI, city, icon set
+https://www.notion.so/<page-id> ↗
+MSG
+```
+
+- Zero net-new → still text, same headline: `📬 Contacts: Patrick Han` + blank line +
+  `✓ Already in People DB — updated <fields | nothing>` + Notion URL ↗, so Tom knows the forward landed.
+- Skip-and-log exits (message unreadable, only Tom / automated senders) → text
+  `📬 Contacts: Skipped` + blank line + `⚠ <one-line reason>` (action-required leads).
+- Failure → `✗ Contacts: <name> failed — <one-line reason>` and exit non-zero.
+- No `T+N min` elapsed marker on this close (Tom, 2026-09-22) — two-beat open/close, not a multi-phase run.
+- Self-check the body against alert-convention.md BEFORE sending; fix, never send-then-correct.
+- The Slack line (C3) stays — it is the log; the text is the operator-facing confirmation.
 
 ## Fields to Populate
 
@@ -331,6 +372,8 @@ Before creating a new entry in the People DB (data source `1715ce8f-7e54-43e2-bb
 5. Same rule applies to dedupe against Opportunities DB, -1 Scanner DB, and other tables where exact-name matching matters. Default to `workspace_search` for dedupe.
 
 ### Don't auto-create People DB entries from side-effect workflows
+
+**Subroutine gate (People DB Guardrails, 2026-09-22 — `shared-references/people-db-guardrails.md`).** When another skill (intro-*, feedback-outreach-*, log-intro, add-to-crm, pipeline-agent, etc.) invokes this skill to create a row, it must be carrying Tom's explicit approval for **that specific person** (his 👍 on a `🧍 People DB: <Name>` text card from `shared-references/people_db_ask.py`, dispatched by sms-listener §4b, or a direct "add [Name] to contacts"). No approval in hand → do not create; tell the caller to run `people_db_ask.py`. Earlier per-skill carve-outs (feedback-outreach 2026-07-31, intro-draft colleague hand-off 2026-08-27, intro-outreach-drafter Mode B LI-URL) are revoked.
 
 Do not create new entries in the People DB unless Tom explicitly asks. Related workflows (Opportunities enrichment, intro logging, feedback outreach, etc.) should link to existing People rows when dedupe finds them, and otherwise leave the relation blank rather than auto-creating.
 

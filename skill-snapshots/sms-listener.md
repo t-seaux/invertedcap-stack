@@ -93,7 +93,7 @@ React to the sender's message with a tapback as your next action — a real reac
 
 **A tapback can REPLACE a reply** when a reaction says everything and no text is needed (a pure FYI, a "thanks", a "see you at 6") — 👍 and done, no bubble. **Skip the tapback entirely** only when you're sending an instant text answer anyway and a reaction would be redundant noise. Use judgment; don't over-react to every message.
 
-**The two-beat model: a tapback acknowledges RECEIPT; the text reply comes when it's DONE (Tom, 2026-09-21).** A tapback (👀 for real work, 👍 for a trivial directive) says *"got it, I'm on this."* It does NOT say the task is finished. When you actually *complete* an action that changed durable state — a reminder/to-do (`add-reminder`), a calendar event, a CRM/contact row, a purchase, a saved doc — you send a reply bubble that names what landed (`✅ Added: "<reminder title>" — due <when>`). So the sequence for any write is **tapback on receipt → text when done**, two separate beats. Never let the receipt tapback double as the completion signal: the sender can't see a reminder object, so a lone 👍 reads as "it ignored me" even when the write succeeded. This is exactly what bit Elsie's "add a todo" (2026-09-21): reminder created in ~10s, but no done-reply, so it looked stuck. (A tapback still *replaces* a reply outright only for pure FYIs with no action — "see you at 6" → ❤️ and done; there's no "done" beat because there was nothing to do.)
+**The two-beat model: a tapback acknowledges RECEIPT; the text reply comes when it's DONE (Tom, 2026-09-21).** A tapback (👀 for real work, 👍 for a trivial directive) says *"got it, I'm on this."* It does NOT say the task is finished. When you actually *complete* an action that changed durable state — a reminder/to-do (`add-reminder`), a calendar event, a CRM/contact row, a purchase, a saved doc — you send a reply bubble that names what landed (`✅ Added to <list>, due <when>:` + blank line + one `• <title>` bullet per reminder). So the sequence for any write is **tapback on receipt → text when done**, two separate beats. Never let the receipt tapback double as the completion signal: the sender can't see a reminder object, so a lone 👍 reads as "it ignored me" even when the write succeeded. This is exactly what bit Elsie's "add a todo" (2026-09-21): reminder created in ~10s, but no done-reply, so it looked stuck. (A tapback still *replaces* a reply outright only for pure FYIs with no action — "see you at 6" → ❤️ and done; there's no "done" beat because there was nothing to do.)
 
 ## Share-sheet messages — comment + link arrive as TWO messages
 
@@ -698,18 +698,23 @@ A 👎 (Pass DNM) never drafts.
 (text / Dash / inverted) — the branch is channel-agnostic. The founder already has a
 terminal-status Opp and Tom 👍'd to bring it back — UPDATE that existing row (`revive_opp_id`),
 never create a new one.
-Patch three things and nothing else: (1) `Status` → staged `target_status` (e.g. `Connected`);
-(2) `Description` → staged `description` (the refreshed one-line idea — overwrite the stale
-value); (3) append a dated body note capturing the revival —
-`YYYY-MM-DD — Revived from <revive_from_status>. <source_context>`. If the staged file carries a
-`deck_drive_link`, chip it onto Materials exactly as the create path does. Do NOT touch Source,
-HQ, Stage, or the founder relation — this is a re-open of an existing row, not a re-create.
+**Check the staged `enriched` block first (revive-gate v2, Tom 2026-09-22).** When present, the
+materials chip and the `## Update (date)` body section ALREADY landed at detection time — do not
+re-chip `deck_drive_link` or re-append the source context. Patch only: (1) `Status` → staged
+`target_status` (e.g. `Connected`); (2) `Description` — leave alone; it was refreshed from the
+deck at detection (`enriched.description_set: true`; a `false` means no deck existed and there
+is nothing to apply); (3) append a one-line body note `YYYY-MM-DD — Revived from <revive_from_status>.`
+A staged file WITHOUT `enriched` is a v1 proposal: apply everything — Status, Description
+overwrite, dated note `YYYY-MM-DD — Revived from <revive_from_status>. <source_context>`, and
+chip `deck_drive_link` onto Materials exactly as the create path does. Either way do NOT touch
+Source, HQ, Stage, or the founder relation — this is a re-open of an existing row, not a re-create.
 Completion reply, inline-reply nested under the 🔁 card (reply-to = the PROPOSAL's `sent_handle`,
 never the tapback handle — same threading rule as the add path). Same no-redundancy rule as the
 card CTA: bare `✅ Revived` when the status went to the assumed `Connected`; state the status
 ONLY when it deviates (`✅ Revived → Outreach`):
 ```
 ✅ Revived
+
 <notion url of the existing row> ↗
 ```
 
@@ -719,16 +724,18 @@ says:**
 - **Pure positive** (👍 / "revive" / "yes" / "confirm") → the full revive above (info + status →
   `target_status`).
 - **Keep the status, update the info** ("update the description but leave as pass", "just update
-  the info", "keep it pass", "don't change the status") → apply ONLY the info patch (Description
-  / body note / materials); **leave `Status` at its current terminal value.** This is Tom
-  authorizing the info write while declining the reactivation — fully allowed (his 👍 on the info
-  is this reply). Reply: `✅ Updated — still <Status>` + the row URL.
+  the info", "keep it pass", "don't change the status") → v2 payload (`enriched` present): the
+  info (including Description from the deck) is already on the row; leave `Status` at its
+  terminal value, reply `✅ Already updated — still <Status>` + the row URL.
+  v1 payload (no `enriched`): apply ONLY the info patch (Description / body note / materials),
+  leave `Status`, reply `✅ Updated — still <Status>` + the row URL.
 - **Different target status** ("revive to outreach", "set qualified not connected") → apply info
   + that status instead of the staged `target_status`. Reply `✅ Revived → <that status>`.
 - **Field correction** ("description should say …", fix a detail) → apply the revive with the
   correction folded in.
-- **Decline** (👎 / "no" / "leave it") → do NOTHING; the row stays as-is at its pass, no info
-  change. (A 👎 on a revive is a decline, not a status change.)
+- **Decline** (👎 / "no" / "leave it") → no further writes; `Status` stays at its pass. With a
+  v2 payload the enrichment that landed at detection (deck chip, dated update section) remains as
+  the record of the re-engagement. (A 👎 on a revive is a decline, not a status change.)
 
 **Dash-lane branch (staged `mail_source == "dash-local"`, from `dash-deal-detect`).** When the
 staged file carries `mail_source: "dash-local"`, `rowid`, and `fund` (a Dash-inbox deal, not an
@@ -757,17 +764,39 @@ Do NOT re-derive anything already in the staged file; do NOT run the full add-to
 pipeline unless the staged file is missing (then fall back to executing
 `~/.claude/skills/add-to-crm/SKILL.md` with what the proposal captured). CRM conventions
 apply (referrer = source; add-to-crm's own rules govern statuses — a confirm simply adds
-to CRM, no special pass-handling here). **Completion reply (Tom's exact spec): send as an
-inline-reply nested under the 🆕 CARD — reply-to = the PROPOSAL's `sent_handle` (from the
-audit log / the staged filename), NEVER `args.message_sid` (on a tapback confirm that's
-the tapback's own handle and the reply will drift out of the thread; bug hit 2026-09-01 —
-Tom never saw the MaxHeap ✅). Body is the ✅ header + URL, plus the People-DB opt-in line
-whenever the card names a founder/person — no recap of the deal, nothing else:**
+to CRM, no special pass-handling here). **Completion reply (Tom, 2026-09-22 — supersedes
+the old URL-only spec: he flagged a bare-recap ✅ as off-convention): mirror the 🆕
+proposal card's bulleted shape so the fields he already confirmed stay visible on the ✅,
+instead of collapsing to a URL + prose summary.** Send as an inline-reply nested under the
+🆕 CARD — reply-to = the PROPOSAL's `sent_handle` (from the audit log / the staged
+filename), NEVER `args.message_sid` (on a tapback confirm that's the tapback's own handle
+and the reply will drift out of the thread; bug hit 2026-09-01 — Tom never saw the MaxHeap
+✅). Pull every field straight from the staged payload — nothing is re-derived:
 ```
-✅ Added to CRM
+✅ Added to CRM: <Company or Opp title> (<Founder(s)>)
+
 <notion url of the created row> ↗
+
+* Source: <source>
+* Stage: <stage>
+* HQ: <hq>
+* Description: <description>
+
 👍 to add <Founder(s)> to People DB
 ```
+(Header — same subject convention as the 🆕 card: named company → company only, `✅ Added to
+CRM: <Company>`, no founder parens; no company name yet → `✅ Added to CRM: -1 (<Founder>)` or
+`NewCo (<Founder>)`. Bullets are copied verbatim from the staged payload — Source, Stage
+(with terms folded in per the 🆕 card convention), HQ, Description — not re-derived or
+reworded.) **For `-1` and `NewCo` Opps specifically, the founder's LinkedIn is imperative —
+it's almost always available even when nothing else is:** when `description` is thin/unknown
+(a bare referral like "connect with X on his newco," no product or idea mentioned), do NOT
+ship a bare `N/A` — write `N/A (LI: <founder_linkedin>)` instead, pulling `founder_linkedin`
+straight from the staged payload (Tom, 2026-09-22 — flagged on the Sebastien Goddijn NewCo
+card, which had a real LinkedIn on file but shipped `Description: N/A` with no link anywhere
+in the ✅). Only fall back to a bare `N/A` if no LinkedIn was ever found either. Apply the
+same rule to the 🆕 proposal card's Description field, per `deal-text-scanner`'s
+`references/deal-lane.md` — the fix belongs at staging time so both cards inherit it.
 (Header is "Added to CRM" with lowercase t — an exception to Title Case headers. **Name the
 FOUNDER(S) on the 👍 line** — the card's subject is the company, but the people added to People
 are the founders, so they differ; spell out who will be added. **Multiple founders → list them
@@ -809,7 +838,11 @@ generates a deal-share DRAFT (never a send). Tom is aware; flag if he wants pass
 audit line `notes=proposed people-db-add <founder>`:
 - the `🤝 Email Captured: <Founder>` card (intro-lane §4c — a founder's email written into an
   Opp's Contact field), and
-- the `✅ Added to CRM` completion (branch 4 above — a just-created Opp with an identified founder).
+- the `✅ Added to CRM` completion (branch 4 above — a just-created Opp with an identified founder), and
+- the `🧍 People DB: <Name>` card (People DB Guardrails rule 1 — texted by
+  `shared-references/people_db_ask.py` from ANY intro / outreach / feedback / CRM workflow that hit a
+  person missing from the People DB; staged payload carries `guardrail_ask: true` + an optional
+  `resume: {opp_id, opp_name, relation}`).
 A positive 👍 tapback quoting EITHER card — or Tom replying "add to people" / "add to contacts"
 under it — is the ONLY thing that creates a People DB row from these flows (the scanner NEVER
 auto-creates one). On confirm, **FAST PATH:** load
@@ -823,12 +856,38 @@ already exists, else create. Reply as an inline-reply nested under the confirmed
 tapback that's the tapback's own handle and the reply drifts out of thread):
 ```
 ✅ Added to People DB
+
 <notion url of the created row> ↗
 ```
 For **multiple** people, keep the `✅ Added to People DB` header and add one
 `<Name> — <notion url> ↗` line per row created/updated. (Header "Added to People DB" — lowercase
 where it falls, same Title-Case exception as "Added to CRM".) A ❌/👎 or no reaction → do nothing;
 the email/Opp stands, no People row.
+
+**Extra steps for `guardrail_ask: true` payloads (🧍 People DB cards,
+`shared-references/people-db-guardrails.md`):**
+- Dedup hit → **use the existing row as-is; never update it in place** (Guardrails rule 2 — no
+  contact-field edits). Only an identity match counts (exact email / exact LI / exact name + company);
+  a looser hit → reply `❓ Possible match: <Name> (<Company>) – <url> ↗` and stop.
+- After the create (or identity hit), if `resume` is set: fetch the Opp, read the current `resume.relation`
+  array, and write back the FULL array + this person's page ID (skip if they already sit in any intro
+  lifecycle field on that Opp). Re-fetch to verify.
+- **See the workflow out** (Tom, 2026-09-22): if the payload has `then`, run that step of
+  `source_skill` for this person now (read that skill's SKILL.md section named in `then`; its own
+  dedup guards still apply — e.g. don't create a second draft). Add one line per finished step to the
+  reply (`✍️ <what was drafted/created>`).
+- Reply (nested under the card, same anchor rule):
+  ```
+  ✅ Added to People DB
+
+  <Name> – <notion url> ↗
+  → <relation> on <Opp>
+  ```
+  (drop the `→` line when `resume` is null).
+- 👎 / "no" / "skip" → rename the staged file to `people-<sent_handle>.declined.json` (so
+  `people_db_ask.py` never re-texts that person for that Opp) and reply `🚫 Skipped – no People
+  entry for <Name>`.
+- A 👍 on a 🧍 card also delete the staged file on success, as with the other two cards.
 
 **5. Logging intro-landed material — flip Status in the SAME turn, don't wait to be
 corrected.** When Tom hands over a screenshot/text and says "check notion" / "add this" /
@@ -883,7 +942,10 @@ ask for in-thread) renders per `send-alert/references/alert-convention.md` → "
 `<emoji> Headline: Subject` in Title Case, blank line, `Key: value · Key: value` meta pairs,
 `✓/⚠/✗` state line with ⚠ action-required first, links as `<url> ↗`. Conversational replies
 (Tom asked, you answer) and the functional confirm-loop formats (🆕 card + 👍 CTA, ✅/🚫/🎯,
-❓) are exempt — they're chat and routing keys, not alerts.
+❓) are exempt from the meta-pair/state-line shape — they're chat and routing keys, not alerts.
+**They are NOT exempt from the blank line after the header** (Tom 2026-09-22): every ✅ completion
+reply is `✅ <headline>`, `\n\n`, then the body — the row URL, the `• …` reminder bullets, the
+field list. A URL or bullet jammed onto the line right after the headline is the bug.
 
 ## Reply channel — pick by job source
 

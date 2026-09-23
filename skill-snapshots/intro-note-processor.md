@@ -5,7 +5,7 @@ description: >-
   [Founder]") and implicit intro signals (Tom offering a coinvestor, customer, downstream investor, or advisor).
   For each, resolves the person in the People DB, dedups against all four intro lifecycle fields on the linked
   Opp, appends new candidates to Intros (Qualified), and saves a Gmail draft of the outreach using historical
-  same-type sends as the voice template. Missing People DB entries surface as a Slack alert (no auto-stub).
+  same-type sends as the voice template. Missing People DB entries get a 👍-to-create text to Tom (no auto-stub).
   Modes: (B) Subroutine — called by meeting-note-processor at the end of Mode B-process; (C) Manual — "process
   my call with [person] for intros", "process the [company] note for intros", "extract intros from [note]",
   "draft intro outreach from this call".
@@ -20,6 +20,16 @@ This is the bridge between "Tom said on a call: I'll intro you to Lauren" and "t
 ---
 
 **Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth.
+
+## People DB Guardrails (MANDATORY)
+
+Canonical rules and incident: `shared-references/people-db-guardrails.md` – read it before any People DB lookup or write. It overrides anything else in this skill. The People DB syncs both ways with Tom's iPhone Contacts, so a wrong write here lands on his phone.
+
+1. **Never create a People entry — text Tom and wait for his 👍.** If a person isn't found after BOTH the scoped People DB search and the workspace search, run `python3 ~/.claude/skills/shared-references/people_db_ask.py --name "<Name>" --source-skill <this skill> [--email] [--li] [--company] [--opp-id --opp-name --relation] --context "<why>"` — it texts Tom "🧍 People DB: <Name> … ⚠ Not in the People DB yet … 👍 to add to People DB" and stages the payload (idempotent: re-runs never double-text). Tom's 👍 makes sms-listener §4b create the row via add-to-contacts and finish the skipped relation write. Until then, skip every Notion write for that person, in every mode (manual, scheduled, webhook). In reports, list them as "🧍 texted for 👍: <Name>".
+2. **Never modify contact fields on an existing People page** (Email, Name, Company, Role, LI, phone) unless Tom explicitly asks. This skill writes only Opportunity-side relation fields. If a recipient's email doesn't match the People page they resolved to, flag the mismatch – never copy the email over.
+3. **Match on identity, not proximity.** Resolve a person by exact email, exact name + company, or exact LinkedIn URL. Never infer a person from a shared Opportunity relation (e.g. the Opp's Qualified roster), first name alone, or the closest fuzzy search hit.
+4. **Ambiguous → flag, don't guess.** Multiple candidates or conflicting keys → flag with the candidates and skip all writes for that person.
+
 
 ## The Notion Data Model
 
@@ -155,9 +165,9 @@ Filter results to People DB pages.
 
 **If person NOT found in People DB:**
 - Do NOT create a stub. Per pinned memory `feedback_no_people_entry_without_permission.md`, missing people require explicit permission + ContactOut enrichment + photo before a People DB entry is created.
-- Surface in the Slack alert (Step 8) with the candidate's name, the inferred type, and the verbatim context sentence from the note. The alert is the "note to Tom" — Tom decides whether to add them to People DB and re-run Mode C against the same note.
+- Text Tom via `shared-references/people_db_ask.py` (`--relation "👓 Intros (Qualified)"`, the linked Opp, `--context` = inferred type + a short phrase from the note, `--then "intro-note-processor Step 7: save the outreach draft for this person from note <note id>"`). His 👍 creates the row and does the Qualified append (sms-listener §4b). Also list them in the Step 8 Slack alert as "🧍 texted for 👍: <Name>" with the verbatim context sentence.
 - Skip the draft step for this candidate (no email on file anyway).
-- Do NOT write a placeholder to the Opportunity's page body. Page-body writes risk clobbering existing content; the Slack alert is the canonical surface for unresolved candidates.
+- Do NOT write a placeholder to the Opportunity's page body. Page-body writes risk clobbering existing content; the 👍 text + Step 8 alert are the surfaces for unresolved candidates.
 
 ### Step 5.5: Pre-Write Guards (MANDATORY)
 

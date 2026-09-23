@@ -15,8 +15,19 @@ description: >
 
 Log a named person as a qualified intro for a named company in Notion. If the company has
 an existing Opportunity entry, the person is added to its `👓 Intros (Qualified)` relation.
-If no Opportunity entry exists, the person is logged in the People DB only — no new
-Opportunity is ever created by this skill.
+If no Opportunity entry exists, nothing is written — the report confirms the person's existing
+People row and notes there is no Opp. No new Opportunity or People row is ever created by this
+skill without Tom's explicit per-person approval.
+
+## People DB Guardrails (MANDATORY)
+
+Canonical rules and incident: `shared-references/people-db-guardrails.md` – read it before any People DB lookup or write. It overrides anything else in this skill. The People DB syncs both ways with Tom's iPhone Contacts, so a wrong write here lands on his phone.
+
+1. **Never create a People entry — text Tom and wait for his 👍.** If a person isn't found after BOTH the scoped People DB search and the workspace search, run `python3 ~/.claude/skills/shared-references/people_db_ask.py --name "<Name>" --source-skill <this skill> [--email] [--li] [--company] [--opp-id --opp-name --relation] --context "<why>"` — it texts Tom "🧍 People DB: <Name> … ⚠ Not in the People DB yet … 👍 to add to People DB" and stages the payload (idempotent: re-runs never double-text). Tom's 👍 makes sms-listener §4b create the row via add-to-contacts and finish the skipped relation write. Until then, skip every Notion write for that person, in every mode (manual, scheduled, webhook). In reports, list them as "🧍 texted for 👍: <Name>".
+2. **Never modify contact fields on an existing People page** (Email, Name, Company, Role, LI, phone) unless Tom explicitly asks. This skill writes only Opportunity-side relation fields. If a recipient's email doesn't match the People page they resolved to, flag the mismatch – never copy the email over.
+3. **Match on identity, not proximity.** Resolve a person by exact email, exact name + company, or exact LinkedIn URL. Never infer a person from a shared Opportunity relation (e.g. the Opp's Qualified roster), first name alone, or the closest fuzzy search hit.
+4. **Ambiguous → flag, don't guess.** Multiple candidates or conflicting keys → flag with the candidates and skip all writes for that person.
+
 
 ## Why this exists
 
@@ -95,12 +106,25 @@ The workspace search will surface call logs, notes, and other pages referencing 
 even if the scoped DB search misses them. From the results, identify the People DB page
 (it will be under the People DB ancestor path).
 
-**If the person exists:** Note their page ID. Verify name + company match if multiple
-candidates appear.
+**If the person exists:** Note their page ID — but only if the match is on identity (People DB
+Guardrails rule 3): exact full name + a Company that matches the company Tom named / the person's
+known employer, or an exact email / LinkedIn URL Tom supplied. A name-only hit whose Company doesn't
+line up, or two candidates, is ambiguous → flag with the candidates (Name · Company · Email · link)
+and stop for that person. Do not touch any field on the People page.
 
-**If the person does NOT exist:** Follow the `add-to-contacts` skill at
-`/Users/tomseo/.claude/skills/add-to-contacts/SKILL.md` to create the People DB entry. That skill is
-the single source of truth for People DB creation — do not duplicate its logic here.
+**If the person does NOT exist (after both passes):** Do NOT create the entry. Text Tom and stop
+for that person:
+
+```
+python3 ~/.claude/skills/shared-references/people_db_ask.py --name "<Name>" --source-skill log-intro \
+  [--email ..] [--li ..] [--company ..] --opp-id <opp id> --opp-name "<Opp>" \
+  --relation "👓 Intros (Qualified)" --context "intro to <Opp>"
+```
+
+Tom's 👍 on that text makes sms-listener §4b create the row via `add-to-contacts` and append it to
+the Opp's `👓 Intros (Qualified)` — this skill writes nothing more for that person. Report
+"🧍 texted for 👍: <Name>". (If Tom instead says "add them" in this same session, that is explicit
+approval: run `add-to-contacts`, then continue from Step 4.)
 
 ### Step 4: Duplicate Detection (Opportunity Path Only)
 
@@ -131,17 +155,16 @@ If the field was previously empty, pass a single-element array:
 
 **No Opportunity path — no Notion write beyond People DB:**
 
-If the person already existed in the People DB, no write is needed at all. If they were
-newly created via `add-to-contacts`, that skill handles the write. Note in the summary
-that there is no Opportunity entry for this company and the intro is logged in People DB
-only.
+No Notion write at all — this skill never edits the person's People page. Note in the summary
+that there is no Opportunity entry for this company, so nothing was logged beyond confirming the
+person's People row (or, if they aren't in the People DB, the 👍 text from Step 3).
 
 ### Step 6: Report Back
 
 **Opportunity path:**
 ```
 ✅ Logged intro — [Opportunity Name] ([Fund]):
-- [Person Name] ([Company], [Role]) — [existing entry linked / new entry created]
+- [Person Name] ([Company], [Role]) — [existing entry linked / 🧍 texted for 👍]
   Opportunity: [Notion URL]
   Person: [Notion URL]
 ```
@@ -149,7 +172,7 @@ only.
 **No Opportunity path:**
 ```
 ✅ Logged intro (no Opportunity entry for [Company]):
-- [Person Name] ([Company], [Role]) — [existing entry linked / new entry created]
+- [Person Name] ([Company], [Role]) — existing People entry (no Opp to link)
   Person: [Notion URL]
 ```
 
@@ -162,13 +185,17 @@ only.
 
 ## Key Rules
 
-- **Never create an Opportunity.** If one doesn't exist, log the person to People DB only.
+- **Never create an Opportunity.** If one doesn't exist, report it and write nothing.
 - **Fund disambiguation:** When multiple Opportunity entries exist for the same company,
   use the original/earliest one (lower fund number, earlier Close Date) unless Tom says
   otherwise.
 - **People DB search fallback:** Always try workspace search if the scoped DB search returns
   no match — the semantic index can miss recent or older entries.
 - **Never overwrite existing Qualified entries** — always read current state and append.
-- **No confirmation step** — act immediately on Tom's explicit instruction.
-- **People creation delegated** — if the person doesn't exist in People DB, use the
-  `add-to-contacts` skill; do not inline that logic here.
+- **No confirmation step for the relation write** — act immediately on Tom's explicit
+  instruction once the person resolves cleanly. The one stop is a person missing from the
+  People DB (text Tom for a 👍) or an ambiguous match (flag), per People DB Guardrails.
+- **Never create People rows** — a missing person gets the `people_db_ask.py` text; creation
+  happens only on Tom's 👍 via sms-listener §4b → `add-to-contacts`.
+- **Never edit People page fields** (Email, Name, Company, Role, LI, phone) — the only write
+  this skill makes is the Opportunity's `👓 Intros (Qualified)` relation.
