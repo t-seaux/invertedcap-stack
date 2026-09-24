@@ -150,63 +150,39 @@ claim is only valid once every link and every attachment has actually been read.
     but add them **all-day and FREE** — they don't block the day.
 - Other mail: keep only genuinely family-relevant dates.
 
-**For EACH relevant date, dedup-check BOTH calendars BEFORE anything else** (Tom
-2026-09-19 — per the shared contract, a dupe may live on the WORK calendar instead):
-`mcp__claude_ai_Google_Calendar__list_events` on the Elsie-Tom calendar
-(`cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com`) AND on Tom's work primary
-(`tom@invertedcap.com`) over that date. A match on either = reconcile IN PLACE where it
-lives; never copy it to the other calendar. Judge
-semantically — the BFS feed already auto-adds many milestones (Labor Day, Family Visit
-Day, First/Second Day), so most will already exist.
+**Calendar rules = the shared contract**
+`~/.claude/skills/shared-references/calendar-event-handling.md` (this lane, the personal
+lane, and the work lane share it — behavior changes land THERE first; this skill keeps only
+family-lane transport). Sections used here: invariant 1 (confirmed vs invitation, CTA),
+invariant 2 + the attendance exception under Known event sources (cross-calendar dedup,
+never cross-copy), invariant 3 (reconcile: fill missing, correct conflicts, note old value),
+invariant 4 (headers + item lines), invariants 5-6 and 9 (defaults, dash glyphs, location
+format), Known event sources (kids' classes), Lane-specific (family bullet).
 
-- **DUPE found → RECONCILE, don't just skip.** Finding a match is the START of the check,
-  not the end. `update_event` to do BOTH of:
-  1. **Fill in what's MISSING** — a specific time if the existing event is all-day, a
-     location, a room number, a description.
-  2. **CORRECT what CONFLICTS.** Compare every field against the source: date, start AND
-     end time, location, who it's for. An existing event is **NOT authoritative** — Tom and
-     Elsie create events by hand and they are often wrong or stale (Tom 2026-09-04). If the
-     source disagrees, the source wins: fix it, and note the old value + why you changed it
-     in the description so the edit is auditable.
-  Real case: a hand-made "[BFS] Family Visit Day" sat at 10:15-10:30 while the Pink Room
-  sign-up sheet had Andy at **10:00-10:15** — 10:15 was the NEXT family's slot. Enrich-only
-  logic preserves that kind of error forever, and a wrong time nobody flags looks exactly
-  like a right one.
-  (Authorized auto-update — no approval needed — but you STILL report it, see step 4.
-  Corrections go in the heads-up as a ✏️ line, distinct from a plain ✓ enrich, so a
-  changed time actually gets noticed rather than blending into the "already on cal" noise.)
-  Ask instead of guessing only when the source itself is ambiguous, or when "correcting"
-  would delete detail the source doesn't cover.
+**For EACH relevant date, dedup-check BOTH calendars BEFORE anything else** (contract
+invariant 2): `mcp__claude_ai_Google_Calendar__list_events` on the Elsie-Tom calendar
+(`cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com`) AND on Tom's work primary
+(`tom@invertedcap.com`) over that date. Judge semantically — the BFS feed already
+auto-adds many milestones (Labor Day, Family Visit Day, First/Second Day), so most will
+already exist.
+
+- **DUPE found → RECONCILE per contract invariant 3**, via `update_event` in place on the
+  calendar where it lives. Authorized auto-update — no approval needed — but you STILL
+  report it in step 4 (a correction states old → new, never hidden in a plain line).
 - **NET-NEW relevant date → ADD it directly, then report it** (Tom 2026-09-02 — "take
   first pass and text alert us with what you added, let us audit/ask for edits"). No
   more propose-and-wait: once the dedup check above comes back clean, create the event
   on the Elsie-Tom calendar right away (BUSY unless it's clearly a FREE-type marker per
-  the calendar fast-path rules) and put it in the heads-up as an **already-done** ✅ line,
-  not a 🆕 ask. Dedup-before-add is still absolute — never skip that check just because
+  the calendar fast-path rules) and put it in the heads-up as an **already-done** `Added` line
+  (contract invariant 4), not a 🆕 ask. Dedup-before-add is still absolute — never skip that check just because
   adding is now automatic. If a date is genuinely ambiguous (ex: ambiguous group/time
   assignment, conflicting info in the email) hold it as a 🆕 ask instead of guessing.
-- **INVITATIONS awaiting a yes/no are ALWAYS a 🆕 ask, never an auto-add** (Tom 2026-09-19
-  — confirmed things auto-add; invites notify + 👍/reply-to-add). "You're invited",
-  "RSVP by", save-the-date, birthday-party invites → 🆕 line with when/where/RSVP deadline;
-  **the card's closing CTA line is `👍 to add to calendar` — stated explicitly, and it is
-  the ONLY CTA** (Tom 2026-09-21 — the Pink Room playdate card closed with only "draft it"
-  and left no add path; same day: no draft-offer CTAs on family-bot cards at all);
-  a 👍 or worded yes from either parent adds it
-  (dedup-reconcile first — an RSVP confirmation email may have already added it; never
-  double-add). Published school-calendar dates (BFS milestones, class events) stay
-  auto-add — they're calendar facts, not invites. **Kids' activity providers are always
-  relevant + CONFIRMED** (Tom 2026-09-19): Super Soccer Stars (Andy, soccer), Music
-  Together (Benny, music), The Little Gym (Benny), and similar enrolled classes —
-  schedules, cancellations, makeups auto-add/reconcile; title carries the kid
-  (`<Kid> – <Provider>`); enrollment promos are marketing. This lane and the personal-mail lane
-  share ONE contract: `~/.claude/skills/shared-references/calendar-event-handling.md` —
-  behavior changes land there first; keep this skill conformant.
-- **Location = `Venue Name (street address)` — never a raw maps URL** (Tom 2026-09-21,
-  shared-contract invariant 9). A maps link in the source (maps.app.goo.gl etc.) gets
-  OPENED and resolved to the address exactly as the maps place page shows it —
-  `Van Voorhees Park (Columbia St. and, Atlantic Ave, Brooklyn, NY 11201)`-style — in
-  BOTH the event's location field and the heads-up's where-line; the maps URL itself
-  goes in the event description.
+- **INVITATIONS awaiting a yes/no are ALWAYS a 🆕 ask, never an auto-add** (contract
+  invariant 1): a 🆕 line with when/where/RSVP deadline closing with the contract's CTA —
+  the ONLY CTA on this lane. A 👍 or worded yes from either parent adds it (dedup-reconcile
+  first — never double-add). Published school-calendar dates (BFS milestones, class
+  events) stay auto-add — calendar facts, not invites. Kids' activity providers and
+  location format: contract Known event sources + invariant 9.
 
 ### 4. Text ONE consolidated heads-up (Sendblue) — to the FAMILY GROUP
 
@@ -235,13 +211,17 @@ else
   ~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<heads-up>"   # fallback: Tom 1:1
 fi
 ```
-Cover both buckets, clearly separated:
+Calendar heads-ups use the contract's header vocabulary and item lines (invariant 4 —
+`📅 Added/Edited/Enriched/Removed`, most-significant-kind heads a mixed run, correction
+lines state old → new) plus this lane's `✓ Already on cal` acknowledgment (contract
+Lane-specific). Non-calendar notable mail keeps a `📬 <Topic>:` headline. Example:
 ```
-📬 BFS weekly — 3 EC dates
-✓ Already on cal (enriched): Grown-Up Gathering Fri 9/11 — added 8:45am start
-✓ Already on cal: First Day of School Wed 9/9
-✏️ Fixed: Family Visit Day Tue 9/8 — was 10:15, sign-up sheet says 10:00-10:15
-🆕 Added: Picture Day — Tue 10/7 (EC)
+📅 Added: Picture Day Tue 10/7 (EC)
+
+✓ Added – Picture Day Tue 10/7 (EC)
+✓ Edited – Family Visit Day Tue 9/8 – was 10:15, sign-up sheet says 10:00-10:15
+✓ Enriched – Grown-Up Gathering Fri 9/11 – added 8:45am start
+✓ Already on cal – First Day of School Wed 9/9
 📸 Photos: <link>
 ```
 - `📸` line = **class-recap photos link (Tom 2026-09-18, HARD RULE).** A *classroom* recap
@@ -255,19 +235,11 @@ Cover both buckets, clearly separated:
   absence). This is a link-alert only — never treat the album as a dated event.
   **NOT "BFS: The Weekly"** — that all-school click-through shell is a different email and
   is *not* the photo carrier; the album lives in the teacher's classroom recap.
-- `✓` lines = dupes you already handled (enriched noted). Tom asked: even when it's
-  already on the calendar, still tell them you saw a relevant date in the email.
-- `✏️ Fixed:` lines = an existing event whose details CONFLICTED with the source and that
-  you corrected. Always say what it was and what it is now, so they can catch a bad call
-  fast. These matter most when Tom or Elsie made the event by hand — never let a
-  correction hide inside a ✓ line.
-- `🆕 Added:` lines = net-new relevant dates you ALREADY put on the calendar (dedup-
-  checked first, per above) — first-pass, not a proposal. Tom/Elsie audit after the fact;
-  a reply like "move picture day to 9am" / "remove that" / "wrong calendar" is an edit
-  request, handled via the normal sms-listener calendar fast path against the event you
-  just created (you know its id from this same turn). Only fall back to a 🆕 **ask**
-  (no "Added:", ends with a question) for a date that's genuinely ambiguous and you don't
-  want to guess wrong — see below.
+- `Added` lines are first-pass, not a proposal — Tom/Elsie audit after the fact; a reply
+  like "move picture day to 9am" / "remove that" / "wrong calendar" is an edit request,
+  handled via the normal sms-listener calendar fast path against the event you just
+  created (you know its id from this same turn). Only fall back to a 🆕 **ask** (ends with
+  a question) for a date that's genuinely ambiguous and you don't want to guess wrong.
 - **Draft-offer CTAs are RETIRED on this lane (Tom 2026-09-21: "i dont think we need a
   draft as a CTA for family bot related stuff").** Never append a `reply "draft it"` /
   "Want me to draft a reply?" line to family-group heads-ups — even when the email's
@@ -331,8 +303,8 @@ confirmation email.
   date** (hotels) — NOT an exact-title match, since per-passenger emails all have
   different subject lines/passenger names for the identical segment.
 - **First email for a segment → create ONE event** titled by the segment itself, not the
-  passenger (`✈️ Family Flight: JFK → Seoul (ICN) — KE 082`, not `✈️ Tom: JFK → ...`).
-  Description lists the flight facts once, then a running list of `<Person> — Booking
+  passenger (`✈️ Family Flight: JFK → Seoul (ICN) – KE 082`, not `✈️ Tom: JFK → ...`).
+  Description lists the flight facts once, then a running list of `<Person> – Booking
   ref: <ref> [· Seat <seat>]` lines.
 - **Every subsequent email for the SAME segment → ENRICH, don't create.** Add that
   passenger's line to the description (or update their seat if it's a resend with a

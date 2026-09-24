@@ -125,10 +125,8 @@ per `shared-references/gmail-attachment-saver.md` if needed). Side-letter
 drafting is out of scope below, but its version handling lands here.
 
 1. Find the current file's exact filename: `listFolder` on the company's
-   `Deal Docs/<Company>/` folder via the Drive Manager Apps Script, or reuse the
-   name from this conversation. (Deal docs sit FLAT in `Deal Docs/<Company>/` —
-   round subfolders only exist for multi-round companies; see the deal-docs
-   layout memory.)
+   `Deal Docs/<Opp title>/` folder via the Drive Manager Apps Script, or reuse the
+   name from this conversation (layout: `shared-references/deal-docs-layout.md`).
 2. Re-upload under that SAME name — the Apps Script upload action
    trashes-and-replaces on exact-name match, so the prior version is replaced
    in place:
@@ -149,14 +147,12 @@ drafting is out of scope below, but its version handling lands here.
    python3 ~/.claude/scripts/notion_files_property.py --page-id <opp> --prop "Deal Docs" --url "<new fileUrl>" --label "<filename>"
    ```
    First version with no chip yet → skip the remove, just add.
-4. **Superseded drafting turns relocate, they don't vanish.** When an executed
-   version supersedes interim turns (redlines, revised-clean drafts), move each
-   superseded file into the company's Diligence Materials Drive folder (the
-   `[G DRIVE] <Company> Diligence Materials` chip on the Opp points at it) via
-   the Apps Script `moveFile` action — file ID survives a move — then add a
-   chip for it on the Opp's `Diligence Materials` property and remove its
-   `Deal Docs` chip. End state: `Deal Docs` = current version of each doc only;
-   the drafting history lives under Diligence Materials.
+4. **Superseded versions go to `Archive/`. Redlines go to `Redlines/`.** Layout is in
+   `shared-references/deal-docs-layout.md` (Tom, 2026-09-23). When an executed
+   version supersedes the Word / unsigned / interim turns, `moveFile` each one into
+   the Opp folder's `Archive/` subfolder, remove its `Deal Docs` chip, and re-assert
+   the canonical chip order. Redlines and signature packets are never chipped. The
+   old route that moved drafts to Diligence Materials is retired.
 5. Confirm to Tom with the Drive URL and note the Opp chips are current.
 
 ## Built-in gates (in the script — do not re-verify manually, do not bypass)

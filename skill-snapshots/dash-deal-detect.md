@@ -51,14 +51,14 @@ a local read (`pdftotext <path> - | head -80`). Never send an attachment anywher
 
 ## Step 0 — Route each message: FOLLOW-UP vs NEW DEAL
 
-> **Code gate upstream (2026-09-22) — cold follow-ups never reach this skill.** Tom: *"if there
-> are continued outreaches / follow ups you can ignore everything past the first one."*
-> `dash-deal-detect.sh` drops, in code, any message whose sender already emailed the Dash inbox
-> earlier, whom Tom never replied to (Sent Mail, same subject), who is not in the People DB, and
-> who has no live Opp (no CRM row, or only terminal ones). Dropped rows are logged as
-> `cold-followup-skip` in `watch-dash.log` and ledgered in `.cold-followups`. So a repeat sender
-> that DOES arrive here has a live Opp, a Tom reply, or a People-DB row — treat it as Step 0's
-> follow-up / update lanes, never as a fresh 🆕 card and never as a 🔁 revive card.
+> **Code gate upstream (2026-09-22) — cold follow-ups never reach this skill.**
+> `dash-deal-detect.sh` drops a cold pitcher's repeat emails in code, per
+> `~/.claude/skills/shared-references/cold-followup-gate.md` (§ "The rule"; Dash column of
+> § "Lane mechanics"). Dropped rows are logged as `cold-followup-skip` in `watch-dash.log` and
+> ledgered in `.cold-followups`. Two carve-outs
+> (who passes, how rebrands match) are defined in `~/.claude/skills/shared-references/revive-gate.md` § "Who reaches this gate" — a
+> `Pass (Met)` founder always arrives, and an alias hit arrives with `matched_via`. Otherwise a
+> repeat sender that DOES arrive here failed at least one of the gate's drop conditions.
 
 Before the new-deal bar, check whether the message is a **follow-up to an existing deal** — the
 Dash counterpart to Inverted's `materials-detect.js`. Tom's rule (2026-09-17): follow-ups must
@@ -72,7 +72,7 @@ ntn api -X POST /v1/data_sources/fab5ada3-5ea1-44b0-8eb7-3f1120aadda6/query \
 The CRM hit's **Status routes the message** (same split as Inverted: portfolio → investor-update;
 pipeline/Committed → materials-handler; no hit → new deal):
 
-- **Hit on a PORTFOLIO Opp** (Status `Active Portfolio` / `Portfolio: Follow-On` / `Exited`) **AND
+- **Hit on a PORTFOLIO Opp** (Portfolio set, `shared-references/opp-status-sets.md`) **AND
   the email is a portfolio update or board material** (a founder/CEO investor update, monthly/
   quarterly update, board deck/meeting, a Google Slides/Docs share of a board deck): this is a
   **portfolio update**, NOT a deal and NOT a Deal-Docs drop. Do NOT text a 🆕 card. Enqueue an
@@ -89,8 +89,14 @@ pipeline/Committed → materials-handler; no hit → new deal):
   enqueuing). investor-update's own artifact-idempotency (period-row check) is the real guard;
   this ledger just avoids re-enqueuing across ticks.
 
-- **Hit on a non-portfolio-or-Committed Opp** (Status NOT `Active Portfolio`/`Portfolio: Follow-On`/
-  `Exited` — Committed IS allowed) **AND the email carries a material signal** (an attachment —
+- **Hit on a TERMINAL Opp** (Terminal set, `shared-references/opp-status-sets.md`) → skip the
+  materials lane below and go straight to Gate A's Terminal branch — the **Revive Gate**
+  (`~/.claude/skills/shared-references/revive-gate.md`). It files the materials AND the update
+  email itself, and sends the 🔁 card. Routing a passed founder's email here would file it
+  silently with no card (Kismet, 2026-09-23).
+
+- **Hit on a live pipeline or Committed Opp** (Status NOT terminal and NOT `Active Portfolio`/
+  `Portfolio: Follow-On`/`Exited`) **AND the email carries a material signal** (an attachment —
   check `dash_mail.py attachments <rowid> <dir>` — a doc link, or ≥400 chars of substantive body):
   this is a **follow-up**, NOT a new deal. Do NOT text a 🆕 card. Instead enqueue a
   **materials-handler Dash-lane** job to auto-file the docs (no 👍 gate — filing to an existing
@@ -127,7 +133,8 @@ A message is a **deal-flow candidate** only with a concrete investable signal, e
 investor updates / board decks (that's `investor-update`, not a new deal), fund-admin / LP /
 audit / capital-call mail, existing-portfolio ops, transaction docs on a deal already in the CRM
 (wire instructions, term sheets — that's `materials-handler`, and the company already has a
-card), scheduling, newsletters. When unsure → silent. False negatives are fine (Tom sees his
+card), scheduling, newsletters, **vendor / cold sales pitches** (someone selling Tom a product —
+a Ramp card, SaaS, services; same rule as the Inverted gate's "cold sales"). When unsure → silent. False negatives are fine (Tom sees his
 inbox); a false 🆕 card erodes trust.
 
 Read `deal-lane.md` in full for the classification bar and the card/staging contract — this skill
@@ -151,14 +158,10 @@ ANY hit → do NOT fire a new 🆕 card; the company is already his. Route by th
 - **Non-terminal / live** → if the mail carries genuinely new signal on an EXISTING company (a
   new round kicking off), that's a follow-on, not a new card — hand off to `add-follow-on-round`
   / `materials-handler`, don't fire a 🆕 card.
-- **Terminal** (Pass (Met), Pass (DNM), Lost, NR / Missed) → run the **Revive Gate v2**
-  (`~/.claude/skills/shared-references/revive-gate.md`, Tom 2026-09-22): ENRICH the row NOW —
-  save any attachment/deck via `materials-handler` (fund-aware) onto the existing page, append a
-  `## Update (YYYY-MM-DD)` body section, fill `Description` only if blank — then STAGE the
-  reactivation in a 🔁 revive text card + `action:"revive"` payload with the `enriched` block
-  (add the Dash-lane extras — `mail_source:"dash-local"`, `rowid`, `fund` — so the confirm
-  handler leaves `Fund` alone). His 👍 flips the status via sms-listener §4. `target_status` per
-  the spec: founder-direct → `Connected`, referrer intro-offer → `Outreach`.
+- **Terminal** (Pass (Met), Pass (DNM), Lost, NR / Missed) → run the **Revive Gate**,
+  `~/.claude/skills/shared-references/revive-gate.md` — enrichment, update-email PDF, rebrand, 🔁 card, staged payload and `target_status`
+  all live there; do not restate them here. Dash-lane extras on the staged payload:
+  `mail_source:"dash-local"`, `rowid`, `fund`. Pass `matched_via` through when present.
 
 **Gate B — prior proposals.** `~/.claude/skills/dash-deal-detect/.proposed` (one line per prior
 proposal: `YYYY-MM-DD <founder/company> via <referrer> rowid=<rowid>`). Grep first; skip if

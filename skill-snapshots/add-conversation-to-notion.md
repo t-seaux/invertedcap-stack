@@ -76,7 +76,7 @@ If no URL was provided, omit the link line entirely:
 
 Use `**Frameworks**` as a bolded text label (not a Markdown header `##`). Scan the full conversation and identify 3–6 key mental models, investment theses, analytical frameworks, or recurring conceptual threads that emerge from the exchange. For each framework:
 
-- State it as a bolded short title (e.g. `**Data Asset as Moat**`)
+- State it as a bolded short title led by one relevant emoji that fits that framework's content (e.g. `**🏰 Data Asset as Moat**`, `**💵 Selling Into the Round Converts Paper to DPI**`). Use a different emoji for each framework; no generic filler like ✅ or 📌
 - Follow with 2–4 sentences explaining the framework as it was developed or applied in this specific conversation
 - Ground it with a concrete reference to the conversation content — paraphrase the relevant turn or reasoning rather than writing frameworks in the abstract
 

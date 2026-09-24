@@ -1,11 +1,11 @@
 ---
 name: outreach-decliner
-description: Flip an Opportunity's Status from Qualified/Track/Outreach to Pass (DNM) when Tom's outbound message declines an intro offer or investment opportunity. Uses the shared `classifyOutboundIntent` (Haiku→Sonnet escalation, CacheService-memoized by msg.id so detector reads the same verdict). Mode B (webhook) only — no manual mode, since the signal source is always an outbound email. Runs BEFORE outreach-detector in the handler chain. Does NOT fire post-meeting (Connected/Scheduled/Active use pass-note-sent → Pass (Met) instead).
+description: Flip an Opportunity's Status from Qualified/Track/Outreach to its decline target (Pass (DNM); Pass (Met) from Track) when Tom's outbound message declines an intro offer or investment opportunity. Uses the shared `classifyOutboundIntent` (Haiku→Sonnet escalation, CacheService-memoized by msg.id so detector reads the same verdict). Mode B (webhook) only — no manual mode, since the signal source is always an outbound email. Runs BEFORE outreach-detector in the handler chain. Does NOT fire post-meeting (Connected/Scheduled/Active use pass-note-sent → Pass (Met) instead).
 ---
 
 # outreach-decliner
 
-Flip an Opportunity's Status to **Pass (DNM)** when Tom declines a deal before meeting. "DNM" = Did Not Meet. Symmetric to `outreach-detector` but for the decline path; both handlers consume the SAME shared `classifyOutboundIntent` verdict.
+Flip an Opportunity's Status to **Pass (DNM)** (or **Pass (Met)** from `Track` — Tom already met them; see `shared-references/opp-status-sets.md` § Decline target) when Tom declines a deal before meeting. "DNM" = Did Not Meet. Symmetric to `outreach-detector` but for the decline path; both handlers consume the SAME shared `classifyOutboundIntent` verdict.
 
 ## When this fires
 
@@ -20,7 +20,7 @@ Typical scenarios:
 
 ## What this does NOT do
 
-- **Does not fire post-meeting.** If the Opp is at Connected/Scheduled/Active, the decline path is Pass (Met) (via `pass-note-sent` after Tom sends a formal pass note), not Pass (DNM). REVIVABLE_FROM = `['Qualified', 'Track', 'Outreach']` only.
+- **Does not fire post-meeting.** If the Opp is at Connected/Scheduled/Active, the decline path is Pass (Met) via `pass-note-sent` after Tom sends a formal pass note. Flippable source statuses and their targets = the Decline target set in `shared-references/opp-status-sets.md`.
 - **Does not classify intent from quoted history.** Uses only Tom's own reply body (truncated at `On ... wrote:`). Quoted upstream text would bias the classifier toward the sender's framing.
 - **Does not fire on soft deferrals.** "Not right now but keep me posted" → `classifyOutboundIntent` returns `neutral`, no flip. Preserves the Opp at its current state for future action.
 
@@ -40,7 +40,7 @@ Typical scenarios:
    - Tier 1 Haiku 4.5 (~$0.0003/call) → `{verdict, confidence, reasoning, model}`.
    - If Haiku confidence < 0.85, escalate to Sonnet 4.6 (~$0.001 extra).
    - Cache the final verdict for 6h.
-6. If `verdict == "decline"` and `confidence ≥ 0.85`: PATCH `Status = Pass (DNM)` + Slack alert (via `claude` webhook).
+6. If `verdict == "decline"` and `confidence ≥ 0.85`: PATCH `Status` to the Decline target (`shared-references/opp-status-sets.md`: `Pass (DNM)`, or `Pass (Met)` from `Track`) + Slack alert (via `claude` webhook).
 
 Slack alert format (per alert-convention.md — underlined bold colon headline;
 transition on the outcome line; no raw confidence score):

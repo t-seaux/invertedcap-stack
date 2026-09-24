@@ -56,7 +56,7 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 
 **Mode B steps:**
 
-- Skip Step 1's full lookup — `oppId` and `oppName` are passed in — but **still fetch the Opp page to read Status** and apply the Step 0 Status Guard before any further work. Portfolio-set statuses (`Active Portfolio`, `Portfolio: Follow-On`, `Exited`) belong to `investor-update`, not here. On a guard hit, exit cleanly: no Notion writes, no Slack alert, and log the skip via `logEvent`-equivalent so the dedup trail is visible.
+- Skip Step 1's full lookup — `oppId` and `oppName` are passed in — but **still fetch the Opp page to read Status** and apply the Step 0 Status Guard before any further work. Portfolio-set statuses (`shared-references/opp-status-sets.md` § Portfolio) belong to `investor-update`, not here. On a guard hit, exit cleanly: no Notion writes, no Slack alert, and log the skip via `logEvent`-equivalent so the dedup trail is visible.
 - Skip Step 2 (Gmail search) — the message set is `threadId`'s messages.
 - Run Step 2.5 (idempotency gate) to filter to the unlabeled subset.
 - Run Steps 3 + 4 normally on the delta set, scoped to the thread.
@@ -125,7 +125,7 @@ The consolidated `#claude-alerts` ping fires deterministically from inside `noti
 6. **Do not attempt direct googleapis.com API calls** — `googleapis.com` does not resolve in the Apps Script path either way, so use the deployed endpoints documented in `shared-references/`.
 7. **Upload autonomy — Drive Upload Apps Script, never ask** — use the Drive Upload Apps Script (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`) for every non-Gmail file: call `createFolder` to get or create the company folder under the routing-appropriate root (Step 3 target folder gate: Deal Docs–routed artifacts → `Deal Docs/[Company]/`, everything else → `Diligence/[Company]/`), then `upload` with the returned `folderId` and the base64-encoded file content. On failure, retry once, then note the failure in the summary. Do not ask Tom to upload files manually.
 8. **Per-company subfolders in Diligence** — all Diligence Materials–routed artifacts for a given opportunity (NOT Deal Docs–routed ones; those follow rule 9) go into a dedicated subfolder: `Diligence/[Company Name]/`. Use the Apps Script's `createFolder` action to get-or-create the subfolder idempotently under the Diligence root (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Use the company name exactly as it appears in Notion (the opportunity title). When linking in Notion, link to the specific file URL whenever possible, and the company subfolder URL as a fallback.
-9. **Deal Docs go to the canonical top-level `Deal Docs/` store — FLAT, not the Diligence tree** — anything routed to the Notion `Deal Docs` property (term sheets, SAFEs, SPAs, voting agts, IRA/ROFR/co-sale, stockholder consents, cert of incorp, wire SSI, pro forma cap tables, closing binders) goes into `Deal Docs/[Company Name]/` under the canonical Deal Docs root (`1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`) — NOT under `Diligence/…`. Get-or-create the company folder idempotently with `createFolder` passing `parentId = 1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`, then upload the file directly into it. **Flat by default (Tom, 2026-08-21): no round subfolder.** Only once a company has raised a NEW round do deal docs break into `<Stage> (<Mon YYYY>)` round subfolders (and at that transition the first round's docs bucket into their own round folder too). Diligence Materials chips continue to land directly in `Diligence/[Company Name]/`. Keep one copy of each distinct version in Drive (older versions/redlines stay for audit) but no byte-for-byte duplicates; the Notion `Deal Docs` property holds only the latest version of each doc. See the deal-docs layout memory.
+9. **Deal Docs go to the canonical top-level `Deal Docs/` store, one folder per Opp, with subfolders.** Follow `~/.claude/skills/shared-references/deal-docs-layout.md` exactly (Tom, 2026-09-23). The folder is `Deal Docs/<Opp title>/` under `1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`, named like the Diligence folder. A follow-on such as `Outmarket (Series B FO)` gets its own folder, and the original-investment folder (`Outmarket`) is never touched or merged. The Opp root holds only the latest pro forma, the wire docs, and the main docs. Signature packets go to `Signature Packets/`, redlines to `Redlines/`, W-9s to `W-9s/`, and superseded versions to `Archive/`. None of those get a Notion chip. Nothing Deal Docs-routed ever lands under `Diligence/…`.
 10. **Every saved material's filename carries its SENT date (Tom, 2026-09-14).** Canonical convention: `[Company Name] - [Descriptive Title] MM.DD.YY.pdf` — the date appended at the end of the name, before the extension (e.g. `Paravel Health - Next Steps Email 09.14.26.pdf`, `Paravel Health - Deck 09.08.26.pdf`). The date is when the material was SENT to Tom — the email's internal date for attachments and body PDFs; for converted links (DocSend, Papermark, direct URLs), the date of the email that delivered the link. NOT the processing date — a run that catches up on a week-old email stamps the email's date. Chip display labels match the filename exactly. Applies to every Drive-hosted artifact (3A, 3B, 3C, 3D, 3G) on both Diligence Materials and Deal Docs routing, AND to link-only chip labels (3E/3F/3H — Figma, demos, videos): the chip label ends with the sent date, e.g. `Bloom - Deck (Figma) 09.14.26`, `Inlets Demo (login: demo@inlets.ai; pw: Password124!) 09.14.26` — Tom wants the date he was sent every material, live links included. The only undated chips are infrastructure (the `[G DRIVE]` folder pin) and diligence-output snapshots (`_Master_Diligence_*`), which keep their own established naming.
 11. **Pin a Drive-folder chip at the top of Diligence Materials.** Every Opp's Diligence Materials property carries a permanent first chip linking to its whole Drive subfolder, labeled `[G DRIVE] [Company Name] Diligence Materials` and pointing at `https://drive.google.com/drive/folders/<company subfolder id>`. This gives one click to the full materials folder — including anything not individually chipped — without disturbing the per-file chips below it. Check for it (by folder URL) before any new chips are added on a run; if missing, add it first via `--prepend` so it leads the list (subsequent default-append chips then naturally land after it). See Step 4.
 
@@ -321,7 +321,7 @@ The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `g
 
 | Property routing | Drive parent root | Target folder |
 |---|---|---|
-| **Deal Docs** (term sheets, SAFEs, side letters, SPAs, wire SSI, cap tables, closing docs…) | `1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN` (top-level `Deal Docs/`) | `Deal Docs/[Company Name]/` — flat; round subfolders only for multi-round companies (rule 9) |
+| **Deal Docs** (term sheets, SAFEs, side letters, SPAs, wire SSI, cap tables, closing docs…) | `1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN` (top-level `Deal Docs/`) | `Deal Docs/<Opp title>/` + subfolder per `shared-references/deal-docs-layout.md` (rule 9) |
 | **Diligence Materials** (everything else — decks, memos, updates…) | `1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d` (`Diligence/`) | `Diligence/[Company Name]/` |
 
 Get-or-create the company folder idempotently via the Drive Upload Apps Script `createFolder` with the routing-appropriate `parentId` from the table. A mixed email (deck + term sheet) resolves the gate **per attachment**, not per email. Wherever a step below says "the target folder," it means the folder this gate selected.
@@ -571,7 +571,9 @@ python3 ~/.claude/scripts/notion_files_property.py \
     --prepend --no-alert
 ```
 
-`--prepend` only matters the first time — once the chip exists, every later run's idempotency check (URL match) skips it, and normal appended chips already land after it. Never apply this to Deal Docs. **`--no-alert` is required here** — the folder-pin is infrastructure, not a material; it must never appear in the consolidated ping (see Step 5).
+`--prepend` only matters the first time — once the chip exists, every later run's idempotency check (URL match) skips it, and normal appended chips already land after it. **`--no-alert` is required here** — the folder-pin is infrastructure, not a material; it must never appear in the consolidated ping (see Step 5).
+
+**Deal Docs follow `shared-references/deal-docs-layout.md` (Tom, 2026-09-23).** Pin `[G DRIVE] <Opp title> Deal Docs` as the first chip on Deal Docs, using the same `--prepend --no-alert` form. Only the latest pro forma, wire docs, and main docs get chips. Signature packets, redlines, W-9s, and zip bundles are uploaded to their subfolder and left out of `--batch-json`. After the batch, rebuild the field in the spec's canonical order (Reorder section).
 
 **Write all real materials in ONE batch call** — this fires the single consolidated `#claude-alerts` ping automatically (see Step 5). After the folder-pin, collect every material saved in the preceding steps into a `--batch-json` array of `{prop, url, label}` items (mix Diligence Materials and Deal Docs freely — the helper groups them in the alert) and make one call:
 
@@ -627,18 +629,19 @@ Log the swap in the Step 5 summary (`[title] — native chip removed, archived a
 
 **Trigger:** this run adds a chip for a **signed or executed** version of a Deal Doc that ALREADY has a chip on `Deal Docs` for the **unsigned draft of the same document** — same underlying agreement (same doc type + party/fund), differing only in execution state. A version is the executed one when its filename carries `[EXECUTED]` / `[FINAL]` / "signed" / "countersigned" / "fully executed", or it arrived as an e-sign "Completed:" export; the prior chip is the draft when it reads "draft" / "TS draft" / "unsigned" / "for review" / carries no execution marker.
 
-**Action — replace, do not accumulate (Tom, 2026-09-20). The signed version supersedes the unsigned one in BOTH the Deal Docs property AND Google Drive — never leave a second file behind:**
-1. **Trash the unsigned file in Drive:** `drive_rename.py --trash --confirm --file-id <unsignedFileId>`. Scope strictly to the matching unsigned draft of *this* document — never a different doc. This is one of the auto-trash paths exempt from the confirm-with-Tom rule (like the same-name replace at Step 3A): it only ever removes the unsigned predecessor of the executed file this run just wrote.
-2. **Remove the unsigned chip** from `Deal Docs`:
+**Action — replace, do not accumulate (Tom, 2026-09-20; Archive rule 2026-09-23).** The executed version replaces the Word / unsigned / "Proposed Final" version in BOTH places:
+1. **Move the superseded file into the Opp folder's `Archive/` subfolder** using Apps Script `moveFile`. Get or create `Archive` first with `createFolder`. **Move it. Don't trash it.** Scope this strictly to the matching predecessor of *this* document.
+2. **Remove the superseded chip** from `Deal Docs`:
    ```bash
    python3 ~/.claude/scripts/notion_files_property.py \
        --page-id <opportunity_page_id> --prop "Deal Docs" \
-       --url "<unsigned_draft_url>" --remove
+       --url "<superseded_url>" --remove
    ```
-   Exit 0 (including idempotent skip if already absent) = done; exit 1 = leave both chips in place and log it rather than risk an inconsistent state.
-3. **Only fires when the executed chip already landed this run.** Never remove an unsigned chip whose executed counterpart isn't yet on the property — this is not a general "clean up old drafts" sweep.
+   Exit 0 (including an idempotent skip) means done. Exit 1 means leave both chips in place and log it.
+3. **Re-assert the canonical order** from `shared-references/deal-docs-layout.md`, with the executed doc in the slot the old one held.
+4. **Only fires once the executed chip has landed in this run.** Signature packets are never chipped, so they need no swap. They stay in `Signature Packets/`.
 
-Log the swap in the Step 5 summary (`[title] — unsigned draft replaced by executed version; draft chip removed + Drive file trashed`).
+Log the swap in the Step 5 summary (`[title] — executed version replaced the unsigned one; old chip removed and Drive file moved to Archive/`).
 
 ## Step 4.5: Extract Contact Signals from Materials
 
@@ -658,7 +661,7 @@ After materials are saved/linked, mine them for better founder contact info than
 
 ### How to decide whether to update Notion Contact
 
-Read the current Contact property from the opportunity page, then apply this rule:
+Every write must also pass `~/.claude/skills/shared-references/opp-dedup-match.md` § "Writing Contact" (who may ever be in Contact). Within that, read the current Contact property from the opportunity page, then apply this rule:
 
 1. **Contact is empty** → write any extracted email whose local-part contains the founder's first or last name (from the `🏁 Founder(s)` relation). If multiple match, pick the one on a custom domain over a free provider.
 2. **Contact is set, currently on a free provider** (`@gmail.com`, `@live.com`, `@outlook.com`, `@yahoo.com`, `@hotmail.com`, `@icloud.com`, `@me.com`, `@aol.com`) **AND** an extracted email is on a custom domain AND matches the founder name → **upgrade**: replace the Contact property with the extracted email. Preserve the existing email as a comment in the Source Context section (`Earlier contact on file: <old>`) so the prior record isn't lost.
@@ -705,10 +708,7 @@ Look across the combined material text for round-size patterns. Examples that sh
 
 ### How to format Round Details
 
-Match the `inbound-deal-detect` classifier format exactly:
-
-- **Unfinalized** (no cap/post stated): `Raising $Xm` (single number) or `Raising $X-Ym` (range). Lowercase `m`/`k`.
-- **Finalized** (cap/post stated): `$Xm on $Ym post` or `$Xm on $Ym cap`.
+Per `~/.claude/skills/shared-references/round-details-format.md` (the ONE spec — do not restate it here).
 
 If the deck states only stage + amount (e.g. `SEED · $2M`), reformat to `Raising $2m` — stage-amount cover slides almost always describe an open raise, not a closed one.
 

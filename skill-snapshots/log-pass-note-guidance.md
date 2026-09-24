@@ -164,8 +164,8 @@ If the Opp's Status is already a fully-terminal pass (`Pass (DNM)`, `Pass (Met)`
 `⚠️ [Opp Name] is in terminal status [status] — the pass note has likely already been
 drafted/sent. Confirm you still want to add guidance retroactively, and I'll proceed.`
 
-Active portfolio statuses (`Active Portfolio`, `Portfolio: Follow-On`, `Committed`,
-`Scheduled`) should also pause — pass note guidance on a deal Tom is invested in is almost
+Protected-set statuses (per `shared-references/opp-status-sets.md`),
+plus `Scheduled` (a meeting is on the books — this skill's own rule), should also pause — pass note guidance on a deal Tom is invested in is almost
 certainly a wrong-Opp resolution. Surface the ambiguity rather than writing.
 
 ### Step 3: Fetch the Opp Body and Detect Existing Section

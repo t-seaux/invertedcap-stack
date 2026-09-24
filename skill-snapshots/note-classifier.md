@@ -205,4 +205,4 @@ Skills that should call this classifier after page creation:
 | Notes `Opportunity` relation | `Opportunity` — links to Opportunities DB |
 | Notes `Created` field | `Created` — ISO-8601 datetime, auto-set |
 | Opportunities `Close Date` field | `date:Close Date:start` — ISO-8601 date |
-| Opportunities `Status` field | `Status` — pass statuses: `Pass (Met)`, `Pass (DNM)`, `Pass`, `No Response`; portfolio statuses: `Committed`, `Active Portfolio`, `Portfolio: Follow-On`, `Exited` |
+| Opportunities `Status` field | `Status` — pass statuses = Terminal (revive) set; portfolio statuses = Protected set (Portfolio + `Committed`); both defined in `shared-references/opp-status-sets.md` |

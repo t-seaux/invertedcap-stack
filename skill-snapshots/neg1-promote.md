@@ -44,7 +44,7 @@ Filter results by title. The expected match is a page titled `-1 (FounderName)` 
 **Failure modes:**
 - **Zero matches** — surface to Tom: "No `-1 (FounderName)` row found in Opportunities. Want me to run `add-to-crm` instead?" Exit without writes.
 - **Multiple matches** — surface the candidate URLs and ask Tom which one. Don't guess.
-- **Match but Status is in `{Pass (Met), Pass (DNM), Lost, NR / Missed, Active Portfolio, Portfolio: Follow-On, Exited, Committed}`** — refuse. The Opp is in a terminal/protected state; renaming would corrupt history. Surface the existing page and the conflict to Tom.
+- **Match but Status is in the Terminal (revive) or Protected set** (`shared-references/opp-status-sets.md`) — refuse. The Opp is in a terminal/protected state; renaming would corrupt history. Surface the existing page and the conflict to Tom.
 
 ### Step 2: Fetch the page
 
@@ -61,7 +61,7 @@ If `source_thread_id` is provided, fetch the full thread with `mcp__claude_ai_Gm
 Scan the latest message(s) from the founder for:
 
 - **Cofounders / team additions** — body phrases like "I have also included [Name], our [role], on this thread" or "[Name] is joining as [role]". Capture name + email (from CC headers) + role. Do NOT create People DB rows for them (per `feedback_no_people_entry_without_permission.md`); they live in the Opp body until Tom explicitly authorizes a People entry.
-- **Additional founder/team emails** — any new addresses on the From/To/CC lines that aren't already in the Opp's Contact field. Apply Gmail dot-normalization (`vikassankhla@gmail.com` ≡ `vikas.sankhla@gmail.com`) when deduping.
+- **Additional founder emails** — addresses on the From/To/CC lines not yet in Contact that pass `~/.claude/skills/shared-references/opp-dedup-match.md` § "Writing Contact" (the named person's own aliases, or a vetted co-founder on the company's own domain — never colleagues, vendors, assistants or co-investors on the thread). Apply Gmail dot-normalization (`vikassankhla@gmail.com` ≡ `vikas.sankhla@gmail.com`) when deduping.
 - **Deck / materials URLs** — Drive links, DocSend links, attachment references. Cross-check against the `Diligence Materials` property values; if a URL from the thread isn't there, flag for Step 6.
 - **Post-meeting context** — meeting confirmations, working name reveals, cadence statements ("I'll reach out as updates become significant"), in-person meeting locations.
 

@@ -672,8 +672,8 @@ draft and alert me"):** after the Qualified Opp is created, draft the cold outre
 A 👎 (Pass DNM) never drafts.
 1. Create the Notion Opportunity per add-to-crm conventions — ALL of them (dedup title
    check first — one search, not the full battery): `opp_title`, `stage` (exact emoji
-   option), `Round Details` = `round_details` (disclosed valuation stays in the field:
-   `$5-6m on $25-30m pre`, never demoted to "Raising $Xm"), `HQ` = `hq`,
+   option), `Round Details` = `round_details` (format per
+   `shared-references/round-details-format.md`), `HQ` = `hq`,
    Source = `source` (People-page relation), Description; **page `icon` = staged `icon`
    emoji (never ship blank)**; **`Contact` = staged `contact` ("N/A" if no email — never
    empty)**; `Website` = staged `website` ("N/A" default); `Shared` = the N/A entry;
@@ -698,9 +698,9 @@ A 👎 (Pass DNM) never drafts.
 (text / Dash / inverted) — the branch is channel-agnostic. The founder already has a
 terminal-status Opp and Tom 👍'd to bring it back — UPDATE that existing row (`revive_opp_id`),
 never create a new one.
-**Check the staged `enriched` block first (revive-gate v2, Tom 2026-09-22).** When present, the
-materials chip and the `## Update (date)` body section ALREADY landed at detection time — do not
-re-chip `deck_drive_link` or re-append the source context. Patch only: (1) `Status` → staged
+**Check the staged `enriched` block first** (`~/.claude/skills/shared-references/revive-gate.md` § "On 👍"). When present, everything it
+records (materials, update-email PDF, rename, Description) ALREADY landed at detection — do not
+re-apply any of it. Patch only: (1) `Status` → staged
 `target_status` (e.g. `Connected`); (2) `Description` — leave alone; it was refreshed from the
 deck at detection (`enriched.description_set: true`; a `false` means no deck existed and there
 is nothing to apply); (3) append a one-line body note `YYYY-MM-DD — Revived from <revive_from_status>.`

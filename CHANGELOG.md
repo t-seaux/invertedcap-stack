@@ -1,5 +1,29 @@
 # Changelog
 
+## [2026-09-24] (Week of 2026-09-22)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- pipeline-agent -- centralized Round Details formatting and Portfolio-status checks into a shared reference spec (no behavior change)
+- add-to-crm -- terminal-status duplicate matches no longer post a separate Slack alert (the revive card is the sole notice); dedup corroboration rules centralized into a shared spec
+- add-follow-on-round -- Round Details formatting now follows a centralized shared spec
+- add-missed-to-crm -- Round Details formatting now follows a centralized shared spec
+- investor-update -- portfolio-status eligibility check now references a centralized shared spec
+- log-pass-note-guidance -- protected-status pause logic now references a centralized shared spec
+- materials-handler -- Deal Docs Drive layout changed from a flat per-company folder to one folder per Opportunity with Archive, Redlines, W-9s, and Signature Packets subfolders
+- deal-doc-drafter -- superseded drafts now move to an Archive subfolder instead of Diligence Materials; layout follows a centralized shared spec
+- add-conversation-to-notion -- framework title callouts now lead with a content-matched emoji
+- dash-deal-detect -- cold-follow-up and revive-gate logic centralized into shared specs; vendor and cold sales pitches added to the silent bucket
+- inbound-deal-detect -- round-details and status-escalation logic centralized into shared specs; per-company job idempotency keys now use a name-derived slug instead of a loop index
+- neg1-promote -- terminal/protected status check and Contact-writing rules now reference centralized shared specs
+- outreach-decliner -- declining from Track status now flips to Pass (Met) instead of Pass (DNM)
+- outreach-detector -- outreach-eligible status set now references a centralized shared spec
+**Total skills:** 58
+**Functions:** No changes
+
+---
+
 ## [2026-09-23] (Week of 2026-09-22)
 
 **Added:** None

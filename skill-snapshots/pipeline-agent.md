@@ -108,7 +108,7 @@ Key Opportunity Fields:
 - 🏁 Founder(s) (relation): links to People DB
 - Contact (text): founder emails
 - Website (url): company website. Infer from source email (e.g. email body links, founder email domain if it's a company domain — not gmail/outlook/etc.). Use "N/A" if not available.
-- Round Details (text): If deal terms are not finalized, phrase as "Raising $Xm" (or "Raising $Xk–$Ym" if a range is explicitly specified). If terms are finalized (priced round or SAFE with known cap), use "$Xm on $Ym post" or "$Xm on $Ym cap" as appropriate. Always use lowercase "m" and "k". Leave blank if not available.
+- Round Details (text): format per `shared-references/round-details-format.md`. Leave blank if not available.
 
 PROTECTED STATUS GUARD: Before ANY notion-update-page call that writes to Status, check the opportunity's current status. If it is Active Portfolio, Portfolio: Follow-On, Exited, or Committed — DO NOT update the Status field. Skip the update and note "skipped — protected status" in your summary.
 
@@ -123,7 +123,7 @@ New Opportunity Defaults (for notion-create-pages with parent data_source_id "fa
   Fund: Inverted 1️⃣
   Followed Up: __NO__
   Website: <Infer from source email body links, founder email domain (if company domain, not gmail/outlook/etc.), or explicit mentions. Use "N/A" if not available.>
-  Round Details: <If deal terms are not finalized, phrase as "Raising $Xm" or "Raising $Xk–$Ym" for a range. If terms are finalized, use "$Xm on $Ym post" or "$Xm on $Ym cap". Always lowercase "m" and "k". Leave blank if not available.>
+  Round Details: <format per shared-references/round-details-format.md; blank if not available>
   Shared: ["https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1"]
   Source(s): ["https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9"] (or resolved referrer from People DB)
 ```
@@ -320,7 +320,7 @@ Still follow the scanning and efficiency rules below (Steps 1–2) to identify w
 
 **IMPORTANT — Context Budget Discipline**: This task scans many companies and runs per-company Gmail searches. Follow these efficiency rules strictly to avoid stalling:
 
-1. Query the Agent View to get the current company list. Call `notion-query-database-view` with `view_url: "https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673"`. Extract each company name, founder name(s), contact email(s), page ID, **and Status**. **Drop any row whose Status is in the portfolio set** (`Active Portfolio`, `Portfolio: Follow-On`, `Exited`) — those companies' inbound emails are `investor-update`'s territory, not diligence materials. Note the count of dropped rows in the Step 5 summary.
+1. Query the Agent View to get the current company list. Call `notion-query-database-view` with `view_url: "https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673"`. Extract each company name, founder name(s), contact email(s), page ID, **and Status**. **Drop any row whose Status is in the Portfolio set** (`shared-references/opp-status-sets.md`) — those companies' inbound emails are `investor-update`'s territory, not diligence materials. Note the count of dropped rows in the Step 5 summary.
 
    **`Committed` — conditional keep (tightened 2026-09-09).** By default treat `Committed` as pipeline, because Tom often runs final diligence while a NEW position sits at `Committed` before flipping to `Active Portfolio`. BUT **drop a `Committed` row if it is a follow-on into a company already invested in** — its inbound email is an investor update, not first-check diligence. Signals that a `Committed` row is an existing position (any one is sufficient): a set `Close Date`, non-zero `Total Invested` / `FO Invested` rollup, an executed SAFE/term sheet already in `Deal Docs`, or existing `🗄️ Investor Updates` history. If the Agent View doesn't expose these, `notion-fetch` the single candidate to check before keeping it. Only keep `Committed` rows that are brand-new positions with NO prior close. (2026-09-09 incident: Outmarket, a Dash 2 follow-on transiently at `Committed`, was scanned as pipeline — it has a 2023 executed SAFE and years of investor updates, so it should have dropped.)
 2. For each company, run **one** targeted Gmail search combining the company name or founder name with `has:attachment newer_than:1d`. Example: `"LEDGR" has:attachment newer_than:1d`. Use `maxResults: 5` per search. **Cap at 15 companies** — if the view contains more, process the 15 with the most recent Notion activity and note the remainder were skipped.

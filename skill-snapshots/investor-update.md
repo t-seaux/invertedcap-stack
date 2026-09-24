@@ -167,8 +167,7 @@ Use `notion-search` to search for the company name among Active Portfolio opport
 
 **REFUSE to create a Company Updates entry if the matched Opportunity's `Status` is not in the portfolio set:**
 
-- ✅ Allowed Statuses: `Committed`, `Active Portfolio`, `Portfolio: Follow-On`, `Exited`
-- ❌ Forbidden Statuses (refuse to write): `Pass (Met)`, `Pass (DNM)`, `Pass Note Pending`, `NR / Missed`, `Lost`, `Qualified`, `Outreach`, `Connected`, `Scheduled`, `Exploration`, `Active`, `Track`, `Assigned`, `N/A`
+- ✅ Allowed = the **Portfolio** set in `~/.claude/skills/shared-references/opp-status-sets.md` (the ONE definition — `Committed`, `Active Portfolio`, `Portfolio: Follow-On`, `Exited` as of 2026-09-23). Everything else is refused.
 
 The Company Updates DB exists to track investments-Tom-actually-made. Pipeline activity, passed deals, and unmatched senders all belong elsewhere. If the matched Opp is non-portfolio, log the email under "Non-Portfolio (filtered)" in Step 5's Slack alert and exit without writing — DON'T create the entry.
 

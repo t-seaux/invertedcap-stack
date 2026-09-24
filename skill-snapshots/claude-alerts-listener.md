@@ -182,6 +182,8 @@ Keep close-loop reply to **one line** when possible. If you made multiple edits,
 
 Reference file paths (e.g. `research-agent/SKILL.md`) so Tom can verify the change without leaving Slack.
 
+**Say exactly what changed, not the category of change** (Tom 2026-09-23). Each bullet carries the concrete payload: the literal row / line / value written (quote it in backticks), where it landed (file + section, line number when known), and for Notion the page + property + new value. "Added to the mapping table" or "updated the skill" is not a summary — `added row \`X\` → \`Y\` to Scheduled mapping (skill-map-refresh/SKILL.md:70)` is. If nothing was written (idempotent re-run), say so.
+
 ---
 
 ## Step 5. Audit log

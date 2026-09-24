@@ -48,7 +48,7 @@ The company must already exist in the Opportunities DB — this skill adds a rou
 **From the round terms:**
 - `Name` — `<Company> (Series X FO)`. Capitalize the stage fully: `(Seed FO)`, `(Series A FO)`, `(Series B FO)`. This is the follow-on suffix the dedup logic elsewhere expects.
 - `Stage` — the round's stage, exact emoji variant from the schema: `Seed 🌾`, `Seed+ 🛣️`, `Series A 🏎️`, `Series B 📈`, `Growth 🚀`. (Series B = `Series B 📈`.)
-- `Round Details` — strict format: `$Xm on $Ym post` (or `$Xm on $Ym cap` for a SAFE). Lowercase `m`/`k`. Trust the terms Tom hands over; **if he attaches a term sheet or deck, cross-check the post-money against it.** Leave blank if no $ figure is disclosed.
+- `Round Details` — format per `shared-references/round-details-format.md` (§ Format rules). Trust the terms Tom hands over; **if he attaches a term sheet or deck, cross-check the post-money against it.**
 
 **Fixed defaults:**
 - `Status` — **`Active`**. This is the resting state; Tom moves it to `Committed` himself when he actually commits, and to `Portfolio: Follow-On` when it closes. Never set Committed/Follow-On automatically. ⚠️ MCP `create-pages` has silently mis-mapped `"Active"` → `Track` (2026-09-10). After creating, read the card back via REST (`ntn api GET /v1/pages/<id>`) and verify Status + icon actually landed; fix Status with `{"properties": {"Status": {"status": {"name": "Active"}}}}` via `ntn api PATCH` if not.

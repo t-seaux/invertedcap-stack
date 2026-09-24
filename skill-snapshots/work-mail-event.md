@@ -23,32 +23,24 @@ embedded in it.
   alerts about the same thing nest under the first in the 1:1 — key off the
   email `threadId` (`gmail-<threadId>`) or a stable real-world id (deal name,
   confirmation #). Same thing → same key; omit only for true one-offs.
-- **Dedup across BOTH calendars** per contract invariant 2:
-  `~/.claude/scripts/calendar_write/calendar_write.py list` on
-  `cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com` AND
-  `tom@invertedcap.com`, keyword + today→day+30 window, second keyword
-  (person/event name) if the venue keyword misses.
-- **Create target (lane-specific):** a TOM-ONLY event from the work inbox
-  (deal dinner, conference, work appointment) creates on the WORK primary
-  `tom@invertedcap.com` — matching where Tom hand-adds these himself. A
-  clearly WHOLE-HOUSEHOLD event creates on the Elsie-Tom cal. Reconcile
-  matches in place wherever they live; never cross-copy (contract
-  attendance exception applies).
-- **Invite cards:** `📅 Invited:` shape from the contract/TRIAGE
-  template; stage the payload at
+- **Dedup (contract invariant 2):** `~/.claude/scripts/calendar_write/calendar_write.py
+  list` on `cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com` AND
+  `tom@invertedcap.com`; reconcile with `get` / `patch` / `delete` per invariant 3.
+- **Create target:** per the contract's Lane-specific work-lane bullet (Tom-only
+  work events → `tom@invertedcap.com`; whole-household → Elsie-Tom).
+- **Invite cards:** shape per contract invariant 1; stage the payload at
   `~/.claude/scheduled-tasks/outlook-mail-watch/staged-invites/<sent_handle>.json`
   (ONE shared staging dir for personal + work lanes — sms-listener branch
   4-CAL consumes both; include `"create_calendar"` in the staged JSON when
   the add should land on the work cal instead of the staged default).
-- **Writes report** as `📅 <Added|Edited|Enriched|Removed>:` texts per the
-  contract's header vocabulary; every write texts, ONE text per job.
+- **Write texts:** per contract invariant 4 (header vocabulary + item lines,
+  every write texts, ONE text per job); glyphs per invariant 6.
 - Body in args is capped at 2500 chars — if the event details are clearly
   truncated, fetch the full message via the headless Gmail path
   (`~/code/gmail-webhook/admin_run.py` `_readThread`, see
   reference_headless_gmail_fetch_path) — NEVER Apple Mail.
 - Google Calendar native invites never reach this skill (webhook excludes
-  them — they self-materialize on the work cal).
-- Glyphs: en dash `–` prose breaks, hyphen `-` numeric ranges, em dash never.
+  them).
 
 ## Steps
 

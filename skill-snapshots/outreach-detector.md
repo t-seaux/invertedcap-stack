@@ -33,7 +33,7 @@ Flow (match paths tried in order — first hit wins):
 Once an Opp is matched:
 
 6. Fetch the Opp page.
-7. **Status gate.** REVIVABLE_FROM = `['Qualified', 'Track']`. If Status ∉ that set, log `not-flippable` and stop. Outreach/Connected/Scheduled/Active/terminal all bail here — a flip back is a regression.
+7. **Status gate.** REVIVABLE_FROM = the Outreach-eligible set in `shared-references/opp-status-sets.md` (`['Qualified', 'Track']`). If Status ∉ that set, log `not-flippable` and stop. Outreach/Connected/Scheduled/Active/terminal all bail here — a flip back is a regression.
 8. **Intent gate.** Call `classifyOutboundIntent(body, msg.id)` from `outbound-intent.js`. CacheService memo means outreach-decliner already paid the LLM cost on this msg.id earlier in the handler chain. If `verdict != "opt-in"` OR `confidence < 0.85`, log `not-opt-in` and stop.
 9. PATCH `Status = Outreach` + post a Slack alert.
 

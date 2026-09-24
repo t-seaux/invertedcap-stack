@@ -67,6 +67,7 @@ Scan the skills directory to build a complete inventory.
      | `com.tomseo.scheduled.meal-prep-reschedule` | `meal-prep-reschedule` |
      | `contacts-notion-sync` | `intro-management` |
      | `evening-digest` | `evening-digest` |
+     | `dash-lp-update-email` | `dash-lp-update-email` |
 
    **Excluded LaunchAgents** — infrastructure-only agents that do not correspond to a skill and must NOT be rendered on the Platform Map or Quick Reference. Listed here so the Step 0 guardrail finds them and does not flag them as unclassified.
 
@@ -120,6 +121,7 @@ Scan the skills directory to build a complete inventory.
      | `outbound-intent` | `pipeline-agent` |
      | `portfolio-contact-audit` | `investor-update` |
      | `work-mail-event` | `work-mail-event` |
+     | `work-mail-event-inbound` | `work-mail-event` |
 
    **Ad Hoc** — the skill is invoked manually by Tom (trigger phrase in chat, no cron, no webhook).
 
