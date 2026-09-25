@@ -17,7 +17,7 @@ formal intro. Parallel to `feedback-outreach-drafter`: this skill DRAFTS; the ex
 identical across all of these; only the ask-line framing and the one relevance line flex (see
 `writing-style/intro-outreach/STYLE.md` → "Variants by intro type").
 
-**Never sends.** Creates Gmail drafts only. Tom reviews and hits send.
+**Never sends.** Creates Gmail drafts only (EF7). All email formatting follows `shared-references/email-formatting.md`.
 
 ## People DB Guardrails (MANDATORY)
 
@@ -62,19 +62,10 @@ happens on send and is owned by `intro-outreach-agent`. Do not duplicate that lo
   - a **company** (portfolio, pipeline, or one Tom rates) — resolve to its Opportunity if one exists;
   - a **person** (a founder raising, a candidate, someone in Tom's orbit) — no Opp needed.
 - **The intro purpose** — customer / investor / advisor / partner / hire — tunes the relevance line.
-- **The blurb / bio:** the "About [X]" content. If it's a company already in the pipeline, pull the
-  latest "Company Overview" (📚 callout) from its Opp page body and paste it VERBATIM. **No 📚 callout
-  and no founder-supplied text → COMPOSE the About block instead of dropping it**, from the Opp page
-  body (Summary / Team) + the Opp's call notes / transcripts in the Notes DB (title-match `<Name>` if
-  the `✍️ Notes` relation is empty; most recent first) — same `-- / italic About [X]` format as a
-  verbatim blurb, Tom's voice, en dashes, scrubbed of anything a founder wouldn't want forwarded
-  (client names, pricing, rev-share, hiring, personal). Tom, 2026-09-21 (Liam outreach for
-  `-1 (TJ Agnihotri)`): tried body-only articulation instead, then on seeing the composed block:
-  "leave the about block, it's pretty darn good." **Compose and keep it by default** — only fall back
-  to a short body sentence when the notes are too thin for 2-3 real sentences. Only ask Tom when
-  there's no Opp and no notes at all. Same rule lives in `writing-style/SKILL.md`,
-  `writing-style/intro-outreach/STYLE.md`, `intro-offer/STYLE.md`, and `intro-note-processor`'s
-  step-7 reference — change one, change all.
+- **The blurb / bio:** the "About [X]" content, sourced per `shared-references/email-formatting.md`
+  EF6 (📚 callout → founder-supplied → compose from the Opp body + call notes). When composing, find
+  the call notes by title-matching `<Name>` in the Notes DB if the `✍️ Notes` relation is empty. Only
+  ask Tom when there's no Opp and no notes at all.
 - **Optional per-person context** — how Tom knows them / why relevant. If absent, use the default
   firm-relevance line (STYLE); never fabricate history.
 
@@ -237,12 +228,9 @@ snapshot body (strip tags; no signature) to scratch files, pass `--html-body-fil
 `--snapshot-text-file`; exit code 0 = success, non-zero = that recipient's draft failed (don't fall
 back to a snapshot-less MCP draft). Draft rules:
 - Subject per STYLE: `Intro to [Subject] ([plain-English of what they do])?` (e.g. "Intro to Rengo (AI for investment firms)?").
-- `htmlBody`: `<div>`-line HTML; ask line links the subject person to LinkedIn and the company to its site;
-  the verbatim blurb at the bottom under an italic `About [Subject]` header, first sentence bold, company
-  name linked. Plaintext `body` fallback too.
-- **Signature: append the verbatim HTML block** from `shared-references/gmail-signature.md` at the very
-  end of `htmlBody`, below the About block. Gmail does NOT auto-append to API-created drafts. The
-  plain-text snapshot still excludes it (that keeps the edit-diff clean) — the draft itself must have it.
+- Body formatting (HTML, links, About block, signature) per `shared-references/email-formatting.md`.
+  The plain-text snapshot excludes the signature (that keeps the edit-diff clean) — the draft itself
+  carries it.
 - Use Tom's per-person context line if supplied; otherwise the default relevance line.
 
 ### Step 4 — Reflect on Notion (log to Qualified) — only when an Opp exists
@@ -289,7 +277,7 @@ that he should never have to. **Catching a decline is the drafter's job, not Tom
 
 ## Edge cases
 - **Missing subject-person LinkedIn** → link only the company; leave the name unlinked and note it.
-- **No blurb/bio anywhere** → ask Tom; don't invent one.
+- **No blurb/bio anywhere** → compose per EF6; ask Tom only when there's no Opp and no notes.
 - **Recipient already in Qualified for this Opp** → just (re)draft; don't duplicate the relation entry.
 - **Multiple recipients** → one draft each, one batched Qualified update, one report.
 - **Recipient not a clean identity match** → ask for LI URL/email; do not guess (hard rule).

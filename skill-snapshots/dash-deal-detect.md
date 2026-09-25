@@ -6,7 +6,7 @@ description: >
   rides the read-only watch-dash.sh watcher and enqueues this job with newly-ledgered candidate
   messages; it fetches each from the local Apple Mail store (dash_mail.py) and routes by CRM
   match + Status into three lanes: (1) NEW DEAL (no CRM hit + deal signal) → TEXTS Tom a 🆕
-  Opportunity card, his 👍 adds it (sms-listener, Fund=Dash 2️⃣, then Slack), his 👎 creates it as
+  Opportunity card, his 👍 adds it (sms-listener, Fund=Inverted 1️⃣ — new deals are never Dash, then Slack), his 👎 creates it as
   Pass (DNM); (2) FOLLOW-UP docs on a pipeline/Committed Opp → materials-handler Dash-lane
   (silent auto-file to Deal Docs/Diligence); (3) PORTFOLIO UPDATE / board material on an
   Active-Portfolio Opp → investor-update Dash-lane (Company Updates DB). Alert-first for new deals,
@@ -62,7 +62,7 @@ a local read (`pdftotext <path> - | head -80`). Never send an attachment anywher
 
 Before the new-deal bar, check whether the message is a **follow-up to an existing deal** — the
 Dash counterpart to Inverted's `materials-detect.js`. Tom's rule (2026-09-17): follow-ups must
-auto-file on both funds. For each message, resolve the sender to an EXISTING Opp:
+auto-file on both funds. For each message, resolve the sender to an EXISTING Opp. **Blurb capture:** when the sender resolves to an existing Opp and the message carries a founder / intro-er blurb, also run `~/.claude/skills/shared-references/blurb-capture.md` (`lane: dash`). This applies on every route, silent ones included.
 
 ```bash
 ntn api -X POST /v1/data_sources/fab5ada3-5ea1-44b0-8eb7-3f1120aadda6/query \
@@ -177,7 +177,9 @@ H=$(~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<card>") && H
 
 Card shape is the canonical 🆕 Opportunity format (header `🆕 Opportunity: <subject>`, then a
 blank line, then `* Source / * Stage / * HQ / * Description` bullets, closing
-`👍 to Add to CRM. Respond to make changes.`). Subject/stage/HQ rules per `deal-lane.md` §3.
+`👍 to Add to CRM. 🗑️ to archive. Respond to make changes.` — the `🗑️ to archive` clause
+appears on every EMAIL-sourced card (Dash here, Inverted via add-to-crm Step 4T), never on
+iMessage cards; sms-listener §4 archives via `dash_mail.py archive`). Subject/stage/HQ rules per `deal-lane.md` §3.
 
 **Source = provenance, NOT the founder.** A founder emailing Tom's Dash inbox **directly** (no
 referrer in the thread) is a **Direct inbound → `Source: Direct`** — the founder is never their
@@ -215,7 +217,7 @@ tell the confirm handler to stamp Fund and post the Slack alert:
 
   "mail_source": "dash-local",
   "rowid": 202459,
-  "fund": "Dash 2️⃣",
+  "fund": "Inverted 1️⃣",
 
   "proposed_at": "<ISO8601>"
 }
@@ -232,8 +234,10 @@ tell the confirm handler to stamp Fund and post the Slack alert:
   the chip and the Drive file must carry the same convention name — an ad-hoc deck name is a bug.)
 - `mail_source: "dash-local"` + `rowid` let the confirm-time create (or a fallback full
   add-to-crm run) fetch the email via `dash_mail.py` instead of the Gmail API.
-- `fund: "Dash 2️⃣"` is the one field the confirm handler must NOT infer — it stamps this Fund on
-  the new Opp (see `sms-listener` confirm §4, Dash-lane branch).
+- `fund: "Inverted 1️⃣"` — NEW deals from the Dash inbox are filed under **Inverted**, never Dash
+  (Tom, 2026-09-24: "regardless of whether the opportunity is sent to dash or inverted, in the Notion field make it inverted — I'm not investing in new deals out of dash anymore"). The confirm handler stamps it on the new Opp (see `sms-listener` confirm §4). This applies
+  to NEW Opps only — materials/updates for existing Dash portfolio rows keep `"fund":"Dash 2️⃣"`
+  (the jobs above), and a revive never touches an existing row's Fund.
 
 ## Exit
 

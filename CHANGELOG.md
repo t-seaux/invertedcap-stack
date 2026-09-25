@@ -1,5 +1,26 @@
 # Changelog
 
+## [2026-09-25] (Week of 2026-09-21)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm -- new deals are now staged as a 👍-gated text card before the Opportunity row is created, mirroring the Dash inbox lane; deals sourced from the Dash inbox are always filed under the Inverted fund; now reads the full referral thread for an explicit stage signal before falling back to the Pre-Seed default
+- dash-deal-detect -- new deals sourced from the Dash inbox are now filed under the Inverted fund instead of Dash; added an archive option on email-sourced cards; added founder/intro-er blurb capture for senders matching an existing Opportunity
+- deal-text-scanner -- clarified that texts with founders of existing pipeline or portfolio companies never produce a deal signal or note, however substantive
+- feedback-outreach-drafter -- outreach-email blurb text now favors a founder's verbatim memo language over auto-generated copy
+- inbound-deal-detect -- added founder/intro-er blurb capture for inbound emails matching an existing Opportunity; updated to reflect add-to-crm's new text-card gate for new deals
+- intro-draft-agent -- corrected outdated signature-handling guidance that had previously caused a draft to render with an oversized signature
+- intro-outreach-agent -- removed a webhook job mode; sweep and manual modes only going forward
+- intro-outreach-drafter -- About-block copy now defaults to a composed synthesis from Opportunity notes when no verbatim blurb exists, instead of being dropped
+- neg1-sourcing-listener -- added a named-referrer alias override so certain individual engine operators are attributed to their firm rather than themselves for Source(s)
+- pass-note-drafter -- switched draft creation to a dedicated script that preserves signature formatting and archives a Drive snapshot; retired the old BCC-based archive step
+- pipeline-agent -- added the same named-referrer alias override for Source(s) attribution as neg1-sourcing-listener
+**Total skills:** 58
+**Functions:** No changes
+
+---
+
 ## [2026-09-24] (Week of 2026-09-22)
 
 **Added:** None

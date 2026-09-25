@@ -622,8 +622,8 @@ invite sets `responseStatus` to tentative and replies `📅 Tentative: <Event>`.
 confirmation email) → dedup-check anyway, report the event as already handled. Family-lane
 (kenyonseo@) invites keep flowing through the family 🆕-ask path, not this branch.
 
-**4. CONFIRM deal proposals (🆕 add / 🔁 revive).** The deal-text-scanner texts Tom two card
-kinds: `🆕 Opportunity: <Company>` / `🆕 Opportunity: -1 (<Founder>)` add cards ending
+**4. CONFIRM deal proposals (🆕 add / 🔁 revive).** Tom gets two card kinds (🆕 from the deal
+lanes incl. deal-text-scanner; 🔁 from the EMAIL lanes only — Dash / inverted, never text): `🆕 Opportunity: <Company>` / `🆕 Opportunity: -1 (<Founder>)` add cards ending
 "👍 to Add to CRM" (audit line: `notes=proposed add-to-crm …`), and `🔁 Revive: <Founder>`
 cards ending "👍 to revive → <Status>" (audit line: `notes=proposed revive …`) — sent when the
 founder already has a **terminal-status** Opp (Pass/Lost/NR) and Tom's 👍 is what moves it back
@@ -694,8 +694,8 @@ A 👎 (Pass DNM) never drafts.
 3. Reply (the ✅ format below). Target: Tom's 👍 → ✅ in well under a minute.
 
 **REVIVE BRANCH (staged `action:"revive"`).** Canonical spec:
-`~/.claude/skills/shared-references/revive-gate.md`. The staged file may come from ANY channel
-(text / Dash / inverted) — the branch is channel-agnostic. The founder already has a
+`~/.claude/skills/shared-references/revive-gate.md`. The staged file comes from an email channel
+(Dash / inverted — the text lane never revives) — the branch is channel-agnostic. The founder already has a
 terminal-status Opp and Tom 👍'd to bring it back — UPDATE that existing row (`revive_opp_id`),
 never create a new one.
 **Check the staged `enriched` block first** (`~/.claude/skills/shared-references/revive-gate.md` § "On 👍"). When present, everything it
@@ -740,9 +740,9 @@ says:**
 **Dash-lane branch (staged `mail_source == "dash-local"`, from `dash-deal-detect`).** When the
 staged file carries `mail_source: "dash-local"`, `rowid`, and `fund` (a Dash-inbox deal, not an
 iMessage one), do THREE extra things — everything else in step 1 is identical:
-- **Set the new Opp's `Fund` select to the staged `fund`** (e.g. `Dash 2️⃣`). This is the one field
-  that must NOT be inferred or left at default — Dash rows are mis-filed without it. (iMessage
-  proposals have no `fund` and keep the CRM's default — do not touch Fund for those.)
+- **Set the new Opp's `Fund` select to `Inverted 1️⃣` — ALWAYS, even if an older staged file says
+  `Dash 2️⃣`** (Tom, 2026-09-24: "regardless of whether the opportunity is sent to dash or inverted, in the Notion field make it inverted — I'm not investing in new deals out of dash anymore"). Every NEW Opp, from any inbox or text, is Inverted. (Existing rows' Fund is
+  never changed — revives and follow-ups leave it alone.)
 - **`source: "Direct"` links the canonical Direct People page, NOT a name lookup.** A Dash founder
   emailing Tom directly stages `source: "Direct"` (see `dash-deal-detect` — the founder is never
   their own source). Resolve it exactly like `add-to-crm`'s `sourceDirective: "Direct"` — link the
@@ -759,6 +759,15 @@ iMessage one), do THREE extra things — everything else in step 1 is identical:
   reply below. The ✅ text confirms in-thread on the surface Tom 👍'd; the Slack ping mirrors the
   Inverted email-deal alert. (This Slack ping fires ONLY for the Dash lane — an iMessage-sourced
   deal stays text-only per the alerts-follow-the-surface rule.)
+
+**Inverted-lane branch (staged `mail_source == "inverted-gmail"`, from add-to-crm Step 4T —
+Tom 2026-09-24).** Twin of the Dash-lane branch above. On 👍: run add-to-crm **Steps 5–8** from
+the staged spec — create the page (Status = staged `status`, Source per `source_directive`,
+`Source Thread ID` = staged `threadId`, body = staged `page_body`), Step 6 materials via
+`materials-handler` with the staged `materialUrls`, Step 7 verification, then the Step 8 🆕
+Slack alert (as for Dash) — plus the ✅ text reply below. 👎 → same create with `Status = Pass
+(DNM)` (proposal ledger `~/.claude/skills/inbound-deal-detect/.proposed`).
+🗑️ → the archive branch below (`gmail_archive.py <threadId>`), no row. Fund stays the CRM default.
 
 Do NOT re-derive anything already in the staged file; do NOT run the full add-to-crm
 pipeline unless the staged file is missing (then fall back to executing
@@ -821,13 +830,33 @@ line `notes=proposed people-db-add <founder(s)>`. A 👍 on this ✅ card is han
 **A ❌/👎 tapback or "skip" is a PASS, not a discard (Tom, 2026-09-18) — for EVERY 🆕 card, whether
 the deal came from the Dash inbox OR was shared via text.** Do NOT just drop it. CREATE the Notion
 Opp from the staged payload EXACTLY like the 👍 path — same dedup check, Source per staged `source`,
-Fund = staged `fund` when present (Dash) else the CRM default (text/iMessage) — but force
+Fund = `Inverted 1️⃣` (every new Opp, any lane — Tom 2026-09-24) — but force
 **`Status = Pass (DNM)`** instead of the inferred status. Tom saw it and passed; he wants the
 record. Then reply inline under the card with a `🚫 Passed (DNM)` line + the Notion URL, and add a
 `passed` line to the source lane's proposal ledger (`~/.claude/skills/dash-deal-detect/.proposed`
 for a Dash card, `~/.claude/skills/deal-text-scanner/.proposed` for a text card) so it isn't
 re-proposed. If the dedup check finds the company already has an Opp, do NOT create a second —
 reply the `🚫 Dupe` two-liner as in the 👍 path and stop.
+
+**A 🗑️ tapback = ARCHIVE the email (marked read), no CRM write (Tom, 2026-09-24) — any 🆕 or 🔁
+card with an email behind it, BOTH inboxes** (lane twins; the Slack-alert twin for Inverted
+auto-created Opps is claude-alerts-listener branch 0). 🗑️ means "junk, not a deal", distinct from
+👎 (seen-and-passed, creates Pass (DNM)). Recognise it as: a custom-emoji tapback (Sendblue delivers
+iOS 18 emoji reactions as inbound text like `Reacted 🗑️ to “🆕 Opportunity…”` — match any 🗑/🗑️
+reaction quoting the card), or a reply/inline-reply of 🗑️ / "archive" / "trash" / "delete it" on the
+card. Resolve WHICH card via the standard disambiguation. Then, by the staged payload:
+1. Archive — both helpers mark every message READ first, then drop INBOX (archive, never
+   trash/delete; `already-archived` is success):
+   - `mail_source == "dash-local"` → `python3 ~/.claude/scripts/dash_mail.py archive <rowid>`
+   - staged `threadId` (Inverted Gmail) → `python3 ~/.claude/scripts/gmail_archive.py <threadId>`
+   - neither (text/iMessage or network-refresh card) → reply `⚠ Nothing to Archive: no email
+     behind this card` and stop.
+2. Add an `archived` line to the lane's `.proposed` ledger so it's never re-proposed; rename the
+   staged file to `<sent_handle>.archived.json`. NO Notion write — on a 🔁 card the Opp stays at
+   its pass status (same as a decline).
+3. Inline-reply under the CARD (reply-to = the card's `sent_handle`): `🗑️ Archived: <subject>`.
+   `ok:false` → reply `⚠ Couldn't Archive: <error>` (don't retry, don't fall back to any other
+   mail path). Audit line `notes=archived <dash rowid=<rowid> | gmail thread=<threadId>>`.
 
 ⚠️ **deal-share side effect (now applies to both lanes):** a non-(-1)/non-FO Opp landing at a Pass
 status is exactly what `deal-share-out`'s B2 auto-trigger watches — so a passed deal (text OR Dash)

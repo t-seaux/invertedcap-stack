@@ -268,7 +268,17 @@ QuickBooks payment-request emails from `Nourishment By Katya LLC <quickbooks@not
 `~/.claude/scheduled-tasks/family-inbox/katya_invoice_watch.sh` → `check_katya_invoice.py`
 (every 5 min, built 2026-09-03). It aggregates paired invoices into ONE
 `[TS] Pay Katya Invoice: $<total>` reminder on Kenyon-Seo and posts the one-line
-family-group alert itself.
+family-group alert itself. The watcher reads EVERY Katya QuickBooks email, including
+the "REMINDER from Nourishment By Katya LLC about your … invoice" format, which has no
+invoice number. It flags off-pattern batches with ⚠️ in both the title and the text: more
+than 2 invoices, a total over $599, or a no-number email. Tom 2026-09-24: a third
+$172.53 REMINDER email was silently dropped, so the reminder said $531.33 instead of $703.86.
+- **Thread reconcile** (Tom 2026-09-24, "follow the thread"): the 5-min paid-watch also
+  compares Katya's "Total is $X" text with the reminder total. A mismatch sends ONE ⚠️
+  family-group flag and records it in the notes, naming the likely odd invoice when exactly
+  one subset of invoices adds up to her total. Only her explicit "ignore the one for $X" /
+  "it was a mistake" drops an invoice and re-titles the reminder, with a ⏰ Reminder
+  Updated text.
 - **This triage agent must NOT act on these emails at all** — no reminder, no text, no
   calendar entry. Just skip them silently. (2026-09-11 incident: this section's old
   per-email "always create a reminder" instruction ran once per invoice email on top of

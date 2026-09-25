@@ -287,7 +287,7 @@ Then produce the email body, following the Style Guide precisely.
 
 ### Step 6: Create the Gmail Draft + Drive Snapshot
 
-**THIS STEP IS MANDATORY. Do NOT skip it, summarize it, or present the draft inline as a substitute. The skill is not complete until `gmail_create_draft` has been called and confirmed. Presenting the email body in the conversation is not a replacement for creating the actual Gmail draft.**
+**THIS STEP IS MANDATORY. Do NOT skip it, summarize it, or present the draft inline as a substitute. The skill is not complete until `gmail-create-draft.py` has returned `"ok": true`. Presenting the email body in the conversation is not a replacement for creating the actual Gmail draft.**
 
 **First, mute the per-draft ✉️ ping** — Step 7 already reports every draft, so without this Tom gets two Slack messages per pass note:
 
@@ -297,48 +297,29 @@ Then produce the email body, following the Style Guide precisely.
 
 The mute is session-scoped and self-expires after 30 minutes; Step 7 lifts it explicitly.
 
-Use `gmail_create_draft` with:
+Create the draft with the draft script – never the Gmail MCP connector (it flattens the signature; `shared-references/email-formatting.md` EF5). The script appends the canonical signature and writes the Drive snapshot for `draft-feedback` in one shot (Tom, 2026-09-24):
 
-- **To:** the FULL `;`-split list from Contact (Step 3a), passed as an array of email strings. Founder's email first, all other meeting attendees after. The MCP `to` parameter is `string[]`.
-- **Subject:** `[COMPANY NAME] - Inverted follow up`
-  - Use the exact company name as it appears in the Notion Opportunity title
-  - Subject format is always `[Company] - Inverted follow up` — never deviate from this
-- **No BCC.** The old Zapier BCC (`passnotes.mhcrey@zapiermail.com`) has been retired. The `pass-note-sent` gmail-webhook handler now does the same archive work natively (creates the Notes DB entry with Diligence category + Opportunity relation + view-sent-email link, and flips Status → Pass (Met) on send).
-- **Body:** the drafted pass note
-
-Do NOT send the email — only create it as a draft for Tom to review. Do NOT update the Notion status after creating the draft — the status update to "Pass (Met)" only happens in Step 1 once Tom has actually sent the email (see Step 1 above).
-
-**After draft creation, write the Drive snapshot for `draft-feedback`.**
-
-`gmail_create_draft` returns an `r-XXXX` transaction ID — run `searchMail` `in:draft to:{email}` via the gmail-webhook endpoint (`shared-references/gmail-label.md`; or `gmail_list_drafts` when the MCP is connected) and grab the most recent entry's persistent hex `messageId` (e.g., `19da8bae7d10166e`) plus its `threadId`. Then write a JSON snapshot to:
-
-```
-~/Library/CloudStorage/GoogleDrive-tom@invertedcap.com/My Drive/_system/draft-snapshots/<hex_id>.json
+```bash
+~/.claude/scripts/gmail-create-draft.py \
+  --to "<founder email>,<other attendee>,…" \
+  --subject "<Company> - Inverted follow up" \
+  --html-body-file /tmp/passnote_<company>.html \
+  --snapshot-text-file /tmp/passnote_<company>.txt \
+  --skill pass-note-drafter
 ```
 
-File contents:
+- **To:** the FULL `;`-split list from Contact (Step 3a), comma-joined into one string. Founder's email first, all other meeting attendees after.
+- **Subject:** `[COMPANY NAME] - Inverted follow up` – the exact company name from the Notion Opportunity title. Never deviate from this format.
+- **No BCC.** The old Zapier BCC (`passnotes.mhcrey@zapiermail.com`) is retired. The `pass-note-sent` gmail-webhook handler does the archive work natively (Notes DB entry with Diligence category + Opportunity relation + view-sent-email link, and Status → Pass (Met) on send).
+- **HTML body file:** the pass note per EF4, ending at `Tom`, with no typed signature (the script appends it). Bullets are `<div>* [bullet]</div>` lines, matching the plain-text shape below.
+- **Snapshot text file:** the same note as plain text through `Tom`, no signature (it's the diff baseline).
+- Success = stdout `{"ok": true, "messageId", "threadId", "draftUrl", "snapshotPath"}`. Exit 1 means the draft exists but the snapshot failed – treat it as a failure and report it. Exit 2/3 means no draft was created. If the style gate flags punctuation inside quoted founder text, `--force` is correct.
 
-```json
-{
-  "skill": "pass-note-drafter",
-  "messageId": "<hex_id>",
-  "threadId": "<gmail thread id>",
-  "recipient": "<founder email>",
-  "subject": "<Company> - Inverted follow up",
-  "draftText": "<full plain-text body of the pass note — exclude the signature block from `–` onward, because this snapshot is a diff baseline. NOT because Gmail appends it: Gmail does not auto-append to API drafts, so the draft's own htmlBody must carry the signature>",
-  "createdAt": "<ISO 8601 timestamp>"
-}
-```
+Do NOT send the email – only create the draft for Tom to review. Do NOT update the Notion status after creating the draft; "Pass (Met)" only happens in Step 1, once Tom has actually sent the email.
 
-For multi-recipient sends, write `"recipients": ["<email1>", "<email2>"]` instead of `recipient`. The `draft-feedback` processor accepts either shape.
+**Greeting matches recipient count.** If the To list has one address: `Hey [Founder First Name],`. Two addresses: `Hey [First Name 1], [First Name 2],` (comma-separated). Three+: `Hey [F1], [F2], and [F3],` (Oxford comma). Pull first names from the People DB Founder relation when possible; else infer from the email local-part. Body references that previously named one founder ("Between you and Yehuda") switch to plural framings ("Between you two", "Between the three of you") when multiple are addressed.
 
-Use the `Write` tool. Drive Desktop syncs the file within seconds. The webhook handler picks it up on send and queues a diff job for the local processor (FRAMEWORK_PRD.md §13). Unsent snapshots auto-purge after 30 days.
-
-**Formatting:** Always create the draft as **plain text** — use `contentType: text/plain`. Do NOT use `text/html`. The reason: HTML drafts bake in font-family and font-size via inline styles, which renders differently depending on which client opens the email (Gmail web vs. Apple Mail on Mac vs. mobile). Plain text avoids this entirely — Gmail applies its own default styling on send, and the recipient sees a clean, consistent message regardless of client.
-
-**Greeting matches recipient count.** If the To list has one address: `Hey [Founder First Name],`. Two addresses: `Hey [First Name 1], [First Name 2],` (comma-separated). Three+: `Hey [F1], [F2], and [F3],` (Oxford comma). Pull first names from People DB Founder relation when possible; else infer from the email local-part. Body references that previously named one founder ("Between you and Yehuda") should switch to plural framings ("Between you two", "Between the three of you") when multiple are addressed.
-
-Use this exact template structure — note the single blank line between each paragraph block:
+Use this exact structure (shown as the plain-text snapshot; the HTML file renders it per EF4 in `shared-references/email-formatting.md`):
 
 ```
 Hey [First Name],
@@ -357,16 +338,9 @@ Hey [First Name],
 
 Best,
 Tom
-
-–
-
-Tom Seo
-Founder & GP, Inverted Capital
-m:  +1 (201) 256-7714
-e:   tom@invertedcap.com
 ```
 
-Key points: each paragraph and each bullet is separated by a single blank line. Bullets use `* ` prefix (asterisk + space). The signature block starts with an em dash (—) on its own line, followed by a blank line, then the name/title/contact lines with no extra spacing between them. Throughout the body, use en dashes (–) not em dashes — the signature separator is the sole exception. Write dollar signs as plain `$` — do not escape as `\$`., followed by a blank line, then the name/title/contact lines with no extra spacing between them. Write dollar signs as plain `$` — do not escape as `\$`.
+Key points: each paragraph and each bullet is separated by a single blank line. Bullets use the `* ` prefix (asterisk + space). Write dollar signs as plain `$`, never `\$`.
 
 ---
 
@@ -405,7 +379,7 @@ This section is the core of the skill. Study it carefully — the whole point is
 Tom's pass notes are warm, thoughtful, and genuinely personal. They are not form letters. He clearly spent time thinking about each company and wants the founder to feel that. The tone is: collegial, intellectually engaged, honest without being blunt, and self-deprecating at the close. He is rooting for the founder even though he's passing.
 
 Key characteristics:
-- **Casual but substantive.** Uses contractions, conversational rhythm, en dashes (–) throughout the body, ellipses. Not stiff or overly formal. Note: the signature separator is an em dash (—), which is the one exception to this rule.
+- **Casual but substantive.** Uses contractions, conversational rhythm, ellipses. Not stiff or overly formal.
 - **Specific.** Generic praise ("great team!") never appears. He always names the actual thing he found impressive.
 - **Self-aware about his own limitations.** When he passes, he often frames his hesitation as a gap in his own conviction or fit, not a verdict on the company's quality.
 - **Genuine humility at the close.** Always acknowledges he might be wrong.
@@ -479,7 +453,7 @@ Founder & GP, Inverted Capital
 m:  +1 (201) 256-7714
 e:   tom@invertedcap.com
 ```
-Note the two-space indent before the phone/email values — match exactly. The signature separator is an em dash (—). Throughout the body of the email, use en dashes (–) not em dashes — the signature is the one exception.
+Note the two-space indent before the phone/email values — match exactly.
 
 ### What to Avoid
 

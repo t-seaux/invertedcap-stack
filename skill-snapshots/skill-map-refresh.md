@@ -122,6 +122,7 @@ Scan the skills directory to build a complete inventory.
      | `portfolio-contact-audit` | `investor-update` |
      | `work-mail-event` | `work-mail-event` |
      | `work-mail-event-inbound` | `work-mail-event` |
+     | `cofounder-detect-inbound` | `pipeline-agent` |
 
    **Ad Hoc** — the skill is invoked manually by Tom (trigger phrase in chat, no cron, no webhook).
 

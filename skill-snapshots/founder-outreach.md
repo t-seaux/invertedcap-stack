@@ -162,12 +162,12 @@ Exit code 0 = both writes succeeded. Exit codes 1/2/3 = failure — abort the ro
 ## Important Rules
 
 - **Never score, never apply the rubric.** If the row is unscored, refuse and point Tom at `neg1-enricher`. This skill has ONE job: write the email.
-- **Never send.** Only create drafts. `create_draft` is a hard boundary.
+- **Never send** (EF7, `shared-references/email-formatting.md`). Only create drafts. `create_draft` is a hard boundary.
 - **Never redraft if `Status` is `Reached Out` or `Passed`.** Idempotence prevents clobbering Tom's actions.
 - **Never draft an auto-passed row from a bare manual trigger.** Webhook mode (Request Draft button) and the neg1-enricher manual chain are the two sanctioned overrides — both draft regardless of Claude Rec.
 - **Pull personalization from `Signals` (+ body Eval Rationale), not from scratch.** The breakdown already captures the spike signal and evidence — the draft's job is to render that in Tom's voice.
 - **No pattern-match declarations.** Per writing-style/neg1-cold-outreach/STYLE.md anti-patterns.
-- **En dashes in all prose.** Per Tom's voice preference (memory: feedback_use_en_dash).
+- **Formatting** (dashes, HTML, signature) per `shared-references/email-formatting.md`.
 - **Report concisely.** Summary table for batches. 3-4 lines max for singletons.
 
 ---

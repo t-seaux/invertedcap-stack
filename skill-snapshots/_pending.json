@@ -1,7 +1,5 @@
 {
   "skills": {},
   "launchAgents": {},
-  "webhookHandlers": {
-    "cofounder-detect-inbound": "2026-09-24"
-  }
+  "webhookHandlers": {}
 }

@@ -343,8 +343,8 @@ same semantics as the -1 pipeline's deleted-draft-is-a-pass rule). Concretely:
 **(a) No materials → MCP `create_draft`:**
 - **Bcc:** the resolved registry address(es); **To: empty** (see Recipient Registry)
 - **Subject:** `Deal Share: <Company>` (no stage parens — stylebook)
-- **Body:** `htmlBody`/`body` from `compose_body.py` (see the scripted-composition rule above). **No closing, no signature** — documented
-  exception; the body ends at the founder's sign-off (or the Overview block for grapevine deals).
+- **Body:** `htmlBody`/`body` from `compose_body.py` (see the scripted-composition rule above). **No closing, no signature** — the stylebook's
+  declared EF5 exception (`shared-references/email-formatting.md`); the body ends at the founder's sign-off (or the Overview block for grapevine deals).
 
 **(b) Materials present → the gmail-webhook draft endpoint** (extended with Drive-sourced
 attachments 2026-08-20, deployed v203; end-to-end verified same day). Attachments load

@@ -292,7 +292,7 @@ If a reply already exists at note-creation time (Step 2 case), populate the Resp
 ```
 properties: {
   "Name": "[PENDING] ...",
-  "Category": "Diligence",
+  "Category": "Diligence",   // or "Portfolio" if Opp is Active Portfolio — rule in shared-references/feedback-note-format.md
   "Opportunity": ["https://app.notion.com/p/<opp-page-id>"]
 }
 ```

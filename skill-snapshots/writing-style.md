@@ -54,7 +54,7 @@ the end-to-end flow; the stylebook is its voice source.
 |---|---|---|---|
 | **Cold founder (-1) outreach** | Introducing Inverted Capital to a pre-founder, anchored on a spike signal. **Trigger: "draft -1 note [for X]"** | `neg1-cold-outreach/` | `founder-outreach` |
 | **Cold founder (NewCo) outreach** | Cold note to a founder who ALREADY has a company and is on other people's radar (investors included). Same subject as the `-1` template; hook is "Have heard great things…" or "Came across {Company} via…". Never mentions the round; ships with no personalization slot. **Trigger: "draft newco note [for X]"** | `newco-cold-outreach/` | — (ad-hoc) |
-| **First-touch intro-interest** | "Would you be open to connecting with [X]?" — formal note with an About-blurb appendix, gauging interest before a formal intro (customer / investor / advisor / hire variants) | `intro-outreach/` | `intro-outreach-drafter` |
+| **First-touch intro-interest** | "Would you be open to connecting with [X]?" — formal note with an About-blurb appendix, gauging interest before a formal intro (customer / design partner / investor / advisor / hire variants; a founder-supplied blurb still routes here) | `intro-outreach/` | `intro-outreach-drafter` |
 | **Warm "would love to intro" offer** | Casual, from-a-call note offering to intro someone to a company's founders — canonical subject `[Company] – would love to intro` | `intro-offer/` | `intro-note-processor` |
 | **Double-opt-in connect** | Both sides said yes — the actual intro that wires them together | `intro-connect/` | `intro-draft-agent` |
 | **Backchannel / feedback request** | Asking an expert in Tom's network for a diligence gut-take on a company | `feedback-outreach/` | `feedback-outreach-drafter` |
@@ -63,105 +63,31 @@ the end-to-end flow; the stylebook is its voice source.
 | **Deal-share decline** | "Sit this one out" reply to an investor who forwarded a deal/co-invest | `deal-decline/` | — (ad-hoc) |
 | **LP raise outreach** | Prospective-LP note — final close, remaining allocation, soft ask; incl. the forwardable-note sub-form | `lp-raise-outreach/` | — (ad-hoc) |
 | **Reference request** | Cold ask to someone in a founder's orbit for a diligence reference call. Trigger phrases: "draft reference [request/outreach] notes for [Founder]", "reach out to folks for [Founder]'s references", "founder reference [check/call] emails", "doing references on [Founder]" | `reference-request/` | — (ad-hoc) |
-| **Portco ask forward** | `Fwd:` of a portco's request (vendor search, customer lead, partnership) to a contact who might be the fit or can route it onward — short casual cover note, forward carries the substance | `portco-ask-forward/` | — (ad-hoc) |
+| **Portco ask forward** | `Fwd:` of a portco's own vendor / partner / lead request email to a contact who might be the fit or can route it onward — short casual cover note, forward carries the substance. NOT for offering a founder to a potential customer / design partner, even with a founder-supplied blurb (that's `intro-outreach`) | `portco-ask-forward/` | — (ad-hoc) |
 | **Outbound deal share** | Kicking a deal from Tom's own pipeline to another firm's deal inbox (e.g. Primary's deal-agent) — structured payload + sanitized founder email, draft only | `deal-share-out/` | `deal-share-out` |
 | **Portco investor list** | Sending a portfolio founder a curated list of investors to fill out a round Tom is leading. Bare artifact — three headed sections of `Name @ Firm` bullets, name→LinkedIn / firm→site, **no greeting, closer, or signature**. Trigger: "draft email with the list", "send [founder] the investor list" | `portco-investor-list/` | — (ad-hoc; usually downstream of `coinvestor-recommender`) |
 
 If a request is a NEW email shape not in this table, see **"Log a new email form"** below — don't
 force-fit it into the nearest stylebook.
 
-## Signature — global rule for EVERY short-form email
+## Formatting — master spec
 
-**Always append Tom's signature** to any Gmail draft created via the API (`create_draft` /
-`update_draft`), for ALL stylebooks above, using the exact canonical block at
-`shared-references/gmail-signature.md` (plaintext + HTML). Gmail's native signature only
-auto-appends inside the client — API-created drafts land signature-less otherwise. Confirmed
-2026-08-03 on the reference-request batch and now the default everywhere. This overrides any
-"no signature — Gmail auto-appends" language still lingering in an individual stylebook.
+All cross-cutting formatting (dashes, bold/links, HTML, signature + its exceptions, blurbs,
+drafts-only) lives in `shared-references/email-formatting.md`. Stylebooks and drafters point there
+and never restate it; `scripts/drift_check.py` blocks restatements at commit time.
 
-🔁 **Maintenance rule — a stylebook and its drafter must change together.** Each stylebook is read by
-a drafter skill (`intro-connect` → `intro-draft-agent`, `intro-outreach` → `intro-outreach-drafter`,
-`pass-note` → `pass-note-drafter`, `neg1-cold-outreach` → `founder-outreach`, `feedback-outreach` →
-`feedback-outreach-drafter`, `talent-outreach` → `talent-scan`). **When you change a rule here or in a
-STYLE.md, grep the consuming skill in the same pass** — twice on 2026-08-26/27 a fix in one layer left
-the other contradicting it, and the second time it shipped a malformed draft to Tom.
+- 🔁 **Maintenance rule — a stylebook and its drafter must change together.** Each stylebook is read by
+  a drafter skill (`intro-connect` → `intro-draft-agent`, `intro-outreach` → `intro-outreach-drafter`,
+  `pass-note` → `pass-note-drafter`, `neg1-cold-outreach` → `founder-outreach`, `feedback-outreach` →
+  `feedback-outreach-drafter`, `talent-outreach` → `talent-scan`). **When you change a rule here or in a
+  STYLE.md, grep the consuming skill in the same pass** — twice on 2026-08-26/27 a fix in one layer left
+  the other contradicting it, and the second time it shipped a malformed draft to Tom.
 
-📌 **Snapshot vs draft — do not confuse these.** Drafters correctly strip the signature from the
-**plain-text snapshot** (it's a diff baseline for `draft-feedback`; leaving it in dirties every diff).
-That is NOT a statement about the draft. The **draft's `htmlBody` must always carry the signature.**
-Any skill giving "Gmail auto-appends" as the reason for the snapshot exclusion is repeating the
-retired misconception — fix the rationale, keep the exclusion.
-
-**2026-08-26 — Tom: "I want signatures."** `intro-connect` and `pass-note` were both carrying the
-auto-append misconception and were therefore drafting bare; both are now corrected to append and
-have been removed from the exception list below. Two exceptions remain, and both are real voice
-choices Tom made himself, not misconceptions — don't "fix" them.
-
-⚠️ Also fixed the same day: the canonical block hard-coded `color: rgb(0, 0, 0)`, which rendered the
-signature black-on-black in dark mode. Stripped at source in `gmail-signature.md` — see the warning
-there before re-extracting the fragment from a fresh Mail-generated send.
-
-## Company blurbs — global rule for EVERY note (Tom, 2026-09-21)
-
-**Any note that carries a company blurb (the `About [Company]` block, a "note from the founder", a
-one-pager paragraph) reproduces it VERBATIM.** Source priority:
-
-1. The Opp's dated 📚 Company Overview callout in Notion, if one exists — fetch it fresh every time.
-   If the Opp carries several audience-specific overviews, use the one matching the recipient.
-2. Otherwise, exactly what the person providing the blurb supplied (founder email, intro-er's note,
-   one-pager) — and log it to the Opp via `log-company-blurb` so the next draft has a 📚 source.
-
-Never source a blurb from an earlier draft or sent email, a diligence doc, the Notion `Description`
-property, or memory. No LLM pass: no trimming, merging, "cleaning up", or dash-swapping — a founder's
-em dash inside the blurb stays (the en-dash rule governs Claude-authored prose only). The only
-permitted formatting is the stylebook's own (linked company name, bold first sentence, italic header).
-If the style gate flags punctuation inside a verbatim blurb, `--force` is the correct call. **No
-explicit blurb on file (no 📚 callout, no founder-supplied text) → COMPOSE the About block, don't drop
-it.** Write it from the Opp page body (Summary / Team) + its call notes / transcripts in the Notes DB
-(title-match the Opp name if `✍️ Notes` is empty; most recent first) — same `-- / italic About [X]`
-format as a verbatim blurb, in Tom's voice, en dashes, scrubbed of anything a founder wouldn't want
-forwarded to a stranger (client names, pricing, rev-share, hiring, personal). Tom, 2026-09-21 (Liam
-outreach for `-1 (TJ Agnihotri)`) briefly asked for body-only articulation instead ("if there is not
-explicit blurb don't add an about block"), then reversed on seeing the composed block: "leave the
-about block, it's pretty darn good." **Net: compose and keep it by default** — only fall back to a
-short body sentence when the notes are too thin to responsibly write 2-3 real sentences. "Never
-invent" means never fabricate, not "never synthesize from real notes." **Encoded identically in
-`intro-outreach/STYLE.md`, `intro-offer/STYLE.md`, `intro-outreach-drafter/SKILL.md`, and
-`intro-note-processor`'s step-7 reference — change one, change all (Tom: "make sure these parallel
-skills don't drift").** Miss that set this rule: Graham Henshaw / Soapbox,
-2026-09-21 — the About block was reused from a prior send (Harrison Hochman) and was a paraphrase.
-
-## Links — global rule for EVERY email
-
-**Any link baked into any email draft must point DIRECTLY at its destination** (Tom, 2026-08-20,
-caught on the first deal-share-out draft). A bare URL in a plaintext-only body gets auto-linkified
-by Gmail through its `google.com/url?q=…&ust=…` redirect wrapper — the recipient sees an ugly
-tracking URL instead of the site. The fix, for every stylebook and every ad-hoc email:
-
-- Author an `htmlBody` with explicit anchors — display text is the bare domain or a natural label,
-  href is the direct URL: `<a href="https://sagecare.ai">sagecare.ai</a>`. Contact emails get
-  `mailto:` anchors.
-- Keep the HTML minimal (no font styling) so Gmail applies its defaults; pass the plaintext `body`
-  as the alternative with bare-domain link text.
-- Links inside quoted/forwarded founder content follow the same rule — re-anchor them, don't leave
-  bare URLs.
-- **Never bold a standalone hyperlink** (Tom 2026-09-10): a link on its own, not part of a bolded
-  sentence, stays in Gmail's default link styling — no `<b><a>…</a></b>`.
-- **But if a link falls inside a sentence that's bolded, bold the link too** (Tom 2026-09-21,
-  correcting the 2026-09-10 rule): bold-ness is a property of the sentence, not something a link
-  opts out of. Where a stylebook bolds a sentence containing a link (e.g. intro-outreach blurb
-  first sentence), wrap the whole sentence in one continuous `<b>`, with the `<a>` nested inside —
-  `<b><a href="site">Name</a> is an Investment Engineer at …</b>` — don't close/reopen `<b>` around
-  the anchor.
-
-**Two documented exceptions — do not add a signature here:**
-- `deal-share-out` — Tom's hand-built template (2026-08-20, Sage Care) ends at the quoted
-  founder's sign-off with no closing or signature; the recipient is a machine-read deal inbox and
-  the From line carries his identity.
-- `portco-investor-list` — Tom stripped the signature explicitly on the first send (2026-08-25,
-  Fair): *"Remove everything but the sections and bullets pls. No commentary before or after or
-  even signature."* The form is a bare work-list to a founder who already knows the sender; a
-  sign-off would be noise.
+- 📌 **Snapshot vs draft — do not confuse these.** Drafters correctly strip the signature from the
+  **plain-text snapshot** (it's a diff baseline for `draft-feedback`; leaving it in dirties every diff).
+  That is NOT a statement about the draft. The **draft's `htmlBody` must always carry the signature.**
+  Any skill giving "Gmail auto-appends" as the reason for the snapshot exclusion is repeating the
+  retired misconception — fix the rationale, keep the exclusion.
 
 ## Routing logic (all writing, not just email)
 
@@ -188,7 +114,11 @@ to a founder as a customer/investor → `intro-outreach`; as a hire for a portco
 `intro-outreach` and `portco-ask-forward` share the same spirit — connecting someone in Tom's
 network to a portfolio company — and differ only in vehicle: a portco-originated ask email Tom can
 forward (the forward carries the substance) → `portco-ask-forward`; Tom initiating with no
-forwardable artifact (formal note + About-blurb) → `intro-outreach`.
+forwardable artifact (formal note + About-blurb) → `intro-outreach`. Offering to intro a founder to a
+potential **customer / design partner** is `intro-outreach` even when the founder supplied a
+forwardable blurb – the blurb goes in the About block per EF6. `portco-ask-forward` is only for
+forwarding a portco's own vendor / partner / lead request email (Tom, 2026-09-24, Thermis → Liam
+Shalon).
 
 ## "Log to writing style" trigger
 
@@ -219,7 +149,8 @@ type", or hands over a sample email that doesn't fit any row in the routing tabl
    shape from Gmail (`search_threads` by subject pattern or a signature phrase) to triangulate the
    voice. Read the actual sent bodies, not just snippets.
 4. **Scaffold the stylebook** at `writing-style/<slug>/`:
-   - `STYLE.md` — follow the house shape of the existing email stylebooks: Purpose · Fixed elements ·
+   - `STYLE.md` — open with the `> **Formatting:**` / `> **Formatting exceptions:**` pointer block
+     (copy it from any existing stylebook), then follow the house shape: Purpose · Fixed elements ·
      Template/Scaffold · Subject line · any Variants · Formatting Rules · Voice · Worked example(s) ·
      Anti-patterns. Derive the rules from the real sends, not from generic email advice.
    - `EDIT_PATTERNS.md` — the standard header + empty Style Canon / Recent Edits sections (copy the
@@ -252,9 +183,7 @@ All stylebooks share a few principles worth naming once:
   hallmarks (hedged fit, candid mechanism-naming, apologetic openers, easy outs) are valid priors
   across both — but the scaffold/format rules never transfer. A thin corpus can borrow tone from
   its sibling; it can't borrow structure.
-- **Em dashes (`—`) only in signatures and as rhetorical pauses in long-form prose. En dashes (`–`)
-  elsewhere.** A Tom invariant across every stylebook.
-- **Never send — Gmail draft only.** Every email stylebook produces a draft; sending stays with Tom.
+- **Cross-cutting formatting (dashes, drafts-only, etc.) is one spec:** `shared-references/email-formatting.md`.
 
 ## What NOT to do
 

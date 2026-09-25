@@ -179,7 +179,7 @@ The full workflow is: talent-scan surfaces candidates → Tom sends the shortlis
 
 - **Only the opted-in candidates.** Respect the founder's picks exactly — skip anyone they passed on (e.g. Coverbase's Clarence opted in on Raymond Kim + Will Damron, passed on AJ "given how recently he joined" — so only Raymond + Will get drafts). If Tom says one is "already drafted," skip it.
 - **Fill the To field** with the candidate's email — fetch via `contactout_enrich_linkedin_profile` (`profile_only=false`) to the extent it resolves; leave blank only if no email is found.
-- **One draft per candidate.** No personal signature in the body — Tom's Mail client appends his signature on paste/send.
+- **One draft per candidate.** Formatting and signature per `shared-references/email-formatting.md` (the helper below appends the signature, EF5).
 - **Create each draft via `~/.claude/scripts/gmail-create-draft.py --skill talent-scan`** (not the Gmail MCP) — the helper creates the draft AND writes the draft-feedback snapshot atomically, so Tom's edits feed `writing-style/talent-outreach/EDIT_PATTERNS.md` via diff mode. Write the HTML body + a plain-text snapshot body (strip tags, no signature) to scratch files, pass `--html-body-file` / `--snapshot-text-file`. Exit code 0 = success; non-zero = that candidate's draft failed (don't fall back to a snapshot-less MCP draft). If a candidate's email is unresolved, skip the draft (the helper requires `--to`) and surface the name to Tom instead.
 
 **Canonical voice + format live in the corpus: `~/.claude/skills/writing-style/talent-outreach/STYLE.md`.**

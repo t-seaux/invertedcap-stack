@@ -87,6 +87,14 @@ thank-yous, LP/fund-admin, portfolio ops, favor-forwards, news links without a r
 anything from a service number. When unsure → silent. False negatives are fine (Tom sees his
 own texts); false positives erode trust.
 
+**Founders with an existing Opp are ordinary texting partners (Tom, 2026-09-24).** Tom texts
+portfolio and pipeline founders all the time — Erik (Rengo) is the canonical case. Their
+threads, in either direction, NEVER produce a deal signal, Opp-body note, 📈/🔁 card, or
+any other log of company news, traction, fundraising color, or Tom's coaching, however
+substantive it sounds. The only lanes such a thread can reach are the explicit Intro rows
+above (a yes/no on an intro Tom offered) and the Feedback lane's roster check; everything
+else → silent.
+
 **Feedback-lane detection is the one exception to keyword matching.** Do not look for the
 word "feedback" — the corpus shows it is usually absent and the ask rides inside an intro
 offer. Judge against `~/.claude/skills/shared-references/feedback-ask-signals.md`.

@@ -1,6 +1,6 @@
 ---
 name: log-company-blurb
-description: Log a new company blurb (Company Overview) to an Opportunity page in the Notion CRM using the canonical blurb-versioning format — the latest blurb lives in a default-background 📚 callout headed by its date, and every prior version is collapsed into a "Company Overview (History)" toggle beneath it. Trigger when Tom says "log company blurb", "log company overview", "log the overview for [X]", "company overview for [X]", "log this blurb for [X]", "log the blurb", "company blurb for [X]", "add this blurb to [X]", "update the blurb for [X]", "update the overview for [X]", or pastes/settles a company blurb in conversation and asks to log it to Notion. Manual-only — no scheduled or webhook entry point. Works on any Opportunity row (portfolio or pipeline).
+description: Log a new company blurb (Company Overview) to an Opportunity page in the Notion CRM using the canonical blurb-versioning format — the latest blurb lives in a default-background 📚 callout headed by its date, and every prior version is collapsed into a "Company Overview (History)" toggle beneath it. Trigger when Tom says "log company blurb", "log company overview", "log the overview for [X]", "company overview for [X]", "log this blurb for [X]", "log the blurb", "company blurb for [X]", "add this blurb to [X]", "update the blurb for [X]", "update the overview for [X]", or pastes/settles a company blurb in conversation and asks to log it to Notion. Also runs headless (mode: headless, via claude-job-queue) when an inbound email/text on an EXISTING Opp carries a founder / intro-er blurb, per shared-references/blurb-capture.md. Headless = log verbatim + alert Tom. Works on any Opportunity row (portfolio or pipeline).
 ---
 
 # Log Company Blurb
@@ -39,6 +39,31 @@ A company can have variant blurbs tailored to a specific audience (e.g., card ne
 - Each variant gets its own italic header: `*Company Overview – for [Audience] (<mention-date start="YYYY-MM-DD"/>)*` — en dash before "for", real date mention.
 - Variant body is verbatim from Tom (or the settled conversation text) — same never-reword rule as the main blurb.
 - The general blurb always stays first in the callout; drafters pick the variant matching the recipient audience, falling back to the general blurb.
+
+## Headless mode (args `mode: headless`)
+
+Enqueued by the lane classifiers per `shared-references/blurb-capture.md`. Args: `oppId`, `oppName`,
+`messageId` (Gmail id; Dash lane sends `rowid`, text lane sends the message GUID), and `lane`.
+
+1. **Fetch the source.** Gmail `get_thread` on the message. For Dash, read it via `dash_mail.py`. For
+   text, read it from chat.db.
+2. **Extract the blurb VERBATIM.** Take only the paragraph(s) the sender offered as the reusable
+   description. Drop a bare greeting line ("Hi Level Team,"), the sign-off, and the signature. Nothing
+   else changes: no trimming, merging, or dash swaps (EF6). If the blurb is addressed to a specific
+   audience, log it as the audience variant, `*Company Overview – for [Audience] (date)*`.
+3. **Date = the message's SENT date**, not today's date.
+4. **Dedup.** If the current callout (or that audience variant) already holds this exact text, log
+   `blurb-unchanged` and exit 0 without alerting.
+5. Run Workflow steps 2–5 below with this text. Resolve the Opp by `oppId` directly.
+6. **Alert Tom** on the source surface. An email lane goes to Slack via `send-alert/send.sh`; the text
+   lane gets a text via `send_imessage.sh`:
+   ```
+   🏢 Blurb Logged: [Company]
+   • Opp: [Company](<opp url>)
+   • From: [Sender] – [email subject](<gmail link>)
+   • Blurb: "<first sentence of the blurb, verbatim>"
+   • Filed as: general | for [Audience]; prior version moved to History (or "first blurb")
+   ```
 
 ## Workflow
 

@@ -111,14 +111,10 @@ Draft the handoff line (and the optional vouch line) per `writing-style/intro-co
 carries the 1:1 vs multi-party handoff forms and the vouch-line rule. Do not re-specify the body
 format here; the stylebook is the single source.
 
-⛔ **The signature must be the HTML block, in `htmlBody` — never the plaintext form alone.**
-`shared-references/gmail-signature.md` has TWO forms: plaintext (for the `body` param) and HTML (for
-`htmlBody`). A draft created with **only** `body` renders the signature at full body-text size instead
-of Tom's small Helvetica block. **Always write both files and pass both flags.**
-
-⚠️ Happened 2026-08-27 on the Avery ↔ Aadik connect: this agent auto-drafted plaintext-only and the
-signature came out body-sized. Tom caught it. The older "no typed signature — Gmail auto-appends"
-rule this section used to cite is **retired and wrong** — Gmail does not append to API-created drafts.
+HTML structure and signature follow `shared-references/email-formatting.md` (EF4, EF5).
+⛔ **Always write both files and pass both flags** (`--html-body-file` + `--snapshot-text-file`): a
+plaintext-only draft renders the signature at full body-text size instead of Tom's small Helvetica
+block (Avery ↔ Aadik connect, 2026-08-27 – Tom caught it).
 
 ## Opportunity Scope (IMPORTANT)
 
@@ -293,10 +289,9 @@ For each opt-in where no existing draft/sent email is found:
    `_system/draft-snapshots/<hex>.json` in one shot, so Tom's edits feed
    `writing-style/intro-connect/EDIT_PATTERNS.md` via diff mode).
 
-   Write two scratch files first: the HTML body (Gmail-native `<div>` lines, **ending with the
-   verbatim HTML signature fragment from `shared-references/gmail-signature.md` wrapped as
-   `<div>Tom<br><div>[fragment]</div></div>`**), and the plain-text snapshot body (strip tags and
-   **exclude the signature** — end at `Tom`).
+   Write two scratch files first: the HTML body (per `shared-references/email-formatting.md`,
+   ending at `Tom` – the helper appends the signature per EF5), and the plain-text snapshot body
+   (strip tags and **exclude the signature** — end at `Tom`).
 
    ⛔ Both `--html-body-file` and `--snapshot-text-file` are required. Never create this draft with a
    plaintext body only — see the signature rule above.

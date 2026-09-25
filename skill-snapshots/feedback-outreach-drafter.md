@@ -218,24 +218,17 @@ did (2026-07-31). It is the executable copy of the stylebook — when STYLE.md c
 
 #### HTML Formatting Rules
 
-Always send as `text/html`. Use **`<div>` blocks, NOT `<p>`** — Gmail's native compose emits `<div>content</div>` with `<div><br></div>` for blank lines, and `<p>` adds excess top margin that visibly inflates spacing compared to Tom's regular emails. Confirmed against rendered diff 2026-05-12.
+HTML structure, dashes, links and signature follow `shared-references/email-formatting.md` (EF1–EF7). Skill-specific:
+no `<!DOCTYPE>`, `<html>`, or `<body>` wrappers — Gmail strips them anyway.
 
-**Critical rules:**
-1. The first `<div>` MUST carry inline `style="margin:0;padding:0"` to override iOS Mail's default body top padding (otherwise renders as a phantom blank line above the greeting).
-2. The entire `htmlBody` is a single continuous string with **zero whitespace between tags** (no newlines, no spaces between `</div><div>`).
-3. Use `<div><br></div>` for every blank line between paragraphs.
-4. No `<p>` elements anywhere.
-5. No `<!DOCTYPE>`, `<html>`, or `<body>` wrappers — Gmail strips them anyway.
-
+Template (structure per `shared-references/email-formatting.md` EF4):
 ```html
-<div style="margin:0;padding:0">Hey [First Name],</div><div><br></div><div>[Opener paragraph]</div><div><br></div><div>[Personalization paragraph — 2-4 sentences explaining why Tom thought of THIS person]</div><div><br></div><div>[No worries paragraph]</div><div><br></div><div>* [Question 1]</div><div><br></div><div>* [Question 2]</div><div><br></div><div>* [Question 3]</div><div><br></div><div>Best,</div><div>Tom</div><div><br></div><div>--</div><div><br></div><div><em>About [Company] (<a href="[URL]" style="color:#1155CC">[domain]</a>)</em></div><div><br></div><div>[Blurb sentence(s) — use founder's verbatim memo blurb when provided by Tom; otherwise auto-generate per Step 3]</div>
+<div style="margin:0;padding:0">Hey [First Name],</div><div><br></div><div>[Opener paragraph]</div><div><br></div><div>[Personalization paragraph — 2-4 sentences explaining why Tom thought of THIS person]</div><div><br></div><div>[No worries paragraph]</div><div><br></div><div>* [Question 1]</div><div><br></div><div>* [Question 2]</div><div><br></div><div>* [Question 3]</div><div><br></div><div>Best,</div><div>Tom</div><div><br></div><div>--</div><div><br></div><div><em>About [Company] (<a href="[URL]" style="color:#1155CC">[domain]</a>)</em></div><div><br></div><div>[Blurb sentence(s) — sourced per EF6; compose per Step 3 when nothing is on file]</div>
 ```
 
 Key formatting rules:
 - **No founder names and no founder LinkedIn links in the blurb** (Step 3). No Founder(s)-relation or
   ContactOut lookup is needed for this skill at all — the blurb ends at the product.
-- The "About [Company]" header is italicized with `<em>`
-- Body prose uses en dashes (`–`) only — never em dashes (`—`)
 - The two blurb lead sentences are bold (`<strong>`)
 
 ### Step 7: Update `📣 Pending Feedback` relation on the opportunity
@@ -260,7 +253,7 @@ Create the placeholder note now, when the outreach is drafted — NOT deferred u
 
 **Read `~/.claude/skills/shared-references/feedback-note-format.md` before creating the note — it is the canonical contract** (title format, the required `[PENDING]` prefix, section order — **`## Response` comes BEFORE `## Outreach Note`** — the People-mention header, grounding rules, dedup, and the `[PENDING]`-removal lifecycle). Do NOT restate the format here; follow that file exactly so the paths cannot diverge again. `feedback-outreach-scanner` owns the runtime lifecycle (Steps 3–5).
 
-Create the note with `notion-create-pages` (`data_source_id: e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`), Category `Diligence`, `Opportunity` relation → the Opp, then link it on the Opp's `✍️ Notes` relation (fetch current array, append, write back in one call).
+Create the note with `notion-create-pages` (`data_source_id: e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`), Category per `shared-references/feedback-note-format.md` (`Portfolio` if Opp is `Active Portfolio`, else `Diligence`, including Committed), `Opportunity` relation → the Opp, then link it on the Opp's `✍️ Notes` relation (fetch current array, append, write back in one call).
 
 **Dedup / no double-notes:** the scanner's own outbound handler (`feedback-outreach-sent-detect`) runs when Tom later sends the draft; its dedup reads the Opp's `✍️ Notes` and matches the title with-or-without the `[PENDING]` prefix, so it recognizes the note this step created and exits without duplicating. That mutual dedup is what keeps the manual-draft path and the webhook path consistent — never add a second, differently-shaped note.
 

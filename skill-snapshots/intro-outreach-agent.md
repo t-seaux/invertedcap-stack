@@ -3,15 +3,18 @@ name: intro-outreach-agent
 description: >
   Detect when Tom has reached out to people and move them to ☎️ Intros (Outreach) on the relevant Opportunity.
   Intros can be to ANYONE — investors, customers, advisors, talent, partners — not just VCs.
-  Two modes: (1) Scheduled scan — scans Gmail sent mail for outreach to anyone in 👓 Intros (Qualified), plus
+  Three modes: (1) Scheduled scan — scans Gmail sent mail for outreach to anyone in 👓 Intros (Qualified), plus
   a subject-line scanner that catches outreach sent without a prior Qualified entry. (2) Manual trigger — when
   Tom says "I reached out to X", "I emailed X about [company]", "log the notes I sent to VCs about [company]",
   "log these as outreach", or any variant confirming he initiated contact. In manual mode, if Tom references a
   batch of sent emails, scan Gmail to resolve the recipient list and write them directly to ☎️ Intros (Outreach)
   — no prior Qualified entry required. Trigger on: "outreach", "reached out", "pinged", "emailed", "contacted",
   "move to outreach", "sent intro", "notes I sent", or any message indicating Tom contacted
-  people in the context of a specific opportunity.
+  people in the context of a specific opportunity. (3) Webhook job `mode: resolve-unresolved` — see
+  references/resolve-unresolved.md.
 ---
+
+> **`mode: resolve-unresolved` job?** Read `references/resolve-unresolved.md` and follow ONLY it.
 
 # Intro Agent — Outreach Scanner
 

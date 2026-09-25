@@ -143,6 +143,7 @@ When in doubt, return one company. False fan-out creates ghost Opps Tom has to c
 ### Step 3: Gate on classification
 
 - **`knownTerminalOpp` present → the revive path, BEFORE any of the gates below (Tom, 2026-09-22, Solid Credit).** A founder whose Opp Tom already closed out is writing in again. Ignore `is_deal` / `is_update_not_pitch` / `confidence`; ask only: does the email carry **new company signal** — a raise starting or planned, a deck or materials (attachment or `materialUrls`), a pivot, traction, or an ask for Tom's time *about the company*? If YES → enqueue `add-to-crm` (Step 4) with the extracted fields plus `knownTerminalOpp` passed through verbatim; add-to-crm's Protected Status Guard runs the Revive Gate v2 (enrich the existing row now, 🔁 text card for the status flip). Log `terminal-contact-revive-route opp=<name> status=<status>`. If NO (pure scheduling, social, thanks) → log `terminal-contact-no-signal` and exit 0. Never mint a new Opp for this sender.
+- **Blurb capture (every skip exit in this step):** before exiting, run `~/.claude/skills/shared-references/blurb-capture.md`. If the sender maps to an existing Opp AND the email carries a founder / intro-er blurb, enqueue `log-company-blurb` headless. That skill logs the blurb verbatim and alerts Tom. (Thermis, 2026-09-24: Emily's forwardable blurb was classified not-deal and dropped.)
 - `is_deal: false` → log `not-deal` with the reason and exit 0.
 - `is_update_not_pitch: true` → log `update-not-pitch-skip` and exit 0, regardless of confidence. Founder updates route through `investor-update`, never through add-to-crm.
 - `is_deal: true` AND `confidence: low` → log `low-confidence-skip` and exit 0. (Tom would rather miss a deal than create a noisy entry.)
@@ -227,7 +228,7 @@ The helper reads `$CLAUDE_JOB_QUEUE_SECRET` from env (injected by `processor.py:
 
 4. After the loop, log a single summary line: `fan-out-complete companies=<N> enqueued=<E> already=<A> failed=<F>`.
 
-`add-to-crm` itself owns the Slack alert for created/deduped/blocked outcomes (its own Step 8). This skill does NOT post a Slack alert when it enqueues successfully — the alerts come from the follow-on jobs (one per company). For multi-company digests, `add-to-crm` reads `batchContext` and tags its alert with the batch position so Tom can correlate the N Slack messages back to the digest email.
+`add-to-crm` owns the outcome notification: a NEW deal → a 🆕 TEXT card to Tom (add-to-crm Step 4T; the row is created only on his 👍, then its Step 8 Slack alert fires — Tom 2026-09-24, twin of the Dash lane); duplicate/protected → its Step 8 Slack alert. This skill does NOT post a Slack alert when it enqueues successfully — the alerts come from the follow-on jobs (one per company). For multi-company digests, `add-to-crm` reads `batchContext` and tags its alert with the batch position so Tom can correlate the N Slack messages back to the digest email.
 
 ### Step 5: Report to Slack (skip-paths only)
 
@@ -239,7 +240,7 @@ For the gated paths, post:
 - `is_deal: true, confidence: low` — suppress silently (exit 0).
 - `is_deal: true, no company extracted` — `🏢 <u>**New Deal Classifier: <subject>**</u> — ⚠ high-confidence positive but couldn't extract company name; manual triage needed. <gmail message URL>`
 
-Successful-enqueue path: no Slack post here. `add-to-crm` owns the outcome notification when it processes the follow-on job: a 🆕/🛡️ Slack alert for created / portfolio-protected outcomes, or — when the match is a **terminal/pass Opp** — the Revive Gate v2 path (`shared-references/revive-gate.md`): add-to-crm enriches the existing row at detection (materials chip with its own Slack alert, dated body update, Stage/Round Details from the deck) and texts Tom a 🔁 revive card for the status flip. There is no ⛔ Slack post for that case, and this skill posts nothing either way.
+Successful-enqueue path: no Slack post here. `add-to-crm` owns the outcome notification when it processes the follow-on job: a 🆕 TEXT card for a new deal (Step 4T — created on Tom's 👍), a 🛡️ Slack alert for portfolio-protected outcomes, or — when the match is a **terminal/pass Opp** — the Revive Gate v2 path (`shared-references/revive-gate.md`): add-to-crm enriches the existing row at detection (materials chip with its own Slack alert, dated body update, Stage/Round Details from the deck) and texts Tom a 🔁 revive card for the status flip. There is no ⛔ Slack post for that case, and this skill posts nothing either way.
 
 ### Step 6: Exit
 
