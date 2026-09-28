@@ -1,9 +1,11 @@
 ---
 name: outreach-detector
-description: Flip an Opportunity's Status from Qualified or Track to Outreach when Tom sends a message that matches the Opp AND the message reads as opt-in intent (not a decline, not neutral logistics). Mode B (webhook) fires automatically via gmail-webhook on every SENT message and uses the shared `classifyOutboundIntent` (Haiku→Sonnet, CacheService-memoized — outreach-decliner runs first in the chain and pays the LLM cost; detector reads the cache). Mode C (manual) lets Tom log an opt-in after the fact and skips the intent gate. Trigger phrases for manual mode: "I opted in to [company]", "log my opt-in to [company]", "flip [company] to Outreach", "move [company] from Qualified to Outreach", "I reached out to [company]", or any variant confirming Tom initiated a connection. Does NOT fire on demotions, refreshes, or Opps past Outreach (Connected/Scheduled/Active/terminal stay put).
+description: Flip an Opportunity's Status from Qualified or Track when Tom sends a message that matches the Opp — to Connected when he is replying to a founder already in the thread (any non-decline reply), else to Outreach when the message reads as opt-in intent (not a decline, not neutral logistics). Mode B (webhook) fires automatically via gmail-webhook on every SENT message and uses the shared `classifyOutboundIntent` (Haiku→Sonnet, CacheService-memoized — outreach-decliner runs first in the chain and pays the LLM cost; detector reads the cache). Mode C (manual) lets Tom log an opt-in after the fact and skips the intent gate. Trigger phrases for manual mode: "I opted in to [company]", "log my opt-in to [company]", "flip [company] to Outreach", "move [company] from Qualified to Outreach", "I reached out to [company]", or any variant confirming Tom initiated a connection. Does NOT fire on demotions, refreshes, or Opps past Outreach (Connected/Scheduled/Active/terminal stay put).
 ---
 
 # outreach-detector
+
+> **Founder-direct replies → `Connected`** (2026-09-26): when Tom replies to a founder who already wrote into the thread, the Opp moves to `Connected` on any non-decline reply; replies to a referrer stay opt-in → `Outreach`. Rule: `shared-references/opp-status-sets.md` § "New-deal card 👍 and the reply that advances it"; code: `isReplyToFounderInThread_` in `outreach-detector.js`.
 
 Flip an Opportunity's Status from **Qualified or Track → Outreach** whenever Tom initiates or affirms a connection attempt on the deal. Status `Outreach` is a unified bucket per `reference_outreach_status_semantics.md` — it covers:
 
@@ -70,6 +72,32 @@ Execute:
    [Open in Notion]({opp.url})
    ```
 5. **Confirm.** One-line reply to Tom: `Flipped {Opp name} · Qualified → Outreach.`
+
+### Mode D — Dash lane (queue job, `lane: "dash"`)
+
+Twin of Mode B for Tom's sent **tom@dashfund.co** mail, which has no Gmail webhook. Enqueued by
+`~/.claude/scheduled-tasks/outlook-mail-watch/dash-reply-status.sh` (rider on the Dash watcher)
+with `{lane:"dash", rowid, opp:{id,url,name,status,contact,website,thread}, founder_in_thread, recipients}`.
+The rider already matched the Opp (Source Thread ID `dash:<Message-Id>`, Contact, or domain) and
+resolved `founder_in_thread` in code — do not re-derive either.
+
+1. **Re-read the Opp's live Status** (`ntn api /v1/pages/<opp.id>`). Proceed only if it is still
+   `Qualified`, `Track` or `Outreach`; otherwise exit (log `not-flippable`).
+2. **Read Tom's reply** — the TCC read stays in bash: `F=$(find ~/Library/Mail/V10/0459D8B7-6B8C-424A-B393-1BF630E7987A -name "<rowid>.emlx" -o -name "<rowid>.partial.emlx" | head -1); cat "$F" | python3 ~/.claude/scheduled-tasks/outlook-mail-watch/emlx_body.py`. Use only Tom's new text above the quoted `On … wrote:` block.
+3. **Classify** Tom's text as `decline` / `opt-in` / `neutral` with a confidence, using the same
+   rubric as `gmail-webhook/outbound-intent.js` (decline = passing on the deal or the intro;
+   opt-in = yes to the intro / meeting / next step; neutral = logistics, thanks, FYI).
+4. **Apply** `shared-references/opp-status-sets.md` § "New-deal card 👍 and the reply that advances
+   it" — one write, `ntn api -X PATCH /v1/pages/<id>` with the full status object:
+   - `decline` ≥ 0.85 → Decline target (`Track` → `Pass (Met)`; else `Pass (DNM)`)
+   - else `founder_in_thread` and not a decline → `Connected` (only from Qualified/Track/Outreach)
+   - else `opt-in` ≥ 0.85 and status ∈ {Qualified, Track} → `Outreach`
+   - else no change.
+5. **Alert** via `send-alert` exactly like the webhook: `🤝 <u>**Opted In: <Opp>**</u>` /
+   `🤝 <u>**Connected: <Opp>**</u>` / the decliner's pass headline, then `<from> → <to>` and
+   `[Open in Notion](<url>)`. No change → no alert.
+6. Audit line per SHARED_SAFETY.md; a run that can't read the email or write Notion ends with
+   `JOB_FAILED:` (`shared-references/headless-gmail.md` H3).
 
 ## What this skill does NOT do
 

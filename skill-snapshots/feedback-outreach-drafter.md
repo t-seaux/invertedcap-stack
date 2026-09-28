@@ -6,6 +6,8 @@ description: >
 
 # Feedback Outreach Drafter (Backchannel Notes)
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Draft feedback outreach notes (also known as backchannel notes) — diligence feedback request emails to expert contacts in Tom's network, using materials from the Notion opportunity to populate the company blurb and tailor the questions. Then log each recipient on the opportunity's `📣 Pending Feedback` relation field.
 
 ## People DB Guardrails (MANDATORY)

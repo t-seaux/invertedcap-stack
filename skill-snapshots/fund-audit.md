@@ -14,6 +14,8 @@ description: >-
 
 # Fund Audit — cycle playbook
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 One skill per audit *cycle type*, accreting steps as the arc unfolds. The 2026 Inverted Capital
 Fund I audit is the seed cycle; future cycles (and eventually Dash, admin = Carta) reuse and
 extend this file.

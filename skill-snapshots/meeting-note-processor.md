@@ -233,6 +233,19 @@ Opportunity relink (Step 4) use title + body and do NOT depend on the transcript
 single fetch with the param covers both needs at the same cost. Do NOT re-fetch later for the
 transcript — one fetch, transcript included.
 
+**Transcript-missing HALT (hard gate, added 2026-09-25):** Step 6 (Live Company Updates) and
+Step 5d NEVER run from the note body alone. claude.ai connectors (Notion MCP) load async in
+headless `claude --print` — if `notion-fetch` isn't in your tool list, call ToolSearch
+(`select:mcp__claude_ai_Notion__notion-fetch`), which waits for still-connecting servers, before
+concluding anything. `ntn` / REST return only the transcript placeholder, so they are NOT a
+fallback. If the fetch still can't return a `<transcript>` block (tool absent after ToolSearch, or
+placeholder only), finish Steps 3–5c (link, category) and then STOP before 5d/6: no Company
+Updates write, no Artifacts marker. The missing marker makes the nightly
+`meeting-note-processor-sweep` re-run the note. Alert: `⚠ Transcript not fetched — Live
+section deferred to tonight's sweep` (state the actual error). Never say "transcript unavailable"
+when the note has one. (Quiet Software, 09-25: a body-only Call section misattributed Tom's
+framing to the founders and said "testing Carbon" when they hadn't.)
+
 ### Step 1: Read the note + body
 
 Fetch the page via `notion-fetch` with **`include_transcript: true`**, including the page body

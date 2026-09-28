@@ -1,5 +1,23 @@
 # Changelog
 
+## [2026-09-28] (Week of 2026-09-28)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm -- new-deal text cards now always land the 👍 on Qualified status; the confirm handler advances further if Tom already replied in-thread
+- add-to-crm-detect, inbound-deal-detect -- switched inbound email fetch from a live Gmail MCP thread lookup to a headless read path for reliability when the MCP isn't attached
+- investor-update -- reformatted the single-update Slack alert to a headline-plus-body layout (previously one combined line)
+- materials-handler -- an email body is no longer converted to PDF when it's just a wrapper around a linked or attached artifact; the linked artifact is converted instead
+- neg1-promote -- added a headless thread-read fallback for source-thread fetches (used by the neg1-sourcing-listener path)
+- outreach-detector -- now flips a Qualified/Track Opp to Connected (not just Outreach) when Tom's sent message is a reply to a founder already in the thread
+- pipeline-agent -- the evening sweep no longer auto-creates Opportunities; it routes new deals through Tom's 👍-gated text card instead, matching the webhook lane
+- add-to-contacts, coinvestor-recommender, dash-deal-detect, deal-share-out, feedback-outreach-drafter, founder-outreach, fund-update-drafter, intro-draft-agent, intro-outreach-drafter, intro-status-summary, log-deal-share, pass-note-drafter, soi-refresh-inputs, talent-scan -- documented a headless Gmail fallback path for reliability when the Gmail MCP isn't attached (no behavior change)
+**Total skills:** 58
+**Functions:** No changes
+
+---
+
 ## [2026-09-25] (Week of 2026-09-21)
 
 **Added:** None

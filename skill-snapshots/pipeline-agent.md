@@ -132,7 +132,7 @@ New Opportunity Defaults (for notion-create-pages with parent data_source_id "fa
 
 Spawn with `Task` tool. Include the shared Notion context block above in the prompt, plus:
 
-**Goal**: Scan Gmail inbox and iMessages for new deal/investment opportunities received today, auto-create Notion entries for genuinely new deals.
+**Goal**: Scan Gmail inbox and iMessages for new deal/investment opportunities received today that the real-time lanes missed, and route each genuinely new deal to Tom's 🆕 text card. **This task NEVER creates an Opportunity** (Tom, 2026-09-26: *"the evening sweep should still require my explicit approval"*) — every new deal needs his 👍, same as the webhook lane.
 
 **Steps**:
 1. Search Gmail for today's emails that look like deals. Queries: `"intro" newer_than:1d`, `"deal" newer_than:1d`, `"raising" newer_than:1d`, `"pitch" newer_than:1d`, `"invest" newer_than:1d`, `"pre-seed OR seed" newer_than:1d`
@@ -172,7 +172,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    - When in doubt, err on the side of NOT creating a duplicate — flag it in the summary for Tom's manual review instead ("flagged for review: [name] — possible duplicate?")
 
    **PRE-CREATION NAME-MATCH GATE (hard block — runs after both layers):**
-   Before calling `notion-create-pages` for ANY new opportunity, you MUST have executed both Layer A and Layer B with zero matches. If you skipped either layer or encountered an error querying a view, treat the deal as unverified and flag it for manual review — DO NOT create the entry. This gate is non-negotiable and cannot be short-circuited for context budget reasons. If context is tight, skip creation and flag rather than skip dedup.
+   Before enqueueing ANY deal for Tom's 🆕 card (Step 7), you MUST have executed both Layer A and Layer B with zero matches. If you skipped either layer or encountered an error querying a view, treat the deal as unverified and flag it for manual review — DO NOT enqueue it. This gate is non-negotiable and cannot be short-circuited for context budget reasons. If context is tight, skip creation and flag rather than skip dedup.
 
    **Name-matching rules for Layer A:**
    - Strip all leading emoji characters and whitespace from both the candidate name and every existing entry's Name field before comparing
@@ -181,11 +181,17 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    - Also match on Founder First Name(s): if the sender's first name matches any existing entry's Founder First Name(s) field, treat as a strong signal and search further before creating
 
 5. **Status Default Rule (STRICT — no improvisation)**:
-   New entries created by Task 1 ALWAYS get `Status: Qualified`. The sub-agent must NOT assign alternative statuses like Track, Connected, Outreach, or any other value. If the email doesn't look like a real deal that warrants Qualified status, the correct action is to SKIP creation entirely (per the Deal Classification Gate in Step 3), NOT to create with a softer status. Similarly, do NOT hallucinate Round Details, Stage, or other fields — only populate them if the email contains explicit, unambiguous information (e.g., "raising $2M on a $10M cap" → Round Details: "$2m on $10m cap"). If no fundraising terms are mentioned, leave Round Details blank.
+   Task 1 never writes Status — the 🆕 card's 👍 creates at `Qualified` (`shared-references/opp-status-sets.md` § "New-deal card 👍 and the reply that advances it"). The sub-agent must NOT assign alternative statuses like Track, Connected, Outreach, or any other value. If the email doesn't look like a real deal that warrants Qualified status, the correct action is to SKIP creation entirely (per the Deal Classification Gate in Step 3), NOT to create with a softer status. Similarly, do NOT hallucinate Round Details, Stage, or other fields — only populate them if the email contains explicit, unambiguous information (e.g., "raising $2M on a $10M cap" → Round Details: "$2m on $10m cap"). If no fundraising terms are mentioned, leave Round Details blank.
 
-6. Before creating, extract as much deal metadata as possible from the email: Website (from email body links or founder email domain if it's a company domain), Round Details (raise amount — see formatting rules in defaults), and HQ (from founder LinkedIn location if a LinkedIn URL is in the email — do a web_fetch on it to check their location). If no LinkedIn URL is present, check the email body and company website for location signals.
-7. Create new opportunities using defaults from context block. If referrer identifiable, search People DB and resolve Source(s). In the page content, if any diligence materials links are present in the source email (DocSend links, Google Drive deck links, Dropbox links, or any other document/deck URLs), add a **Diligence Materials** section to the page body with each link as a labeled bullet (e.g. `- [Founder Memo (DocSend)](https://...)`). Note: the Notion "Diligence Materials" Files property cannot accept external URLs via the API, so always put these links in the page content body instead.
-8. Return concise summary (under 500 chars): new deals created, existing deals found, skipped (with reasons: founder update / LP / duplicate), iMessage status, errors.
+6. **Skip anything already proposed.** A deal whose Gmail `threadId` appears in `~/.claude/skills/inbound-deal-detect/.proposed`, or that matches a payload in `~/.claude/skills/deal-text-scanner/staged/*.json`, is already awaiting Tom's 👍 — note it as "pending Tom's 👍: <name>" and do nothing.
+7. **Route every net-new Gmail deal to the text-card gate — never `notion-create-pages`.** Enqueue the SAME job the gmail-webhook would have run, with the SAME idempotency key so the queue drops it if the webhook already did:
+   ```bash
+   ~/.claude/scripts/enqueue-job.sh inbound-deal-detect \
+     "$(jq -cn --arg m <messageId> --arg t <threadId> --arg e <senderEmail> --arg n "<senderName>" '{messageId:$m, threadId:$t, senderEmail:$e, senderName:$n}')" \
+     "inbound-deal-detect-<messageId>" 1500 pipeline-deal-scanner evening-sweep
+   ```
+   `inbound-deal-detect` runs the full classifier + add-to-crm dedup/enrichment and ends at add-to-crm Step 4T: the 🆕 text card. Forwarded / referral shapes are resolved there from the email itself — pass only the envelope sender. **iMessage deals:** do not enqueue or create — `deal-text-scanner` owns the text lane and cards them; just list them in the summary.
+8. Return concise summary (under 500 chars): new deals sent for Tom's 👍 (enqueued), pending 👍 (already proposed), existing deals found, skipped (with reasons: founder update / LP / duplicate), iMessage status, errors.
 
 ## Task 2: Qualified Triage
 

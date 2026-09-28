@@ -7,6 +7,8 @@ description: |-
 
 # Deal Share Out
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Tom kicks a deal from his pipeline over to another firm. The output is a single Gmail **draft**
 sitting in his drafts folder for review — this skill never sends, and never writes to Notion.
 

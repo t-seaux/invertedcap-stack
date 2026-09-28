@@ -7,6 +7,8 @@ description: |-
 
 # Investor Recommender
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 This skill runs in **two modes.** Detect which from Tom's ask; **default to Mode A.**
 
 - **Mode A — Coinvestors (default):** who fills the **pre-seed round Tom is leading now** — friendly

@@ -16,6 +16,8 @@ description: >
 
 # Dash Deal Detect — 🆕 CRM proposal cards from the Dash inbox
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 The Dash-email counterpart to [[deal-text-scanner]]'s deal lane. Same downstream contract
 (🆕 text card → Tom's 👍 → `sms-listener` writes the CRM row), different source (Dash email via
 the local Apple Mail store, not iMessage / not the Gmail API). Fund model:

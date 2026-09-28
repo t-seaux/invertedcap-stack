@@ -7,6 +7,8 @@ description: |-
 
 # Intro Status Summary
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Produce a founder-facing status email covering every intro Tom has been running for one
 Opportunity: who's connected, who passed (and their verbatim reasoning — useful market
 feedback for the founder), and who hasn't responded yet. Output is a **Gmail draft** (never

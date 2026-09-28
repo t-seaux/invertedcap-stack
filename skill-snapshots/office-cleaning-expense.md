@@ -103,7 +103,7 @@ must match.
 
 Two events drive everything, both read from the Lupe iMessage thread:
 
-1. **Cleaning confirmation** (Lupe: "the office is clean" etc.) → create the
+1. **Cleaning confirmation** (Lupe: "the office is clean", "it's ready", "done cleaning" — see `CLEAN_RE` in `check_lupe_paid.py`) → create the
    pay reminder. **Do NOT write to the sheet yet.**
 2. **Payment** (Tom sends $100 Apple Cash — renders as an attachment-only
    `You:` message after a confirmation) → NOW log that cleaning to the sheet

@@ -5,6 +5,8 @@ description: "Run all of Tom's scheduled tasks in a single session without overf
 
 # Run-All Task Orchestrator
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Execute all of Tom's grouped agents sequentially, each in its own isolated sub-agent context. This prevents context window overflow that occurs when running all tasks in a single session.
 
 ## Architecture

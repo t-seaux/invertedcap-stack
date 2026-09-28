@@ -5,6 +5,8 @@ description: "Processes thread replies in #claude-alerts and #personal-alerts as
 
 # Claude Alerts Listener
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 When Tom replies to an alert in `#claude-alerts` — or `#personal-alerts` (private, `C0BKZ2L0BDK`; personal-life alerts incl. the coop-finances monthly drop, routed here by slack-retro-webhook since 2026-07-27) — act on his feedback. Claim the job with a 👀 reaction as your very first action (Step 0 below), so Tom sees that this skill — not just the Worker — has picked it up. Then do the work and post a close-loop reply.
 
 **Webhook-only.** No sweep mode, no manual mode. Invoked exclusively by the claude-job-queue processor dispatching jobs from `slack-retro-webhook`.

@@ -1,9 +1,11 @@
 ---
 name: add-to-crm-detect
-description: "Webhook-triggered handler for Tom's explicit \"add to crm\" email command. Fetches the target message via `get_thread(threadId)`/`messageId`, confirms the command came from Tom's own text (not quoted content), extracts the underlying deal material (forwarded email block, screenshot attachment, or plain pasted text), and runs the full `add-to-crm` workflow end to end. Not user-facing — invoked exclusively by `gmail-webhook/add-to-crm-detect.js` via the `claude-job-queue` primitive. Never trigger manually; for ad-hoc CRM creation in a live conversation use `add-to-crm` directly."
+description: "Webhook-triggered handler for Tom's explicit \"add to crm\" email command. Fetches the target message headlessly (`admin_run.py _readThread`, per shared-references/headless-gmail.md) by `messageId`, confirms the command came from Tom's own text (not quoted content), extracts the underlying deal material (forwarded email block, screenshot attachment, or plain pasted text), and runs the full `add-to-crm` workflow end to end. Not user-facing — invoked exclusively by `gmail-webhook/add-to-crm-detect.js` via the `claude-job-queue` primitive. Never trigger manually; for ad-hoc CRM creation in a live conversation use `add-to-crm` directly."
 ---
 
 # Add to CRM Detect (Webhook)
+
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
 
 Tom forwards an email — or composes a fresh one with a screenshot attached — from one of his own addresses (`tom@invertedcap.com`, `tom@dashfund.co`, `thomas.seo@outlook.com`, `tseo@primary.vc`) into the watched inbox, and writes "add to crm" somewhere in his own text. That's an explicit command, not an inferred signal. Unlike `inbound-deal-detect`, there is no classification step here — the phrase match already is the decision. This skill's job is purely mechanical: recover the actual deal material from whatever shape the email arrived in, then hand it to `add-to-crm` exactly as if Tom had pasted it into a live chat and said "add to crm."
 

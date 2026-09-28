@@ -5,6 +5,8 @@ description: Log a deal share — a pipeline/dealflow list an investor or firm s
 
 # Log Deal Share
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 An investor shares their dealflow pipeline with Tom, usually as a reciprocal-sourcing gesture ("send us anything raising pre-seed/seed and we'll do the same"). This skill captures the email **and** the shared materials as a single self-contained Notion note, so the pipeline is searchable later without going back to the sender's link — which will have gone stale or been overwritten in place.
 
 **Notes database data_source_id:** `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`

@@ -7,6 +7,8 @@ description: |-
 
 # Intro Outreach Drafter
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Drafts the **first-touch intro-request note** Tom sends to his network to gauge interest before a
 formal intro. Parallel to `feedback-outreach-drafter`: this skill DRAFTS; the existing
 `intro-outreach-agent` DETECTS the send and advances the pipeline.

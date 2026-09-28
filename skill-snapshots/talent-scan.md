@@ -5,6 +5,8 @@ description: Match Tom's network against open roles a portfolio (or any) company
 
 # talent-scan — JD → Network Candidate Match
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Find people in Tom's cached LinkedIn network who fit roles a company is hiring for. This is a hiring-specific wrapper over the `network_cache.py` search primitives documented in `network-scan/SKILL.md` — read that file for the full `vsearch` / `csearch` / `query` flag reference. This skill adds: JD ingestion, exemplar calibration, per-role profile construction, and by-role ranked output.
 
 Manual/conversational only (no scheduled or webhook entry point).

@@ -5,6 +5,8 @@ description: Draft an outbound fund / portfolio update — the email Tom sends a
 
 # Fund / Portfolio Update Drafter
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Draft the outbound email Tom sends when someone asks for an update on his fund(s). Born from the Jim Lim reply (Sep 2026); refine here as the template evolves.
 
 ## Step 0 — Scope

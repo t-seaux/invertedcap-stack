@@ -56,7 +56,7 @@ Fetch the matched page with `mcp__claude_ai_Notion__notion-fetch`. Read:
 
 ### Step 3 (optional): Extract from source thread
 
-If `source_thread_id` is provided, fetch the full thread with `mcp__claude_ai_Gmail__get_thread` (`messageFormat: FULL_CONTENT`).
+If `source_thread_id` is provided, fetch the full thread with `mcp__claude_ai_Gmail__get_thread` (`messageFormat: FULL_CONTENT`). Headless (e.g. via neg1-sourcing-listener): `admin_run.py _readThread <source_thread_id>` per `shared-references/headless-gmail.md`.
 
 Scan the latest message(s) from the founder for:
 

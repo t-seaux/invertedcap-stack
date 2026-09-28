@@ -12,6 +12,8 @@ description: >-
 
 # Add to Contacts
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Create a new entry in the Notion People database from a LinkedIn profile or other contact source.
 
 ## Overview

@@ -5,6 +5,8 @@ description: Log a new company blurb (Company Overview) to an Opportunity page i
 
 # Log Company Blurb
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Log a company blurb to its Opportunity page using the canonical blurb-versioning format. The page shows exactly one current blurb (default-background 📚 callout) and hides all history behind one toggle.
 
 ## Canonical format (target state of every page)
@@ -55,14 +57,28 @@ Enqueued by the lane classifiers per `shared-references/blurb-capture.md`. Args:
 4. **Dedup.** If the current callout (or that audience variant) already holds this exact text, log
    `blurb-unchanged` and exit 0 without alerting.
 5. Run Workflow steps 2–5 below with this text. Resolve the Opp by `oppId` directly.
-6. **Alert Tom** on the source surface. An email lane goes to Slack via `send-alert/send.sh`; the text
-   lane gets a text via `send_imessage.sh`:
+6. **Alert Tom** on the source surface, using that lane's render. Same content and emoji (🏢, every
+   run) in both; only the markup differs.
+
+   **Email lanes (invertedcap + Dash) → Slack** via `send-alert/send.sh`:
    ```
-   🏢 Blurb Logged: [Company]
+   🏢 <u>**Blurb Logged: [Company]**</u>
+
    • Opp: [Company](<opp url>)
    • From: [Sender] – [email subject](<gmail link>)
    • Blurb: "<first sentence of the blurb, verbatim>"
    • Filed as: general | for [Audience]; prior version moved to History (or "first blurb")
+   ```
+
+   **Text lane → iMessage** via `send_imessage.sh` (plain: no `<u>**…**</u>`, no markdown links;
+   bare URL + ` ↗`, never message-final):
+   ```
+   🏢 Blurb Logged: [Company]
+
+   From: [Sender] · Filed as: general | for [Audience]
+   "<first sentence of the blurb, verbatim>"
+   <opp url> ↗
+   ✓ Prior version moved to History (or "✓ First blurb")
    ```
 
 ## Workflow

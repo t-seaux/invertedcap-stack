@@ -7,6 +7,8 @@ description: |-
 
 # Investor Update Processor (Portfolio Companies)
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Process investor update emails **and board materials** from portfolio companies and roll them into the Company Updates Notion database, linked to the correct Opportunity via a dual relation.
 
 > **Single-row model (v2, Jul 2026).** The Company Updates DB holds **one row per Company × Period label** — that row aggregates formal letters, board decks, AND live call content for the period. This skill never creates a standalone page per email; it **upserts a dated Formal section into the period row** (creating the row only if absent). The canonical design lives in `~/.claude/skills/shared-references/company-updates-db.md` — read it before writing.
@@ -145,7 +147,7 @@ On this variant: **do not use the Gmail MCP.** Fetch the body via `~/.claude/scr
 - Run the same artifact-level idempotency check (Step 4 — has this message already been incorporated into its period row?). If yes, log and exit without re-uploading the PDF.
 - Skip Step 1's portfolio-list query and per-company searches entirely — those exist for the scheduled mode.
 - Otherwise proceed through Steps 2–5 unchanged. The Slack alert in Step 5 is the single notification for this update — the webhook does not post its own alert in this path.
-- Single-message alert format (override Step 5's batch format): one line, same shape as a row in the batch — `📬 **<Company>** — "<subject or period>" — <PDF source>. [<Company> update](https://www.notion.so/{page_id_no_dashes})`. The Notion link MUST be a GFM markdown link `[label](url)` — never a bare URL (a bare URL ships as plain, un-tappable text through the Block Kit converter). Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
+- Single-message alert format (override Step 5's batch format): headline + one body line (the runtime lint wraps the ENTIRE first line, so nothing may trail the headline): `📬 <u>**<Company>: "<subject or period>"**</u>`, blank line, then `<PDF source>. [<Company> update](https://www.notion.so/{page_id_no_dashes})`. The Notion link MUST be a GFM markdown link `[label](url)` — never a bare URL (a bare URL ships as plain, un-tappable text through the Block Kit converter). Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
 
 ### Mode C: Manual / Forwarded Email
 
@@ -250,9 +252,11 @@ Evaluate the email content to determine which case applies, checked in this orde
 
 > **⚠️ ALWAYS probe for attachments first.** Run the Gmail Attachment Saver on the target message unconditionally *before* considering Case B / C / D / E — even when the email body shows a Google Doc/Slides link or appears to be pure prose. Tom frequently forwards investor updates with the PDF attached (and texts himself board deck PDFs alongside the Slides share notification). The `plaintextBody` returned by the Gmail MCP hides attachments behind the `￼` (object-replacement) placeholder glyph, so the only reliable signal is probing the message with the Attachment Saver. Jumping straight to Case B/D when you see a Google Doc/Slides link duplicates work Tom already did and is a regression. If the saver returns a PDF, use Case A and stop. Only fall through to Case B / Case C / Case D / Case E / Case F (linked Notion page) if the saver returns zero files.
 
+> **✂️ COVER-NOTE-ONLY BODY → NO EMAIL-BODY PDF (Tom, 2026-09-25).** Before rendering any email-body PDF, measure the body's substance: strip forward chrome, greeting, sign-off, signature block, and mailing-list / unsubscribe / confidentiality footers. If what remains is only a pointer to the real artifact — "you can access the update here [link]", "attached is our Q3 update", "TL;DR is inside", thanks-for-the-support — with **no standalone facts** (no metrics, news, hires, asks, or narrative that isn't a teaser for the artifact), the body is a cover note. **Do NOT render or upload an email-body PDF.** The artifact's PDF (DocSend → PDF, attachment, Doc/Slides/Notion export) takes the canonical unsuffixed `[Company] - [Mon] [YYYY] Update.pdf` name, the 📄 slot (Step 4d), and the first Artifacts chip (Step 4.5). The cover note's text still goes verbatim into the Formal section body and the Gmail link stays on the heading — only the redundant PDF is dropped. Precedent: Clusia Sep '26 Update (#3) — body was "access the update here [DocSend]"; the DocSend PDF is the update, the email PDF was noise. If the body carries any real content alongside the link, it's not cover-only — render it as usual.
+
 ### Case A: PDF attachment exists
 
-**⚠️ DUAL-PDF MANDATE.** Case A produces TWO PDFs in Drive (and TWO Artifacts entries on the Notion page), not one: the saved attachment AND a rendered PDF of the email body itself. The email body is the canonical update narrative — Tom reads the email-body PDF first; the attachment (deck, financials, etc.) is supplementary. Skipping the email-body render leaves the entry's Artifacts pointing only at the supplement and forces Tom back to Gmail to read the actual update.
+**⚠️ DUAL-PDF MANDATE (unless cover-note-only — see ✂️ above).** Case A produces TWO PDFs in Drive (and TWO Artifacts entries on the Notion page), not one: the saved attachment AND a rendered PDF of the email body itself. The email body is the canonical update narrative — Tom reads the email-body PDF first; the attachment (deck, financials, etc.) is supplementary. Skipping the email-body render leaves the entry's Artifacts pointing only at the supplement and forces Tom back to Gmail to read the actual update. When the body is cover-note-only, skip Step A-2 and name the attachment itself `[Company] - [Mon] [YYYY] Update.pdf`.
 
 **Step A-1: Save the attachment.**
 
@@ -454,7 +458,7 @@ The Company Updates DB (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`) hol
 
 For non-email origins (iMessage / manual uploads), fall back to checking the row body for the same 📄 PDF filename link.
 
-**Step 4d — Insert the dated Formal section at the TOP of the body.** Formal text always leads the row — insert this section above everything (older formal sections and all call sections). Transport: REST children-PATCH with `after: ""` (see "Positioned inserts – transport mechanics" in the shared reference — public API only, never report ordering as blocked). Formal sections order newest-first among themselves; call sections live below the formal zone. Section shape:
+**Step 4d — Insert the dated Formal section at the TOP of the body.** Formal text always leads the row — insert this section above everything (older formal sections and all call sections). Transport: REST children-PATCH with `"position": {"type":"start"}` (Notion-Version `2025-09-03`; never `after: ""`, which 400s) (see "Positioned inserts – transport mechanics" in the shared reference — public API only, never report ordering as blocked). Formal sections order newest-first among themselves; call sections live below the formal zone. Section shape:
 
 ```
 ### {Mon DD} – Formal Update ([Email](https://mail.google.com/mail/u/0/#inbox/{message_id}))
@@ -563,7 +567,7 @@ The dated Formal section (Step 4d) follows these rules:
 
 - The `### {Mon DD} – Formal Update ([Email](gmail-url))` heading comes first — en dash, Gmail thread URL as the `Email` link. Board materials: `### {Mon DD} – Board Meeting ([Email](...))`.
 - Immediately under the heading, a clickable link to **this email's body-PDF file** (the canonical `[Company] - [Mon] [YYYY] Update.pdf` produced in Step A-2 / Case C), prefixed with the 📄 emoji. Link text = the PDF filename, URL = the file's Drive view URL. Example: `📄 [Quiet AI - Jan 2026 Update.pdf](https://drive.google.com/file/d/1abc.../view)`.
-- **The 📄 link is ALWAYS the email-body PDF — never the attachment / deck / financial-plan / any other artifact.** Non-negotiable. When the email body is short or near-empty (forwarded signature-only message, Slides-share notification), STILL render an email-body PDF — even minimal — and link THAT. Attachments/decks live in the Artifacts chips, not the 📄 slot. A header-only email-body PDF is acceptable; an attachment in the 📄 slot is not.
+- **The 📄 link is the email-body PDF — never a supplementary attachment / deck / financial-plan.** Attachments/decks live in the Artifacts chips, not the 📄 slot. **Exception — cover-note-only body (Step 3 ✂️ rule):** when the email is just a pointer to the update (DocSend/Doc/Notion link, "see attached"), no email-body PDF exists; the 📄 link is the update artifact's PDF (the one named `[Company] - [Mon] [YYYY] Update.pdf`).
 - The parent-folder Drive URL is NOT linked (reachable via the PDF's Drive breadcrumb).
 - **No divider** between the 📄 link and the email body — content starts on the next line. The full verbatim body uses the original structure: sub-headers, bullets, **bold**. Use `##`-level headers only if the email itself has major sections; they nest visually under the `###` section heading, which is fine.
 - **No From/To/Date metadata block** — the section heading date + Email link carry it.
@@ -602,7 +606,7 @@ pages: [{
 }]
 ```
 
-**Row exists (upsert):** (a) insert the Formal section at the top of the body via REST `PATCH /v1/blocks/{page_id}/children` with `after: ""` — hand-built block JSON, NOT `notion-update-page` `insert_content` — then verify placement, per "Positioned inserts – transport mechanics" in `~/.claude/skills/shared-references/company-updates-db.md` (ordering never requires internal API access; never report it blocked), (b) merge properties via `notion-update-page` — Update Type array-union, Period array-union, Update Date bump-if-newer, Source Email set-if-newest-formal, Summary/Traction regenerated per the rolling precedence rules (shared reference). Never drop existing Update Type values, Period values, or body sections.
+**Row exists (upsert):** (a) insert the Formal section at the top of the body via REST `PATCH /v1/blocks/{page_id}/children` with `"position": {"type":"start"}` (Notion-Version `2025-09-03`; never `after: ""`, which 400s) — hand-built block JSON, NOT `notion-update-page` `insert_content` — then verify placement, per "Positioned inserts – transport mechanics" in `~/.claude/skills/shared-references/company-updates-db.md` (ordering never requires internal API access; never report it blocked), (b) merge properties via `notion-update-page` — Update Type array-union, Period array-union, Update Date bump-if-newer, Source Email set-if-newest-formal, Summary/Traction regenerated per the rolling precedence rules (shared reference). Never drop existing Update Type values, Period values, or body sections.
 
 The dual relation automatically links the row back to the Opportunity — the `🗄️ Investor Updates` field on the Opportunity page shows it.
 
@@ -661,7 +665,7 @@ python3 ~/.claude/scripts/notion_files_property.py \
   --label "<Company> - <Mon> <YYYY> Update - Deck.pdf"
 ```
 
-For Case C (no attachment), only the email-body PDF goes in.
+For Case C (no attachment), only the email-body PDF goes in. For a cover-note-only body (Step 3 ✂️), there is no email-body PDF — the update artifact's PDF is the first (canonical) chip, never a docsend.com URL.
 
 The helper is idempotent (skips if URL or canonical-filename already present) and uses the public Notion API via a SOPS-decrypted token at `~/code/notion-backup/.notion-token.enc.txt` (auto-resolves the age key from `~/.config/sops/age/keys.txt`). No env setup required by callers.
 

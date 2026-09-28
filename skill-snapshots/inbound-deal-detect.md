@@ -1,6 +1,6 @@
 ---
 name: inbound-deal-detect
-description: "Webhook-triggered classifier for inbound cold deal emails. Fetches the target message via `get_thread(threadId)` and locates it by `messageId`, runs a deal-vs-not-deal classifier with confidence gating, and on a confident positive delegates to `add-to-crm` for full pipeline entry. Not user-facing — invoked exclusively by `gmail-webhook/deal-scanner.js` via the `claude-job-queue` primitive. Never trigger manually; for ad-hoc CRM creation use `add-to-crm` directly."
+description: "Webhook-triggered classifier for inbound cold deal emails. Fetches the target thread headlessly (`admin_run.py _readThread`, per shared-references/headless-gmail.md) and locates it by `messageId`, runs a deal-vs-not-deal classifier with confidence gating, and on a confident positive delegates to `add-to-crm` for full pipeline entry. Not user-facing — invoked exclusively by `gmail-webhook/deal-scanner.js` via the `claude-job-queue` primitive. Never trigger manually; for ad-hoc CRM creation use `add-to-crm` directly."
 ---
 
 # Inbound Deal Detector (Webhook)
@@ -28,7 +28,7 @@ The local processor invokes this skill with these args (set by `deal-scanner.js`
 
 ### Step 1: Fetch the email
 
-Call `mcp__claude_ai_Gmail__get_thread` with the `threadId` arg. The MCP has no "get message by API ID" tool — `threadId` is the only direct fetch path. Inside the returned thread, locate the message whose `id` matches the `messageId` arg; that's the target. Grab:
+**⛔ Headless Gmail — follow `shared-references/headless-gmail.md` H1.** Fetch with `cd ~/code/gmail-webhook && python3 admin_run.py _readThread <threadId>` and locate the message whose `messageId` matches the arg; never conclude Gmail is unavailable from the MCP's absence (2026-09-26 Rexi miss). Grab:
 
 - Subject
 - Plain-text body (strip quoted history below the `On … wrote:` line — only the new content matters for classification)
@@ -36,7 +36,7 @@ Call `mcp__claude_ai_Gmail__get_thread` with the `threadId` arg. The MCP has no 
 - Any attachment filenames
 - Pass `threadId` through to add-to-crm in Step 4 so it can write `Source Thread ID` on the new Opp page. This enables `outreach-detector` / `outreach-decliner` Path D (deterministic thread-based status flips on Tom's outbound replies).
 
-If the fetch fails (thread not found, target messageId missing inside thread), log to the run log AND append a line to `~/.claude/skills/inbound-deal-detect/audit-log/YYYY-MM-DD.log` via `mkdir -p ~/.claude/skills/inbound-deal-detect/audit-log && echo "[$(date '+%F %T')] FETCH_FAILED: <reason> (messageId: <id>, threadId: <tid>)" | tee -a ~/.claude/skills/inbound-deal-detect/audit-log/$(date '+%F').log`, then exit non-zero so the job lands in `failed/` for retry. The literal `tee -a` shell line must run — never claim the write happened without executing it.
+If the fetch fails (thread not found, target messageId missing inside thread), log to the run log AND append a line to `~/.claude/skills/inbound-deal-detect/audit-log/YYYY-MM-DD.log` via `mkdir -p ~/.claude/skills/inbound-deal-detect/audit-log && echo "[$(date '+%F %T')] FETCH_FAILED: <reason> (messageId: <id>, threadId: <tid>)" | tee -a ~/.claude/skills/inbound-deal-detect/audit-log/$(date '+%F').log`, then end your final output with `JOB_FAILED: FETCH_FAILED <reason>` per `shared-references/headless-gmail.md` H3 (prose "exit 1" does nothing). The literal `tee -a` shell line must run — never claim the write happened without executing it.
 
 ### Step 1B: Forwarded-from-Tom handling
 

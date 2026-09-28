@@ -5,6 +5,8 @@ description: Create a new opportunity in the Notion CRM pipeline. Trigger when t
 
 # Add to CRM
 
+> **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
+
 Create a new opportunity in the Notion Opportunities database from varied source material.
 
 Read `references/schema.md` for the full database schema and field formatting rules before proceeding.
@@ -371,7 +373,7 @@ card each):
    (`opp_title, stage, round_details, hq, description, source, source_context, contact, website,
    icon, founder, founder_linkedin, links, proposed_at`) PLUS the Inverted-lane fields:
    `mail_source:"inverted-gmail"`, `messageId`, `threadId`, `gmailMessageUrl`,
-   `status` (the Step 5 Status you would have set — honours `statusDirective`),
+   `status: "Qualified"` (a 🆕 card's 👍 always lands on Qualified; the confirm handler advances it if Tom already replied — `shared-references/opp-status-sets.md` § "New-deal card 👍 and the reply that advances it"),
    `materialUrls` (authoritative list for Step 6), `source_directive` (verbatim
    `sourceDirective`), `batch_context`, `email_subject`, and `page_body` (the Step 5 page
    content, ready to write). The confirm handler runs Steps 5–8 from this — no re-fetch.
