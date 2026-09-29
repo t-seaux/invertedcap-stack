@@ -37,6 +37,8 @@ drafter-only rendering mechanics.
 ### Manual Mode
 Tom provides names and a company explicitly. Skip to Step 1 with the provided names.
 
+> **⛔ Status gate (Tom, 2026-09-28).** Feedback is logged only for an Opp in the `Feedback-eligible` set (portfolio, or not passed in any way). Read back the Opp's current `Status` before every note, append, or `📣 Pending Feedback` write. If it is ineligible, skip silently. Rules: `shared-references/feedback-note-format.md` → **Status gate**.
+
 ### Scheduled Scan Mode
 Triggered by the Diligence Agent on a recurring schedule. No names are provided — the skill discovers them from Notion.
 

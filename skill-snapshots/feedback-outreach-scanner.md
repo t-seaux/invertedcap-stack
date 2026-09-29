@@ -108,7 +108,7 @@ reference`) rather than a company gut-take. Two things differ from the normal ou
 
 2. **`oppCandidateIds` has exactly one entry**, resolved deterministically off the founder's name
    (People row → Contact email → Active Opp, or a `-1 (Founder Name)` title). No disambiguation
-   needed — but do confirm the resolved Opp is still `Active` before writing.
+   needed — but do confirm the resolved Opp is still `Feedback-eligible` (Status gate, `shared-references/feedback-note-format.md`) before writing.
 
 When `needsPersonCreate` is false the recipient was already promoted onto `📣 Pending Feedback` by
 the webhook; behave exactly as the normal outbound path.
@@ -130,6 +130,8 @@ Idempotency at queue layer (key = `feedback-outreach-sent-{threadId}-{personId|r
 skill does not re-check. Keyed on **threadId**, not messageId — Gmail fires multiple webhooks for the
 same outreach thread, and messageId-keying once produced duplicate `[PENDING]` notes (Gilad Rom /
 Factir, 2026-05-12). Falls back to the lowercased recipient email when `personId` is null.
+
+> **⛔ Status gate (Tom, 2026-09-28).** Feedback is logged only for an Opp in the `Feedback-eligible` set (portfolio, or not passed in any way). Read back the Opp's current `Status` before every note, append, or `📣 Pending Feedback` write. If it is ineligible, skip silently. Rules: `shared-references/feedback-note-format.md` → **Status gate**.
 
 ## Step 0: Build the Pending Feedback Contact List from Notion
 

@@ -59,7 +59,7 @@ Two quick signals so the agent feels alive and human, BEFORE any work:
 1. **Typing indicator** (1:1 only — the "…" bubble): `~/.claude/skills/sms-listener/typing.sh "<from>"`
    in a single fast Bash call. Non-fatal; skip for groups.
 2. **Tapback** (below) — a fitting reaction on their message.
-Fire these immediately, then do the work. **Speed matters: keep replies short and
+Fire these in ONE parallel batch (typing.sh + react.sh as two tool calls in the same message — never two sequential steps), then do the work. **Speed matters: keep replies short and
 conversational, minimize tool calls.** The allowlist + core prefs are already in your
 session context (injected at start) — do NOT re-read those files; only load a DOMAIN prefs
 file (`prefs.py load calendar|purchases|email`) when that task type actually comes up.
@@ -94,6 +94,33 @@ React to the sender's message with a tapback as your next action — a real reac
 **A tapback can REPLACE a reply** when a reaction says everything and no text is needed (a pure FYI, a "thanks", a "see you at 6") — 👍 and done, no bubble. **Skip the tapback entirely** only when you're sending an instant text answer anyway and a reaction would be redundant noise. Use judgment; don't over-react to every message.
 
 **The two-beat model: a tapback acknowledges RECEIPT; the text reply comes when it's DONE (Tom, 2026-09-21).** A tapback (👀 for real work, 👍 for a trivial directive) says *"got it, I'm on this."* It does NOT say the task is finished. When you actually *complete* an action that changed durable state — a reminder/to-do (`add-reminder`), a calendar event, a CRM/contact row, a purchase, a saved doc — you send a reply bubble that names what landed (`✅ Added to <list>, due <when>:` + blank line + one `• <title>` bullet per reminder). So the sequence for any write is **tapback on receipt → text when done**, two separate beats. Never let the receipt tapback double as the completion signal: the sender can't see a reminder object, so a lone 👍 reads as "it ignored me" even when the write succeeded. This is exactly what bit Elsie's "add a todo" (2026-09-21): reminder created in ~10s, but no done-reply, so it looked stuck. (A tapback still *replaces* a reply outright only for pure FYIs with no action — "see you at 6" → ❤️ and done; there's no "done" beat because there was nothing to do.)
+
+## Doc-edit speed — surgical edits, never full rewrites (Tom, 2026-09-28)
+
+Tom often "works a doc" over text: a rapid run of small edits to one Notion page or Sheet. Profiling
+that session (2026-09-28) found ~90% of turn time was the MODEL WRITING, not tools. The 150–295s
+turns were single steps that emitted 13–16k tokens: full-page `replace_content` rewrites. Rules:
+- **Edit surgically.** Use `notion-update-page` `update_content` with a SMALL `old_str` → `new_str`
+  scoped to the block that changes. Never re-emit the whole page to change a bullet or a table row.
+- **When `old_str` won't match**, copy it VERBATIM from the latest `notion-fetch` output, escapes
+  included (Notion markdown escapes brackets and special characters: `\[`, `\*`). Or anchor on a
+  shorter unique neighbouring line. A full-page rewrite is the LAST resort, and only when more
+  than about half the page changes.
+- **Fetch once per turn**, and reuse the fetch you already hold when the page hasn't changed since. Re-fetch
+  only when Tom said he made direct edits, and once to verify after writing (MCP silent-write rule).
+- **Burst turns** (args.body numbered `[1] [2] …`): fold every text into ONE plan and ONE write
+  pass. One reply at the end covers everything.
+- **Quick reply FIRST, verify second (Tom, 2026-09-28).** As soon as the write call returns
+  success, send a one-line confirmation of what changed (`✏️ Done: renamed column to EvenUp NAV,
+  fund NAV now $X.Xm`) and write the audit line IN THE SAME Bash call. THEN run the verify
+  fetch. If the verify shows the edit didn't land or landed wrong, fix it and send a short
+  follow-up (`⚠ The NAV column didn't save; fixed now.`). If it's clean, send nothing more.
+  This reorders the MCP silent-write readback; it doesn't skip it. It covers WRITE confirmation
+  only: any figure you computed must still be checked against its source BEFORE it goes in the
+  reply.
+- Keep the reply tight: say what changed, not the full table again, unless Tom asked to see it.
+- You may be running on a faster model for short mechanical turns (the daemon routes by message).
+  If a turn turns out to need real math or judgment, do it carefully anyway. Never guess a figure.
 
 ## Share-sheet messages — comment + link arrive as TWO messages
 

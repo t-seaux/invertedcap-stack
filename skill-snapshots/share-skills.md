@@ -26,7 +26,7 @@ hardcode the include/exclude lists here – read them live each run so the bundl
    Many skill dirs are symlinks into `~/Projects/invertedcap-skills/` – plain `find` (no `-L`)
    silently skips them. Vendored Python deps contain junk `SKILL.md`-adjacent matches.
 2. Read the classification tables in `skill-map-refresh/SKILL.md` and build the exclude set:
-   every skill named in **Hidden Categories** (Fund Ops + Admin), **Excluded duplicates**, and
+   every skill named in **Hidden Categories** (Fund Ops + Personal + Admin), **Excluded duplicates**, and
    **Excluded – not a user-facing skill**. This skill (`share-skills`) is itself Admin-hidden.
 3. Include set = inventory minus exclude set. If a skill on disk appears in NO table (visible or
    hidden), STOP and flag it to Tom – same anti-hallucination stance as skill-map-refresh Step 0.

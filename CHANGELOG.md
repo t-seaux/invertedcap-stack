@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-09-29] (Week of 2026-09-28)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- feedback-outreach-drafter, feedback-outreach-scanner -- feedback is now logged only for portfolio or not-passed opportunities; status is re-checked before every write and ineligible ones are skipped silently
+- materials-handler -- every confirmation reply, whether text, alert, or chat, now links the Notion opportunity page
+- neg1-enricher -- referrals from a human or partner source are never auto-passed by prefilters; a would-be kill is noted in the evaluation gaps and the candidate is always carded; source labels now resolve in code
+- pipeline-agent -- new-deal cards now resolve known referrer firm names in code instead of showing raw email addresses
+**Total skills:** 58
+**Functions:** No changes
+
+---
+
 ## [2026-09-28] (Week of 2026-09-28)
 
 **Added:** None
