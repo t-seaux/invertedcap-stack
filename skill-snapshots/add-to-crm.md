@@ -367,7 +367,7 @@ contract = `~/.claude/skills/deal-text-scanner/references/deal-lane.md` §3, exa
 card each):
 
 1. Card via `~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<card>"` (capture
-   `H=${H#ok }`). Canonical 🆕 shape; closer `👍 to Add to CRM. 🗑️ to archive. Respond to make
+   `H=${H#ok }`). Canonical 🆕 shape; closer `👍 to Add to CRM. 🗑️ to Archive Email. Respond to make
    changes.`
 2. Stage `~/.claude/skills/deal-text-scanner/staged/<H>.json` — the deal-lane fields
    (`opp_title, stage, round_details, hq, description, source, source_context, contact, website,

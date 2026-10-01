@@ -121,6 +121,19 @@ Tom it's the fallback — clearly, with the real reason, not a generic "unavaila
 - **Alert on first use:** falling back at all means Reminders is broken — say so in the
   reply (⚠️ + the real eventkit error), don't degrade silently.
 
+## Never ask a clarifying question — always create (Tom, 2026-09-29)
+
+**"When I ask you to remind me… that should create a reminder."** A "remind me" command
+never earns a `❓`. It's low-stakes and easy to correct, so create first and let Tom fix it.
+**A thin "remind me" takes its object from the thread.** "Remind me*" is a typo fix of the
+previous text ("find me to introduce Andrea to Agent Bay" → reminder "Introduce Andrea to
+AgentBay"). A bare "remind me" / "remind me about that" points at the last thing discussed.
+Never use "Remind me*" itself as the title, and never call it cut off. The text-lane
+correction rules are in sms-listener § Corrections. Only when there is truly nothing in the
+thread to point at: say so plainly, no ❓. This overrides the general
+"one ❓ when a wrong guess would cause real harm" carve-out for this specific command —
+a reminder is never the "real harm" case that carve-out exists for.
+
 ## Conventions (both paths)
 
 - **Date**: default to **today** (see `currentDate` in context). Only use another day

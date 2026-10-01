@@ -87,15 +87,15 @@ Cascade:
 
 For every successful auto-classification of an unrecognized digital-payment vendor (Tom is migrating off CHECKs — expect new strings), append a draft entry to VENDOR_CLASSIFICATIONS.md marked `[pending-confirm]` and surface in the Slack summary.
 
-### 5. Maintenance clustering algorithm
+### 5. Maintenance service-month allocation (quota-based, all sources)
 
-Sort `TELLER DEPOSIT` rows chronologically. Walk through, accumulating into open cluster:
+`update_pl.py::allocate_maintenance` assigns every Maintenance credit — TELLER DEPOSIT unit multiples, ZELLE CREDIT, MOBILE DEPOSIT — to a service month, seeded with the Maintenance already in `_Raw`:
 
-- Each $1,100 / $2,200 / $3,300 / $4,400 deposit adds to the open cluster.
-- When the open cluster hits **$4,400 ± $50**, close it. Assign the closed cluster to the next unfilled Maintenance month (starting from the earliest cluster's earliest deposit's calendar month, then incrementing).
-- Standalone non-$1,100-multiple round amounts ≥ $4,000 (e.g. $4,000, $6,000, $8,000, $12,000, $20,000, $45,536) → Assessment OR Repair Settlement → flag for Tom's confirmation (default Assessment).
-- If a cluster doesn't close cleanly within a calendar month (e.g. an underpayment), surface in the Slack summary: "Cluster at month X totaled $Y instead of $4,400 — confirm short pay?"
-- A cluster can span calendar months (e.g. late-March deposits cover April). That's expected — post by SERVICE MONTH, not deposit calendar month.
+- Proposed month = in-advance heuristic: deposit day ≥ 25 → next month, else the deposit's month.
+- If that month already holds its quota ($5,200 from Jun-2026, $4,400 before; ±$50), roll to the next month, repeating until one has room. Confirmed by Tom 2026-09-29: roll over once a month hits $5,200, regardless of source.
+- A payment that pushes a not-yet-full month past quota + $50 → flagged "Maintenance overshoot".
+- Months touched this run that are still short → surfaced as `Maintenance status: YYYY-MM at $X of $5,200 — awaiting remaining units` (informational, not an error).
+- Standalone non-unit round TELLER amounts ≥ $4,000 → Assessment OR Repair Settlement → flag for Tom's confirmation (default Assessment).
 
 ### 6. Write updates
 
@@ -111,7 +111,7 @@ Save xlsx in place. iCloud handles sync. No Drive upload unless Tom explicitly a
 `update_pl.py` already computes the verification primitives; the calling agent must treat them as **hard gates**, not informational output:
 
 - **CSV ↔ _Raw reconciliation**: the output JSON includes `csv_sum_delta_in` / `csv_sum_delta_out` (from `reconcile_csv_sums` — parse-vs-written sums). Both must be `0.00`. Any non-zero delta means a row was dropped or duplicated between parse and write — lead the Slack reply/inline response with `⚠️ RECONCILIATION FAILED: in delta $X, out delta $Y — review before trusting this run` and do not present the run as clean.
-- **Cluster integrity**: any `cluster_issues` entries surface verbatim in the flagged section.
+- **Maintenance status**: `cluster_issues` lists months still short of quota — surface verbatim (informational). Any `Maintenance overshoot` flag is a real review item.
 - **Reserve screenshot OCR validation**: when a Reserve screenshot (not CSV/xls) is the input, the OCR'd transcription must be validated before ingest — recompute the running balance from the extracted (date, type, amount) tuples and compare to the screenshot's final displayed balance. **Mismatch > $1 → reject the OCR pass entirely**; do not ingest. Reply: "Screenshot OCR didn't reconcile (computed $X vs displayed $Y) — please export the Reserve account as CSV/xls instead." Additionally pass the screenshot's final balance through to `check_reserve_balance` so the workbook-level check runs; surface any reported mismatch as a flag.
 
 ### 7. Slack summary (Mode A/B) or inline (Mode C)
@@ -148,7 +148,7 @@ For each new INTEREST row: post to Reserve Fund → Interest Income row, txn-dat
 - **Everything else → TXN-DATE month**.
 - **Never auto-post a CHECK or vendor unless confidence = High**. Flag rather than guess.
 - **New vendor → append to VENDOR_CLASSIFICATIONS.md after Tom confirms**.
-- **Reserve interest is small ($0.40–$0.55/mo) — never silently drop it**.
+- **Reserve interest is small ($0.40–$0.55/mo historically; $0.08 in Sep-2026 confirmed fine by Tom) — never silently drop it, but don't flag low amounts**.
 
 ## Drive snapshot (on-demand only)
 

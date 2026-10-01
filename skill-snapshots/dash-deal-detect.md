@@ -179,7 +179,7 @@ H=$(~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<card>") && H
 
 Card shape is the canonical 🆕 Opportunity format (header `🆕 Opportunity: <subject>`, then a
 blank line, then `* Source / * Stage / * HQ / * Description` bullets, closing
-`👍 to Add to CRM. 🗑️ to archive. Respond to make changes.` — the `🗑️ to archive` clause
+`👍 to Add to CRM. 🗑️ to Archive Email. Respond to make changes.` — the `🗑️ to Archive Email` clause
 appears on every EMAIL-sourced card (Dash here, Inverted via add-to-crm Step 4T), never on
 iMessage cards; sms-listener §4 archives via `dash_mail.py archive`). Subject/stage/HQ rules per `deal-lane.md` §3.
 

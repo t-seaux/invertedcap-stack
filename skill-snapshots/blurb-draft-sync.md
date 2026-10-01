@@ -56,7 +56,7 @@ All Tom's outreach drafts carry his Apple Mail signature, and the Gmail connecto
      --skill <routed-label> --no-alert
    ```
    Style-gate warnings on Tom-approved copy are advisory — do not "fix" his settled wording to satisfy the linter.
-3. `trash_message` the superseded draft's messageId — standing permission per memory `feedback_supersede_draft_autodelete` (scoped carve-out: only the draft this run just replaced).
+3. Delete the superseded draft with `python3 ~/.claude/scripts/gmail-delete-draft.py --superseded --subject "<exact subject>" --to <recipient> --message-ids <old hex>` — standing permission per memory `feedback_supersede_draft_autodelete`. The script refuses unless a NEWER same-subject/recipient draft survives. `trash_message` / raw `deleteDraft` are blocked by the delete guard hook (2026-09-30).
 4. **Verify:** re-run `list_drafts` for the company and confirm the surviving set is exactly the replacements. A vanished or lingering draft is a failure to report, not to assume away.
 
 Reply drafts (a draft attached to an existing thread) can't be recreated by the helper without losing threading — for those, note the stale draft in the alert instead of touching it, and let Tom decide.

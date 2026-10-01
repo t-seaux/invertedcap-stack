@@ -561,7 +561,7 @@ If you're writing an exception-case body section, use the bullet format below. O
 
 **This step always runs.** Append each saved Drive link to the appropriate Files property on the opportunity page — either **Diligence Materials** or **Deal Docs** per the routing rules in Step 2's "Property Routing" section. Term sheets, SAFEs, side letters, pro forma cap tables, etc. → Deal Docs. Decks, memos, models, demos, etc. → Diligence Materials.
 
-**Spreadsheets get TWO chips.** Any Google Sheet or `.xlsx` (financial model, plan, cap-table workbook) is chipped as a PDF snapshot *and* its live/native source, both keeping the source file's own name — read `~/.claude/skills/shared-references/spreadsheet-artifact-convention.md` for the naming and the native `files.export` path.
+**Spreadsheets get TWO chips.** Any Google Sheet or `.xlsx` (financial model, plan, cap-table workbook) is chipped as a PDF snapshot *and* its live/native source, both keeping the source file's own name **plus the ` MM.DD.YY` sent date** — read `~/.claude/skills/shared-references/spreadsheet-artifact-convention.md` for the naming and the native `files.export` path.
 
 **Pinned Drive-folder chip (Diligence Materials only, once per company).** Before adding any other chip on this run, check whether a chip pointing at the company's Diligence subfolder URL (`https://drive.google.com/drive/folders/<folderId>`, the same `folderId` returned by Step 3's `createFolder` call) already exists on Diligence Materials. If not, add it first:
 

@@ -143,9 +143,12 @@ This keeps the lookup targeted: you're only querying Gmail for companies you alr
 
 **Deduplication check:** For remaining entries, run a `searchMail` query
 `in:draft subject:"[Company Name] - Inverted follow up"` via the gmail-webhook endpoint
-(`shared-references/gmail-label.md` — works in every runtime; `gmail_list_drafts` exists only
-where the Gmail MCP is connected). If a draft already exists, skip drafting for that company
-and note it in the Signal summary as "draft already exists — review and send."
+(`shared-references/gmail-label.md`). **Never use the Gmail MCP `search_threads` for this — it
+silently excludes drafts even with `in:draft` and always returns `{}`** (Radical got a duplicate
+draft this way, 2026-09-30). If a draft already exists, skip drafting for that company and note
+it in the Signal summary as "draft already exists — review and send." Backstop:
+`gmail-create-draft.py` now refuses a same-subject, same-recipient draft itself (exit 4) — treat
+exit 4 as "draft already exists", not an error.
 
 Proceed to draft for any remaining entries.
 
@@ -315,7 +318,8 @@ Create the draft with the draft script – never the Gmail MCP connector (it fla
 - **No BCC.** The old Zapier BCC (`passnotes.mhcrey@zapiermail.com`) is retired. The `pass-note-sent` gmail-webhook handler does the archive work natively (Notes DB entry with Diligence category + Opportunity relation + view-sent-email link, and Status → Pass (Met) on send).
 - **HTML body file:** the pass note per EF4, ending at `Tom`, with no typed signature (the script appends it). Bullets are `<div>* [bullet]</div>` lines, matching the plain-text shape below.
 - **Snapshot text file:** the same note as plain text through `Tom`, no signature (it's the diff baseline).
-- Success = stdout `{"ok": true, "messageId", "threadId", "draftUrl", "snapshotPath"}`. Exit 1 means the draft exists but the snapshot failed – treat it as a failure and report it. Exit 2/3 means no draft was created. If the style gate flags punctuation inside quoted founder text, `--force` is correct.
+- Success = stdout `{"ok": true, "messageId", "threadId", "draftUrl", "snapshotPath"}`. Exit 1 means the draft exists but the snapshot failed – treat it as a failure and report it. Exit 2/3 means no draft was created. Exit 4 = a draft already exists (duplicate gate) — nothing created; report "draft already exists — review and send." If the style gate flags punctuation inside quoted founder text, `--force` is correct.
+- **Style-gate warnings are fixes, not alert fodder.** Before creating the draft, lint it: `python3 ~/.claude/scripts/style_gate.py --skill pass-note-drafter --subject "<Company> - Inverted follow up" --text-file /tmp/passnote_<company>.txt --html-file /tmp/passnote_<company>.html`. Fix every `[warn ] claude:` finding and re-lint until clean, THEN run `gmail-create-draft.py`. Never ship a draft with known style warnings and push them to Tom in the alert (Radical, 2026-09-30: superseded "to the extent you're interested here's where my head's at" framing + "glad Monique made the intro" shipped with warnings attached).
 
 Do NOT send the email – only create the draft for Tom to review. Do NOT update the Notion status after creating the draft; "Pass (Met)" only happens in Step 1, once Tom has actually sent the email.
 
@@ -410,12 +414,10 @@ Variations seen:
 - "As promised, I spent more time sitting with the opportunity, and unfortunately have decided to sit this round out."
 - "I had a chance to review, and have unfortunately decided to sit this round out."
 
-Then immediately follow with the feedback framing line. The canonical version Tom likes:
-> "100% unsolicited, but to the extent you're interested here's where my head's at:"
+Then immediately follow with the feedback framing line, verbatim (canonical since 2026-08-28; `writing-style/pass-note/STYLE.md` owns this — if they ever disagree, STYLE.md wins):
+> "100% unsolicited, but my 2c in case of interest:"
 
-Variations:
-- "Entirely unsolicited, but in case helpful, here's what my head's at:"
-- "To the extent you're interested, here's my thinking:"
+The older long forms ("…to the extent you're interested here's where my head's at:" / "…here's my thinking:") are SUPERSEDED — never use them, even though older VOICE_EXAMPLES still contain them.
 
 **4. Bullet points — this is the core content**
 

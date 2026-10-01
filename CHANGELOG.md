@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-10-01] (Week of 2026-09-28)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm, dash-deal-detect -- new-deal card closer now reads "to Archive Email" instead of "to archive"
+- deal-share-out, founder-outreach, intro-outreach-drafter -- superseded drafts are now removed through a guarded delete script that refuses unless a newer matching draft exists
+- materials-handler -- spreadsheet chips now carry the sent date in their names
+- pass-note-drafter -- duplicate-draft check no longer relies on connector search; the draft script itself refuses same-subject, same-recipient drafts, and style-gate warnings are fixed before drafting
+**Total skills:** 58
+**Functions:** No changes
+
 ## [2026-09-29] (Week of 2026-09-28)
 
 **Added:** None

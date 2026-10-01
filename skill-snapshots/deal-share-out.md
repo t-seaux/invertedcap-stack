@@ -98,8 +98,10 @@ Theilmann): `Source(s) = Rachel Pavey + TX Zhuo` → `tx@fika.vc` excluded, Prim
 
 **All recipients go in Bcc — the To field stays empty** (Tom, 2026-08-20). Members shouldn't see
 each other, and Tom can stack more addresses onto one draft and send a single email. When adding
-to an existing attachment draft: re-create-with-full-Bcc + `deleteDraft` the stale one, since
-`update_draft` drops attachments.
+to an existing attachment draft: re-create-with-full-Bcc, then delete the stale one with
+`python3 ~/.claude/scripts/gmail-delete-draft.py --superseded --subject "<exact subject>" --message-ids <old hex>`
+(no `--to` — Bcc-only drafts), since `update_draft` drops attachments. Raw `deleteDraft` is blocked by
+the delete guard hook (2026-09-30).
 
 ---
 
@@ -113,8 +115,9 @@ Never spend turns rediscovering this or hunting for binaries (the 2026-09-15 Ard
   `ntn pages get <page-id>`. Raw API: `ntn api <path>`.
 - **ALL Gmail ops** — dedup search, draft create/delete — go through the gmail-webhook `/exec`
   endpoint: URL in `~/.claude/skills/shared-references/gmail-label.md`, secret at
-  `~/.claude/secrets/gmail-label-webhook.txt`, actions `searchMail` / `createDraft` /
-  `deleteDraft`. POST via Python `requests` with `allow_redirects=True` — never `curl -L`.
+  `~/.claude/secrets/gmail-label-webhook.txt`, actions `searchMail` / `createDraft`. POST via
+  Python `requests` with `allow_redirects=True` — never `curl -L`. Deletes go ONLY through
+  `gmail-delete-draft.py --superseded` (raw `deleteDraft` is blocked by the delete guard hook).
 - **Slack alert**: `~/.claude/skills/send-alert/send.sh`, unchanged.
 
 ## Performance — batch the independent reads
@@ -387,10 +390,10 @@ base64 through the MCP `attachments` param (bytes transit the model's token stre
    Response `{ok, messageId, threadId}` — the messageId is the persistent hex id.
 
 ⚠️ If iterating on a draft that has attachments, MCP `update_draft` does NOT merge them — any
-body tweak must re-create via the endpoint, then delete the stale draft with the endpoint's
-`deleteDraft` action (`{"action": "deleteDraft", "secret": "<same>", "messageIds": ["<hex>"]}`,
-added 2026-08-20 v204 — reliable, unlike the Chrome automation script). Delete only drafts THIS
-flow created; Tom's own drafts are his.
+body tweak must re-create via the endpoint, then delete the stale draft with
+`python3 ~/.claude/scripts/gmail-delete-draft.py --superseded --subject "<exact subject>" --message-ids <hex>`
+(it refuses unless a newer same-subject draft survives; raw `deleteDraft` is blocked by the delete
+guard hook, 2026-09-30). Delete only drafts THIS flow created; Tom's own drafts are his.
 
 Do NOT send — draft only.
 
