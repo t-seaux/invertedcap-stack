@@ -18,8 +18,8 @@ Invoked by `gmail-webhook/add-to-crm-detect.js` (Inverted lane) with:
 
 **OR** invoked by the `dash-mail-watch` listener (Dash lane) with:
 
-- `mail_source: "dash-local"` — routes Step 1's fetch to the local Apple Mail store.
-- `rowid` (required) — the Dash Envelope-Index rowid of the message.
+- `mail_source: "dash-local"` — routes Step 1's fetch to the Dash mailbox (`dash_mail.py`, Gmail API).
+- `rowid` (required) — the Dash Gmail message id (string; pre-2026-10-01 cards carry a numeric Mail.app rowid — both work).
 - `fund` (required) — the Fund to stamp on the created Opp (e.g. `Dash 2️⃣`), passed through to the enqueued `add-to-crm` job in Step 3.
 
 Fund-context model: `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
@@ -28,8 +28,8 @@ The Inverted lane's `mail_source` is `inverted-gmail` (default when unset).
 ## Step 1: Fetch and re-verify
 
 > **Dash branch (`mail_source == "dash-local"`).** The Inverted headless Gmail
-> endpoint (`admin_run.py`) cannot read `tom@dashfund.co`. Fetch from the local
-> store instead: `python3 ~/.claude/scripts/dash_mail.py get <rowid>` →
+> endpoint (`admin_run.py`) cannot read `tom@dashfund.co`. Fetch via the Dash
+> client instead: `python3 ~/.claude/scripts/dash_mail.py get <rowid>` →
 > `{from, to, cc, subject, date, body}`. Run the SAME re-verify gate below
 > against that `from`/`body`. **The trigger gate differs by lane:** the Dash
 > lane fires on Tom RECEIVING a deal at `tom@dashfund.co` (the listener already
@@ -102,7 +102,7 @@ exist for the Dash account):
 ```json
 {
   "mail_source": "dash-local",
-  "rowid": <dash rowid>,
+  "rowid": "<dash gmail message id>",
   "fund": "<fund arg, e.g. Dash 2️⃣>"
 }
 ```

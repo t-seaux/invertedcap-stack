@@ -1,5 +1,8 @@
 {
-  "skills": {},
+  "skills": {
+    "dash-lp-letter-drafter": "2026-10-02",
+    "dash-lp-quarterly-update": "2026-10-02"
+  },
   "launchAgents": {},
   "webhookHandlers": {}
 }

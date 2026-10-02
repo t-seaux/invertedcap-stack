@@ -34,13 +34,13 @@ The processing logic (Steps 1–5) is shared across modes. Mode-specific deltas 
 }
 ```
 
-**Dash follow-up variant (`mail_source: "dash-local"`).** The Dash inbox has no Gmail webhook, so
-the `dash-deal-detect` follow-up lane enqueues this skill when an email from a contact on an
-EXISTING Dash Opp arrives with materials. Inputs are keyed to the local Apple Mail store instead
-of Gmail:
+**Dash follow-up variant (`mail_source: "dash-local"`).** Since 2026-10-01 the gmail-webhook's
+materials-detect handler (Dash mailbox) enqueues this skill when an email from a contact on an
+EXISTING Dash Opp arrives with materials. Inputs are keyed to the Dash Gmail mailbox (dash_mail.py) instead
+of the Inverted Gmail path:
 
 ```json
-{ "mail_source": "dash-local", "rowid": 202459,
+{ "mail_source": "dash-local", "rowid": "1a0f529fac2ee5cc",
   "oppId": "<notion page id>", "oppName": "<company>", "fund": "Dash 2️⃣" }
 ```
 
@@ -210,7 +210,7 @@ naming, property routing, the code-enforced alert — is shared verbatim, using 
   Gmail path: Step 2 Gmail search + Step 3A Gmail Attachment Saver + `admin_run.py`.
 - `mail_source == "dash-local"` (Dash 1️⃣ / Dash 2️⃣) → the **Dash local mail path**:
   `tom@dashfund.co` has no Gmail API/Pub/Sub, so use `~/.claude/scripts/dash_mail.py`
-  against the local Apple Mail store (see the dash branch in Steps 2 & 3A below).
+  against the Dash mailbox via dash_mail.py (see the dash branch in Steps 2 & 3A below).
 - `mail_source == "manual"` (PA) → no inbound mail pipeline; process only material
   Tom hands over directly.
 
@@ -220,8 +220,8 @@ Step 3 target-folder gate references a Drive root, instead of the hardcoded IDs.
 ## Step 2: Search Gmail for Materials
 
 > **Dash branch (`mail_source == "dash-local"`).** Skip the Gmail MCP queries
-> below — that account is not on the Gmail API. Instead find candidate messages
-> in the local store: `python3 ~/.claude/scripts/dash_mail.py list --from
+> below — use the Dash client (Gmail API, `rowid` = Gmail message id). Find
+> candidate messages with: `python3 ~/.claude/scripts/dash_mail.py list --from
 > <founder_local_part> --subject <company> --since <YYYY-MM-DD> --limit 15`
 > (returns `{rowid, date, folder, from, subject}` JSON). Confirm relevance with
 > `dash_mail.py get <rowid>`. The same Include/Exclude and delivery/destination
@@ -333,7 +333,7 @@ Get-or-create the company folder idempotently via the Drive Upload Apps Script `
 
 > **Dash branch (`mail_source == "dash-local"`).** The Gmail Attachment Saver
 > Apps Script is scoped to `tom@invertedcap.com` and CANNOT reach the Dash
-> mailbox. Extract attachments from the local Apple Mail store instead:
+> mailbox. Extract attachments via the Dash client instead:
 > `python3 ~/.claude/scripts/dash_mail.py attachments <rowid> <staging_dir>`
 > → JSON manifest `[{filename, path, bytes, mimetype}]`. Then upload each file
 > from `path` to the routing-appropriate target folder via the **Drive Upload
@@ -390,7 +390,8 @@ Deterministic convention names + this list-and-trash step give 3A the same re-ru
 
 Follow the `docsend-to-pdf` skill at `/Users/tomseo/.claude/skills/docsend-to-pdf/SKILL.md` for the exact Python conversion approach:
 
-1. Use the `requests` + `Pillow` method to convert the DocSend document to PDF.
+0. **Download button first** — if the viewer offers Download, save the native file (`.xlsx` / `.pdf` / `.pptx`) per docsend-to-pdf Step 0. A spreadsheet then follows the two-chip convention (native `(xlsx)` + landscape fit-to-width PDF). Never chip the DocSend viewer URL in place of a downloadable file.
+1. Otherwise, use the `requests` + `Pillow` method to convert the DocSend document to PDF.
 2. Name the file using the DocSend `<meta>` title: `[Company Name] - [Document Title] MM.DD.YY.pdf` (date = when the link was sent, per principle 10). Strip redundant company name if present in the title. Fallback: `[Company Name] - Deck MM.DD.YY.pdf`.
 3. Save to `/Users/tomseo/Downloads/[filename].pdf`.
 4. Present to user via `present_files`.

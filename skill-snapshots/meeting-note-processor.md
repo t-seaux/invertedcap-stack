@@ -241,9 +241,22 @@ concluding anything. `ntn` / REST return only the transcript placeholder, so the
 fallback. If the fetch still can't return a `<transcript>` block (tool absent after ToolSearch, or
 placeholder only), finish Steps 3–5c (link, category) and then STOP before 5d/6: no Company
 Updates write, no Artifacts marker. The missing marker makes the nightly
-`meeting-note-processor-sweep` re-run the note. Alert: `⚠ Transcript not fetched — Live
-section deferred to tonight's sweep` (state the actual error). Never say "transcript unavailable"
-when the note has one. (Quiet Software, 09-25: a body-only Call section misattributed Tom's
+`meeting-note-processor-sweep` re-run the note. Send exactly ONE alert, this shape — the
+headline is the note title only; the error and outcomes go in the body, never the headline
+(Tuor 10-01: the whole status got crammed into a six-line headline):
+```
+⚠️ <u>**Meeting Note Deferred: <note title>**</u>
+
+⚠ No action needed – tonight's sweep re-runs it.
+Transcript couldn't be fetched: <actual error, one line>
+Done: <linked to Opp / Category = X, only what actually ran>
+Deferred: Company Updates Live section, Round Details
+[Note](<note url>)
+```
+Then exit 0 WITHOUT a `JOB_FAILED` line — this is a planned deferral the sweep owns, and the
+sentinel fires a second "Job Failed" alert for the same event. Never say "transcript unavailable"
+when the note has one. If this fires on every run, suspect auth, not Notion: jobs under the
+setup-token load no claude.ai connectors (see processor `_keychain_auth_ok`). (Quiet Software, 09-25: a body-only Call section misattributed Tom's
 framing to the founders and said "testing Carbon" when they hadn't.)
 
 ### Step 1: Read the note + body
@@ -315,7 +328,8 @@ Guards that run before any Notion write — DO NOT loosen; all live in the refer
 - **Step 6d.0b semantic grounding (Layer 2, only after Layer 1 passes):** Sonnet-as-judge per clause (`summary_claim_check.py`) — catches negation / misframing / unaddressed claims. Fail → re-prompt once → HALT.
 - **Step 6d.0c speaker-attribution check (after Layer 2):** `verify_speaker_attribution.py` — never publish a founder-attributed claim the transcript shows under Tom's speaker label.
 - **Step 6d.1 format validation (MANDATORY before any write, Cases A/B):** Traction + Summary validators (lowercase m/k, single `(Mon DD)` date paren, aggregate-metric keyword, no dollar ranges, en-dash-only, no escaped `\$`/`\~`). Same gate for hand-written Mode C values — no bypass. Plus the Notion-AI dashed-range cross-check against the transcript.
-- **Idempotency:** re-running against the same note is a body no-op — skip the subsection prepend if the entry body already contains the note's URL.
+- **Idempotency:** re-running against the same note is a body no-op — skip the subsection prepend if the entry body already contains the note's URL. **Exception — `"regenerate": true` in args** (below).
+- **Regenerate (`"regenerate": true`, added 2026-10-01):** for calls whose section was written WITHOUT the transcript / Layer 2 (job auth bug, 2026-09-11 → 09-30). Requires a fetched `<transcript>` block — no transcript → HALT, never rebuild from the body. Find the existing dated subsection that links this note's URL in its Company Updates row; rebuild ONLY that subsection from transcript + summary under every guard above (Layer 1, Layer 2, speaker attribution, format); replace it in place (same heading/date, same position — `update_content` old→new, never a second prepend). Then re-derive the row's rolling `Summary`/`Traction` from all sections, Formal-wins precedence intact; the Case C prior-month freeze does NOT block this one rebuilt section. Leave Steps 3–5 and Step 8 as-is (already ran). Alert: one line per changed claim (old → new), or "no material change". Section not found → HALT and say so; never create a new one.
 
 Full upsert logic (Cases A/B/C), the embedded validator code, the grounding-failure re-prompt templates, and the Notion-AI cross-check are in `references/company-updates-upsert.md`; **read it now before proceeding.**
 

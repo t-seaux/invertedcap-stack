@@ -142,7 +142,7 @@ MSG
 | Role | text | Current primary position | Title only, e.g. "Head of Product". See primary role rules below. |
 | Category | select | Inferred from profile | See category inference rules below |
 | City | select | Profile location | Map to metro area (see city rules below) |
-| State | text | Profile location | 2-letter US state abbreviation; leave blank for non-US |
+| State | text | Profile location | 2-letter US state abbreviation; UK locations → `UK`; other non-US → `N/A` |
 
 All other fields (relations, rollups, formulas, checkboxes, buttons) should be left untouched — they
 are either computed or populated by other workflows.
@@ -158,6 +158,8 @@ are either computed or populated by other workflows.
    URL. This is the preferred method — faster and more reliable than the browser sidebar. If the
    MCP returns a work email and/or personal email, use those. Prioritize the work email (company
    domain) unless this is a `-1` entry (see add-to-crm rules), in which case prioritize personal email.
+   **Keep every other email you found.** It goes to Apple Contacts as a secondary (Step 4b). Never drop it
+   (`shared-references/people-db-guardrails.md` → Multiple emails).
 4. **Profile photo extraction — always required:** Get `profile_picture_url` for the page icon.
    - If step 3 (`contactout_enrich_person`) returned a `profile_picture_url`, use it.
    - If step 3 returned no photo or 404'd, call `contactout_enrich_linkedin_profile` with
@@ -273,7 +275,7 @@ specific category rather than N/A.
 The City field is a select with pre-existing options. If the person's city matches an existing option,
 use it. If not, it's fine to create a new option — Notion will handle that automatically.
 
-**State:** 2-letter US abbreviation (NY, CA, IL, etc.). For international locations, set the literal string `N/A` — not blank (the creation gate below rejects empty values; `N/A` is how you record "deliberately not applicable").
+**State:** 2-letter US abbreviation (NY, CA, IL, etc.). **UK locations (London, Manchester, Edinburgh, …) → `UK`** (Tom, 2026-10-01: "for london, state should be UK"). For other international locations, set the literal string `N/A` — not blank (the creation gate below rejects empty values; `N/A` is how you record "deliberately not applicable").
 
 > **Derive City/State from the CURRENT role, not the profile header.** ContactOut's top-level `location` is frequently just `"United States"` or a stale metro. Read the `is_current` experience entry's `locality` instead — that's the person's actual working location today. (Jake Hirschberg, 2026-08-04: profile `location` = "United States", but his current `Principal, eCommerce Sales Strategy` entry reads `Los Angeles, California` — all his *prior* Box roles were New York. Header-only reading would have produced a blank or a wrong city.)
 
@@ -301,6 +303,16 @@ ContactOut calls returned no photo, omit the icon field entirely — no emoji fa
 **Do not confirm with the user before creating** — Tom wants this to be fast. If the LinkedIn
 profile is clear and unambiguous, just create the entry. If something is genuinely unclear (e.g.,
 you can't tell which of two companies is the current one), ask.
+
+### Step 4b: Secondary emails → Apple Contacts
+
+If you had more than one email for the person, Notion got the work one (Step 1). Stage the rest for the
+Apple card. This applies to new rows and to existing rows found by dedup:
+```
+python3 ~/.claude/scripts/contacts_notion_sync.py alt-email <people_page_id> <email> [<email> ...]
+```
+The Contacts sync adds them as HOME emails on its next run. Add one line to the confirmation:
+`+ <email> → Apple Contacts (secondary)`. Spec: `shared-references/people-db-guardrails.md` → Multiple emails.
 
 ### Step 5: Report Back
 

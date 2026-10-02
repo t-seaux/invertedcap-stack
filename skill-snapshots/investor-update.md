@@ -134,20 +134,20 @@ Triggered by `gmail-webhook` (`investor-update.js`) on inbound mail that passes 
 - `oppName` (optional) — Opportunity title, for log/Slack output before the Notion page is loaded.
 - `forwardedSenderEmail` (optional) — set when the webhook detected `Fwd:` from Tom's own address. The original founder is in the forwarded body — use this email for company resolution, not the message's `From` header.
 
-**Dash variant (`mail_source: "dash-local"`).** `tom@dashfund.co` has no Gmail webhook, so the `dash-deal-detect` portfolio-update lane enqueues this skill when an update / board-material email from a Dash portfolio founder lands. Args are keyed to the local Apple Mail store instead of Gmail:
+**Dash variant (`mail_source: "dash-local"`).** Since 2026-10-01 the gmail-webhook's investor-update handler (Dash mailbox) enqueues this skill when an update / board-material email from a Dash portfolio founder lands. Args are keyed to the Dash mailbox (`dash_mail.py`) instead of the Inverted Gmail path:
 
 ```json
-{ "mail_source": "dash-local", "rowid": <dash rowid>, "oppId": "<opp page id>", "oppName": "<company>", "fund": "Dash 2️⃣" }
+{ "mail_source": "dash-local", "rowid": "<dash gmail message id>", "oppId": "<opp page id>", "oppName": "<company>", "fund": "Dash 2️⃣" }
 ```
 
-On this variant: **do not use the Gmail MCP.** Fetch the body via `~/.claude/scripts/dash_mail.py get <rowid>` and any attached deck/letter via `dash_mail.py attachments <rowid> <dir>` (a `.partial.emlx` stores attachment bytes in a sibling `Attachments/<rowid>/` tree — see fund-context.md). Everything else — the portfolio HARD GATE (Step 2, re-verify Status), forward normalization (Step 2.5, `tom@dashfund.co` already a recognized forward source), the PDF render + Drive upload (Step 3), the Company Updates DB upsert (Step 4), and the Slack alert (Step 5) — runs **unchanged**; the DB and Drive are shared across funds. The Company Updates row is keyed by Company × Period as always (Fund is not part of the row key — the shared DB already holds Dash portfolio cos). See `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
+On this variant: **do not use the Gmail MCP.** Fetch the body via `~/.claude/scripts/dash_mail.py get <rowid>` and any attached deck/letter via `dash_mail.py attachments <rowid> <dir>` (full binaries via the Gmail API – see fund-context.md). Everything else — the portfolio HARD GATE (Step 2, re-verify Status), forward normalization (Step 2.5, `tom@dashfund.co` already a recognized forward source), the PDF render + Drive upload (Step 3), the Company Updates DB upsert (Step 4), and the Slack alert (Step 5) — runs **unchanged**; the DB and Drive are shared across funds. The Company Updates row is keyed by Company × Period as always (Fund is not part of the row key — the shared DB already holds Dash portfolio cos). See `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
 
 **Behavior in Mode B:**
 - Process exactly the one message identified by `messageId`. Do **not** scan the inbox for other updates in this run.
 - Run the same artifact-level idempotency check (Step 4 — has this message already been incorporated into its period row?). If yes, log and exit without re-uploading the PDF.
 - Skip Step 1's portfolio-list query and per-company searches entirely — those exist for the scheduled mode.
 - Otherwise proceed through Steps 2–5 unchanged. The Slack alert in Step 5 is the single notification for this update — the webhook does not post its own alert in this path.
-- Single-message alert format (override Step 5's batch format): headline + one body line (the runtime lint wraps the ENTIRE first line, so nothing may trail the headline): `📬 <u>**<Company>: "<subject or period>"**</u>`, blank line, then `<PDF source>. [<Company> update](https://www.notion.so/{page_id_no_dashes})`. The Notion link MUST be a GFM markdown link `[label](url)` — never a bare URL (a bare URL ships as plain, un-tappable text through the Block Kit converter). Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
+- Single-message alert format (override Step 5's batch format): headline + one body line (the runtime lint wraps the ENTIRE first line, so nothing may trail the headline): `📬 <u>**<Company>: "<subject or period>"**</u>`, blank line, then `<PDF source>. [<Company> update](<update_pdf_drive_url>) · [Notion row](https://www.notion.so/{page_id_no_dashes})`. The primary `<Company> update` link opens THE UPDATE ITSELF — the archived PDF's Drive view URL (the original attachment/deck PDF when one exists, else this email's body-PDF) — never the Company Updates period row, which is the month's rolled-up summary (Tom, 2026-10-01, Factir Sep 2026). The period row rides as the secondary `Notion row` link. Both MUST be GFM markdown links `[label](url)` — never a bare URL (a bare URL ships as plain, un-tappable text through the Block Kit converter). Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
 
 ### Mode C: Manual / Forwarded Email
 
@@ -729,7 +729,7 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 📬 <u>**Portfolio Updates**</u> · YYYY-MM-DD
 
 **Portfolio**
-• **<Company>** — "<subject or period>" — <PDF source: original/email-converted>. [<Company> update](https://www.notion.so/{page_id_no_dashes})
+• **<Company>** — "<subject or period>" — <PDF source: original/email-converted>. [<Company> update](<update_pdf_drive_url>) · [Notion row](https://www.notion.so/{page_id_no_dashes})
 • _none this run_ (if empty)
 
 **Jobs Linked**
@@ -751,6 +751,7 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 
 Rules:
 - **Bold the company name** with double asterisks (GFM). The `send.sh` converter handles this correctly.
+- **`<Company> update` links to the update PDF, not the period row.** URL = the Drive view URL of the PDF archived for THIS email in Step 3 (original attachment/deck when present, else the email-body PDF — the same URL written to `Artifacts` in Step 4.5). The Company Updates row is a monthly rollup; it goes on the secondary `[Notion row](...)` link. If no PDF was archived (should not happen on a write), fall back to the row link and add `⚠️ no PDF archived`.
 - **The Notion page link MUST be a GFM markdown link** `[label](url)` (e.g., `[Quiet AI update](https://www.notion.so/3ab00beff4aa81cf857bd7b2a69e82d1)`) — never a bare URL. `send.sh`/`md_to_blocks.py` only linkifies `[text](url)`; a pasted bare URL ships as plain, un-tappable text in the Block Kit rich_text output. Use the canonical host `https://www.notion.so/{page_id_no_dashes}` — **never `app.notion.com/p/{id}`** (that form is not a resolvable page URL). Same page-id you write to the `Company`/created-page URL in Step 4.
 - Portfolio section = companies with Status in the Active Portfolio set (per the skill's Step 3 eligibility rule) whose email was archived. A portfolio-set company whose email was filtered on content grounds goes under "Portfolio — filtered (not an update)". Only companies outside the portfolio set go under Non-Portfolio.
 - **Jobs Linked** section only appears when Step 4.6 actually added a chip this run — never an empty placeholder row. Link the chip's own URL (Drive snapshot, or the live posting on the render-failure fallback), not the Opportunity page.

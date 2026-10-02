@@ -50,6 +50,15 @@ Papermark is the open-source DocSend clone Tom encounters in the wild. URL shape
 
 CloudFront URLs in the response are pre-signed and short-lived (~hours). Don't cache; download immediately.
 
+## Step 0: Native download first — the Download button beats the page render
+
+**If the DocSend viewer shows a Download button, use it and save the original file** (`.xlsx`, `.pdf`, `.pptx`, `.docx`), and do NOT fall back to page-image conversion or chip the DocSend viewer URL (Tom, 2026-10-01, Brenner Labs `ApproxBudget`). Senders turn downloads on per link, and when it's on, the native file is the real material.
+
+- **Spreadsheets (`.xlsx` / `.csv`)** — the downloaded workbook *is* the source chip `(xlsx)`. Then produce the PDF snapshot from it per `shared-references/spreadsheet-artifact-convention.md` (landscape, all columns on one page width). A page-image render of a spreadsheet is never acceptable when a download exists.
+- **PDF / deck** — the downloaded original replaces the image-compiled PDF. It keeps selectable text and full resolution.
+- **How** — work inside Tom's already-authed Chrome tab (Step 5 pattern). Find the download control's `href` / network request in the loaded viewer and fetch it with the session cookies, or click it and pick the file up from `~/Downloads`. When you capture the working endpoint, record it in this section so the next run can call it directly.
+- **No Download button** (downloads disabled) — fall through to Step 1. For a spreadsheet that only renders as pages, flag in the alert that no native file was available.
+
 ## Step 1: Convert DocSend to PDF (Python Approach)
 
 Use this proven Python approach (pip dependency: `Pillow`):

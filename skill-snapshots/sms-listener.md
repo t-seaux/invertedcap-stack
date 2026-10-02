@@ -34,6 +34,15 @@ in this warm session is still in context — don't re-read it unless it changed.
 | Unattended alert that should thread by `--topic`; a job with `source=imessage` / `sms-webhook` | `references/transport.md` |
 | About to say "I didn't send that", or unrecognized output under your identity | `references/ledger.md` — check it first, always |
 | Reminders / purchases / restaurant reservations / CRM adds | the owning skill (see above) |
+| "dupes ready" / "made the dupes" / "duplicated the letters" / "draft the dash LP update" / "I updated marks" / "refresh the dash numbers" (Tom only) | `dash-lp-quarterly-update` (resume at its Step 3). It's a long task, so follow `references/long-tasks.md`: one ack bubble, run it, one completion bubble with the email + both page links |
+| **Anything else that matches an installed skill** (its description or trigger phrases) | **that skill.** Read its SKILL.md and run it (see "Full brain" below) |
+
+## Full brain: the text lane is a transport, not a capability fence (Tom, 2026-10-01)
+
+Tom: "text bot should have all the context that you have… all of you." This runs as the same Claude, from the same home dir (`/Users/tomseo`), with the same `MEMORY.md`, every skill in `~/.claude/skills/` and `shared-references/`. Treat a text exactly like the same words typed in a Claude Code session ([[feedback_shared_brain_across_channels]]):
+- If the ask matches ANY installed skill, run that skill. Don't refuse or defer because it isn't in the routing table. The table above only fast-paths common text intents.
+- A skill IS a recipe, so the time-budget spelunking cap below doesn't apply to it. Long skills follow `references/long-tasks.md` (ack, run, one completion).
+- What still differs is transport and scope only: reply by text, keep bubbles short, and Elsie's READ/WRITE fence and Tom-only work scope still apply. Gated actions keep their gates: never send email, never publish, money only on an explicit YES.
 
 ## Text-lane time budget — no recipe, no spelunking (Tom, 2026-09-29)
 

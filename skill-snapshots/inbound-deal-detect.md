@@ -24,6 +24,21 @@ The local processor invokes this skill with these args (set by `deal-scanner.js`
 - `knownTerminalOpp` (optional, object `{id, name, status, matchedVia?}`) — set by `deal-scanner.js` when the envelope sender (or, via `matchedVia`, another address under the same display name — see `~/.claude/skills/shared-references/revive-gate.md`) is the `Contact` of an existing Opp at a **terminal** status (`Pass (Met)`, `Pass (DNM)`, `Lost`, `NR / Missed`). The webhook skips its Haiku gate for these (a known founder re-engaging is signal by definition) and routes here so the Revive Gate v2 runs. See Step 3 — the update-vs-pitch and confidence gates do NOT apply; the only question is whether the email carries new company signal.
 - `materialUrls` (optional, array of strings) — deck/material URLs the webhook extracted from the email body (Drive, DocSend, Dropbox, Brieflink, Pitch.com, Figma, Canva, Notion.site, raw PDFs). When present, this list is **authoritative**: every URL MUST be passed through to `add-to-crm` so it runs Step 1B (read for thin-body field extraction) and Step 6 (link in Diligence Materials property). Skipping a URL because "the body context didn't seem deck-shaped" is not allowed — the webhook already filtered out company-website links. See the 2026-05-12 Unicorn Snot regression for why this gate moved server-side.
 
+### Dash lane (`mail_source: "dash-local"`)
+
+Since 2026-10-01 the gmail-webhook routes tom@dashfund.co mail through the same deal-scanner, so
+this skill also receives Dash jobs: args carry `mail_source:"dash-local"`, `rowid` (= the Dash
+Gmail message id, same value as `messageId`) and `fund:"Inverted 1️⃣"` (new deals are never Dash).
+Deltas — everything else is identical:
+- **Step 1 fetch:** `python3 ~/.claude/scripts/dash_mail.py get "<rowid>"` (body, headers,
+  `message_id`, `threadId`) — NOT `admin_run.py` (Inverted-only, per `headless-gmail.md` H4).
+  Attachments: `dash_mail.py attachments "<rowid>" <dir>`.
+- **Step 1D sender gate:** also drop anything sent from `@dashfund.co` (Tom / Ryan internal mail).
+- **Step 4 args:** pass `mail_source`, `rowid`, `fund` through to add-to-crm and OMIT
+  `threadId` / `gmailMessageUrl` — add-to-crm's Dash lane stages the card with them (Step 4T).
+- Ledger/audit: `.proposed` lines go to this skill's `.proposed`, tagged `dash rowid=<rowid>`;
+  pre-cutover Dash ledgers are archived read-only in `dash-history/`.
+
 ## Workflow
 
 ### Step 1: Fetch the email
@@ -136,7 +151,7 @@ When in doubt, return one company. False fan-out creates ghost Opps Tom has to c
 
 **Field formatting (apply per-company within the `companies` array):**
 - `round_details` — per `~/.claude/skills/shared-references/round-details-format.md` (the ONE spec). Return `""` if no concrete $ figure is explicit in the source; add-to-crm reads the deck downstream.
-- `stage` — one of `Pre-Seed`, `Seed`, `Seed+`, `Series A`, `Series B`, `Growth`, `Angel` — infer from round size or explicit mention.
+- `stage` — one of `Pre-Seed`, `Seed`, `Seed+`, `Series A`, `Series B`, `Growth`, `Angel` — ALWAYS one of these, never empty: an explicitly named round (email or deck) wins; otherwise infer from the whole context (company age, first-ever raise), not round size alone — a new company's big first round is Pre-Seed. Stage / HQ / Description provenance = `~/.claude/skills/shared-references/deal-card-provenance.md` (ONE spec, both lanes): no WebSearch / aggregator snippets.
 - Use empty strings for fields you cannot extract.
 - Prefer `"low"` confidence for ambiguous cases — false negatives are cheaper than false positives here.
 

@@ -48,7 +48,7 @@ This skill has three entry points:
    - **Honor `sourceDirective` verbatim** — if `"Direct"`, use the canonical Direct People DB page; if `{email, name}`, resolve against People DB and populate `Source(s)`. Do NOT auto-create a People row if the referrer isn't found (per Tom's standing rule — surface the gap in the Slack alert instead).
    - **`materialUrls` is authoritative** — every URL MUST be processed by Step 1B (read for thin-body enrichment) AND Step 6 (link via materials-handler). Do not second-guess what counts as a deck.
    - **Skip Step 4's "Present Summary"** — no human is watching the run-log live.
-   - **NEW deals are TEXT-CARD GATED — Step 4T replaces Steps 5–8 (Tom, 2026-09-24: "for new deals let's carve out text").** When the Protected Status Guard lands on *create* (no existing Opp), do NOT create the page: run **Step 4T** (stage + text Tom a 🆕 card) and exit. Tom's 👍 on the card runs Steps 5–8 from the staged spec (sms-listener §4, Inverted branch); 👎 creates it as Pass (DNM); 🗑️ archives the email, no row. This makes Inverted identical to the Dash lane (`dash-deal-detect`) — lane twins. Duplicate / protected / terminal outcomes are unchanged (📌 / 🛡️ Slack alert, 🔁 revive card).
+   - **NEW deals are TEXT-CARD GATED — Step 4T replaces Steps 5–8 (Tom, 2026-09-24: "for new deals let's carve out text").** When the Protected Status Guard lands on *create* (no existing Opp), do NOT create the page: run **Step 4T** (stage + text Tom a 🆕 card) and exit. Tom's 👍 on the card runs Steps 5–8 from the staged spec (sms-listener §4, Inverted branch); 👎 creates it as Pass (DNM); 🗑️ archives the email, no row. Dash-mailbox deals take this same path (gmail-webhook, `mail_source:"dash-local"`, see Step 4T). Duplicate / protected / terminal outcomes are unchanged (📌 / 🛡️ Slack alert, 🔁 revive card).
    - **Step 8 (Slack alert)** still fires for the non-create outcomes (📌 / 🛡️), and for a created row only AFTER Tom's 👍 (run by the confirm handler). Manual mode does not need Step 8 because Tom is in the conversation.
 
 3. **Explicit-command mode** — invoked by `add-to-crm-detect` via the claude-job-queue, when Tom wrote "add to crm" in his own text on an email in the watched inbox. Unlike webhook mode, **nothing was classified upstream** — `add-to-crm-detect` only recovered the raw source material, it never inferred Status/Source/Stage. The args dict contains `crmForwardMode: true`:
@@ -68,7 +68,7 @@ This skill has three entry points:
    - **Skip Step 4's "Present Summary"** (no human watching), same as webhook mode.
    - **Run Step 8 (Slack alert)** when done, same as webhook mode.
    - Do NOT invent a `statusDirective`/`sourceDirective` — infer both normally from the content, exactly like manual mode would.
-   - **Dash lane (`mail_source: "dash-local"`, args `{rowid, fund}` instead of `messageId`/`threadId`).** The email is in `tom@dashfund.co`, not on the Gmail API. Fetch its body/thread with `python3 ~/.claude/scripts/dash_mail.py get <rowid>` and attachments with `dash_mail.py attachments <rowid> <dir>` — NOT `admin_run.py` or the Gmail Attachment Saver (both are Inverted-scoped). **Set the new Opp's `Fund` property to `Inverted 1️⃣` — NOT the passed `fund`** (Tom, 2026-09-24: "regardless of whether the opportunity is sent to dash or inverted, in the Notion field make it inverted — I'm not investing in new deals out of dash anymore"). The passed `fund` still drives mail fetch / fund-aware routing; it never becomes a new row's Fund. Everything else (Step 1 extraction, enrichment, Notion create, Step 6 materials via `materials-handler`) is identical — materials-handler is itself fund-aware. See `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
+   - **Dash lane (`mail_source: "dash-local"`, args `{rowid, fund}` instead of `messageId`/`threadId`).** The email is in `tom@dashfund.co` (Gmail API via `dash_mail.py`; `rowid` = Gmail message id), not the Inverted mailbox. Fetch its body/thread with `python3 ~/.claude/scripts/dash_mail.py get <rowid>` and attachments with `dash_mail.py attachments <rowid> <dir>` — NOT `admin_run.py` or the Gmail Attachment Saver (both are Inverted-scoped). **Set the new Opp's `Fund` property to `Inverted 1️⃣` — NOT the passed `fund`** (Tom, 2026-09-24: "regardless of whether the opportunity is sent to dash or inverted, in the Notion field make it inverted — I'm not investing in new deals out of dash anymore"). The passed `fund` still drives mail fetch / fund-aware routing; it never becomes a new row's Fund. Everything else (Step 1 extraction, enrichment, Notion create, Step 6 materials via `materials-handler`) is identical — materials-handler is itself fund-aware. See `/Users/tomseo/.claude/skills/shared-references/fund-context.md`.
 
    If the Protected Status Guard fires (terminal-status duplicate, prior pass, or live-pipeline duplicate) in webhook mode OR explicit-command mode, still run Step 8 with the appropriate alert variant (📌 duplicate / 🛡️ protected) — do not exit silently. A terminal-status match sends NO Slack alert: the revive gate's 🔁 text card is the notification (`shared-references/revive-gate.md`).
 
@@ -362,12 +362,11 @@ Present extracted data as a concise summary in the response, then proceed direct
 
 Runs INSTEAD of Steps 5–8 when webhook mode reaches *create*. Steps 1–3 (extraction, deck
 reading, enrichment, contact) have already run, so the card is fully enriched. Card + staging
-contract = `~/.claude/skills/deal-text-scanner/references/deal-lane.md` §3, exactly as
-`dash-deal-detect` Step 3/3b does it — one text per company (a multi-company digest sends one
+contract = `~/.claude/skills/deal-text-scanner/references/deal-lane.md` §3 — one text per company (a multi-company digest sends one
 card each):
 
 1. Card via `~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<card>"` (capture
-   `H=${H#ok }`). Canonical 🆕 shape; closer `👍 to Add to CRM. 🗑️ to Archive Email. Respond to make
+   `H=${H#ok }`). Canonical 🆕 shape; closer `👍 / 👎 to Add to CRM. 🗑️ to Archive Email. Respond to make
    changes.`
 2. Stage `~/.claude/skills/deal-text-scanner/staged/<H>.json` — the deal-lane fields
    (`opp_title, stage, round_details, hq, description, source, source_context, contact, website,
@@ -377,6 +376,12 @@ card each):
    `materialUrls` (authoritative list for Step 6), `source_directive` (verbatim
    `sourceDirective`), `batch_context`, `email_subject`, and `page_body` (the Step 5 page
    content, ready to write). The confirm handler runs Steps 5–8 from this — no re-fetch.
+   **Dash lane (`mail_source:"dash-local"` in args — the gmail-webhook now feeds Dash mail through
+   this same path, 2026-10-01):** stage `mail_source:"dash-local"`, `rowid` (the Dash Gmail message
+   id), `fund` INSTEAD of `messageId`/`threadId`/`gmailMessageUrl` — the shape sms-listener's Dash
+   branch reads (it stamps `Source Thread ID = dash:<Message-Id>` and archives via `dash_mail.py`).
+   Audit/ledger lines say `dash rowid=<rowid>` and go to `~/.claude/skills/inbound-deal-detect/.proposed`
+   (pre-2026-10-01 Dash history: `inbound-deal-detect/dash-history/`, read-only).
 3. Audit line `[<ts>] sent_handle=$H notes=proposed add-to-crm <founder> via <source> (inverted thread=<threadId>)`
    → `~/.claude/skills/sms-listener/audit-log/$(date +%F).log`; append
    `YYYY-MM-DD <company> via <source> thread=<threadId>` to

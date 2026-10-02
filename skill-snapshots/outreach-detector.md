@@ -73,31 +73,7 @@ Execute:
    ```
 5. **Confirm.** One-line reply to Tom: `Flipped {Opp name} · Qualified → Outreach.`
 
-### Mode D — Dash lane (queue job, `lane: "dash"`)
-
-Twin of Mode B for Tom's sent **tom@dashfund.co** mail, which has no Gmail webhook. Enqueued by
-`~/.claude/scheduled-tasks/outlook-mail-watch/dash-reply-status.sh` (rider on the Dash watcher)
-with `{lane:"dash", rowid, opp:{id,url,name,status,contact,website,thread}, founder_in_thread, recipients}`.
-The rider already matched the Opp (Source Thread ID `dash:<Message-Id>`, Contact, or domain) and
-resolved `founder_in_thread` in code — do not re-derive either.
-
-1. **Re-read the Opp's live Status** (`ntn api /v1/pages/<opp.id>`). Proceed only if it is still
-   `Qualified`, `Track` or `Outreach`; otherwise exit (log `not-flippable`).
-2. **Read Tom's reply** — the TCC read stays in bash: `F=$(find ~/Library/Mail/V10/0459D8B7-6B8C-424A-B393-1BF630E7987A -name "<rowid>.emlx" -o -name "<rowid>.partial.emlx" | head -1); cat "$F" | python3 ~/.claude/scheduled-tasks/outlook-mail-watch/emlx_body.py`. Use only Tom's new text above the quoted `On … wrote:` block.
-3. **Classify** Tom's text as `decline` / `opt-in` / `neutral` with a confidence, using the same
-   rubric as `gmail-webhook/outbound-intent.js` (decline = passing on the deal or the intro;
-   opt-in = yes to the intro / meeting / next step; neutral = logistics, thanks, FYI).
-4. **Apply** `shared-references/opp-status-sets.md` § "New-deal card 👍 and the reply that advances
-   it" — one write, `ntn api -X PATCH /v1/pages/<id>` with the full status object:
-   - `decline` ≥ 0.85 → Decline target (`Track` → `Pass (Met)`; else `Pass (DNM)`)
-   - else `founder_in_thread` and not a decline → `Connected` (only from Qualified/Track/Outreach)
-   - else `opt-in` ≥ 0.85 and status ∈ {Qualified, Track} → `Outreach`
-   - else no change.
-5. **Alert** via `send-alert` exactly like the webhook: `🤝 <u>**Opted In: <Opp>**</u>` /
-   `🤝 <u>**Connected: <Opp>**</u>` / the decliner's pass headline, then `<from> → <to>` and
-   `[Open in Notion](<url>)`. No change → no alert.
-6. Audit line per SHARED_SAFETY.md; a run that can't read the email or write Notion ends with
-   `JOB_FAILED:` (`shared-references/headless-gmail.md` H3).
+**Mode D (Dash queue-job lane) – retired 2026-10-01:** tom@dashfund.co sent mail now runs through the gmail-webhook's outreach-decliner / outreach-detector exactly like Inverted (Path D matches Source Thread ID `dash:<Message-Id>` via In-Reply-To / References / thread Message-IDs).
 
 ## What this skill does NOT do
 

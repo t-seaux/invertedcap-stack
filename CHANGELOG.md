@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-10-02] (Week of 2026-09-28)
+
+**Added:** None
+**Removed:** dash-deal-detect
+**Modified:**
+- add-to-contacts -- extra emails found for a person are now kept and staged as secondary addresses; UK locations now record state as UK
+- add-to-crm, add-to-crm-detect, inbound-deal-detect -- the second-inbox lane now runs through the same webhook path and reads from the Gmail API instead of local mail storage; stage is always populated
+- dash-lp-update-email -- draft is now saved as a Gmail draft rather than a Mail.app draft
+- investor-update -- second-inbox variant now enqueued by the webhook handler; alert links to the update PDF alongside the Notion row
+- materials-handler -- second-inbox follow-up variant now enqueued by the webhook handler and fetches via the Gmail API
+- outreach-detector -- retired the second-inbox queue-job mode (now handled by the webhook)
+**Total skills:** 57
+**Functions:** No changes
+
 ## [2026-10-01] (Week of 2026-09-28)
 
 **Added:** None
