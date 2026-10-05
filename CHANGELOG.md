@@ -2,11 +2,11 @@
 
 ## [2026-10-04] (Week of 2026-09-28)
 
-**Added:** None
+**Added:** dash-lp-letter-drafter, dash-lp-quarterly-update
 **Removed:** agentic-commerce-agent (retired 2026-10-03)
 **Modified:** None
-**Total skills:** 56
-**Functions:** Research Management -1 (agentic-commerce-agent)
+**Total skills:** 58
+**Functions:** Research Management -1 (agentic-commerce-agent); Portfolio Management +2 (quarterly LP letter drafting and the end-to-end quarterly LP update)
 
 ## [2026-10-02] (Week of 2026-09-28)
 

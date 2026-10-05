@@ -1,8 +1,12 @@
 {
   "skills": {
-    "dash-lp-letter-drafter": "2026-10-02",
-    "dash-lp-quarterly-update": "2026-10-02"
+    "dash-distribution": "2026-10-04",
+    "inverted-capital-call": "2026-10-04",
+    "text-tend-to": "2026-10-04"
   },
   "launchAgents": {},
-  "webhookHandlers": {}
+  "webhookHandlers": {
+    "dash-lp-update-sent": "2026-10-04",
+    "lp-letter-sent": "2026-10-04"
+  }
 }
