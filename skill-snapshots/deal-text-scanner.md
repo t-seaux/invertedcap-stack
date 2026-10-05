@@ -1,14 +1,14 @@
 ---
 name: deal-text-scanner
 description: |-
-  Text-channel router for Tom's personal iMessages. A code-gated launchd sweep hands it new 1:1 (and small-group) messages; it triages each into one or more lanes and loads only that lane's reference file. DEAL — deal-flow signals become a 🆕 Opportunity card texted to Tom; his 👍 (via sms-listener) does the add, never a direct CRM write. INTRO — Tom's in-thread replies move pipeline status, unknown numbers get identified as intro'd founders, the Blockit handoff is pre-staged, and the reverse arrow (opt-ins/declines to Tom's own portco-intro offers) moves relations and queues the connect draft. FEEDBACK — backchannel asks and debriefs (incl. voice notes) are auto-written to the Notion feedback notes with no 👍 gate; the email side stays with feedback-outreach-scanner. Scheduled-sweep-only. TOM-ONLY surface — never family-scoped. Most messages are NOT anything — default to silence.
+  Text-channel router for Tom's personal iMessages. A code-gated launchd sweep hands it new 1:1 (and small-group) messages; it triages each into one or more lanes and loads only that lane's reference file. DEAL — deal-flow signals become a 🆕 Opportunity card texted to Tom; his 👍 (via sms-listener) does the add, never a direct CRM write. INTRO — Tom's in-thread replies move pipeline status, unknown numbers get identified as intro'd founders, the Blockit handoff is pre-staged, and the reverse arrow (opt-ins/declines to Tom's own portco-intro offers) moves relations and queues the connect draft. FEEDBACK — backchannel asks and debriefs (incl. voice notes) are auto-written to the Notion feedback notes with no 👍 gate; the email side stays with feedback-outreach-scanner. ADDRESS — a home address texted in a thread → 🏠 card; 👍 saves it to Apple contacts. Scheduled-sweep-only. TOM-ONLY surface — never family-scoped. Most messages are NOT anything — default to silence.
 
 ---
 
 # Text Scanner — lane router
 
 > Named `deal-text-scanner` for historical reasons (launchd plist, `sms-listener` paths, and
-> the live state files all key off that name). It is no longer deal-only — it routes three
+> the live state files all key off that name). It is no longer deal-only — it routes four
 > lanes. Rename only as a deliberate, separately-verified change.
 
 ## Input
@@ -80,9 +80,10 @@ correctly. Content can't tell you someone owes Tom a read — only the roster ca
 | Tom replying opt-in/pass on a deal; an unknown number that may be an intro'd founder; a REFERRER announcing an intro is live ("meet / re-meet X", "you two connect", "I'll let you find time"); an email or scheduling exchange on a known deal | **Intro** | `references/intro-lane.md` |
 | Tom OFFERING one of his portfolio founders to the peer ("can I intro you to…" + portco/founder link); or ANY inbound that could be a yes/no to such an offer — `.portco_intro_asks` hit, OR the sender resolves to a People row on any Active-Portfolio Opp's `👓 Qualified`/`☎️ Outreach` roster (the reply may be a bare "Of course!") | **Intro** | `references/intro-lane.md` |
 | **Step 0 roster hit (mandatory check above)**; or Tom asks someone for a read | **Feedback** | `references/feedback-lane.md` |
+| The peer texts a street address that is their (or someone's) HOME, e.g. answering Tom's "what's your address?" | **Address** | `references/address-lane.md` |
 | Anything else | none | — exit silently |
 
-**The bar is high and silence is the default.** Not lanes: scheduling chatter, social talk,
+**The bar is high and silence is the default.** Not lanes (except a home address, Address lane): scheduling chatter, social talk,
 thank-yous, LP/fund-admin, portfolio ops, favor-forwards, news links without a referral,
 anything from a service number. When unsure → silent. False negatives are fine (Tom sees his
 own texts); false positives erode trust.
@@ -101,8 +102,15 @@ offer. Judge against `~/.claude/skills/shared-references/feedback-ask-signals.md
 
 ## Gates that apply to every lane
 
-- **Dedup before writing.** Each lane owns its own ledger — `.proposed` (deal),
-  `.expected_intros` / `.known_handles` (intro), `.feedback_logged` (feedback). Grep first.
+- **Dedup before writing — in code (as code 2026-10-04).** Each lane owns its own ledger, read and written ONLY
+  through `python3 ~/.claude/skills/deal-text-scanner/lane_ledger.py has|add|prune --lane deal|feedback|intro|handles [--rowid R] --key K` (exit 0 hit / 1 miss on `has`;
+  `add` exit 3 = already there, nothing written; never grep or hand-append): `.proposed` (deal, key + rowid),
+  `.feedback_logged` (feedback, rowid membership — and sweep.sh / reconcile.sh DROP already-logged rowids before you
+  see them), `sms-listener/.home_address_proposed` (address, checked in code). The intro lane's real dedup is the
+  live Opp status (moves are idempotent, never a downgrade); `.expected_intros` and `.known_handles` are OPTIONAL
+  caches (`--lane intro` / `--lane handles`; prune intro lines once Connected). `.known_handles` was cited as a dedup
+  ledger here and in reconcile.sh but never existed — nothing wrote it; `lane_ledger.py add --lane handles` now
+  creates it on first use, and nothing depends on it. Tests: `tests/test_lane_ledger.py`.
 - **Never write to the CRM from the deal lane** — it proposes; the confirm loop in
   `sms-listener` writes. The feedback lane DOES write directly (see its file for why).
 - **Never message the family group** from this skill.

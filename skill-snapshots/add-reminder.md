@@ -17,6 +17,35 @@ Tom's shorthand: **"add a reminder to X" = a native Apple Reminder.** This is wh
 showed in the Calendar app's "Reminder" tab — an iCloud reminder that pings his phone,
 not a calendar event.
 
+## As code (2026-10-04) — create/complete through `reminder_add.py`
+
+Every create — direct ask, sms-listener, text-tend-to, watchers — goes through:
+
+```bash
+python3 ~/.claude/skills/add-reminder/reminder_add.py add --title "<title>" [--list L] [--due today|tomorrow|YYYY-MM-DD] \
+  [--url U] [--notes N] [--repeat weekly|monthly|quarterly] [--weekday NAME] \
+  [--autonomous --channel group|tom --reason "<what triggered it>"]
+python3 ~/.claude/skills/add-reminder/reminder_add.py complete --id ID --title "<title>" [--autonomous --channel group|tom --reason "<why>"]
+```
+
+It owns the deterministic steps below: the default all-day due date (today; `none` refused), dedup against
+open reminders with the same title, the retry → AppleScript → Elsie-Tom FREE all-day event chain (fixed
+calendar id, never primary), and the one autonomous alert (`⏰ Reminder Added: <Title>` / `⏰ Reminder Done:
+<Title>`, blank line, reason; group = KSeo Bot, tom = Bot 1:1). Hat routing (Step 0) is still yours: pick the
+prefix, and the script and eventkit refuse a prefix/list mismatch.
+
+| Exit | Meaning → what you do |
+|---|---|
+| 0 | created via eventkit (or completed) → confirm per Conventions |
+| 3 | an open reminder already has this title → nothing written; say "already on <list>" |
+| 4 | created via a FALLBACK → reply with ⚠ + the printed `eventkit_error` (and the calendar if `via: calendar`) |
+| 1 | every path failed → report the printed errors; nothing exists |
+| 2 | argument error (mismatch, bad date, autonomous without channel/reason) → fix and re-run; never fall back by hand |
+| 5 | written but the autonomous alert didn't send → log it loudly |
+
+Harness: `tests/test_reminder_add.py` (fakes; pins the 09-01 / 09-02 / 09-03 incidents). The sections below are
+the WHY. `eventkit` direct calls stay fine for reads and bulk edits (`list`, `move`, `rename`, `update`).
+
 ## Primary path — Apple Reminders (via the native `eventkit` helper)
 
 Use the native EventKit CLI at `~/.claude/tools/eventkit/eventkit`. It talks to
@@ -29,10 +58,24 @@ Calendar app's reminders row, which is where Tom looks for it. Default the due d
 **today**; use another day only if Tom names one. `--due` accepts `today`, `tomorrow`,
 or `YYYY-MM-DD` (all-day, no timed alarm).
 
+**Step 0 – Route the hat FIRST (Tom 2026-10-04). Every path that creates a reminder – a direct
+ask, sms-listener, text-tend-to, a watcher, a proactive capture – decides work vs personal before
+writing the title.** The prefix IS the routing; `eventkit add` picks the list from it and refuses a
+mismatch (`[TS]` on Work, `[IC]` on Kenyon-Seo → error).
+
+| Hat | Signal | Prefix | List |
+|---|---|---|---|
+| Inverted Capital | Inverted fund/LPs/portcos, office, Lupe, Vector | `[IC]` | Work |
+| Dash Fund | Dash I / II / II-A, Dash LPs, MMF, fund admin | `[DF]` | Work |
+| Work, entity unclear | work but can't tell IC vs DF | none (don't guess) | Work |
+| Personal – Tom | family (Dad/Steve, Elsie, kids), home, errands, purchases for himself/family | `[TS]` | Kenyon-Seo |
+| Personal – Elsie | Elsie asked for herself, or Tom names Elsie | `[EK]` | Kenyon-Seo |
+| Household, either | shared chore, unassigned | none | `--list Kenyon-Seo` |
+
 **List + prefix convention (Tom 2026-09-03, corrected same day):**
 - **`Work`** = Tom's own work list (renamed from "Tasks" 2026-09-03). **No `[TS]`/`[EK]` prefix here** — everything in
   it is implicitly his, and the prefix is redundant noise (Tom: "these work tasks
-  shouldn't have [TS] in front").
+  shouldn't have [TS] in front"). Entity prefix `[IC]` / `[DF]` DOES apply (Step 0).
 - **`Kenyon-Seo`** = shared personal/household list (groceries, kids/school, home,
   paying the chef/cleaner/sitter — anything domestic). Prefix convention DOES apply
   here since Elsie also uses it: `[TS]` = Tom's, `[EK]` = Elsie's, no prefix = shared/
@@ -66,14 +109,33 @@ and exit 1. Other verbs: `list [--all]`, `count`, `complete/uncomplete --id`,
 `--id` verbs accept multiple `--id` flags and commit as one batch — that's the fast
 path for bulk moves/edits/clears.
 
+**Link → URL field (Tom 2026-10-04).** When the to-do comes with a link (a product to buy,
+a form to fill, a page to check), put it in the reminder's **URL field** via `--url`, not in the
+title or notes – it's tappable there. Fix an existing one with `eventkit update --id ID --url U`.
+
+**Purchase link → stamp the category in notes (Tom 2026-10-04)** so the order email can close it later
+(`order_close_out.py`). Before the add, run
+`python3 ~/.claude/skills/shared-references/purchase_category.py <url>` and pass its `notes` as `--notes`.
+`source:"none"` (blocked page) → write `--notes "category: <best-guess Amazon top-level category> (guessed)"`
+yourself – no separate model call.
+
+```bash
+~/.claude/tools/eventkit/eventkit add --title "[TS] Order for Dad – table protector (40x72 clear)" --list "Kenyon-Seo" --due today --url "https://a.co/d/01m1y8u2" \
+  --notes "category: Home & Kitchen > Kitchen & Dining > Kitchen & Table Linens > Accessories > Table Pads"
+```
+
+**Purchase title shape (Tom 2026-10-04):** `Order for <Who> – <item (spec)>` – who it's for up
+front, en dash, then the item; the vendor stays out of the title (the URL carries it). Drop
+"for <Who>" when it's for the household.
+
 **One reminder per item.** Batch the `eventkit add` calls in one turn for multiple items.
 
 ### Fallback — AppleScript (`osascript`)
 
 If the `eventkit` binary is missing (e.g. not yet rebuilt on a fresh machine), fall
 back to `osascript`. Recompile with
-`swiftc -O -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist -o eventkit main.swift`
-from the tool dir if needed.
+the exact build + codesign recipe in `~/.claude/tools/eventkit/README.md` (build to a temp file,
+then `mv` – never `-o eventkit` in place, that SIGKILLs later runs).
 
 ```bash
 osascript -e 'tell application "Reminders" to set myR to make new reminder with properties {name:"Send Shivan $15"}' -e 'tell application "Reminders" to set allday due date of myR to (current date)'
@@ -187,9 +249,11 @@ channel; iMessage thread names: "KSeo Bot" = the family group, "Bot" = Tom 1:1):
 When adding a new autonomous flow, ask which side of that line it falls on (or ask
 Tom); never mix channels within one flow.
 
-Minimum shapes: create → `📋 <Title> — <what arrived / what triggered it>`;
-complete → `✅ <Title> — <one-line reason>` (e.g. `✅ Katya Invoice Paid — saw the
-payment confirmation in the thread`). Silent autonomous action is the failure mode
+Shapes (alert convention, ⏰ = the Reminder domain emoji; the old `📋` / `✅` one-liners
+predate it and are retired): create → `⏰ Reminder Added: <Title>`, blank line, what
+arrived / what triggered it; complete → `⏰ Reminder Done: <Title>`, blank line, `✓ <one-line
+reason>` (e.g. `✓ saw the payment confirmation in the thread`). `reminder_add.py --autonomous`
+emits exactly these. Silent autonomous action is the failure mode
 Tom is guarding against — a reminder that appears or vanishes with no explanation
 is worse than one that lingers. Live instances: Katya two-step
 (`check_katya_invoice.py` → group; `check_katya_paid.py` → group), Lupe two-step

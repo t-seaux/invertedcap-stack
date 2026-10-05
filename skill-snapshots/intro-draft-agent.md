@@ -76,6 +76,20 @@ formatting rules. Only the operational specifics below (recipient resolution) ar
 
 ### Recipients
 
+**As code (2026-10-04)** — recipients, subject and the both/all form are computed, not hand-assembled:
+```bash
+python3 ~/.claude/skills/intro-draft-agent/intro_recipients.py --thread-id <opt-in threadId> --opp-id <oppId> \
+    --replier-email <senderEmail> [--handoff-email <colleague> --handoff-name "<Full Name>"] \
+    [--name <email>=<First> ...] [--granter-company "<Co>"] [--requester-company "<Co>"]
+```
+Stdout `{to, cc, to_header, cc_header, subject, form, handoff_names, warnings}` → pass `to_header` / `cc_header` /
+`subject` straight to the create step, and use `form` ("you both" | "you all") + `handoff_names` in the handoff line.
+Exit **0** use it (relay any `warnings` in the report) · **3** REFUSE — a founder email / a first name / the granter
+company can't be sourced verbatim: do NOT draft; re-run with `--name` / `--granter-company` only if the value is
+actually on the thread or the People row, else report the gap · **2** Gmail/Notion read failed: do NOT draft.
+Your only judgment inputs are whether there is a hand-off (and who) and a nickname override (`--name x@y=Matt`).
+Harness: `intro-draft-agent/tests/test_intro_recipients.py` (real Ellie/Quiet thread fixture). The rules below are the WHY.
+
 Split To vs Cc by **who is doing the favor** — the party granting their time to chat goes in **Cc**; the party they're doing the favor for is the primary **To** recipient. Tom's rule, verbatim: *"in a double opt-in connect, the person who is doing the other the favor to chat should be cc'd."*
 
 - **To**: the ask-side party — normally the founder(s) of the portfolio company, who are being introduced to someone taking the time to chat with them.
@@ -104,7 +118,7 @@ When you detect a hand-off, **draft first, Notion bookkeeping after** — the dr
 2. **Granter set = the colleague (primary) + the original replier, both Cc'd**, colleague first. Keep the person who made the connection on the thread as a courtesy — Tom cuts them if he wants. Drop the original replier only if the reply explicitly bows out (*"I'm not the right person, talk to X"* with no ongoing role).
 3. This makes the intro **3+ people**, so the body uses **"you all"** (Step 3.2) and the subject's granter side lists both, colleague first: `[Colleague] & [Replier] ([Company])`. **Create the draft now** (Step 3's compose flow) — do not hold it for steps 4–5.
 4. **Then resolve the colleague's existing People DB row — never create one.** (The 2026-08-27 auto-create authorization is revoked by People DB Guardrails, 2026-09-22.) Look up by exact email first, then exact full name + Company matching the replier's company, against `collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9` (scoped + `workspace_search`). **Identity match → use that row** (do not edit any of its fields; if its Email differs from the Cc'd address, report "⚠️ Email mismatch" and don't copy it over). **No match → do not create:** text Tom via `shared-references/people_db_ask.py` (name, Cc'd email, company, the Opp, `--relation "☎️ Intros (Outreach)"`) and skip step 5 — the draft already exists, so nothing is blocked. Tom's 👍 makes sms-listener §4b create the row and do the Outreach append.
-5. **Add the colleague to the Opp's `☎️ Intros (Outreach)` relation — strictly AFTER step 4, and only if step 4 resolved an existing row**, since the relation write needs the colleague's People page ID. **Append, never replace-with-one:** a Notion relation update overwrites the whole list, so first read the Opp's current `☎️ Intros (Outreach)` array, then write back ALL existing entries + the colleague's page ID (same full-list rule as the status/select full-replace incident, 2026-07-16). The original replier stays in the relation — this is an add, not a swap. Before writing, apply the contract's **Tom Is Never an Intro Party** and **Single-Stage Invariant** checks to the list you read: never add a Tom self-row, skip the append if the colleague already sits in another lifecycle field, and scrub any cross-field duplicates or Tom rows you find in the same write (self-heal). Verify the write by re-fetching before moving on.
+5. **Add the colleague to the Opp's `☎️ Intros (Outreach)` — strictly AFTER step 4, and only if step 4 resolved an existing row:** `python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp_id> --person-id <colleague_id> --target outreach --source intro-draft-agent`. The wrapper does the append (the original replier stays), the self-row / single-stage / closed-Opp checks and the self-heal; exit 5 = refused by a gate (report `blocked`), never hand-write the relation.
 6. **Lifecycle scope:** this drafter only ADDS the colleague to `☎️ Outreach` (steps 4–5). The move to `✉️ Made` when Tom sends — and any scrub of either person — stays owned by the resolution/endpoint layer (`intro-resolution-endpoint.js`), as usual.
 
 ### Body & signature
@@ -182,7 +196,7 @@ covers every Gmail touch this skill needs; a healthy headless run is ~3-5 min:
   message carrying the `Intro Drafted` label. Group-opt-in Cc set = the original outreach
   message's To/Cc. Hand-off scan = the latest inbound body + Cc.
 - **Draft create:** `~/.claude/scripts/gmail-create-draft.py` (already mandatory, all modes).
-- **Label the thread:** `~/.claude/scripts/gmail-label.py --label "Intro Drafted" <replyMessageId>`.
+- **Label the thread:** done by `intro_draft_guard.py create --label-msg <replyMessageId> -- …` (Step 3.4); bare `~/.claude/scripts/gmail-label.py --label "Intro Drafted" <replyMessageId>` only for a manual fix-up.
 - **Sent/draft-list searches:** headless has no Gmail search — the `Intro Drafted` label IS the
   authoritative dedup (it's applied atomically whenever a draft is created, so label-absent =
   never drafted). The Step 2 sent/draft searches are defense-in-depth to run only when the
@@ -202,7 +216,7 @@ When invoked with `personId` + `oppId` args (Pattern 3), **skip Step 1 (roster b
        ```
        Log `healed-split-state: <person> on <opp> — removed from ☎️ Outreach (already in ✉️ Made)`. No draft, no Slack alert (state cleanup, not a new resolution). This is the proactive heal: because this agent runs within ~a minute of every opt-in, it closes the split-state window that a purely reactive audit (next reply / scheduled sweep) would otherwise leave open for many minutes.
    - Run Step 2's **full pre-create guards in order**: (1) the **deleted-draft contract** — if the opt-in thread (`threadId` from args) carries the `Intro Drafted` label, SKIP unconditionally even if no draft currently exists (Tom deleted it → never recreate); (2) already-sent check; (3) already-present-draft check. Any hit → skip, log the matching reason. This is what makes a spurious/duplicate enqueue — or a re-fire after Tom deleted the draft — safe.
-3. **Check for a colleague hand-off (reuse the guard's thread read).** You already fetched the opt-in thread (`threadId`) for the deleted-draft guard — scan its latest inbound reply (body + Cc line) for a hand-off per **Recipients → Colleague hand-off**. If found, follow that section's **draft-first ordering**: set the granter/Cc set to colleague (primary) + original replier (`personId`), create the draft (subject granter side lists both, "you all" body), and only THEN do the Notion bookkeeping — ensure the colleague's People row exists (create if net-new), then append them to the Opp's `☎️ Intros (Outreach)` relation (needs the page ID from the create). Mode B otherwise skips the inbox scan — this is the one reply read it must always do.
+3. **Check for a colleague hand-off (reuse the guard's thread read).** You already fetched the opt-in thread (`threadId`) for the deleted-draft guard — scan its latest inbound reply (body + Cc line) for a hand-off per **Recipients → Colleague hand-off**. If found, follow that section's **draft-first ordering**: set the granter/Cc set to colleague (primary) + original replier (`personId`), create the draft (subject granter side lists both, "you all" body), and only THEN do the Notion bookkeeping per **Colleague hand-off** steps 4–5 — resolve the colleague's EXISTING People row (`people_resolve.py resolve --email …`; never create one — absent → `people_db_ask.py` text, People DB Guardrails 2026-09-22), and only on a match append them to `☎️ Intros (Outreach)` via `intro-lifecycle-write.py --target outreach`. (Fixed 2026-10-04: this line used to say "create if net-new", contradicting step 4's never-create rule.) Mode B otherwise skips the inbox scan — this is the one reply read it must always do.
 4. **Compose and create the draft** exactly per **Step 3** below (same subject/body/recipients format).
 5. **Report** a one-line summary: `intro-draft (targeted): <person> → <founder(s)> (<company>) — draft created | skipped (<reason>)`; append `— handoff → <colleague>` when a hand-off was applied. No Slack alert of its own (consistent with the other modes).
 
@@ -212,8 +226,6 @@ The founder-email / target-email edge cases in the **Edge Cases** section apply 
 - **Guards:** skip guard (1), the deleted-draft/`Intro Drafted` thread-label check, and skip the colleague hand-off scan (both are reads of a `threadId` that doesn't exist). Guards (2) already-sent and (3) already-present-draft still run and ARE the dedup — search on the person's email + the standard subject shape. A re-enqueue after Tom deletes the text-lane draft is therefore recreated on the next opt-in ONLY if the scanner's `.portco_optins` ledger missed it — the queue idempotency key (`intro-draft-text-<handle>-<oppid8>`) is the primary re-fire stop.
 - **Relation state:** the scanner moves the person Qualified → `☎️ Outreach` just before enqueueing, but don't hard-fail on eventual consistency — treat **Qualified-or-Outreach as a pass**; `✉️ Made` / `🚫 Declined` skip as usual (use the person's presence in Made with `--message-id "imsg-<ledger rowid>"` for the split-state heal if needed).
 - **Recipient email:** the opt-in carries no sender email. Use the People row's `Email`; if empty, do NOT draft — report `skipped (no email on People row)` so the scanner's alert tells Tom to grab it in-thread.
-
-### Step 1: Build Outreach Roster
 
 ### Step 1: Build Outreach Roster
 
@@ -260,8 +272,10 @@ Read the email content and classify:
 
 **Pre-create guards — run in order, ANY hit → SKIP (do not create):**
 
+**As code (2026-10-04):** `python3 ~/.claude/skills/intro-draft-agent/intro_draft_guard.py check --thread-id <opt-in threadId> --target-email <person email> --opp-name "<Opp>" --opp-id <oppId>` (text lane: `--channel text`, no `--thread-id`) runs guards 1→2→3 in this order and stops at the first hit. Exit **0** clear → draft · **10** label present → log `skip-previously-drafted` · **20** made → `intro-already-sent` (no draft, no Qualified write) · **21** → `outreach-sent-but-untracked` · **22** draft present → skip · **2** a read failed → do NOT draft. The three guards below are the WHY.
+
 1. **Deleted-draft contract (MANDATORY — check FIRST).** Check whether the contact's opt-in / outreach reply thread carries the `Intro Drafted` Gmail label (this skill applies it in Step 3 whenever it creates a draft). **If the thread is labeled `Intro Drafted`, SKIP unconditionally — even if no draft currently exists in the drafts folder.** A draft that was created once and is now gone means **Tom deleted it deliberately, and a deleted auto-draft must never be recreated.** Tom may instead make the intro inline in the original thread, or write his own draft from scratch — either way the auto-drafter stays hands-off once it has drafted once. (Detect via `list_labels` → check the thread's `labelIds`, or `search_threads "label:\"Intro Drafted\""`; headless — where the Gmail MCP doesn't exist — `searchMail` with query `label:"Intro Drafted" to:<person_email>` via the gmail-webhook endpoint, `shared-references/gmail-label.md`.) Log `skip-previously-drafted (label present; draft kept, deleted, or superseded by Tom)`.
-2. **Already sent.** Query `in:sent subject:(<founder_first_name> (<company>)) to:<person_email>` — via `gmail_search_messages`, or `searchMail` headless — if a matching sent intro exists, the intro was already made; skip.
+2. **Already sent (code, subject-agnostic).** `python3 ~/.claude/skills/shared-references/intro_sent_check.py --target-email <email> --opp-name "<Opp>" --opp-id <opp id>` — exit 20 `made` → skip the draft AND any Qualified write, surface `intro-already-sent`; exit 21 `outreach-in-flight` → skip the draft, surface `outreach-sent-but-untracked`; exit 2 → Gmail unreachable, do NOT draft; exit 0 → clear. The old subject-pattern query missed free-form manual intros.
 3. **Draft already present.** `searchMail` `in:draft to:<person_email>` (or `gmail_list_drafts` on MCP surfaces) — if a matching intro draft already exists, skip (don't duplicate).
 
 **Manual mode:** Skip scanning — Tom has confirmed the opt-in. Proceed directly to Step 3.
@@ -269,6 +283,8 @@ Read the email content and classify:
 ### Step 3: Compose and Create the Draft
 
 For each opt-in where no existing draft/sent email is found:
+
+Items 1–3 (subject, both/all, To/Cc) are ONE call to `intro_recipients.py` (see **Recipients → As code**); the text below is the rule it implements. Note the real multi-name form is `A, B & C` (Tom's send: `Nishant & Jackson (Quiet Software) / Ellie, Ben & Lynn (Cameron Holdings)`).
 
 1. **Determine the subject line:**
    - Get founder first names from the roster
@@ -310,10 +326,22 @@ For each opt-in where no existing draft/sent email is found:
 
    `--cc` is the favor-giver (normally the opt-in target). Omit it only in the rare reversed-favor case where the target belongs in `--to`.
 
+   **As code (2026-10-04) — create + label in ONE command** (Step 5 below is then done for you):
+   ```
+   python3 ~/.claude/skills/intro-draft-agent/intro_draft_guard.py create --label-msg <opt-in reply messageId> -- \
+     --to "<to_header>" --cc "<cc_header>" --subject "<subject>" \
+     --html-body-file /tmp/<scratch>.html --snapshot-text-file /tmp/<scratch>.txt --skill intro-draft-agent
+   ```
+   It runs `gmail-create-draft.py` with everything after `--` and, only when the draft exists (its exit 0/1), labels
+   the opt-in REPLY `Intro Drafted` via `gmail-label.py`. Exit = gmail-create-draft's code (0 ok · 1 snapshot failed ·
+   2/3 nothing created · 4 duplicate/gate refusal — never labeled), plus **5** = draft created but the label failed →
+   report `⚠️ Intro Drafted label missing on <thread>` so Tom (or a re-run of `gmail-label.py`) closes it. Text lane
+   (no thread): `--no-label`.
+
    Stdout is one JSON line with `messageId` / `draftUrl`. Exit code 0 = both writes succeeded;
    non-zero = treat the whole step as failed (do not fall back to a snapshot-less MCP draft).
 
-5. **Mark the thread so a deleted draft is never recreated (MANDATORY).** Apply the `Intro Drafted` Gmail label to the contact's **opt-in / outreach reply thread** (the `threadId` of their reply — NOT the new draft, which Tom may delete). Create the label first if it doesn't exist (`list_labels` → `create_label "Intro Drafted"`), then `label_thread`. This durable marker is exactly what the Step 2 deleted-draft guard reads on the next run: once set, this intro is drafted-once-forever — the auto-drafter will not redraft it even after Tom deletes the draft.
+5. **Mark the thread so a deleted draft is never recreated (MANDATORY — done by `intro_draft_guard.py create`; by hand only if you created the draft another way).** Apply the `Intro Drafted` Gmail label to the contact's **opt-in / outreach reply thread** (the `threadId` of their reply — NOT the new draft, which Tom may delete). Create the label first if it doesn't exist (`list_labels` → `create_label "Intro Drafted"`), then `label_thread`. This durable marker is exactly what the Step 2 deleted-draft guard reads on the next run: once set, this intro is drafted-once-forever — the auto-drafter will not redraft it even after Tom deletes the draft.
 
 ### Step 4: Report
 

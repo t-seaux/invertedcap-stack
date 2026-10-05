@@ -73,7 +73,9 @@ Auditors send investment confirmations directly to each portfolio company and ne
 Email** per company. First executed 2026-09-04.
 
 **1 — Read the auditor's list.** They reference companies by **legal entity name**, which often
-differs from the CRM row name. Current map:
+differs from the CRM row name. **Source of truth: the Opportunities DB `Legal Name` field** (added 2026-10-03;
+the webhook router matches on it too). Query it; the table below is a snapshot only. A new legal↔CRM pair goes
+into that field, never only here.
 
 | Auditor / legal name | CRM Opp row | Notes |
 |---|---|---|
@@ -83,6 +85,8 @@ differs from the CRM row name. Current map:
 | Quiet AI Corporation | Quiet Software | tryquiet.ai |
 | Rengo AI, Inc. | Rengo | |
 | Tuor, Inc. | Tuor | |
+| FairAppeal, Inc. | Fair | Inverted 1 row (a separate Dash "Fair" exists) |
+| AgentBay, Inc. | AgentBay | from the executed SAFE (Delaware) |
 
 New portcos: resolve by founder-email domain match against the Opp Contact field; extend this
 table when a new legal↔CRM pair is confirmed.

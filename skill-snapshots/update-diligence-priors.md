@@ -32,6 +32,19 @@ analysis, and to say so clearly.
 
 ## Step 1: Locate the Existing Diligence Page
 
+**Run the delta in code first (2026-10-04):**
+```bash
+python3 ~/.claude/skills/update-diligence-priors/compute_delta.py check --opp-id <opportunity page id>
+```
+It finds the canonical doc (latest `Update —` H2; title date for Final docs), builds the already-processed set (every
+Notion page id / Drive file id cited in ANY of the company's diligence docs ∪ the ledger ∪ everything that existed at
+the last run — a first-pass reads everything linked at the time) and diffs it against the Opp's ✍️ Notes and Diligence
+Materials. **Exit 3 = zero delta → skip** (post its `skip_alert` text headless, or say it interactively; no Notion
+writes, no PDF). **Exit 4 = no diligence doc** → tell Tom / suggest first-pass. **Exit 0** → read exactly `new_notes` +
+`new_materials`; for each `uncertain_materials` item (undated, uncited legacy chip) check the doc's Sources by title —
+cited → skip, else treat as new. Do not add or drop items by your own reading; a wrong delta is a script bug → fix +
+add a harness case. The prose below is the WHY and the reading instructions.
+
 Search the Notes database (`collection://e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for the existing
 diligence page. Use `notion-search` with the query "[Claude] [Company Name] Master Diligence Doc";
 if that returns nothing, retry with the legacy titles "[Claude] [Company Name] First-Pass
@@ -587,27 +600,44 @@ research-artifact-audit Step D; this only specifies the Slack format.
 
 ## Step 5: Prepend to the Notion Page
 
-### Tooling choice — MCP vs REST API
+### As code (2026-10-04) — `shared-references/notion_prepend_section.py`
 
-Two transports are available; use them per their strengths:
+The prepend, its ordering verification, any same-run replacement of an old update, and the title
+PATCH are ONE script shared with finalize-diligence. Build the update section as a JSON list of
+Notion block objects (top to bottom, led by `heading_2` "Update — Month D, YYYY"; plain tables
+are `table`/`table_row` blocks), then:
 
-- **MCP `notion-update-page`** — required for the initial markdown→blocks conversion
-  (it knows how to render `<table>` markup, embeds, callouts, etc. into Notion blocks).
-  Use it for the *initial prepend* of the new update content because that content can
-  contain tables.
-- **REST API direct** (PATCH/DELETE via `urllib`) — faster and more reliable for
-  pure-text operations: title updates, property writes, deleting existing blocks,
-  patching a single block's `rich_text`, listing children. Use it for everything in
-  this step EXCEPT the new-content prepend.
+```bash
+S=~/.claude/skills/shared-references/notion_prepend_section.py
+python3 $S --page-id <diligence page id> --blocks-json update_blocks.json --title-suffix Update --date MM.DD.YYYY          # dry run (read-only)
+python3 $S --page-id <diligence page id> --blocks-json update_blocks.json --title-suffix Update --date MM.DD.YYYY --apply  # prepend
+# replacing an already-published update (5.2): add  --replace-heading "Update — <old Month D, YYYY>"
+```
 
-Why: MCP `update_content` and `insert_content` both time out client-side on
-multi-KB payloads (observed repeatedly in production — including the Factir
-2026-05-21 consolidation run where two `update_content` calls timed out before
-a third `insert_content` finally completed server-side). The REST API is
-single-shot 200s on the same operations. Caught after Factir 2026-05-21 —
-prior runs that relied on MCP for everything would often appear stuck.
+No `--replace-heading` = no-replace mode: nothing on the page is deleted, the new section lands on
+top in order (batch 1 `position:start` on `2025-09-03`, later batches `after:<last created id>`),
+is read back (ids + heading order), and the title becomes `[Claude] [Company Name] Master Diligence
+Doc — MM.DD.YYYY Update` with any old date suffixes stripped (never stacked). `--profile update`
+(implied) refuses input not led by `## Update — …`.
 
-REST API token resolution (mirrors `~/.claude/scripts/notion_files_property.py`):
+**Exit handling:** 0 done / plan printed · 2 bad args or HTTP error before any write → fix, re-run
+· 3 refused before writing (bad shape; `--replace-heading` matches 2+ sections or has no following
+anchor) → fix input / inspect page · 4 mid-batch error or readback mismatch, new blocks rolled back,
+page unchanged → re-run once, then alert Tom with `problems` · 5 rollback / old-range delete / title
+readback failed → manual repair, alert Tom with `leftover_ids`, do not re-run. Full table + incident
+notes: `finalize-diligence/references/step-4-notion-write.md`.
+
+### Why REST via the script, not MCP
+
+MCP `insert_content` with `position:start` is non-deterministic on multi-block ordering (Factir
+2026-05-22: 118 blocks REVERSED on 2 of 3 attempts — `feedback_mcp_insert_content_ordering_bug`),
+and MCP `update_content` / `insert_content` time out client-side on multi-KB payloads (Factir
+2026-05-21) while REST is single-shot. The legacy `after: ""` prepend 400s (AgentBay 2026-07-21,
+Oun Homes 2026-09-25). **MCP fallback** only for blocks you cannot hand-build as JSON (merged-cell
+tables, image embeds), and only for those blocks.
+
+REST API token resolution for the manual ops below (mirrors `~/.claude/scripts/notion_files_property.py`;
+the script itself reuses `opp_status._token`):
 
 ```python
 import os, json, subprocess
@@ -623,16 +653,10 @@ HDR = {'Authorization': f'Bearer {token}',
        'Content-Type': 'application/json'}
 ```
 
-### 5.1 Prepend the new update content (MCP)
+### 5.1 Section layout (judgment — not in the script)
 
-Use `notion-update-page` with the `insert_content` command and `position: {"type":"start"}`
-to insert the new update section at the top of the page. The content goes immediately
-after the page title and above the first existing section (typically the previous update's
-leading `---` or the "Framework Mapping" header on a never-updated page).
-
-The update sections should stack chronologically — newest at the top, oldest at the bottom,
-with the original analysis below all updates. This means a page that has been updated three times
-will read: Update 3 → Update 2 → Update 1 → Original Analysis.
+The update sections stack chronologically — newest at the top, oldest at the bottom, with the
+original analysis below all updates: Update 3 → Update 2 → Update 1 → Original Analysis.
 
 (No progress ping here — the run stays silent until the single completion alert at Step 6.)
 
@@ -646,83 +670,30 @@ section divider and header before the original first-pass content:
 ```
 
 This goes immediately before `## Framework Mapping — Inverted Lens` (or whatever the first H2
-of the original analysis is). On subsequent updates, this header already exists and should not
-be duplicated.
+of the original analysis is) — a mid-page insert, so REST `after:<id of the block above it>` (a
+real block id, never `""`), not the prepend script. On subsequent updates, this header already
+exists and should not be duplicated.
 
 **Legacy `# Original First-Pass Memo — …` anchor.** Pages created before the 2026-05-22
 rename use `# Original First-Pass Memo — …` instead of `# First-Pass Diligence — …`. When
 operating on such a page (no `# First-Pass Diligence — …` anchor present but
 `# Original First-Pass Memo — …` is), rename the existing anchor in place as part of this
-prepend step (PATCH the `heading_1` block's rich_text) so all output going forward uses the
+step (PATCH the `heading_1` block's rich_text) so all output going forward uses the
 canonical `# First-Pass Diligence — …` form. The PDF page-break trigger handles both for
 backward compat, but the Notion page should converge.
 
-**MCP timeout handling — MANDATORY.** MCP `insert_content` frequently returns
-`notionhq_client_request_timeout` on payloads > ~10KB even when the write
-succeeds server-side. Do NOT retry the same MCP call after a timeout; instead:
+**MCP timeout handling — MANDATORY (MCP fallback only).** On `notionhq_client_request_timeout`,
+do NOT retry the same call: wait ~5–10s, list the page's first children via REST, and retry only
+if the content is absent.
 
-1. Wait ~5–10 seconds for Notion to propagate.
-2. Verify via REST API by listing the page's first few children:
-   ```python
-   resp = json.loads(urlopen(Request(
-       f'https://api.notion.com/v1/blocks/{PAGE_ID}/children?page_size=5',
-       headers=HDR)).read())
-   first_h2 = next((b for b in resp['results']
-                    if b.get('type') == 'heading_2'), None)
-   ```
-   If the first H2's text matches the new update header, the write succeeded.
-3. Only retry MCP if verification confirms the content is NOT there.
+### 5.2 Consolidating / replacing an existing update
 
-### 5.2 Consolidating / replacing an existing update (REST API)
-
-When this run *replaces* an already-published update (rather than adding a fresh
-one) — e.g., the user asks you to roll an earlier same-day update into the new
-one, or to redo a flawed published update — use the REST API to delete the old
-update's blocks after the new prepend has landed. MCP `update_content` with a
-large `old_str` matching the entire old block will time out without applying.
-
-```python
-# 1. List all top-level blocks (paginated, page_size=100)
-all_blocks = []
-cursor = None
-while True:
-    url = f'https://api.notion.com/v1/blocks/{PAGE_ID}/children?page_size=100'
-    if cursor: url += f'&start_cursor={cursor}'
-    r = json.loads(urlopen(Request(url, headers=HDR)).read())
-    all_blocks.extend(r['results'])
-    if not r.get('has_more'): break
-    cursor = r['next_cursor']
-
-# 2. Identify the OLD update's block range by walking from the heading_2
-#    matching "Update — <old date>" forward until the next "Update —",
-#    "First-Pass Diligence —", or (legacy) "Original First-Pass Memo —"
-#    header. Include any trailing dividers that bracket the block.
-
-# 3. DELETE each block. Notion's per-block DELETE endpoint:
-from urllib.request import Request
-import time
-for b in to_delete:
-    urlopen(Request(f'https://api.notion.com/v1/blocks/{b["id"]}',
-                    headers=HDR, method='DELETE'))
-    time.sleep(0.15)  # be gentle on rate limit
-```
-
-### 5.3 Update the page title (REST API)
-
-After prepending the update, update the page title to reflect the most recent update date.
-The title should always reflect the most recent update — do not stack multiple date
-suffixes. Strip the old date portion entirely and replace with the new one.
-
-New title format: `[Claude] [Company Name] Master Diligence Doc — MM.DD.YYYY Update`
-
-```python
-new_title = '[Claude] <Company> Master Diligence Doc — <MM.DD.YYYY> Update'
-payload = {'properties': {'Name': {'title': [
-    {'type': 'text', 'text': {'content': new_title}}]}}}
-urlopen(Request(f'https://api.notion.com/v1/pages/{PAGE_ID}',
-                headers=HDR, method='PATCH',
-                data=json.dumps(payload).encode()))
-```
+When this run *replaces* an already-published update (roll an earlier same-day update into the new
+one, or redo a flawed published update), pass `--replace-heading "Update — <old date>"`. The script
+deletes that update's range — its `## Update —` heading through the next `Update — / First-Pass
+Diligence — / Original First-Pass Memo — / Final Assessment —` anchor, trailing dividers included —
+only AFTER the new section verifies. MCP `update_content` with a large `old_str` times out without
+applying; never use it for this.
 
 ---
 
@@ -779,35 +750,7 @@ Where `MM.DD.YYYY` is today's date (the update date) and `N` is the update numbe
 entirely from the filename — the update date is the only date in the name. Example:
 `Tuor_Master_Diligence_04.02.2026_v2.pdf`
 
-**Retention rule — keep only the latest version.** Each new update's PDF
-*contains* all prior updates plus the original first-pass (it's a full
-consolidated snapshot). Once the new `_v[N].pdf` is uploaded and the Notion
-links are swapped, **trash every prior diligence-snapshot PDF for this company
-in the same Drive subfolder** (any file matching
-`[Company]_Master_Diligence_*.pdf` OR the legacy
-`[Company]_First_Pass_Diligence_*.pdf` patterns, except the new one). Use rclone:
-
-```bash
-# List the company subfolder
-rclone lsf "gdrive:Diligence/[Company]"
-# Trash old snapshots (any _v<N-1>.pdf, _Update.pdf, _v5.pdf, legacy
-# _First_Pass_Diligence_*.pdf, etc.)
-rclone deletefile "gdrive:Diligence/[Company]/<OLD_NAME>.pdf" --drive-use-trash
-```
-
-Do **NOT** trash the source materials in the same folder (founder memo, deck,
-plan, ACV build, founder positioning notes, Q&A docs, etc.) — only the prior
-diligence-snapshot PDFs that this skill itself wrote.
-
-Then scrub stale Drive URLs from BOTH:
-- The Opp's `Diligence Materials` files-property (drop entries whose URL is no
-  longer in Drive)
-- The Opp page body's `## 📎 Diligence Materials` bulleted list (replace the
-  whole list with the single latest `_v[N].pdf` link)
-
-The latest snapshot is canonically the only diligence PDF that should be linked
-anywhere. Caught after Factir 2026-05-20 Update #4: prior `_v5`/`_Update1`/
-`_Update2`/`_Update.pdf` accumulated across runs and confused the reader.
+**Retention rule — keep only the latest version** (Factir 2026-05-20 piled up `_v5`/`_Update1`/`_Update2`): enforced by `rotate_diligence_snapshot.py` below — it retires every older snapshot file and chip when the new one lands.
 
 ### Content
 
@@ -901,96 +844,32 @@ builder and rebuild.
 
 ### Upload and link in Notion
 
-Upload the updated PDF to the same company subfolder in Google Drive used by the original
-first-pass PDF (under Diligence root `1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Use the Apps
-Script endpoint — never Zapier. Read the full reference at
-`/Users/tomseo/.claude/skills/shared-references/drive-upload.md`.
-
-```python
-import requests, base64
-
-DRIVE_URL = "https://script.google.com/macros/s/AKfycbzRPkebxLe-VoJq1UDxUOR8bujyG0T8_rskdmF66lcUYD_JeMh8ODZ6cpeayU61_h8z/exec"
-DILIGENCE_ROOT = "1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d"
-
-# createFolder is idempotent — returns existing folder if it already exists
-folder_resp = requests.post(DRIVE_URL, json={
-    "action": "createFolder",
-    "folderName": "<COMPANY_NAME>",
-    "parentFolderId": DILIGENCE_ROOT
-}, allow_redirects=True, timeout=60)
-subfolder_id = folder_resp.json()["folderId"]
-
-with open(pdf_path, 'rb') as f:
-    pdf_b64 = base64.b64encode(f.read()).decode('utf-8')
-
-upload_resp = requests.post(DRIVE_URL, json={
-    "action": "upload",
-    "fileName": "[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf",
-    "fileBase64": pdf_b64,
-    "mimeType": "application/pdf",
-    "folderId": subfolder_id
-}, allow_redirects=True, timeout=120)
-file_url = upload_resp.json()["url"]
+**Publish with one call — never by hand (code-enforced 2026-10-04):**
+```bash
+python3 ~/.claude/skills/shared-references/rotate_diligence_snapshot.py --company "<Opp title>" --opp-id <opp page id> --kind update --pdf <local pdf>          # plan: prints filename, version, what retires
+python3 ~/.claude/skills/shared-references/rotate_diligence_snapshot.py --company "<Opp title>" --opp-id <opp page id> --kind update --pdf <local pdf> --apply  # do it
 ```
-
-(No progress ping here — the run stays silent until the single completion alert at Step 6.)
+In order, stopping at the first failure (exit 1 + `failed_at` → surface it in the completion alert): upload to
+`Diligence/<Company>/` as the convention filename (it computes N), add the chip to `Diligence Materials` with
+`--no-alert`, remove every older snapshot's chip, then move every older snapshot file to Drive trash (retention rule,
+memory `feedback_diligence_pdf_retention`). Only files carrying the `Master_Diligence` / legacy `First_Pass_Diligence`
+token in this company's own folder can match — source materials can't. The Files property is the ONLY destination:
+**never write a `## 📎 Diligence Materials` section into the Opp page body**, and leave any existing one alone (Tom:
+Kestrel 2026-05-14, reconfirmed Root 2026-09-02). Report `steps` in the run summary, then go to the Step 6 completion alert.
 
 If Tom attached supplementary materials (decks, plans, models) inline with the skill invocation,
 do NOT re-upload them — they are almost always already in the Diligence Materials property field
-courtesy of the `materials-handler` webhook that fires on inbound email/iMessage attachments.
-Reference the existing Drive URLs from the property field in the update section's "New Information
-Processed" list. The only file this skill should upload is the regenerated update PDF itself.
+courtesy of the `materials-handler` webhook. Reference the existing Drive URLs in the update section's
+"New Information Processed" list. The only file this skill uploads is the regenerated update PDF itself.
 
-After upload, link the updated PDF in two places on the Notion opportunity page.
-**Both writes go through the REST API**, not MCP — they are pure-text block/property
-patches and MCP is slower + less reliable on them.
-
-1. **Page body** — the `## 📎 Diligence Materials` section already contains a
-   bulleted link to the prior `_v[N-1].pdf` snapshot. PATCH the existing bullet's
-   `rich_text` in place instead of appending a new bullet (per the retention rule
-   above — only one diligence-snapshot link should be linked anywhere). REST API:
-   ```python
-   # Find the bullet block by listing the Opp page children and matching
-   # "Master_Diligence" (or legacy "First_Pass_Diligence") in its rich_text.
-   # Then PATCH:
-   patch = {'bulleted_list_item': {'rich_text': [
-       {'type':'text',
-        'text':{'content': '<v[N] filename>', 'link':{'url': '<drive_url>'}},
-        'annotations':{'bold': True}},
-       {'type':'text',
-        'text':{'content': ' \u2014 Latest Claude diligence snapshot through Update #[N] (consolidates all prior updates + original first-pass)'}},
-   ]}}
-   urlopen(Request(f'https://api.notion.com/v1/blocks/{BULLET_ID}',
-                   headers=HDR, method='PATCH',
-                   data=json.dumps(patch).encode()))
-   ```
-   If there is no existing bullet (first-ever update PDF), instead use
-   `POST /v1/blocks/{OPP_PAGE_ID}/children` with `after: <heading_2 id>` to
-   insert one beneath the `## 📎 Diligence Materials` header.
-
-2. **Diligence Materials Files property field** — follow the shared reference at
-   `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity
-   page ID, the Drive file URL, and display name
-   `[Company]_Master_Diligence_MM.DD.YYYY_v[N].pdf`. **Pass `--no-alert`** — the helper
-   auto-fires a `📎 Materials:` ping on every Diligence Materials write, which is redundant
-   with this skill's Step 6 completion alert; suppress it so the run posts only one message.
-
-   **MANDATORY verification — never trust the 200 response alone.** Immediately after the property write, re-fetch the Opportunity page and confirm an entry in the `Diligence Materials` files array has `external.url` matching the Drive URL you just wrote. If absent, the write silently failed (observed Factir 2026-05-15 — PATCH returned 200 but Notion kept the stale URL underneath the new display label). Re-PATCH the full files array explicitly, then re-verify. After 3 retries, surface to Tom rather than publish silently. Reference snippet:
-
-   ```python
-   opp = json.loads(urlopen(Request(f"https://api.notion.com/v1/pages/{OPP_ID}", headers=HDR)).read())
-   urls = {f.get("external",{}).get("url") for f in opp["properties"]["Diligence Materials"]["files"]}
-   assert drive_url in urls, f"Property write did NOT take — URL {drive_url} not in {urls}"
-   ```
-
-   If Chrome is unavailable, skip the property field and rely on the page body link.
-
-Once the property write is verified, proceed directly to the Step 6 completion alert.
-(No progress ping — that's the single alert below.)
-
-Act autonomously — do not ask for permission. Report what was done in the summary.
+Act autonomously — do not ask for permission.
 
 ---
+
+**Record what this run processed (ledger — code-enforced 2026-10-04).** After the publish lands, run
+`python3 ~/.claude/skills/update-diligence-priors/compute_delta.py record --opp-id <opp id> --doc-id <diligence page id> --note-id <id> ... --material-url <chip url> ...`
+for every note and material this run read. Future `compute_delta.py check` runs diff against this ledger instead of
+re-parsing citations.
 
 ## Step 6: Send Completion Alert
 

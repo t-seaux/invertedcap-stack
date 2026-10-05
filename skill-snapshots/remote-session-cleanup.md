@@ -33,6 +33,25 @@ Returns all `anthropic_cloud` sessions (newest first) with `status` (active/arch
 
 ## Step 2 — Pick candidates (the rubric)
 
+**As code (2026-10-04)** — the numeric filters below run in the script; the model only does the title read:
+
+```bash
+# C-auto (a launch failed on the limit): N = sessions over the limit, or pass --limit L if only the cap is known
+python3 ~/.claude/skills/remote-session-cleanup/scripts/remote_sessions.py candidates --over N [--exclude ID ...]
+# C-manual
+python3 ~/.claude/skills/remote-session-cleanup/scripts/remote_sessions.py candidates --manual [--count K] [--exclude ID ...]
+```
+
+- Exit 0 → archive exactly the ids in `archive` (Step 3). In manual no-count mode, `list_only` (24h–7d) goes in the
+  alert, never to Step 3.
+- If a title in `archive` reads as a live workstream, re-run with `--exclude <id>` (the next eligible slides in) —
+  never hand-pick an id that isn't in the printed `archive`.
+- Exit 3 → BLOCKED (fewer eligible than needed, or nothing eligible): archive nothing beyond the printed list, post the
+  Step 4 blocked-state alert from `blocked_active`.
+- Exit 2 → auth/API/usage error: stop and report it.
+- Harness: `scripts/tests/test_candidates.py`. The prose below is the WHY.
+
+
 From the **active** sessions, rank stalest-first by `age_hours` and select for archiving, applying ALL of:
 
 - **Never archive** a session with `worker_status: "running"` — it's mid-task.

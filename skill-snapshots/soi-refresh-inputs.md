@@ -53,8 +53,16 @@ atomically. Always `--dry-run` first, show the diff, then apply.
 refresh_inputs.py show                         # current anchor + fee facts + live roll-forward today
 refresh_inputs.py fee --xlsx PATH              # parse Vector fee workbook -> management_fee
 refresh_inputs.py financials --nav N --paid-in N --as-of YYYY-MM-DD [--distributions N] [--force]
+#   ↳ also VALIDATES the snapshot view (Tom 2026-10-03): prints "SOI NAV as of <as-of> vs audited NAV: diff $X (Y%)"
+#     and a ⚠ line when |diff| > max($25k, 0.5%). Show Tom that line; the audited number still re-anchors.
 refresh_inputs.py calls --json '[{...}]'       # replace capital_call_schedule
 ```
+
+**Git (as code, 2026-10-04):** every non-dry-run write commits + pushes `fund_inputs.json` alone right away
+(e.g. "Re-anchor NAV to 2026-09-30 statement: NAV $12.9m, paid-in $14.6m (was 2026-06-30)"); `soi_quarter.py
+restate` does the same for its pin ("Restate Q3 2026 per Valence FS 2026-09-30 (…)"). Add the reason with the
+GLOBAL `--why "<source>"` flag (before the subcommand, e.g. `--why "Vector fee workbook 2026-10-15"`). No
+separate git step; a git failure only warns.
 
 ## Modes
 
@@ -125,6 +133,17 @@ period-end. After a `financials` re-anchor whose `--as-of` is a quarter-end:
 python3 soi_quarter.py restate --quarter <YYYY-Qn> --nav <N> --paid-in <N> \
     [--distributions <N>] --source "Valence FS <as-of>" --dry-run    # show, then apply
 ```
+
+**As code (2026-10-04):** Steps 2.3 + 5 are one command —
+`python3 ~/.claude/skills/soi-refresh-inputs/refresh_and_restate.py --nav <N> --paid-in <N> --as-of <YYYY-MM-DD>
+[--distributions <N>] --dry-run` (show Tom both diffs), then the same without `--dry-run` on his yes. It runs
+`refresh_inputs.py financials` unchanged and, only when that re-anchor applied AND `--as-of` is a quarter-end AND
+`quarters/<YYYY-Qn>.json` exists, runs the `soi_quarter.py restate` above with `--source "Valence FS <as-of>"`;
+every skip (not quarter-end / no pin / re-anchor no-op / already restated) is printed with its reason. Exit 0 =
+done or a stated skip; **1 = the anchor moved but the restate FAILED → tell Tom (pin and anchor now disagree)**;
+2 = financials refused / bad input (nothing written). It lives in this skill dir — it never edits lp-portal
+code. Harness: `tests/test_refresh_and_restate.py` (runs the real portal scripts on a temp copy; re-applying the
+real Q2 2026 anchor reproduces the published Q2 pin: NAV $11,296,653, MOIC 1.0x, TVPI gated).
 
 Restatement writes a `restated` block ALONGSIDE the as-reported values — never over them; the pin must
 still answer "what did we tell LPs at the time". `soi_quarter.py report` prefers restated when present.

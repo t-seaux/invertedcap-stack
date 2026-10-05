@@ -81,204 +81,148 @@ must match.
 - **Live loop (primary, NOT this skill)** — the deterministic 5-minute
   `com.invertedcap.lupe-paid-watch` launchd job
   (`~/.claude/scheduled-tasks/office-cleaning-expense/lupe_watch.sh` +
-  `~/.claude/scheduled-tasks/office-cleaning-expense/check_lupe_paid.py`) executes the
-  state machine below with zero LLM: reminder + text on confirmation; sheet
-  POST + reminder check-off + ONE combined text on payment. Any change to the
-  state machine or notification contract must be made THERE and mirrored here.
+  `check_lupe_paid.py` in default mode) runs the state machine below with zero
+  LLM: reminder + text on confirmation; sheet POST + reminder check-off + ONE
+  combined text on payment. Any change to the state machine or notification
+  contract is made in that CODE (and its harness), then summarized here.
 - **Job mode (weekly reconcile)** — a weekly launchd job (Monday 8:10 AM,
-  `~/.claude/scheduled-tasks/office-cleaning-expense/sweep.sh`) enqueues
-  `{mode:"reconcile", window_hours:168}` on the claude-job-queue → this skill
-  re-scans the full 168h window (which lines up 1:1 with the weekly cadence, so
-  coverage rolls with no gap) and repairs anything the watcher missed. It
-  exists because the watcher was silently dead 2026-09-03→07 (launchd PATH
-  lacked `uv`; `imessage-read.sh` used `immutable=1`, which hides WAL-fresh
-  chat.db rows) and the 2026-08-22 cleaning was lost to the old weekly sweep
-  failing the same silent way. All actions idempotent; alert Tom (Slack
-  `#claude-alerts`, per Step 5) ONLY about things actually repaired or real
-  problems. NEVER narrow the 168h window.
+  `~/.claude/scheduled-tasks/office-cleaning-expense/sweep.sh`) snapshots the
+  thread and enqueues `{mode:"reconcile", window_hours:168, thread_rows_file}`
+  on the claude-job-queue → this skill runs the script in reconcile mode (below),
+  does the judgment pass, and alerts. It exists because the watcher was silently
+  dead 2026-09-03→07 (launchd PATH lacked `uv`; `imessage-read.sh` used
+  `immutable=1`, which hides WAL-fresh chat.db rows) and the 2026-08-22 cleaning
+  was lost to the old weekly sweep failing the same silent way. 168h equals the
+  weekly cadence so coverage rolls with no gap — NEVER narrow it.
 - **Manual** — Tom asks directly ("log the cleaning expense", "Lupe
-  confirmed", maintenance ops). Same state machine.
+  confirmed", maintenance ops). Same script, live thread read.
 
 ## The state machine (defined by Tom, 2026-09-07)
 
-Two events drive everything, both read from the Lupe iMessage thread:
+Two events drive everything, both read from the Lupe iMessage thread
+(`+19176135344` — confirmed against Contacts, not a chat.db handle guess):
 
-1. **Cleaning confirmation** (Lupe: "the office is clean", "it's ready", "done cleaning" — see `CLEAN_RE` in `check_lupe_paid.py`) → create the
-   pay reminder. **Do NOT write to the sheet yet.**
-2. **Payment** (Tom sends $100 Apple Cash — renders as an attachment-only
-   `You:` message after a confirmation) → NOW log that cleaning to the sheet
-   **and check off the reminder**.
+1. **Cleaning confirmation** (Lupe: "the office is clean", "it's ready", "done
+   cleaning" — `CLEAN_RE`) → create the pay reminder `Pay Lupe - office cleaning`
+   (Work list, due today, notes `cleaning:MM/DD/YY`). **Do NOT write to the
+   sheet yet.**
+2. **Payment** — Tom's ritual: an Apple Cash bubble (an attachment-only `me`
+   row, `￼[attachment]`) plus a thanks/"great"/"wonderful" text, OR a strong
+   word alone ("paid", "sent", "Zelle", "Venmo") → NOW log that cleaning to the
+   sheet **and check off the reminder**. Thanks *without* the Cash bubble is not
+   a payment (2026-09-07: the sheet write rides on this match).
 
-The sheet records *paid* cleanings, not confirmed ones. A confirmation with no
-payment yet = an open reminder and nothing on the sheet.
-
----
-
-## Step 1 – Read the thread and pair events
-
-Get the Lupe Hernandez thread (contact `+19176135344`), then filter to the scan
-window yourself. **The source depends on how you were invoked:**
-
-- **Reconcile/job mode — the thread is ALREADY snapshotted for you.** `sweep.sh`
-  reads `chat.db` in its FDA-granted launchd bash and writes the thread to a plain
-  file, passing the path as `thread_rows_file` (lines of `TS<TAB>sender<TAB>text`,
-  same format as `imessage-read.sh`). **Read that file** (`cat "$thread_rows_file"`
-  or the Read tool) — it is an ordinary file, NOT `chat.db`, so no Full Disk
-  Access is needed. **Do NOT read `chat.db` yourself** — not via `imessage-read.sh`,
-  not via the imessages MCP. A headless job runs under a node/claude parent with NO
-  Full Disk Access, so ANY chat.db read it attempts (MCP *or* a Bash-tool
-  `imessage-read.sh` call) fails "Full Disk Access denied" (2026-09-08, job
-  D71A7346). Only if `thread_rows_file` is missing/empty, fall through to the
-  manual command below.
-
-- **Manual mode (Tom asks directly) — read it live via the bash helper, never
-  the MCP:**
-  ```bash
-  "$HOME/.claude/scripts/imessage-read.sh" thread "+19176135344" --limit 200
-  ```
-  This works interactively because your session inherits Tom's FDA grant.
-
-Why bash, not MCP: `imessage-read.sh` reads `chat.db` under a bash process that
-holds Full Disk Access (the `/bin/bash` grant covers launchd bash jobs like
-`sweep.sh` and `lupe-paid-watch`). The imessages MCP runs under a node/uv
-process whose grant is fragile and absent in unattended runs (see
-`reference_tcc_responsible_process`: TCC blames the responsible process). Never
-route this read through the MCP.
-
-Extract, in timestamp order:
-
-- **Confirmations**: messages from Lupe reporting a completed clean. Cleaning
-  date = date named in the message, else the message timestamp's date.
-- **Payments**: messages from Tom that carry an attachment placeholder (`￼`,
-  no text) — Apple Cash renders this way. A payment belongs to the most recent
-  prior confirmation that has no payment yet.
-
-Then reconcile each confirmation to one of two states:
-
-| State | Actions |
-|---|---|
-| Confirmed, **not yet paid** | Ensure the pay reminder exists (Step 2). Nothing on the sheet. |
-| Confirmed **and paid** | Ensure the expense is on the sheet (Step 3) AND the reminder is checked off (Step 4). |
-
-Every action below is idempotent (reminder-by-title check, endpoint dedup), so
-re-scanning the same window is always safe.
-
-If the thread has no confirmations in the window, stop.
+The sheet records *paid* cleanings, not confirmed ones, under the **cleaning
+date** (the confirmation message's local date — not the payment date; e.g.
+07/04/26 was paid 07/05 and logged 07/04). A confirmation with no payment yet =
+an open reminder and nothing on the sheet.
 
 ---
 
-## Step 2 – Reminder on unpaid confirmation
+## As code (2026-10-04)
 
-For each confirmed-not-paid cleaning, ensure a reminder exists (see
-`~/.claude/skills/add-reminder/SKILL.md` for conventions — Work list default,
-`[IC]` prefix, single quotes because `$100`):
+Steps 1–4 (read thread, pair confirmations ↔ payments, ensure reminder, POST the
+expense, check off the reminder) are **code**, not prose — do not re-implement
+them by hand:
 
 ```bash
-# skip if an open reminder with this exact title already exists:
-~/.claude/tools/eventkit/eventkit list --list Work | grep -F '[IC] Pay Lupe $100 (office cleaning MM/DD)'
-~/.claude/tools/eventkit/eventkit add --title '[IC] Pay Lupe $100 (office cleaning MM/DD)' --due today
+S="$HOME/.claude/scheduled-tasks/office-cleaning-expense/check_lupe_paid.py"
+# Reconcile/job mode — read the snapshot file sweep.sh made (headless = no Full Disk Access):
+python3 "$S" --window-hours "${window_hours:-168}" --thread-file "$thread_rows_file"
+# Manual mode — live read (your interactive session has FDA); add --dry-run to preview:
+python3 "$S" --window-hours 168
 ```
 
-`MM/DD` = the cleaning date — unique per cleaning, so re-runs dedup naturally.
+Output: one JSON line per cleaning whose confirmation is in the window —
+`{"action":"reconcile","cleaning_date","state":"paid|unpaid","sheet","reminder","repaired","failed","needs_tom",...}`
+— then a final `{"action":"summary",...}` line.
+
+- `sheet`: `success` (row was missing → written = a repair) · `duplicate`
+  (already there — success, not a repair) · `error:…` · `n/a` (unpaid).
+- `reminder`: `completed` / `created` (repairs) · `none-open` (paid before any
+  reminder existed, e.g. 09/07/26 — not an error) · `exists` ·
+  `not-created-other-open` / `not-created-older-unpaid` (`needs_tom`: the
+  script never opens a 2nd Lupe reminder, because the live watcher assumes at
+  most one and a single payment would otherwise complete both) ·
+  `create-failed` / `complete-failed`.
+
+| Exit | Meaning | Do |
+|---|---|---|
+| 0 | Ran clean | Alert only if any line has `repaired` or `needs_tom`; else silent. |
+| exit 2 | A write failed (sheet POST error, eventkit add/complete/list) | ⚠ alert with the failing line(s). |
+| exit 3 | No thread rows at all (snapshot empty AND live read empty) | ⚠ alert: the watcher may be blind — check `sweep.log` / chat.db access. |
+| 4 | Bad arguments | Fix the invocation; never hand-roll the steps instead. |
+
+Default mode (`python3 "$S"`, no flags) is the live watcher's contract — one
+open reminder, no window, no sheet write (lupe_watch.sh POSTs). Harness:
+`~/.claude/scheduled-tasks/office-cleaning-expense/tests/test_check_lupe_paid.py`
+(real-thread fixture; run it after ANY change to the script).
+
+Why the reads go through bash, never the imessages MCP: `imessage-read.sh` reads
+`chat.db` under a process holding Full Disk Access (the `/bin/bash` grant covers
+launchd bash jobs like `sweep.sh` and `lupe-paid-watch`); the MCP runs under a
+node/uv parent whose grant is absent in unattended runs (TCC blames the
+responsible process). A headless job reading chat.db at all fails "Full Disk
+Access denied" (2026-09-08, job D71A7346) — hence the snapshot file.
 
 ---
 
-## Step 3 – Log the Expense (only once PAID)
+## Judgment pass (after the script — reconcile and manual)
 
-POST via Python. Format the date as `MM/DD/YY` (e.g. `04/12/26`) — the
-**cleaning** date, not the payment date.
+The regexes are deliberately tight (a false payment writes $100 to the books).
+Read the window of the thread yourself for what they can miss, and **report —
+don't auto-write** — anything you find:
 
-```python
-import urllib.request
-import urllib.parse
-import json
+- **Loose confirmation phrasing** the script didn't pair. `CLEAN_RE` covers
+  every completion phrasing in the real thread as of the 2026-10-04 census
+  (incl. the former misses 2026-05-10 "I cleaned office today" and 2026-06-22
+  "yesterday I went to clean the office"); anything new is a regex gap — if
+  Lupe clearly reported a clean and Tom clearly paid (Cash bubble), check the
+  sheet (`?cmd=list`, below), say so in the alert, and add the phrasing to the
+  harness census.
+- **Text-less Cash** (2026-06-22: Cash bubble, no thanks text) → not matched.
+- **Relative cleaning day** — the script resolves it (`cleaning_date_for`):
+  "yesterday" → day before the message, a weekday name ("on Sunday") → the
+  most recent such day, "today"/nothing → message day. Flag only if the
+  wording is ambiguous beyond those forms.
 
-url = 'https://script.google.com/macros/s/AKfycbyQLZe0i8Pe4Bxh43Psbq_UfT9vZq3cwfCGkycIkEhKsQrPmC6ZgB1DgdtAMSJAqbiO/exec'
-params = urllib.parse.urlencode({
-    'vendor': 'Lupe Hernandez',
-    'date': 'MM/DD/YY',     # replace with actual date, e.g. '04/12/26'
-    'amount': '100.00',     # endpoint reformats to '$100.00' on write
-    'category': 'Office'
-}).encode('utf-8')
-
-req = urllib.request.Request(url, data=params, method='POST')
-req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-
-with urllib.request.urlopen(req, timeout=30) as resp:
-    body = json.loads(resp.read().decode('utf-8'))
-
-if body.get('status') == 'success':
-    print('Logged:', body)
-elif body.get('status') == 'duplicate':
-    print('Already logged on', body['date'], '— skipped.')
-else:
-    raise RuntimeError('Expense logger error: ' + str(body))
-```
-
-**Success response (new row written):**
-```json
-{"status":"success","vendor":"Lupe Hernandez","date":"04/12/26","amount":"$100.00","category":"Office"}
-```
-
-**Duplicate response (row already existed):**
-```json
-{"status":"duplicate","existingRow":11,"vendor":"Lupe Hernandez","date":"04/12/26"}
-```
-
-Treat `duplicate` as **success** — the expense is already in the sheet. Do
-not retry.
+Negatives must stay negatives: "I couldn't clean the office this weekend",
+"I won't be able to clean this week".
 
 ---
 
-## Step 4 – Check off the reminder (paid cleanings)
-
-Once a cleaning's expense is on the sheet (Step 3 returned `success` OR
-`duplicate`), find the matching open reminder and complete it:
-
-```bash
-~/.claude/tools/eventkit/eventkit list --list Work
-# find the id whose title is '[IC] Pay Lupe $100 (office cleaning MM/DD)', then:
-~/.claude/tools/eventkit/eventkit complete --id <ID>
-```
-
-No open reminder with that title (e.g. Tom paid before the sweep ever saw the
-confirmation, so none was created — like 09/07/26) → nothing to do, not an
-error.
-
----
-
-## Step 5 – Send Alert
+## Alerts
 
 **Delivery depends on mode.** The live 5-min watcher (`lupe_watch.sh`) owns the
-real-time office-is-clean / paid TEXTS to Tom — that is the genuine text-lane
-surface and is hardcoded there, NOT executed via this step. This step runs in
-**reconcile/job mode** and **manual mode** only:
+real-time office-is-clean / paid TEXTS to Tom (1:1 `+12012567714`, never the
+family group) — that is hardcoded there, NOT done by this skill.
 
-- **Reconcile/job mode → Claude alert to Slack `#claude-alerts`, NOT a text.**
-  (Tom, 2026-09-09: the weekly reconcile is an infra/self-heal backstop, so its
-  notifications belong in `#claude-alerts` — not the Lupe text lane, which the
-  live watcher already covers.) Alert ONLY when the sweep either **repaired
-  something** or **hit a real problem** (e.g. the `thread_rows_file` snapshot was
-  empty despite Lupe messages existing, sheet write failed, etc.). A clean run
-  that repaired nothing → **silent, no alert.**
+- **Reconcile/job mode → Slack `#claude-alerts`, NOT a text** (Tom, 2026-09-09:
+  the weekly reconcile is an infra/self-heal backstop). Alert ONLY when a line
+  has `repaired: true` or `needs_tom: true`, the exit code is 2 or 3, or the
+  judgment pass found something. Otherwise **silent**.
 
   ```bash
   printf '%s\n' "$BODY" | "$HOME/.claude/skills/send-alert/send.sh"
   ```
 
-  Body is GitHub-flavored markdown. Body shapes:
+  Body shapes (GitHub-flavored markdown):
 
   ```
   💸 <u>**Office Cleaning: Reconcile**</u>
   ✓ Repaired: cleaning MM/DD logged to the expense sheet ($100, MC tab) + reminder checked off.
   💸 <u>**Office Cleaning: Reconcile**</u>
-  ⚠ Snapshot was empty but Lupe messages exist in the 168h window. Check `sweep.sh` logs; the watcher may be silently dead.
+  ⚠ Snapshot was empty and the live read found nothing in the 168h window. Check `sweep.log`; the watcher may be silently dead.
   ```
 
-- **Manual mode (Tom asks directly) → just report the outcome inline** in the
-  session. No text, no Slack.
+- **Manual mode → report the outcome inline** in the session. No text, no Slack.
 
 On send failure, log the error to the scheduled task's `audit-log/`.
+
+**One-off log for a date the thread doesn't show** (Tom: "log the cleaning for
+10/02"): `python3 -c 'import sys; sys.path.insert(0, "'"$HOME"'/.claude/scheduled-tasks/office-cleaning-expense"); import check_lupe_paid as m; print(m.post_expense("10/02/26"))'`
+— `success` and `duplicate` both mean the row is on the sheet; anything else is
+a failure (do not retry blindly).
 
 ---
 

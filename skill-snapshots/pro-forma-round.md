@@ -46,6 +46,22 @@ Inputs: new money `N`, post-money `POST`, target available pool `p_t` (as stated
 - Every existing tranche: `own_post = own_now × d`. New check in this round: `own = check / POST`, enters at 1.0x.
 - Sanity print: new investors = `n` of post, pool = `p_t` of post, all holdings sum to 100%.
 
+**As code (2026-10-04):** the arithmetic block IS `pro_forma.py` (Decimal throughout) — Steps 1–4's math, the
+tie-out gate, and the fixed Company / Fund / Terminal tables. Inverted: `python3 pro_forma.py --portal-company
+<Co> --new-money <N> --post <POST> [--check X] [--pool-target p_t --pool-current u --pool-convention post|pre]`
+(reads the latest lp-portal archive model, read-only; `--emit-spec` dumps the spec to edit). Dash: build a spec
+JSON from the Dash SOI sheet + Opp cards (schema in the script docstring; `tranches_override` when the executed
+pro forma gives the exact split, `round.dilution_override` when the new round's pro forma gives the exact d,
+`fund.source_tvpi_net` = the sheet's current TVPI) and run `python3 pro_forma.py spec.json`. Exit 0 = tables
+are safe to report; **1 = a gate failed (tie-out off > 0.5%, residual f ∉ (0,1], cap table ≠ 100%, or the
+Net TVPI est doesn't reproduce the SOI's current figure) → STOP and reconcile, never report the tables**;
+2 = bad/missing input. The read, confirmed/not-confirmed tags and Notion write stay judgment (prose below).
+Gross MOIC uses total value (NAV + distributions) ÷ invested (= the sheet's TV/deployed); the Dash Net TVPI
+est takes V = NAV + distributions (= the sheet's `1 + 0.8·(TV/called − 1)`). Harness:
+`tests/test_pro_forma.py` — reproduces all 19 published cells of the Outmarket Series B PF Draft card
+(Sep 17, 2026; its % of NAV 38.5% recomputes to 38.4% from the card's own rows — card rounding slip) and the
+Signal7 portal per-round FMVs.
+
 Do the arithmetic in a python block (Bash), never freehand — and show the decomposition: total existing dilution = new money points + incremental pool points, plus what the pool refresh alone costs Tom in dollars vs a no-top-up round.
 
 ## Step 4: Report — fixed output contract

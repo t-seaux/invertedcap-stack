@@ -42,11 +42,29 @@ For each in-scope draft:
 - **Match the draft's existing conventions**, not the blurb's: if the draft's About section speaks in third person, third-personize the new blurb ("Our AI" → "Their AI", "We start" → "They start", "Our team" → "The team"); keep the company-name hyperlink and bold treatment the draft already uses; mirror its entity style (`&ndash;`/`&rsquo;` vs literal characters). Person/format adapt; content NEVER rewords.
 - **Draft-specific lines survive** (founder bio line, deck link, ask-specific context). Exception: if a surviving line now duplicates a claim the new blurb carries (e.g. both say "finalizing a contract with one of the largest EPCs"), trim the duplicated sentence from the draft-specific line — and flag any detail lost in the trim (a dollar figure, a date) in the Step 4 alert so Tom can re-add it.
 
+**As code (2026-10-04)** — render and splice the block with `shared-references/blurb_block.py`, never by hand:
+
+```bash
+python3 ~/.claude/skills/shared-references/blurb_block.py render --company "<Company>" --url <company site> \
+    --page-md /tmp/<opp>.md [--audience "<recipient audience>"] [--founder-first <First>] > /tmp/<slug>_block.json
+python3 ~/.claude/skills/shared-references/blurb_block.py splice --draft-html /tmp/<slug>_old.html \
+    --block-html <(python3 -c "import json;print(json.load(open('/tmp/<slug>_block.json'))['html'])")
+```
+
+`render` applies ONLY the EF6 edits (salutation / sign-off dropped, `I am …` → `<First> is …`, Notion escapes undone),
+bolds the first sentence with the company link inside it (the Thermis 2026-09-24 miss), and self-checks against
+style_gate (exit **4** = render bug, stop). Exit **3** on `render` = first-person opener and no `--founder-first` —
+look the founder up on the Opp, never guess. `splice` swaps only the `--` → About block and keeps every other byte and
+the signature (exit **3** = no About block: the draft is out of scope). Third-personizing a whole blurb ("Our AI" →
+"Their AI") is a judgment edit beyond EF6 — only on Tom's say-so.
+
 ## Step 3: Write via recreate-and-supersede — NEVER update_draft
 
 All Tom's outreach drafts carry his Apple Mail signature, and the Gmail connector's `update_draft` flattens it (see `shared-references/gmail-signature.md` and memory `gmail-connector-create-only-no-modify`). The only safe write path:
 
 1. Render the revised HTML body to a temp file (signature block byte-identical from the fetched draft) + a plaintext snapshot file (tags stripped, signature block excluded).
+**As code (2026-10-04):** steps 2–3 are one call — `python3 ~/.claude/scripts/gmail-replace-draft.py [--opp-id <Opp id>] --no-failure-alert -- <the step-2 create args>` (creates, trashes the older same-subject drafts via `--superseded`, re-verifies; exit codes in its docstring; `--no-failure-alert` because Step 4 sends the one consolidated ping — fold its ⚠ `alert` text in on exit 5). The manual route below is the fallback only.
+
 2. Create the replacement via the atomic helper — route `--skill` with `python3 ~/.claude/scripts/email_router.py` (these are usually `intro-outreach`); pass `--no-alert` (Step 4 sends the one consolidated ping):
    ```bash
    python3 ~/.claude/scripts/gmail-create-draft.py \

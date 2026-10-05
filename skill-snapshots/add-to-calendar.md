@@ -35,14 +35,14 @@ Create a Google Calendar event for Tom via `mcp__claude_ai_Google_Calendar__crea
 
 ## 2. Check for duplicates FIRST (mandatory)
 
-Before creating anything, `list_events` on the target calendar over the event's day (or
-day range for multi-day / all-day events), then compare each proposed event against
-what's there:
+Before creating anything, run `python3 ~/.claude/scripts/calendar_write/calendar_write.py find-dupes both --day <YYYY-MM-DD> [--start HH:MM] [--keyword <title/venue/person word>]...` — BOTH calendars (Elsie-Tom + tom@invertedcap.com), not just the target
+(Tom 2026-09-19). exit 0 = no match → create · 10 = exactly one → reconcile THAT event in place, on the calendar it lives on (calendar-event-handling.md invariant 3: fill missing, correct conflicts, never a copy on the other calendar) · 11 = two+ → ask, don't guess · 2 = calendar unreachable → don't create. Judge the candidates semantically:
 
-- **Match = same calendar + same date (or overlapping start time) + same/equivalent title.**
+- **Match = same date (or overlapping start time) + same/equivalent title**, on EITHER calendar.
   Titles need not be byte-identical — "ECLS Family Visit Day" ≡ "EC: Family Visit Day",
-  "First Day of School" ≡ "First Day of School (ECLS & MS)". Judge semantically.
-- If a match exists → **skip it, don't create.** Report it as already-on-calendar.
+  "First Day of School" ≡ "First Day of School (ECLS & MS)".
+- If a match exists → **reconcile it in place** (fill what's missing, correct what conflicts — calendar-event-handling.md
+  invariant 3), don't create a copy. Nothing to change → report it as already-on-calendar.
 - Watch for feed-populated entries: the Elsie-Tom calendar auto-imports Brooklyn Friends
   School (BFS) milestones (Labor Day, Family Visit Day, First/Second Day). Those will
   already be present — don't re-add.
@@ -96,6 +96,7 @@ what's there:
   Prefix ties into availability: `EK`-prefixed and kid-named events are FREE for Tom;
   `TS` and joint events are BUSY (per the Busy/Free rules above).
 - **Location / description**: fill when the source gives them; otherwise omit.
+  If the location is a person's home, offer to save it to their contact (`shared-references/calendar-event-handling.md` rule 10).
 - Batch multiple `create_event` calls in one turn.
 
 ## 4. Confirm back

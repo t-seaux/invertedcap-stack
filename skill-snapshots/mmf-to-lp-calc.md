@@ -17,6 +17,17 @@ These amounts are fixed each quarter and should be hardcoded as the targets:
 | Dash Fund II, LP (Fund II LP) | $109,639.28 |
 | Dash Fund II-A, LP (Fund II-A LP) | $19,688.85 |
 
+## Run it in code (2026-10-04)
+
+Read the three LP balances (`Current Available (USD)`) and the snapshot header's date/time off the Citi snapshot, then:
+```bash
+python3 ~/.claude/skills/mmf-to-lp-calc/mmf_calc.py --as-of "<header date/time>" \
+  --balances '{"Fund I LP": <n>, "Fund II LP": <n>, "Fund II-A LP": <n>}' [--confirmed-current]
+```
+Exit 0 → post its output verbatim (it IS the output format below). Exit 2 → stale/undated: post its reply, don't compute.
+Exit 3 → an LP balance is missing. Pass `--confirmed-current` only when Tom says so in the same message. Targets, MC
+exclusion and the money math live in the script; the sections below are the WHY.
+
 ## Required Input: Citi Checking Snapshot
 
 **If the user has not provided a screenshot or data export of current Citi checking balances, do not proceed. Instead, respond with:**

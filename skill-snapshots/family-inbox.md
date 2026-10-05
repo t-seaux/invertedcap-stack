@@ -55,42 +55,31 @@ args: { messageId, from, subject, date, body }   # body = first ~2000 chars, pla
 ```
 Unattended. Never ask questions.
 
-0. **Self-sent replies are SIGNAL, not noise (Tom 2026-09-09).** A message from
-   `kenyonseo@gmail.com` itself is the family's own reply landing back in the thread —
-   an RSVP, a confirmation, a scheduling commitment. Process it for what the family
-   COMMITTED to: fold who's-attending / confirmed-time details into the matching
-   calendar event (the 2026-09-09 case correctly updated Jeremy's-birthday with
-   "Elsie + Andy + Benny attending, Tom not"). The heads-up (step 4) phrases it as an
-   update to something they did ("Updated RSVP: …"), never as if new mail arrived —
-   and the same-thread cooldown in step 4 applies with full force: two of their own
-   replies minutes apart must produce at most ONE text.
+**The judgment – what's worth a ping, what stays silent, act vs offer vs heads-up, alert shape –
+is the shared tend-to rulebook `~/.claude/skills/shared-references/tend-to.md` (one rulebook for
+every email account and texts, Tom 2026-10-02). READ IT FIRST. This lane binds only the
+family-inbox transport and the lane-specific bits below.**
 
-1. **Classify** from the args:
-   - **NOTABLE** — anything time-sensitive, dated, or personally addressed. Categories
-     (Tom 2026-09-02 — **illustrative, not exhaustive**; new activities/vendors get
-     added over time, classify by KIND not by matching a name on this list):
-     - **School** — Brooklyn Friends School (teachers, PTA, signups, the weekly digest).
-     - **Kid activities** — Little Gym, Super Soccer Stars, Music Together, camps, and
-       any future class/activity signup.
-     - **Reservations** — meals, tickets, flights, hotels, rentals — any booking
-       confirmation with a date/time attached.
-     - **Health** — doctor's office visits, appointment confirmations/reschedules,
-       Magnus Health alerts, pharmacy.
-     - **Bills/payments** due, delivery problems, and anything else time-sensitive or
-       addressed directly to Tom/Elsie. **Finance/payment alerts (bill reminders,
-       auto-debits, tuition, etc.): state upfront whether it's automatic (nothing needed —
-       headline as "automatic payment reminder" or similar) vs requires action from
-       Tom/Elsie. Never leave that ambiguous** — the "nothing to do" vs "needs action" call
-       is the whole point of the alert.
-   - **Outside all of the above** (Tom 2026-09-02: "if I'm missing anything above and
-     you deem something important enough to alert, do it") — use judgment. The category
-     list is a floor, not a ceiling: something genuinely important/time-sensitive that
-     doesn't fit a named bucket still gets flagged, don't silently drop it just because
-     it lacks a matching label.
-   - **SKIP** — marketing, newsletters with no dated action, promos, routine receipts.
-2. **SKIP → exit silently.** No text. "Err toward SKIP" means low-stakes/ambiguous
-   marketing-ish mail, not "only alert on an exact category match" — genuine judgment
-   calls on importance still go out.
+0. **Self-sent replies** (from `kenyonseo@gmail.com` itself) = tend-to.md §2 "our own messages are
+   signal": fold what the family committed to into the matching event (the 2026-09-09 case updated
+   Jeremy's-birthday with "Elsie + Andy + Benny attending, Tom not"), phrase the heads-up as
+   "Updated RSVP: …", and the step 4 cooldown applies with full force.
+
+**As code (2026-10-04) — pre-model gate, run FIRST, before any classification:**
+```bash
+python3 ~/.claude/skills/family-inbox/family_inbox.py gate --from "<args.from>" --subject "<args.subject>"
+```
+Exit 1 (`DROP <reason>`) → no calendar work, no text; log the step-5 line with `texted=n reason=<reason>`
+and exit. Exit 0 (`PASS`) → continue to step 1 (PASS is "not a hard drop", not a KEEP verdict). The
+gate owns the BFX / financial-aid / MS-US-K-4 hard drops in "Relevance filter FIRST" below (regexes in
+`gate_decision()`; fixtures = real kenyonseo@ subjects, `tests/test_gate.py`). Line-level filtering
+inside a multi-division email (the BFS Weekly) stays model judgment.
+
+1. **Classify** the message per tend-to.md §1-§2 → **NOTABLE** (ping-worthy) or **SKIP**. Typical
+   family-inbox NOTABLE senders (illustrative): Brooklyn Friends School (teachers, PTA, signups, the
+   weekly digest), kid activities (Little Gym, Super Soccer Stars, Music Together, camps),
+   reservations/travel, health (doctor's offices, Magnus Health, pharmacy), bills.
+2. **SKIP → exit silently.** No text.
 
 ### 3. Date-extraction harness (the core of NOTABLE handling)
 Many notable emails — especially the **BFS weekly** (Andy's school) — carry multiple
@@ -135,6 +124,13 @@ Then **open every DOC line AND every saved attachment** before deciding what dat
 
 **NEVER report "no dated events to add" when a DOC link OR an attachment went unopened.** That
 claim is only valid once every link and every attachment has actually been read.
+**As code (2026-10-04):** before logging `dates_found=0` or saying "no dated events", run
+```bash
+python3 ~/.claude/skills/family-inbox/family_inbox.py unopened-check <messageId> --opened <url> --opened <SAVED path> ...
+```
+listing every DOC URL and SAVED attachment path you actually read. Exit 1 prints `UNOPENED <item>`
+lines → the heads-up must name each unopened item ("couldn't open X") instead of "no dates";
+exit 0 `ALL-OPENED` → the zero-dates claim is valid.
 
 **Relevance filter FIRST — drop anything not for this family:**
 - **BFS / school mail:** Andy is in the **ECLS / Early Childhood (EC)** program, **Pink
@@ -146,6 +142,8 @@ claim is only valid once every link and every attachment has actually been read.
     start/end dates, registration windows, dismissal-option changes: all N/A.
   - **DROP financial-aid items — not applying** (Tom 2026-09-04). The Clarity application
     deadline and related reminders are N/A.
+  - *These three subject-level drops are enforced in code by `family_inbox.py gate` (above, Mode A
+    step 0 gate). Extending them = edit `_GATE_DROPS` / `_OTHER_DIVISION` + add a fixture row.*
   - Adult-facing all-school events (Giving Day, The Benefit, volunteer fairs) ARE wanted,
     but add them **all-day and FREE** — they don't block the day.
 - Other mail: keep only genuinely family-relevant dates.
@@ -159,12 +157,7 @@ never cross-copy), invariant 3 (reconcile: fill missing, correct conflicts, note
 invariant 4 (headers + item lines), invariants 5-6 and 9 (defaults, dash glyphs, location
 format), Known event sources (kids' classes), Lane-specific (family bullet).
 
-**For EACH relevant date, dedup-check BOTH calendars BEFORE anything else** (contract
-invariant 2): `mcp__claude_ai_Google_Calendar__list_events` on the Elsie-Tom calendar
-(`cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com`) AND on Tom's work primary
-(`tom@invertedcap.com`) over that date. Judge semantically — the BFS feed already
-auto-adds many milestones (Labor Day, Family Visit Day, First/Second Day), so most will
-already exist.
+**For EACH relevant date, dedup-check BOTH calendars BEFORE anything else** (contract invariant 2): `python3 ~/.claude/scripts/calendar_write/calendar_write.py find-dupes both --day <YYYY-MM-DD> [--start HH:MM] [--keyword <title/venue/person word>]...` (exit 0 = no match → create · 10 = exactly one → reconcile THAT event in place, on the calendar it lives on (calendar-event-handling.md invariant 3: fill missing, correct conflicts, never a copy on the other calendar) · 11 = two+ → ask, don't guess · 2 = calendar unreachable → don't create). The BFS feed already auto-adds many milestones (Labor Day, Family Visit Day, First/Second Day), so most will already exist — judge the returned candidates semantically.
 
 - **DUPE found → RECONCILE per contract invariant 3**, via `update_event` in place on the
   calendar where it lives. Authorized auto-update — no approval needed — but you STILL
@@ -186,19 +179,14 @@ already exist.
 
 ### 4. Text ONE consolidated heads-up (Sendblue) — to the FAMILY GROUP
 
-**Same-thread cooldown FIRST (Tom 2026-09-09).** Each job is one email, but the family
-should get ONE heads-up per underlying event, not one per message. Before sending, grep
-this month's sweep-log for an entry from the **last 30 minutes** with the same thread —
-match on subject with `Re:`/`Fwd:` prefixes stripped — that has `texted=y`:
+**Same-thread cooldown FIRST** (tend-to.md §2 "ping once"). Transport: grep this month's
+sweep-log for a `texted=y` entry from the last 30 minutes on the same thread (subject with
+`Re:`/`Fwd:` stripped):
 ```bash
 grep -i "subject=.*<normalized subject>" ~/.claude/skills/family-inbox/sweep-log/$(date +%Y-%m).log | tail -5
 ```
-If a recent texted entry exists, the family has already been pinged about this thread.
-Still do the calendar work (dedup/enrich/fix per step 3), but only text again if THIS
-message adds genuinely new information the earlier heads-up didn't cover (a changed
-time, a new date, a correction) — and then say only the delta. Otherwise skip the text
-and log `texted=n reason=thread-cooldown`. (Same shape as the Katya companion check in
-4b, generalized to any sender.)
+Hit → still do the calendar work (step 3), text only a genuine delta, else log
+`texted=n reason=thread-cooldown`.
 (Load prefs first — `python3 ~/.claude/skills/sms-listener/prefs.py load core email` — and
 honor them, esp. the header/formatting rules.)
 Kid/family stuff goes to the **family group** (Assistant + Tom + Elsie) so both parents
@@ -291,7 +279,9 @@ $172.53 REMINDER email was silently dropped, so the reminder said $531.33 instea
   `com.invertedcap.katya-paid-watch` job is retired to `_disabled-plists`). It reads
   the Katya 3-way thread (+19178224622) for a payment-confirmation message ("Sent",
   "paid", "Zelle'd", etc.) AND the KSeo Bot family thread (hard payment words only —
-  "paid"/"zelled"/"venmoed"), from **either Tom or Elsie** after the reminder's
+  "paid"/"zelled"/"venmoed" — and only when it's about Katya: names Katya, an invoice #,
+  or the amount, or is a bare "paid" whose latest bot message was the Katya alert;
+  "paid Lupe" never counts), from **either Tom or Elsie** after the reminder's
   creation time, and if found calls `eventkit complete` + texts the family group a
   one-line ✅. Elsie's replies sync to this Mac's chat.db too, so either of them
   confirming is enough. Script lives alongside this SKILL.md; the wrapper lives at

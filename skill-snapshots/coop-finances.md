@@ -108,7 +108,10 @@ Save xlsx in place. iCloud handles sync. No Drive upload unless Tom explicitly a
 
 ### 6.5 Post-run verification gates (MANDATORY — never silently accept)
 
-`update_pl.py` already computes the verification primitives; the calling agent must treat them as **hard gates**, not informational output:
+Both gates are now enforced in `update_pl.py` (2026-10-04): **exit 3** = reconciliation delta non-zero (the JSON
+`summary` already leads with `⚠️ RECONCILIATION FAILED…` — post it as-is, never as a clean run); for a Reserve
+**screenshot**, transcribe to the lightweight CSV and pass `--ocr-displayed-balance <final balance on the screenshot>` —
+**exit 4** = didn't reconcile, nothing ingested, reply with the JSON's `reply` line. The rules below are the WHY:
 
 - **CSV ↔ _Raw reconciliation**: the output JSON includes `csv_sum_delta_in` / `csv_sum_delta_out` (from `reconcile_csv_sums` — parse-vs-written sums). Both must be `0.00`. Any non-zero delta means a row was dropped or duplicated between parse and write — lead the Slack reply/inline response with `⚠️ RECONCILIATION FAILED: in delta $X, out delta $Y — review before trusting this run` and do not present the run as clean.
 - **Maintenance status**: `cluster_issues` lists months still short of quota — surface verbatim (informational). Any `Maintenance overshoot` flag is a real review item.
@@ -121,7 +124,7 @@ Post to the same thread (Mode B) or `#claude-alerts` (Mode A first run after dat
 ```
 💸 <u>**Coop Finances: Updated**</u>
 • N txns ingested, M deduped
-• Maintenance: Mar/Apr/May fully posted ($4,400 ea)
+• Maintenance: Jul/Aug/Sep fully posted ($5,200 ea — $4,400 before Jun 2026)
 • Reserve interest: $X.XX (Jan-May 2026)
 
 Flagged for review (please reply):

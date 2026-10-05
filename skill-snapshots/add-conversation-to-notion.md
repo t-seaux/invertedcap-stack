@@ -138,6 +138,8 @@ Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/cla
 
 ## Step 7: Confirm to User
 
+**As code (2026-10-04) — post-write check, before confirming:** `python3 ~/.claude/skills/shared-references/notes_page_check.py check --page-id <new page id> --kind conversation` (add `--title-verbatim` when Tom dictated the title). It verifies the parent is the Notes DB (9/18 ICONIQ orphan), the title shape, no self-referential link. Exit **0** → confirm. Exit **1** → fix what `failures` names (move the page into the Notes data source, retitle, unlink, re-render the block), re-run, then confirm. Exit **2** → Notion unreachable: report the page as unverified, never `✓`. Pre-create: `notes_page_check.py title --kind conversation "<title>"`.
+
 After successful creation, respond with one line:
 
 > ✓ Saved to Notes: **[Note Title]** → [Notion page URL]

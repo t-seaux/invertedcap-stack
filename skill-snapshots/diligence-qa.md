@@ -114,10 +114,11 @@ to Step T.
 for the company name. If more than one row matches, surface candidates and
 stop. Never auto-pick.
 
-**FO-suffix gate** — if the Opp name matches `/\([^)]*\bFO\b[^)]*\)/i`, STOP
-and route Tom to the underlying non-FO Opp. Per memory
-`feedback_first_pass_fo_gate_in_webhook` — diligence artifacts are written
-against the original Opp, not the follow-on row.
+**FO-suffix gate** — run `python3 ~/.claude/skills/first-pass-diligence/fpd_preflight.py --opp-id <OPP_ID>`;
+exit 11 (`route: follow-on-skip`) → STOP and route Tom to the underlying non-FO Opp (`prior_opps` lists it).
+The FO rule lives in that script + `triggers/first-pass-diligence.json` — don't restate the regex here (As code,
+2026-10-04). Exits 0/10 both mean "not FO" for this skill. Per memory `feedback_first_pass_fo_gate_in_webhook` —
+diligence artifacts are written against the original Opp, not the follow-on row.
 
 ### 1b. Fetch every linked Note WITH transcripts
 

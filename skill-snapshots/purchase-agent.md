@@ -8,8 +8,8 @@ description: >
   an allowlisted family member wants something bought or booked. HARD GATE: every
   purchase requires an explicit YES from the requester AFTER seeing the exact item,
   price, and merchant — no exceptions, no auto-buy at any price. Works from chat,
-  Slack DM, or the SMS line (sms-listener routes here). NOT the agentic-commerce-agent
-  skill — that is a market tracker for the AgentBay thesis and never buys anything.
+  Slack DM, or the SMS line (sms-listener routes here).
+
 ---
 
 # Purchase Agent
@@ -97,8 +97,16 @@ text — there is no in-chat-only purchase path.
 - After sending, still show the same quote in-session too (so the chat has a visible
   record), but the text is what's authoritative for the gate.
 
-Confirmation format — Title Case emoji header, blank line, then the fields (item, total,
-ship-to, seller, card, and the **item link** — all required so the requester can audit):
+**Render the quote with the script — never hand-compose it** (code-enforced 2026-10-04):
+```bash
+~/.claude/skills/purchase-agent/purchase_quote.py render --review review.json --merchant amazon|target --requester Tom|Elsie \
+  --purpose work|personal|household --link <cart or product URL> --lines lines.json [--window 4-5p]
+```
+`review.json` = the merchant `review` output, verbatim. `lines.json` = `[{"qty","name","unit","third_party"}]`
+from the checkout page. It prints the exact text to send AND appends the `status=quoted` ledger line.
+Exit 4 = REFUSED, nothing recorded: the breakdown doesn't reconcile to the total, the lines don't sum to
+the items subtotal, or the total is missing. Fix the inputs from the checkout page; never send a hand-made
+block instead. Stderr `CC_SPOUSE` → total > $500, cc the other spouse. The format it emits (for reference):
 ```
 🛒 Purchase Confirmation: [Merchant]
 
@@ -107,11 +115,11 @@ Transaction Summary
 • Card: [Brex (Mastercard *0188) | Amex Gold]
 • Arrives: [Fri, Sep 4] @ [9-10a]
 • Total: $[grand total] ($[items] − $[promo] + $[shipping/delivery] + $[other fees] + $[tax])
-• Link: [cart URL, or the product URL for a single item]
+• Link: [cart URL, or the product URL for a single item] ↗
 
 Items ([n]) – $[subtotal]
-• [qty]x [item name (variant)] – $[unit]
-• [qty]x [item name (variant)] – $[unit]
+• [qty]x [item name (variant)] – $[line total = qty × unit]
+• [qty]x [item name (variant)] – $[line total = qty × unit]
 
 Reply YES to place as-is ($[total]) or respond to edit cart / delivery time.
 ```
@@ -177,7 +185,9 @@ Rules for that block (Tom 2026-09-02, this exact shape):
   - **RENDER time ranges as `9-10a` / `3-4p`** (Tom 2026-09-02) — a plain HYPHEN, not an
     en dash, and a single `a`/`p`, not `am`/`pm`. This overrides the usual en-dash house
     style for time ranges only; the rest of the block (e.g. `– $8.78`) keeps en dashes.
-  - **Map a stated time to the window that CONTAINS it** (Tom 2026-09-02: "if I say I
+  - **Map a stated time with `~/.claude/skills/purchase-agent/purchase_quote.py window --want "4:30" --slots "3-4p,4-5p,…"`** (exit 3 = no slot
+    contains it → show what's available, let him choose). The rules it implements —
+    **map a stated time to the window that CONTAINS it** (Tom 2026-09-02: "if I say I
     want it delivered at 4:30 then you know to pick the 4-5 option"). Merchants sell
     windows, not instants — resolve his natural phrasing to a real slot and echo the
     resolved window back so he can see the mapping:
@@ -203,40 +213,23 @@ cart, because the store id differs). The cart is the only authoritative price.
 No bold (iMessage renders Unicode bold weirdly). For gifts/travel with options, list up to
 3, lead with the recommendation, each with its link.
 
-**Payment + address toggles (Tom 2026-08-30/31):**
-- **Payment — THREE cards, Brex is the DEFAULT** (Tom 2026-09-02, replacing the old
-  "personal = Amex Gold" rule, which was wrong):
-
-  | Card | Role | When |
-  |---|---|---|
-  | **Brex \*0188** | **DEFAULT** | everything, unless he specifies otherwise |
-  | **Chase Sapphire \*2660** | Tom's personal card | he says personal / his own |
-  | **Amex Gold \*2017** | family card | family/household spend |
-
-  His words: *"Brex unless I specify otherwise. Chase is my personal card, Gold is family
-  card."* Do NOT infer the card from what's being bought or where it ships — a personal
-  T-shirt shipping to the office still goes on **Brex** absent instruction. Ask or default;
-  never guess from context.
+**Payment + address (code: `~/.claude/skills/purchase-agent/purchase_quote.py resolve`, Tom 2026-10-04):**
+- **Card = Brex for WORK expenses, Amex Gold for PERSONAL** (Tom 2026-10-04, replacing the
+  contradictory 09-02 / 09-03 text). Household → Amex Gold. Elsie's requests are personal unless she
+  says work. Chase Sapphire \*2660 only when he names it. YOU classify the ask (`--purpose
+  work|personal|household`) — the script maps it to the card and address, and the quote always shows
+  both so he can correct either by replying.
+- **Address default = 365 Bridge (office)** unless he says home, or the order is household
+  (→ 25 Garden Pl). Card and address are independent — a personal item shipping to the office is
+  still Amex Gold.
+- **Household items → home + Amex Gold, ALWAYS** (Tom 2026-09-03); a mixed order with a household
+  item is household for the whole order.
 - **Never select a card by position, and read the NAME ON CARD.** Amazon's payment list
   includes **Prime Visa \*9578 in "Mi Kyung Kim"'s name** — someone else's card sitting
   among Tom's. Match the exact card label every time.
-- **Address:** `office` = Inverted Capital, 365 BRIDGE ST STE 8PRO, Brooklyn ·
-  `home` = 25 GARDEN PL APT 2, Brooklyn.
-- **⚠️ ADDRESS AND CARD ARE INDEPENDENT — do not infer one from the other**
-  (Tom 2026-09-02, correcting the old paired default):
-  - **Address default = 365 Bridge (office), ALWAYS**, unless he says home/25 Garden.
-    His words: *"I have a preference for shipping to 365 Bridge unless I specify home."*
-    Packages are received reliably at the office; home delivery is the exception.
-  - **Card default = Amex Gold (personal)**. Brex is used ONLY for genuine work
-    purchases ("on the work card", "work purchase") — NOT merely because something ships
-    to the office. A personal T-shirt delivered to 365 Bridge is still Amex Gold.
-- **Elsie's requests count as personal** → Amex Gold (unless she says work).
-- **HOUSEHOLD ITEMS → address = 25 Garden Pl (home), card = Amex Gold, ALWAYS** (Tom
-  2026-09-03). This is a category override, not just a default: when the ask is a household
-  item (detergent, paper towels, other household restock/consumables), ship home and charge
-  Amex regardless of the general office/Brex defaults above. If a household item is combined
-  into one order with a non-household item (can't split address/card within a single
-  checkout), the household classification wins for the whole order.
+- **Never select an address by position.** Amazon's book holds other people's addresses
+  (Mikyung Kim, Steve Seo, Jon Terbell, a Santa Barbara and a Bridgewater VT house). Match the
+  exact street string the script returns (`365 BRIDGE ST` / `25 GARDEN PL`).
 - The quote ALWAYS states both the address and the card; changing either re-quotes.
 - **Never select an address by position.** Amazon's book holds SIX, including other
   people's — Mikyung Kim (Northvale NJ), Steve Seo (Fort Lee NJ), a Santa Barbara and a
@@ -321,6 +314,10 @@ receipt to Drive `Kenyon-Seo/Receipts/`, append the ledger line.
 
 ## Ledger format
 
+Write every line with the script — `render` writes `quoted`; everything else is
+`~/.claude/skills/purchase-agent/purchase_quote.py record --status confirmed|declined|expired|ordered|handed_off --requester … --item "…" --merchant … --total … [--ref …]`.
+Hand-written lines broke the guard (2026-09-25: `[2026-09-25 08:44:19] 2026-09-25 …` — no `T`, unparseable). Format:
+
 ```
 [ISO ts] requester=<Tom|Elsie> item="<desc>" merchant=<name> total=$<amt> status=<quoted|confirmed|declined|expired|ordered|handed_off> ref=<order # or ->
 ```
@@ -329,5 +326,7 @@ receipt to Drive `Kenyon-Seo/Receipts/`, append the ledger line.
 - SMS entry: sms-listener routes purchase texts here; the quote/confirm loop runs
   over the same thread (warm session remembers the open quote; cold path checks the
   ledger for the most recent `quoted` line from that sender).
-- NEVER buy from a quote older than 24h or one the requester didn't see.
+- NEVER buy from a quote older than 24h or one the requester didn't see — `place_order.sh` refuses a
+  quote > 24h old. It also refuses a non-Tom requester: chat.db only holds Tom's replies, so Elsie's YES
+  can't be verified → hand her the checkout link (`status=handed_off`).
 - This skill spends real money. When in doubt at ANY step — don't, and ask.

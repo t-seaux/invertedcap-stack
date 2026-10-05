@@ -131,7 +131,7 @@ skill does not re-check. Keyed on **threadId**, not messageId — Gmail fires mu
 same outreach thread, and messageId-keying once produced duplicate `[PENDING]` notes (Gilad Rom /
 Factir, 2026-05-12). Falls back to the lowercased recipient email when `personId` is null.
 
-> **⛔ Status gate (Tom, 2026-09-28).** Feedback is logged only for an Opp in the `Feedback-eligible` set (portfolio, or not passed in any way). Read back the Opp's current `Status` before every note, append, or `📣 Pending Feedback` write. If it is ineligible, skip silently. Rules: `shared-references/feedback-note-format.md` → **Status gate**.
+> **⛔ Status gate (Tom, 2026-09-28).** Feedback is logged only for an Opp in the `Feedback-eligible` set (portfolio, or not passed in any way). Before every note, append, or `📣 Pending Feedback` write, run `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set feedback_eligible` — exit 1 = ineligible, exit 2 = couldn't read (don't write). If it is ineligible, skip silently. Rules: `shared-references/feedback-note-format.md` → **Status gate**.
 
 ## Step 0: Build the Pending Feedback Contact List from Notion
 
@@ -220,7 +220,7 @@ q: "is:inbox from:\"<First Name> <Last Name>\" newer_than:12h"
 For each inbox message found:
 1. Read the full thread to extract: sender name and email, reply date, reply body (strip quoted prior messages — extract only the new reply text). **The reply body must be pasted verbatim into the note — do not summarize, paraphrase, or rewrite into third person.**
 2. **Sanity check**: Confirm the reply is part of a feedback outreach thread (the thread should contain a prior outreach message from Tom about the relevant opportunity). Skip unrelated emails from the same person.
-2b. **Founder-on-thread exclusion (HARD RULE).** If the message's `To`/`Cc` includes the Opp's founder — any `🏁 Founder(s)` email or the Opp's `Contact` address — it cannot be backchannel feedback. Nobody gives a candid read on a company while the founder is reading. Skip it outright, whatever the content, and do not append it to the note.
+2b. **Founder-on-thread exclusion (HARD RULE).** **As code (2026-10-04):** `python3 ~/.claude/skills/shared-references/feedback_note.py founder-on-thread --opp-id <opp_id> --msg-id <messageId>` — exit 0 = a founder is on To/Cc → skip the message outright (do not append, do not classify) · exit 1 = continue · exit 2 = read failed → skip this message this run (it re-surfaces next sweep). Harness case: Byron Edwards / Redwagon 2026-09-04. The rule below is the WHY. If the message's `To`/`Cc` includes the Opp's founder — any `🏁 Founder(s)` email or the Opp's `Contact` address — it cannot be backchannel feedback. Nobody gives a candid read on a company while the founder is reading. Skip it outright, whatever the content, and do not append it to the note.
 
    This matters most on **parallel-track notes** (`feedback-outreach-drafter` Gate C), where the feedback giver is ALSO an intro target and is therefore actively corresponding with the founder on the connect thread. Those messages ("would be great to chat — can do Tues 9am or 10:30am") arrive in Tom's inbox, from a person who IS in `📣 Pending Feedback`, on a thread that DOES contain a prior Tom message about the Opp — so the Step 2 sanity check passes and only this rule stops them. Tom is frequently Bcc'd on the connect thread, so these land in the inbox scan by default.
 
@@ -316,6 +316,21 @@ Immediately after the create call:
 ## Step 3b: Post-create reconciliation (race-condition guard)
 
 **Always run this immediately after Step 3's link-to-opportunity write, regardless of mode (sweep, webhook B-outbound, manual).**
+
+**As code (2026-10-04) — steps 1–7 below are ONE command:**
+```bash
+python3 ~/.claude/skills/shared-references/feedback_note.py reconcile --opp-id <opp_id> --person-id <person_page_id> --name "<First Last>"          # dry-run: prints the plan
+python3 ~/.claude/skills/shared-references/feedback_note.py reconcile --opp-id <opp_id> --person-id <person_page_id> --name "<First Last>" --apply  # executes + verifies
+```
+It gathers the person's notes from the Opp's `✍️ Notes` (mention or title) PLUS same-person, same-Opp-subject orphans
+from the Notes DB (empty `Opportunity`), keeps the earliest `Created`, archives the rest, drops them from `✍️ Notes`,
+links the keeper if it is the orphan, then re-reads to verify. Run the dry-run first; exit **0** = exactly one linked
+note → done · **3** = no note found (your own create didn't land — that is the Step 3 orphan failure: alert) ·
+**10** = plan has actions → re-run with `--apply`. With `--apply`: **0** = applied + verified → emit the step-7 run-log
+line from the printed plan · **5** = verification failed → emit `feedback-note-orphaned: …` and a `⚠️` send-alert with
+the `problems` lines (never exit silently) · **2** = Notion error → same ⚠️ alert. Harness:
+`shared-references/tests/test_feedback_note.py` (Gilad Rom/Factir race, John Hor orphan, silent link drop).
+The numbered procedure below is the WHY / spec the code implements.
 
 The pre-write dedup check at Step 1.3 / Mode B Step 4 reads the Opp's `✍️ Notes` array — but two concurrent jobs (e.g. webhook + sweep, or two webhook events from the same thread before the queue-layer dedup catches up) both pass that check because neither has written yet, then both write. Observed in production 2026-05-12 (Gilad Rom / Factir, two `[PENDING]` notes created ~1s apart).
 

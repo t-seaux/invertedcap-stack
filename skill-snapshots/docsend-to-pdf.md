@@ -59,89 +59,31 @@ CloudFront URLs in the response are pre-signed and short-lived (~hours). Don't c
 - **How** — work inside Tom's already-authed Chrome tab (Step 5 pattern). Find the download control's `href` / network request in the loaded viewer and fetch it with the session cookies, or click it and pick the file up from `~/Downloads`. When you capture the working endpoint, record it in this section so the next run can call it directly.
 - **No Download button** (downloads disabled) — fall through to Step 1. For a spreadsheet that only renders as pages, flag in the alert that no native file was available.
 
-## Step 1: Convert DocSend to PDF (Python Approach)
+## Step 1: Convert DocSend to PDF
 
-Use this proven Python approach (pip dependency: `Pillow`):
+**As code (2026-10-04)** — do not copy a recipe; run the script:
 
-```python
-import requests, re, time
-from PIL import Image
-from io import BytesIO
-
-# pip install Pillow --break-system-packages -q
-
-session = requests.Session()
-session.headers.update({
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-})
-
-docsend_url = "<DOCSEND_URL>"
-
-# 1. Visit the page to establish session cookies
-resp = session.get(docsend_url)
-
-# 2. Check for page_data URLs — if absent, there's an email gate
-page_urls = re.findall(r'(https://[^"]+/view/[^/]+/page_data/\d+)', resp.text)
-
-if not page_urls:
-    # 2a. Bypass email gate by submitting the auth form
-    csrf = re.search(r'name="authenticity_token"[^>]*value="([^"]+)"', resp.text)
-    if not csrf:
-        csrf = re.search(r'value="([^"]+)"[^>]*name="authenticity_token"', resp.text)
-    csrf_token = csrf.group(1) if csrf else None
-
-    method = re.search(r'name="_method"[^>]*value="([^"]+)"', resp.text)
-    if not method:
-        method = re.search(r'value="([^"]+)"[^>]*name="_method"', resp.text)
-    method_val = method.group(1) if method else 'patch'
-
-    now_ms = str(int(time.time() * 1000))
-    resp = session.post(docsend_url, data={
-        'utf8': '✓',
-        '_method': method_val,
-        'authenticity_token': csrf_token,
-        'link_auth_form[email]': 'tom@invertedcap.com',
-        'link_auth_form[email_sniffing][email_polling_id]': '',
-        'link_auth_form[email_sniffing][email_polling_start]': now_ms,
-        'link_auth_form[email_sniffing][email_polling_complete]': now_ms,
-        'link_auth_form[email_sniffing][email_submitted_at]': now_ms,
-        'link_auth_form[timezone_offset]': '240',
-    }, headers={
-        'Referer': docsend_url,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Origin': 'https://docsend.com',
-    }, allow_redirects=True)
-
-    page_urls = re.findall(r'(https://[^"]+/view/[^/]+/page_data/\d+)', resp.text)
-
-# 3. Extract the document title from <meta> tags
-title_match = re.search(r"itemprop='name'>\s*<meta\s+content='([^']+)'", resp.text)
-if not title_match:
-    title_match = re.search(r"content='([^']+)'\s+name='twitter:title'", resp.text)
-doc_title = title_match.group(1) if title_match else None
-
-# If title is generic DocSend description, discard it
-if doc_title and 'docsend helps' in doc_title.lower():
-    doc_title = None
-
-# 4. Sort and dedupe page_data URLs
-page_urls = sorted(set(page_urls), key=lambda x: int(x.split('/')[-1]))
-
-# 5. Fetch each page_data endpoint (returns JSON with "imageUrl" field)
-images = []
-for page_url in page_urls:
-    data = session.get(page_url, headers={'Accept': 'application/json'}).json()
-    img_resp = session.get(data['imageUrl'])
-    img = Image.open(BytesIO(img_resp.content))
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-    images.append(img)
-
-# 6. Compile into PDF
-output_path = '/Users/tomseo/Downloads/<FILENAME>.pdf'
-images[0].save(output_path, 'PDF', save_all=True, append_images=images[1:], resolution=150)
+```bash
+/opt/homebrew/bin/python3 ~/.claude/scripts/docsend_pdf.py "<DOCSEND_URL>" --out "/Users/tomseo/Downloads/<FILENAME>.pdf" [--passcode P] [--email E]
+# → {"ok":true,"path":…,"pages":N,"title":"<doc title or null>","gate":"open"}
 ```
+
+It does what the old inline recipe did — session cookies, `page_data` scrape, the `link_auth_form` email-gate
+POST (minimal fields; the `email_sniffing[...]` keys are gone), page sort + dedupe, `imageUrl` fetch, Pillow
+compile (written atomically, so a failed run never leaves a partial PDF) — and it returns the doc title with
+DocSend's own marketing title discarded (`null` → use the Step 2 fallback name). The old `'docsend helps'`
+check missed the current marketing title, `DocSend - Simple, intelligent, modern content sending`.
+
+**Email gate → enter `tom@invertedcap.com` (Tom 2026-10-04: "the priority is to be able to read the decks").**
+DocSend is in the gate carve-out with Papermark (memory `feedback_never_enter_toms_email_in_gates`); the script
+defaults to that address. Other capture walls (BriefLink, data-room logins) still stop and ask.
+
+**Exit handling:** `0` ok → Step 2 · `3` + `status: "gated-ask-tom"` (only if `--email ""` was passed) → stop and ask Tom · `3` email-VERIFICATION gate → the cookie jar path is in the output;
+do Step 1.5 (pull the verify link from Gmail) and rerun with `--verify-url <link> --cookies <that jar>` ·
+`4` still gated after auth (passcode needed / email rejected / captcha) → rerun with `--passcode` if one was
+given, otherwise stop and ask Tom · `5` no pages released (unknown layout, or a `/view/s/` data-room URL —
+see Data Room Handling) · `6` network/HTTP error → retry once · `2` not a DocSend view URL.
+Harness: `~/.claude/scripts/tests/test_docsend_pdf.py` (real saved gate page + every gate branch).
 
 ## Step 1.5: Email-Verification Gate (link sent to inbox) — SOLVED, do not give up
 
@@ -155,6 +97,9 @@ Working recipe (proven Paravel Health, 2026-09-08):
 2. **Pull the verify link from Gmail** — search `from:no-reply@docsend.com subject:verify newer_than:1h`, take the message whose `internalDate` matches your submit (each submit sends its own email). The plaintext body has `Follow the link below...` with a `track.pstmrk.it/...presentation_users%2F<token>%3Fredirect_url%3D...` URL. The un-wrapped target is `https://docsend.com/presentation_users/<token>?redirect_url=<viewer>`.
 3. **Follow the verify link in the SUBMITTING session** (reload the pickled cookies into a fresh `requests.Session`, then `s.get(verify_url, allow_redirects=True)`). Success looks like a redirect to `...view/<slug>?just_verified=true` and a new `remember_presentation_user_token` cookie in the jar.
 4. **Re-GET the viewer in that same session** → `page_data` URLs now appear. Proceed with Step 1's image-fetch + PDF-compile as normal.
+
+**As code:** steps 1, 3 and 4 are `docsend_pdf.py` — its exit `3` already saved the submitting session's jar;
+step 2 (Gmail) is yours; then `docsend_pdf.py "<URL>" --out <pdf> --verify-url "<un-wrapped presentation_users link>" --cookies <jar from the exit-3 output>`.
 
 If it's STILL gated after a correctly-threaded verify: the doc may also carry a passcode, or the founder disabled the email you used — flag for interactive capture. But email-verification alone is not a blocker. Driving Tom's Chrome is a fallback only when JS-over-AppleEvents is enabled (it is usually OFF — `View → Developer → Allow JavaScript from Apple Events`); the in-session Gmail recipe above needs no browser at all.
 
@@ -180,38 +125,17 @@ The workflow is:
 2. **Upload each PDF** into the company subfolder using the returned `folderId`.
 3. **Use the direct file URLs** (from the upload response `url` field) in the Notion page body.
 
-```python
-import requests, base64
+**As code (2026-10-04)** — one command per PDF (it does steps 1–2: idempotent subfolder, then upload):
 
-DRIVE_URL = "https://script.google.com/macros/s/AKfycbzRPkebxLe-VoJq1UDxUOR8bujyG0T8_rskdmF66lcUYD_JeMh8ODZ6cpeayU61_h8z/exec"
-DILIGENCE_ROOT = "1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d"
-
-# 1. Create company subfolder
-folder_resp = requests.post(DRIVE_URL, json={
-    "action": "createFolder",
-    "folderName": "<COMPANY_NAME>",
-    "parentFolderId": DILIGENCE_ROOT
-}, allow_redirects=True, timeout=60)
-folder_result = folder_resp.json()
-subfolder_id = folder_result["folderId"]
-subfolder_url = folder_result["url"]
-
-# 2. Upload PDF into subfolder
-with open(output_path, 'rb') as f:
-    pdf_b64 = base64.b64encode(f.read()).decode('utf-8')
-
-upload_resp = requests.post(DRIVE_URL, json={
-    "action": "upload",
-    "fileName": filename,
-    "fileBase64": pdf_b64,
-    "mimeType": "application/pdf",
-    "folderId": subfolder_id
-}, allow_redirects=True, timeout=120)
-upload_result = upload_resp.json()
-file_url = upload_result["url"]  # Direct link to the file
+```bash
+python3 ~/.claude/scripts/drive_upload.py upload "<output_path>" --folder diligence --company "<COMPANY_NAME>" \
+    --name "<filename>"
+# → {"ok":true,"fileId":"…","url":"<direct file link>","folderId":"…","folderUrl":"<company Diligence folder>"}
 ```
 
-**Important:** Python `requests.post(..., allow_redirects=True)` handles Apps Script 302 redirects correctly. `curl -L` does NOT work for POST.
+Use `url` as the file link and `folderUrl` as the folder link in Step 5. Exit **1** (endpoint refused) or
+**3** (transport) → retry once, then name the failure in the summary; exit **2** → the local PDF path or
+folder is wrong, nothing was uploaded.
 
 ## Step 4: Save locally and present to user
 
@@ -305,7 +229,10 @@ Then fetch each `page_data` URL with `Accept: application/json` to get `{imageUr
 
 CloudFront image URLs are pre-signed and DO NOT require docsend cookies — download directly from Python `requests`. Expiry on signed URLs is ~40-60 minutes from extraction, so process each doc end-to-end (extract → download → PDF → upload) rather than batching all extractions first.
 
-Use the same `Pillow` PDF-compile path as Step 1's single-doc flow.
+**As code:** hand the extracted lists to `docsend_pdf.py --room --docs-json <[{"name","image_urls"}] in display order> --out <dir> --company "<Co>"`.
+It downloads + compiles one doc at a time, names files `[Company] - [Doc]` (duplicates disambiguated), and
+stops with exit `7` naming the doc whose signed URLs expired — re-extract THAT doc and rerun from it. Keep
+extraction batches small (a few docs per extract → script cycle) so no doc's URLs sit for 40+ minutes.
 
 ### Step 5: Driving Tom's existing Chrome tab from Python
 
@@ -327,7 +254,7 @@ Async fetches can't be awaited directly through `osascript`. Pattern: kick the p
 - **Reload-then-hook fetch interceptor.** Reloading wipes the hook before the page's own queries fire. Hook fetch on an already-loaded page and trigger your own queries — don't try to passively observe the page's initial load.
 - **`notion.site` fallback for Notion-hosted artifacts in a data room.** If the data room links a Notion page on the founder's workspace (`notion.so/{workspace}/...`), the `.notion.site` subdomain returns 404 unless the page is published-to-web. Render it through Tom's logged-in Chrome session instead (see the legacy data-room PDF flow that extracted `.notion-page-content` outerHTML and Chrome-headless'd it).
 
-**Worked precedent:** Kalos data room (`u7h9vv5xxxutrafi`), 2026-05-27. 8 docs → 9 PDFs uploaded to `Diligence/Kalos/`. See `/tmp/kalos_dataroom_pipeline.py` for the end-to-end orchestrator scaffold.
+**Worked precedent:** Kalos data room (`u7h9vv5xxxutrafi`), 2026-05-27. 8 docs → 9 PDFs uploaded to `Diligence/Kalos/`. (The original `/tmp/kalos_dataroom_pipeline.py` orchestrator no longer exists — /tmp was cleared; follow the steps above.)
 
 ### Step 6: Companion Notion pages linked from the data room
 

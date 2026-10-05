@@ -1,6 +1,6 @@
 ---
 name: cpa-report
-description: Generate the quarterly CPA report for Dash Fund entities (Dash Venture Fund and Dash Fund Management) from per-account Citi CSV exports. Produces a formula-linked Excel workbook (Raw → Detail → Summary, with SUMIFS aggregations) — Summary tab shows income, expenses, distributions, and (when LP CSVs are supplied) liquidation proceeds, by period and entity, with a YTD column under each entity group. A 5-check deterministic verification pass runs before write; any failed check aborts. Output lands at the canonical `~/.../Dash Tax & Audit/` iCloud location and prior versions auto-archive. Trigger when Tom says "run CPA report", "generate CPA report", "quarterly CPA report", "CPA Excel", "build the CPA report", "run the Dash CPA report", or any variant asking to produce the quarterly fund report for his CPA. Also trigger when Tom uploads Citi per-account CSVs and asks to process them into a report. Always trigger inline — no confirmation needed before acting.
+description: Generate the quarterly CPA report for Dash Fund entities (Dash Venture Fund and Dash Fund Management) from per-account Citi CSV exports. Produces a formula-linked Excel workbook (Raw → Detail → Summary, with SUMIFS aggregations) — Summary tab shows income, expenses and distributions by period and entity (liquidation proceeds are NOT tracked here – removed 2026-10-03), with a YTD column under each entity group. A 5-check deterministic verification pass runs before write; any failed check aborts. Output lands at the canonical `~/.../Dash Tax & Audit/` iCloud location and prior versions auto-archive. Trigger when Tom says "run CPA report", "generate CPA report", "quarterly CPA report", "CPA Excel", "build the CPA report", "run the Dash CPA report", or any variant asking to produce the quarterly fund report for his CPA. Also trigger when Tom uploads Citi per-account CSVs and asks to process them into a report. Always trigger inline — no confirmation needed before acting.
 ---
 
 # CPA Report Skill
@@ -14,10 +14,8 @@ Generates the quarterly Dash Fund CPA report from per-account Citi CSV exports. 
 1. **Per-account Citi CSVs** (canonical as of 2026-05-27) — one CSV per Citi account, each named `CCB_CHECKING_<account>_<DDMMYYYY>.csv` with columns `DATE, TRANSACTION TYPE, DESCRIPTION, AMOUNT (USD), BALANCE (USD)`. `AMOUNT > 0` = inbound, `AMOUNT < 0` = outbound. The account number is derived from the filename. Tom drops these into iCloud `~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/` (mirrored at `/Users/tomseo/Downloads/`).
 
    **Schema gate**: the classification heuristics below assume exactly this header set and column semantics (newest-first rows, running `BALANCE (USD)` per row, signed `AMOUNT (USD)`). If a dropped CSV's header doesn't match — Citi renames a column, swaps field order, or splits debit/credit — STOP and flag the mismatch to Tom instead of classifying against wrong columns. Do not adapt silently.
-   - For a full report: 5 CSVs (DVF MC, DFM MC, Fund I LP, Fund II LP, Fund II-A LP).
-   - For income/expense/distributions only (no liquidation events): the 2 MC CSVs suffice — pass `--skip-liquidation`.
-2. **Liquidation event mappings** (optional) — Tom may specify which inbound LP wires map to which portfolio company (e.g. "Acquiom wire on 1/9 = Teal Technologies"). If not provided, use the keyword mapping table below and flag unknowns.
-3. **New category mappings** (optional) — Tom may specify how to classify previously `Uncategorized` transactions. Add these to the mapping table for the current run.
+   - The 2 MC CSVs (DVF MC, DFM MC) are all the report needs. LP-account CSVs are skipped with a note.
+2. **New category mappings** (optional) — Tom may specify how to classify previously `Uncategorized` transactions. Add these to the mapping table for the current run.
 
 ### Builder script
 
@@ -27,9 +25,7 @@ Generates the quarterly Dash Fund CPA report from per-account Citi CSV exports. 
 python3 build_report.py \
   /path/to/CCB_CHECKING_6880014247_*.csv \
   /path/to/CCB_CHECKING_6880010107_*.csv \
-  [/path/to/CCB_CHECKING_6880018539_*.csv ...] \
-  --year 2026 --through 2026-05-31 \
-  [--skip-liquidation]
+  --year 2026 --through 2026-05-31
   # --out is optional; default → ~/.../Dash Tax & Audit/Dash CPA Report - <range> <year>.xlsx
 ```
 
@@ -51,7 +47,7 @@ Two entities are tracked. Each maps to a Citi management company (MC) account:
 | Dash Venture Fund (DVF) | 6880014247 | Fund I MC |
 | Dash Fund Management (DFM) | 6880010107 | Fund II MC |
 
-Supporting LP accounts (used for liquidation proceeds detection only):
+LP accounts (only used to recognize management-fee credits that reference them; their own CSVs are not ingested):
 
 | Account | Label |
 |---|---|
@@ -116,29 +112,6 @@ MC↔MC transfers (e.g. Ready Credit pushes) appear as an outbound in one accoun
 
 ---
 
-## Liquidation Proceeds Detection
-
-Scan the LP accounts (Fund I LP, Fund II LP, Fund II-A LP) for inbound wires that are **not** MMMF/internal transfers. Exclude rows where `Description` contains `MMMF` or `VIA CBusOL`.
-
-Also exclude rows where `Description` contains `PARTNER:=` — these are wire returns from inactive LP accounts (e.g. Randheep Fernando, Dominic Sood) and are not liquidation proceeds.
-
-### Known Liquidation Mappings
-
-Maintain this mapping table. Update it each quarter as Tom confirms new events:
-
-| Inbound source keyword | Portfolio Company |
-|---|---|
-| `Acquiom` | *(check description for company name — e.g. "Teal Technologies acquired by Mercury")* |
-| `Burgiss` or `MSCI PAYMENT` | Vantager |
-| `Toucan Technologies` | Toucan Technologies |
-| `SRS Acquiom` | *(check description)* |
-
-If an inbound LP wire doesn't match any known pattern, include it with company name `⚠ UNKNOWN — confirm with Tom` in amber highlight.
-
-Fund II LP and Fund II-A LP proceeds are **combined** into a single `Fund II + II-A` figure throughout.
-
----
-
 ## Output Workbook Structure
 
 ### Canonical output location
@@ -173,9 +146,8 @@ Examples: `Dash CPA Report - Jan-Mar 2026.xlsx`, `Dash CPA Report - Jan-May 2026
 1. **Summary** — main view, SUMIFS-driven from Detail tabs
 2. **DVF – Detail** — all in-scope DVF MC transactions, live-linked to DVF Raw Export
 3. **DFM – Detail** — all in-scope DFM MC transactions, live-linked to DFM Raw Export
-4. **Liquidation Events** — *(only when LP CSVs are supplied — omitted under `--skip-liquidation`)*
-5. **DVF – Raw Export** — unmodified Citi DVF CSV (Date as Excel date, Amount/Balance as numbers)
-6. **DFM – Raw Export** — unmodified Citi DFM CSV (same)
+4. **DVF – Raw Export** — unmodified Citi DVF CSV (Date as Excel date, Amount/Balance as numbers)
+5. **DFM – Raw Export** — unmodified Citi DFM CSV (same)
 
 ### Dynamic linking architecture
 
@@ -249,12 +221,6 @@ Formula references for value cells:
 - **Total Uncategorized** subtotal row
 - Blank spacer row
 
-#### LIQUIDATION PROCEEDS (soft green section header, spans A:F)
-- **Sub-header row** (mid navy): Company | Fund I LP | [gap] | Fund II + II-A | [gap] | DVF + DFM Total
-  - Columns snap exactly to the grid: Company=A, Fund I LP=B, gap=C, Fund II+II-A=D, gap=E, Total=F
-- One data row per portfolio company (alternating white/light gray)
-- **Total Proceeds** row (soft green subtotal, top+bottom border on value cells)
-
 ### Color Reference
 
 | Element | Hex |
@@ -263,8 +229,6 @@ Formula references for value cells:
 | Entity header bg | `2C4A6E` |
 | Section header bg | `EAF2FB` |
 | Subtotal row bg | `C8DCF0` |
-| Liquidation section bg | `EEF4E8` |
-| Liquidation subtotal bg | `C5DFB8` |
 | Uncategorized bg | `FFF2CC` |
 | Uncategorized font | `7B4F00` |
 | Alternating row | `F5F5F5` |
@@ -273,17 +237,6 @@ Formula references for value cells:
 `_($* #,##0.00_);_($* (#,##0.00);_($* "-"??_);_(@_)`
 
 Show `None` (blank) instead of `$0.00` for zero values.
-
----
-
-## Liquidation Events Tab
-
-Columns: Date | Period | Portfolio Company | Received From | Fund | Amount
-
-- One row per fund per event (e.g. Teal Technologies has two rows: Fund II LP and Fund II-A LP)
-- Sorted by date, then company
-- Total row at bottom (soft green subtotal)
-- Column widths: Date=13, Period=12, Company=26, Source=28, Fund=14, Amount=16
 
 ---
 
@@ -332,12 +285,6 @@ Dash Fund Management:
 ```
 
 Ask Tom to confirm the correct category for each. Once confirmed, note the new mappings so they are applied on future runs (store them in this skill's keyword mapping table via the skill-creator update workflow).
-
----
-
-## Liquidation Event Confirmation
-
-After generating the workbook, if any inbound LP wires were flagged as `⚠ UNKNOWN`, list them and ask Tom to confirm the portfolio company name before finalizing.
 
 ---
 

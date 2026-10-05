@@ -126,17 +126,13 @@ Tom's CRM lives in Notion with two key databases:
 
 ### How relation updates work (CRITICAL)
 
-Relation fields must be set as a **JSON array string** of Notion page URLs:
+Every intro lifecycle write goes through the wrapper — never `notion-update-page` on an intro relation (code-enforced 2026-10-04: the wrapper does the read-merge-write, the single-stage scrub, Tom self-row block, closed-Opp block and Pending Feedback gate):
 
+```bash
+python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp_id> --person-id <person_id> --target outreach|made|declined [--message-id <gmail id>] [--promote-from-feedback] --source intro-outreach-agent
 ```
-"👓 Intros (Qualified)": "[\"https://www.notion.so/page1\",\"https://www.notion.so/page2\"]"
-```
 
-**WARNING**: A single URL string (not wrapped in a JSON array) will **replace the entire relation**, wiping all other entries. Always use the JSON array format, even for a single entry: `"[\"https://www.notion.so/page1\"]"`.
-
-To clear a relation field entirely, set it to `"[]"` (empty JSON array string).
-
-Use `notion-update-page` with `command: "update_properties"` to update relation fields.
+`--message-id` is required for made/declined. `--promote-from-feedback` ONLY under Gate 4's manual carve-out. Exit 0 = done (`result`: added / promoted / noop — noop means already at or past that stage; report the `stage`). Exit 5 = refused by a gate, nothing written — `blocked`: `self-row` (Tom's own row), `terminal-status` (closed Opp → Needs Review), `pending-feedback` (backchannel, not an intro). Exit 4 = benign verify lag. Exit 2/3 = error → report. The script also heals cross-field dupes it finds (`healed`) and lists conflicts it won't touch (`needsReview`) — include both in the report.
 
 ## Opportunity Scope (IMPORTANT)
 
@@ -205,8 +201,7 @@ Tom references a batch of emails he sent (e.g., "log the notes I sent to VCs abo
 2. **Search Gmail sent mail** for emails matching the outreach pattern (e.g., `in:sent [company name] subject:[intro subject]` or `in:sent newer_than:Xd [company]`). Use a broad enough time window — default to `newer_than:14d` for manual-mode batch scans unless Tom specifies otherwise.
 3. **Extract all recipients** from matching sent emails (the "To" field). Deduplicate across multiple emails.
 4. **Look up each recipient in the People DB** (`collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`) by exact email first, then exact full name + matching Company (scoped search, then `workspace_search`). If not found, text Tom via `shared-references/people_db_ask.py` (`--relation "☎️ Intros (Outreach)"`, the Opp) and skip — do NOT create a new entry. A name hit whose page Email differs from the address Tom sent to → flag "⚠️ Email mismatch" and skip; never copy the address onto the page.
-5. **Write all resolved people to `☎️ Intros (Outreach)`** on the target Opportunity in a single atomic update. Do NOT require them to have been in `👓 Intros (Qualified)` first.
-6. **Check each person against `👓 Intros (Qualified)`** — if any were there, remove them from Qualified in the same update (they've now progressed).
+5. **Write each resolved person to `☎️ Intros (Outreach)`** with the wrapper (`--target outreach`, see "How relation updates work"). Prior Qualified membership is not required; anyone in Qualified is promoted (scrubbed) in the same write.
 
 **Do NOT create a Notion Notes log page** for outreach batches. The `☎️ Intros (Outreach)` relation is the system of record.
 
@@ -379,9 +374,9 @@ Before executing any move in Step 3, every (person, opportunity) candidate must 
 
 **Forward scanner (2C) — `From:` must equal the Opp's own `Contact`.** Pattern 2C matches when Tom forwards a portfolio founder's fundraise email TO investors. The forwarded `From:` must equal the `Contact` email of the Opp being matched (i.e., that Opp's own founder). If `From:` is anyone else — including a different portfolio founder, a coinvestor, or a friend referring an outside deal — that's not Tom outreaching about the matched Opp. Skip the 2C match. (A different-portfolio-founder forward might still be a 2C match against a DIFFERENT Opp where their email IS the Contact — that's fine, the match is per-Opp.)
 
-**Gate 2 — Terminal-status skip (no writes to closed Opps).** Read the Opp's `Status` after fetching. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, skip this person entirely. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. (This is the same gate already enforced in Step 3 — restated here so it's understood as a hard pre-write check, not a Step-3 internal detail.)
+**Gate 2 — Terminal-status skip (no writes to closed Opps).** Read the Opp's `Status` after fetching. If `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set closed` exits 0 (Status is in the `closed` set), skip this person entirely. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. (This is the same gate already enforced in Step 3 — restated here so it's understood as a hard pre-write check, not a Step-3 internal detail.)
 
-**Gate 3 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** Any haystack-matched Opp Name requires at least one corroboration signal before writing. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7 chars), `Compass` (7 chars), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4), `Core` (4), `Arc` (3) all require the same corroboration. Word-boundary substring matches on common English words/verbs/nouns produce silent false positives that persist forever — Tom using "let's connect" in an email is not a Connect-Opp intro signal; "the bottleneck in our process" is not a Bottleneck-Opp signal. Acceptable corroboration signals (one is sufficient): (a) the Opp's `Website` domain stem OR any `Contact` email domain appears in the haystack OR among recipient email domains; (b) a founder name from the Opp's `🏁 Founder(s)` relation appears in the haystack; (c) explicit "@CompanyName"/"[CompanyName Inc.]" framing; (d) the capitalized Name appears adjacent to fundraising context ("raising", "round", "ARR", "Series A/B/C", a domain URL). If NONE of (a)–(d) hold, skip with `⚠️ ambiguous match on Opp name "[Name]" — no corroboration, skipping write`. Mirrors the webhook gate in `~/code/gmail-webhook/Code.js handleIntroOutreach()` + `company-match.js`. Concrete misses: (1) Matt Harris running a different "Scout" company emailed Tom referencing "scout" → wrote to Pass-status Scout Opp; (2) Tom emailed Emily Man and Subham Agarwal using the verb "connect" → wrote to Pass-status Connect Opp; (3) generic mentions of "bottleneck"/"anchor"/"asset" wrote to Opps of the same name.
+**Gate 3 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** **As code (2026-10-04):** `python3 ~/.claude/skills/shared-references/opp_corroborate.py check --opp-id <opp_id> --haystack-file <subject+body file> [--recipient <email> ...]` — exit 0 corroborated → proceed · 1 no-match (name absent, or only in a common phrase like "let's connect") → not about this Opp, skip silently · 3 uncorroborated → skip and log its `alert` line verbatim · 2 read error → skip the write (fail closed). Rules + WHY: `shared-references/intro-lifecycle-contract.md` § Word-Boundary Corroboration (summary kept here): any haystack-matched Opp Name requires at least one corroboration signal before writing. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7 chars), `Compass` (7 chars), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4), `Core` (4), `Arc` (3) all require the same corroboration. Word-boundary substring matches on common English words/verbs/nouns produce silent false positives that persist forever — Tom using "let's connect" in an email is not a Connect-Opp intro signal; "the bottleneck in our process" is not a Bottleneck-Opp signal. Acceptable corroboration signals (one is sufficient): (a) the Opp's `Website` domain stem OR any `Contact` email domain appears in the haystack OR among recipient email domains; (b) a founder name from the Opp's `🏁 Founder(s)` relation appears in the haystack; (c) explicit "@CompanyName"/"[CompanyName Inc.]" framing; (d) the capitalized Name appears adjacent to fundraising context ("raising", "round", "ARR", "Series A/B/C", a domain URL). If NONE of (a)–(d) hold, skip with `⚠️ ambiguous match on Opp name "[Name]" — no corroboration, skipping write`. Mirrors the webhook gate in `~/code/gmail-webhook/Code.js handleIntroOutreach()` + `company-match.js`. Concrete misses: (1) Matt Harris running a different "Scout" company emailed Tom referencing "scout" → wrote to Pass-status Scout Opp; (2) Tom emailed Emily Man and Subham Agarwal using the verb "connect" → wrote to Pass-status Connect Opp; (3) generic mentions of "bottleneck"/"anchor"/"asset" wrote to Opps of the same name.
 
 **Gate 4 — Pending Feedback suppression (backchannel ≠ intro outreach).** Fetch the Opp's `📣 Pending Feedback` relation. If the candidate person is currently in `📣 Pending Feedback` for this Opp, **SKIP** — the outbound to them is backchannel diligence outreach (owned by `feedback-outreach-drafter` / `feedback-outreach-scanner`), not an intro attempt. The same person can be a feedback source on one Opp and an intro target on another — this gate is per-(person, opp). Log: `[Person Name] skipped — currently in 📣 Pending Feedback for [Company], outbound treated as backchannel diligence not intro outreach`.
 
@@ -414,34 +409,15 @@ For each person where outreach is detected or confirmed, use the routing decisio
 
    Fetching all five fields is essential for accurate state reconciliation. If the person is ALREADY in Outreach, Made, or Declined, skip adding them and note their current state. If the person is in `📣 Pending Feedback`, Gate 4 already handled the skip — only reach this step under the manual-promotion carve-out.
 
-   **Terminal-status gate (MANDATORY)**: After fetching, read the `Status` property. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, **skip this person entirely** — do NOT write any intro fields. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. This applies regardless of trigger mode (scheduled, subject-line scanner, forward scanner, or manual).
+   **Terminal-status gate (MANDATORY)**: After fetching, read the `Status` property. If `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set closed` exits 0 (Status is in the `closed` set), **skip this person entirely** — do NOT write any intro fields. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. This applies regardless of trigger mode (scheduled, subject-line scanner, forward scanner, or manual).
 
    **IMPORTANT**: Being absent from `👓 Intros (Qualified)` is NOT a blocker. People can be logged directly to `☎️ Intros (Outreach)` without ever having been in Qualified — this is the normal flow for batch outreach that Tom logs retroactively.
 
-2. **Remove the person from ALL upstream lifecycle fields** — both `👓 Intros (Qualified)` AND `☎️ Intros (Outreach)`. A person must exist in exactly one pipeline stage at any time. When routing to Made or Declined (multi-step jumps), the person may already exist in both Qualified and Outreach simultaneously. Scrubbing only Qualified would leave an orphaned entry in Outreach. Always scrub both upstream fields regardless of where you detected the person.
-
-3. **Add the person to the correct target field** based on the routing decision from Step 2:
-   - **Route to Outreach** (outreach detected, no further resolution): Add to `☎️ Intros (Outreach)`
-   - **Route to Made** (outreach + opt-in + double-opt-in sent): Add to `✉️ Intros (Made)`
-   - **Route to Declined** (outreach + decline detected): Add to `🚫 Intros (Declined / NR)`
-
-4. **Write ALL four relation fields** in a single `notion-update-page` call — including both upstream fields even if the person wasn't present in one of them. Writing all four atomically prevents any field from falling out of sync:
+2. **Write with the wrapper** — `--target outreach|made|declined` per the Step 2 routing (made/declined: `--message-id`). It scrubs every upstream field and adds the target in one atomic write; never compose relation arrays by hand.
+   ```bash
+   python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp_id> --person-id <person_id> --target <outreach|made|declined> [--message-id <id>] --source intro-outreach-agent
    ```
-   notion-update-page with:
-     page_id = <opportunity_page_id>
-     command = "update_properties"
-     properties = {
-       "👓 Intros (Qualified)": "[\"url1\",\"url2\"]",          // person REMOVED (scrub always)
-       "☎️ Intros (Outreach)":  "[\"urlA\",\"urlB\"]",          // person REMOVED (scrub always)
-       "<target_field>":        "[\"url3\",\"url4\",\"url5\"]"  // person ADDED to correct destination
-     }
-   ```
-
-   **Critical**: Always write all affected fields in the same call to avoid an inconsistent state.
-
-5. **Edge case — Qualified has only one entry**: If the person being moved is the ONLY entry in Qualified, set the field to `"[]"` (empty JSON array). Do NOT set it to `null` or omit it — use the empty array string.
-
-6. **Edge case — Target field is currently empty/null**: Initialize it as a JSON array with just the new person: `"[\"https://www.notion.so/person_page_id\"]"`.
+   Exit 0 = done (`result`: added / promoted / noop — noop means already at or past that stage; report the `stage`). Exit 5 = refused by a gate, nothing written — `blocked`: `self-row` (Tom's own row), `terminal-status` (closed Opp → Needs Review), `pending-feedback` (backchannel, not an intro). Exit 4 = benign verify lag. Exit 2/3 = error → report. The script also heals cross-field dupes it finds (`healed`) and lists conflicts it won't touch (`needsReview`) — include both in the report.
 
 ### Step 4: Report Back
 

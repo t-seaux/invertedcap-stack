@@ -165,6 +165,18 @@ proceeding.**
 
 ## Step B — Run the audit + iterate
 
+**Run Step B with the driver — it IS B.0–B.2.2 and the B.3 re-run (code-enforced 2026-10-04):**
+```bash
+python3 ~/.claude/skills/research-artifact-audit/audit_driver.py start --draft "$DRAFT" --sources "$SOURCES" --out "$AUDIT_JSON" --max-iter "$MAX_ITER" \
+    [--runner "$AUDIT_RUNNER"] [--runner-arg=--prompt --runner-arg=<prompt>]      # foreground, always
+# exit 10 (continue): resolve every untraced finding in $DRAFT per B.3 a–d (the judgment part), then:
+python3 ~/.claude/skills/research-artifact-audit/audit_driver.py next-iter --out "$AUDIT_JSON"
+```
+Exit **0 publish** → Step C (partials) then the caller's publish — don't edit, don't re-run. Exit **10 continue** →
+B.3 then `next-iter`. Exit **11 blocked** → surface `⚠ Audit incomplete: batches <failed_batches> unaudited` and stop.
+Exit 2 → error, report it. The verdict is read from disk by the driver; never infer it from the audit's prose. The
+sections below are the WHY behind each rule the driver encodes; don't execute their shell by hand.
+
 ### B.0 — Pre-audit cleanup (MANDATORY on every run)
 
 Before invoking the runner, unconditionally delete any stale audit artifacts

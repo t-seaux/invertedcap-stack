@@ -37,7 +37,7 @@ drafter-only rendering mechanics.
 ### Manual Mode
 Tom provides names and a company explicitly. Skip to Step 1 with the provided names.
 
-> **⛔ Status gate (Tom, 2026-09-28).** Feedback is logged only for an Opp in the `Feedback-eligible` set (portfolio, or not passed in any way). Read back the Opp's current `Status` before every note, append, or `📣 Pending Feedback` write. If it is ineligible, skip silently. Rules: `shared-references/feedback-note-format.md` → **Status gate**.
+> **⛔ Status gate (Tom, 2026-09-28).** Feedback is logged only for an Opp in the `Feedback-eligible` set (portfolio, or not passed in any way). Before every note, append, or `📣 Pending Feedback` write, run `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set feedback_eligible` — exit 1 = ineligible, exit 2 = couldn't read (don't write). If it is ineligible, skip silently. Rules: `shared-references/feedback-note-format.md` → **Status gate**.
 
 ### Scheduled Scan Mode
 Triggered by the Diligence Agent on a recurring schedule. No names are provided — the skill discovers them from Notion.
@@ -58,7 +58,7 @@ Query the Opportunities DB for all opportunities whose `📣 Pending Feedback` r
 
    **Gate A — the Opp's `✍️ Notes` relation (authoritative).** Read the relation directly and match this person's note title with or without **any** status prefix — `[PENDING]`, `[DECLINED]`, or none — in both the giver-first and legacy company-first forms. Matching all three matters: a `[DECLINED]` note must still suppress re-drafting, since the person already said no and a fresh ask would re-ask a closed question. This is the cross-path interlock required by `shared-references/feedback-note-format.md` ("Every path checks the Opp's `✍️ Notes` relation — not Notion search, the index lags same-run writes"). A note exists whether Tom sent, hasn't sent yet, or deleted the draft, so this holds draft-once semantics without depending on Gmail state.
 
-   **Gate B — Gmail trace, across all of Gmail including Trash and Spam.** Subject forms known to carry a real ask:
+   **Gate B — Gmail trace, across all of Gmail including Trash and Spam.** **As code (2026-10-04):** `python3 ~/.claude/skills/shared-references/feedback_note.py gmail-trace --opp-id <opp_id> --email <person email>` runs the four forms below (`in:anywhere`, founder names from `🏁 Founder(s)`, Opp name without its parenthetical / FO suffix). Exit **0** = hit → do NOT draft; seed the note's `## Outreach Note` from `note_source` (sent > pending draft > trashed-only, whose `body` is the `_Ask made outside email; draft discarded._` line) · **1** = no subject hit → NOT a negative, run Gate C · **2** = Gmail unreachable → do not draft this run (the note decision under Gate A still stands). Subject forms known to carry a real ask:
    - `subject:"Thoughts on [Company]" to:[person email] in:anywhere` — this skill's own outreach.
    - `subject:"[Founder name] reference" to:[person email] in:anywhere` — a **reference request** Tom sent by hand.
    - `subject:"Intro to [Company]" to:[person email] in:anywhere` — an **intro-fused ask** (Shape 3 in `shared-references/feedback-ask-signals.md`). Tom routinely puts the feedback ask inside an intro offer.
@@ -227,13 +227,13 @@ no `<!DOCTYPE>`, `<html>`, or `<body>` wrappers — Gmail strips them anyway.
 
 Template (structure per `shared-references/email-formatting.md` EF4):
 ```html
-<div style="margin:0;padding:0">Hey [First Name],</div><div><br></div><div>[Opener paragraph]</div><div><br></div><div>[Personalization paragraph — 2-4 sentences explaining why Tom thought of THIS person]</div><div><br></div><div>[No worries paragraph]</div><div><br></div><div>* [Question 1]</div><div><br></div><div>* [Question 2]</div><div><br></div><div>* [Question 3]</div><div><br></div><div>Best,</div><div>Tom</div><div><br></div><div>--</div><div><br></div><div><em>About [Company] (<a href="[URL]" style="color:#1155CC">[domain]</a>)</em></div><div><br></div><div>[Blurb sentence(s) — sourced per EF6; compose per Step 3 when nothing is on file]</div>
+<div style="margin:0;padding:0">Hey [First Name],</div><div><br></div><div>[Opener paragraph]</div><div><br></div><div>[Personalization paragraph — 2-4 sentences explaining why Tom thought of THIS person]</div><div><br></div><div>[No worries paragraph]</div><div><br></div><div>* [Question 1]</div><div><br></div><div>* [Question 2]</div><div><br></div><div>* [Question 3]</div><div><br></div><div>Best,</div><div>Tom</div><div><br></div><div>--</div><div><br></div><div><em>About [Company] (<a href="[URL]" style="color:#1155CC">[domain]</a>)</em></div><div><br></div><div><strong>[Blurb sentence 1]</strong> [Blurb sentence 2] <strong>[Blurb sentence 3]</strong> [Blurb sentence 4] — sourced per EF6; compose per Step 3 when nothing is on file</div>
 ```
 
 Key formatting rules:
 - **No founder names and no founder LinkedIn links in the blurb** (Step 3). No Founder(s)-relation or
   ContactOut lookup is needed for this skill at all — the blurb ends at the product.
-- The two blurb lead sentences are bold (`<strong>`)
+- The two blurb lead sentences are bold (`<strong>`). The paragraph must OPEN with the bold first sentence — `style_gate.py` rule `ef6-bold-first-sentence` is an error, so a blurb that starts in plain text fails the draft gate
 
 ### Step 7: Update `📣 Pending Feedback` relation on the opportunity
 

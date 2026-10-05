@@ -255,9 +255,9 @@ Before writing to ANY intro lifecycle field, every candidate (person, opportunit
 
 **Gate 1 — Directionality (Tom must be the introducer).** Confirm the source signal has Tom (or a portfolio founder) as the offerer/sender, not the recipient. See the "Anti-Pattern: Inbound Offer" section above. If the signal is someone offering to intro Tom to a company, skip — that's `add-to-crm` territory, not intro management.
 
-**Gate 2 — Terminal-status skip (no writes to closed Opps).** After resolving the Opportunity in Step 3, read its `Status` property. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, skip this person entirely. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. Closed Opps should never receive new intro relations regardless of how the signal was detected.
+**Gate 2 — Terminal-status skip (no writes to closed Opps).** After resolving the Opportunity in Step 3, read its `Status` property. If `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set closed` exits 0 (Status is in the `closed` set), skip this person entirely. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. Closed Opps should never receive new intro relations regardless of how the signal was detected.
 
-**Gate 3 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** Any haystack-matched Opp Name requires at least one corroboration signal before writing. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7 chars), `Compass` (7 chars), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4), `Core` (4), `Arc` (3) all require the same corroboration. Acceptable corroboration (one is sufficient):
+**Gate 3 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** **As code (2026-10-04):** `python3 ~/.claude/skills/shared-references/opp_corroborate.py check --opp-id <opp_id> --haystack-file <subject+body file> [--recipient <email> ...]` — exit 0 corroborated → proceed · 1 no-match (name absent, or only in a common phrase like "let's connect") → not about this Opp, skip silently · 3 uncorroborated → skip and log its `alert` line verbatim · 2 read error → skip the write (fail closed). Rules + WHY: `shared-references/intro-lifecycle-contract.md` § Word-Boundary Corroboration (summary kept here): any haystack-matched Opp Name requires at least one corroboration signal before writing. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7 chars), `Compass` (7 chars), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4), `Core` (4), `Arc` (3) all require the same corroboration. Acceptable corroboration (one is sufficient):
 - The Opp's `Website` domain stem OR any `Contact` email domain appears in the haystack OR among recipient email domains
 - A founder name from the Opp's `🏁 Founder(s)` relation appears in the message
 - Explicit framing: "@CompanyName", "[CompanyName Inc.]", "the company called CompanyName"
@@ -269,18 +269,13 @@ If any gate fails, do NOT write — surface the skip in the report alongside the
 
 ### Step 5: Update the Opportunity's Intros (Qualified) Field
 
-Add the person(s) to the Opportunity's `👓 Intros (Qualified)` relation field. This is a relation field, so you're adding Notion page IDs.
+Write each person with the lifecycle wrapper — never `notion-update-page` on an intro relation (code-enforced 2026-10-04):
 
-Fetch the current Opportunity page first to get the existing `👓 Intros (Qualified)` entries. Then update the page properties to include both the existing entries AND the new ones. The relation field value must be a **JSON array string** of Notion page URLs.
-
-Use `notion-update-page` with `command: "update_properties"` to update the relation. The property value for a relation field is a JSON array string of page URLs like:
-```
-"👓 Intros (Qualified)": "[\"https://www.notion.so/page1\",\"https://www.notion.so/page2\",\"https://www.notion.so/page3\"]"
+```bash
+python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp_id> --person-id <person_id> --target qualified --source intro-agent
 ```
 
-**Important**: A single URL string (not wrapped in a JSON array) will work for single entries but will **replace the entire relation**, wiping all other entries. Always use the JSON array format to preserve existing entries.
-
-**Do not overwrite existing entries** — always append to the existing list.
+Exit 0 = done (`result`: added / promoted / noop — noop means already at or past that stage; report the `stage`). Exit 5 = refused by a gate, nothing written — `blocked`: `self-row` (Tom's own row), `terminal-status` (closed Opp → Needs Review), `pending-feedback` (backchannel, not an intro). Exit 4 = benign verify lag. Exit 2/3 = error → report. The script also heals cross-field dupes it finds (`healed`) and lists conflicts it won't touch (`needsReview`) — include both in the report.
 
 ### Step 6: Report Back
 

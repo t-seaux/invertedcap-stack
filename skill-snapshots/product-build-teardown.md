@@ -45,8 +45,10 @@ citation style, and bold/italic conventions.
   covers a slim version of this teardown framework, sufficient for early
   stages where material is thin.
 - **Follow-on rounds (FO).** Same exclusion as first-pass — Tom already
-  has full context. Detect via `(FO)` in the Opportunity name or prior
-  Opportunity entries for the same company.
+  has full context. Detect with
+  `python3 ~/.claude/skills/first-pass-diligence/fpd_preflight.py --opp-id <OPP_ID>`:
+  exit 11 (`follow-on-skip`) = FO → don't run. Exits 0/10 = not FO (the
+  artifact-gate part of its output doesn't apply to this skill).
 - **No materials AND no public product surface AND no call transcript.**
   Halt and ask Tom for at least one of: deck/demo, website + product page,
   call notes. Do not fabricate a teardown from thin air.
@@ -67,11 +69,14 @@ citation style, and bold/italic conventions.
 
 ## Step 1: Gather All Available Context
 
-Anchor the start time first so the audit-start Slack alert (Step 4b) can
-report elapsed-from-start minutes:
+Set up the per-job workspace and anchor the start time first (the audit-start ping and the Step 7b alert both
+report elapsed-from-start minutes). **As code (2026-10-04):** every working file lives under
+`/tmp/teardown-<opp page id>/` — the old fixed `/tmp/teardown_*` paths collided across concurrent runs, and the
+lint / audit runner now refuse them (exit 3):
 
 ```bash
-date +%s > /tmp/teardown_start_ts.txt
+export WORKSPACE=$(python3 ~/.claude/skills/shared-references/job_workspace.py init --prefix teardown --page-id <OPP_ID>)
+date +%s > "$WORKSPACE/start_ts.txt"
 ```
 
 ### 1a. Fetch the Notion Opportunity
@@ -144,7 +149,7 @@ framework spec, the Citation Discipline (bracket footnotes / `^N` block /
 
 ## Step 3: Pre-Publish Lint — MANDATORY GATE
 
-Write the draft markdown to `/tmp/teardown_draft.md`, then run the
+Write the draft markdown to `$WORKSPACE/draft.md`, then run the
 deterministic lint (first-pass hallucination-class lint + the
 calibration-cite resolution check). Exit 0 proceeds; exit 1 stops and
 requires fix-and-rerun. Full procedure in `references/step-3-4-gates.md`
@@ -185,8 +190,8 @@ proceeding.
 ## Step 7: Upload to Drive, Link in Notion, Send Alert
 
 Upload the PDF to Drive (**MANDATORY — always a NEW Drive file, never
-overwrite in place**), link it in the Opp page body AND the **Diligence
-Materials Files property (MANDATORY, verify the write)**, then send the
+overwrite in place**), link it in the **Diligence Materials Files property
+ONLY (MANDATORY, verify the write — never the Opp page body)**, then send the
 3-line Slack alert. Full procedure in `references/step-5-7-publish.md` —
 read it now before proceeding.
 

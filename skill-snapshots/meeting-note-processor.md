@@ -140,6 +140,25 @@ If `Opportunity` is **already set** → log `already-linked-skip` and exit 0. Jo
 
 ### Step 2: Parse company from title
 
+> **As code (2026-10-04) — Steps 2–4 are one script.** Do not apply the rules below by hand:
+> ```bash
+> /opt/homebrew/bin/python3 ~/.claude/skills/meeting-note-processor/note_link.py resolve --title "<note title>"
+> /opt/homebrew/bin/python3 ~/.claude/skills/meeting-note-processor/note_link.py write --note <note id> --opp <opp id>
+> ```
+> `resolve` exit `0` → `{"verdict":"link","opp_id",…}` → run `write`; exit `1` → log its `reason`
+> (`no-company-from-title` / `ambiguous-or-no-match` / `matched-but-passed`) and exit 0 — Job B / the sweep
+> retries; exit `2` → Notion error, do NOT link (never guess). `write` = PATCH (existing relation kept) +
+> REST readback + one re-PATCH: exit `0` = readback-confirmed → log `linked`; exit `5` → log
+> `link-write-failed` (never `linked`); `2` → error. Job B-process uses the SAME `resolve` (it shares Rule 1b).
+> `note_link.py sweep [--since D] [--apply]` lists every unlinked meeting note the resolver can now place
+> (read-only unless `--apply`). Harness: `tests/test_note_link.py` (389 real 2026 titles vs their current
+> links — zero disagreements allowed). Census-driven changes vs the prose below: Rule 1 also accepts
+> `Tom (Inverted)` / `Tom (Dash Fund)` / `Tom (Dash)` and a leading `Recurring:`; `<Co>: <Person> (<Firm>)
+> Feedback` / `<Co> — …` resolve to the prefix company; a company with follow-on rows links to its one row
+> without a round label (unless the title is about a round); Rule 3 never falls back to the source firm; a
+> first-name-only counterparty is identity only when exactly one People row with that first name sits at
+> the paren firm. The rules below are the WHY.
+
 Apply title-parsing rules in this exact priority order. Pick the **first** rule that matches.
 
 **Rule 1 — Meeting-note format** (`<Counterparty Name> (<Company>) / Tom (Inverted Capital) @<DateOrTime>`):
@@ -196,7 +215,9 @@ Match logic:
 - **Multiple candidates** with one clearly dominant (exact case-insensitive name match wins over fuzzy) → use the dominant one.
 - **Multiple ambiguous candidates** OR **zero matches** → log `ambiguous-or-no-match`, exit 0. Job B retries with body context.
 
-**Hard exclusion:** if the matched Opportunity has a terminal `Pass *` status (`Pass`, `Pass (DNM)`, `Pass (Met)`), do NOT link — log `matched-but-passed` and exit 0. Tom doesn't want call notes auto-resurrecting passed deals.
+**Hard exclusion:** if the matched Opportunity has a terminal status — the `opp_status` set `terminal_revive`
+(see `shared-references/opp-status-sets.md`; `note_link.py` enforces it) — do NOT
+link; log `matched-but-passed` and exit 0. Tom doesn't want call notes auto-resurrecting dead deals.
 
 ### Step 4: Set the Opportunity relation
 

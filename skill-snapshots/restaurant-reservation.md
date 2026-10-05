@@ -53,6 +53,7 @@ node resy.mjs find <venue_id> <day> <party> [when]      # → {venue, window, sl
 
 # availability.mjs — cross-platform VISIBILITY
 node availability.mjs check "<venue>" <day> <party> [when]   # → merged Resy + OT + SR open times
+node availability.mjs batch <day> <party> <when|-> "<v1>" "<v2>" …  # → multi-venue sweep + synthetic-grid flags
 node availability.mjs scarcity "<venue>"                     # → always-booked fingerprint (below)
 node availability.mjs opentable <slug|url> <day> <party> [when]
 node availability.mjs sevenrooms <slug> <day> <party> [when]
@@ -107,7 +108,9 @@ silently. Real example: Resy `search "Dos Caminos"` → **"Casino"** (Lower East
 Quoting hits[0] on faith points Tom at the wrong restaurant. So `search` returns
 `match`/`name_score`:
 
-- **`exact`** (≥0.85) → proceed.
+- **`exact`** (≥0.85) → proceed. Caveat: `search` scores a substring 0.95, so "King" vs
+  "Kingfisher" reads `exact` there. `check`/`batch` re-gate every leg with the strict
+  `venueNameMatch` (see "As code" below); when using `search` by hand, eyeball the name too.
 - **`close`** (0.6–0.85) → **do NOT auto-pick. Confirm first.** Real trap: `"Frankies 457"`
   scores 0.7 against **"Lil' Frankie's"** — a different restaurant in the East Village.
 - **`weak`** (<0.6) → treat as **not on that platform**. Say so, then run `check` (it may be
@@ -122,8 +125,10 @@ availability** and must NOT be trusted on its own. Two failure modes, both seen 
 2026-09-18 (West Village sell-dinner search):
 
 1. **Wrong-venue slug match.** `"Kingfisher"` → `king-new-york` — that's **King**, a
-   different restaurant; the OT `<title>` name-gate did NOT catch it. An OT "hit" can be a
-   *different venue's* inventory entirely.
+   different restaurant. Root cause (found 2026-10-04): not the OT `<title>` gate — the
+   `venue_map.json` lookup used fuzzy `similarity() ≥ 0.85`, which scores a substring
+   ("King" ⊂ "Kingfisher") 0.95, so Kingfisher inherited King's cached slug and never ran
+   discovery. An OT "hit" can be a *different venue's* inventory entirely.
 2. **Uniform/default slot grid.** Several unrelated venues (King, Semma, Via Carota,
    Wallflower) all returned the **identical** grid `6:30, 6:45, 7:00, 7:15, 7:30` for the
    same date/party. When you see the same five-slot grid repeat across different venues,
@@ -132,10 +137,39 @@ availability** and must NOT be trusted on its own. Two failure modes, both seen 
 **Rule: Resy is the source of truth. Treat any OT-only slot as UNVERIFIED until a Resy `find`
 on an EXACT-match venue corroborates it.** When Resy shows *none in window* but OT shows a
 full grid → believe Resy (every one of the four above was actually booked or a wrong-venue
-match). Only trust an OT hit when (a) the slug is unmistakably the right venue AND (b) the
-grid isn't the uniform default. Otherwise hand Tom the OT *link* to check himself — never
-assert the slot exists. This is the "never fabricate availability" guardrail in practice:
+match). An OT hit is only *worth mentioning* when (a) the slug is unmistakably the right venue
+AND (b) the grid isn't the uniform default — and even then it stays UNVERIFIED unless Resy/SR
+shows the same time: hand Tom the OT *link* to check himself, never assert the slot exists. This is the "never fabricate availability" guardrail in practice:
 the earlier "King is wide open" answer that had to be retracted came from trusting this leg.
+
+**As code (2026-10-04)** — `availability.mjs` enforces the above; this section stays as the WHY.
+Pure, exported functions (harness: `~/.claude/local-agents/agent-browser/tests/test_availability.mjs`,
+fixtures = the real 2026-09-18 run):
+
+- `venueNameMatch(requested, resolved)` — STRICT name gate: normalize (case, accents,
+  punctuation, `&`/and, the, restaurant, NYC/Brooklyn/New York suffixes), then require equal
+  token sets or equal joined strings (tiny typo allowance: Dice ≥ 0.9, no substring credit).
+  Prefix/substring is NOT a match. Used for the `venue_map.json` lookup, OT `<title>`
+  discovery, the Resy leg, and every platform leg's resolved venue/slug (`applyNameGate`).
+- `tagVerified(platforms)` — every slot carries `verified`. Resy / SevenRooms slots = `true`;
+  an OpenTable slot is `true` ONLY when the same time is on a name-matched Resy/SR leg.
+- `flagSyntheticGrids(checks)` — in a `batch`, the same OT grid (≥3 times) on ≥2 distinct
+  venues → that leg gets `synthetic:true`.
+- `annotateCheck` runs the gate + tagging on every `check`; `has_verified_slots` and
+  `trust_flags` summarize the result.
+
+How to handle the flags (these are not judgment calls):
+
+- **`name_mismatch:true`** → the leg resolved to a different venue (`resolved_as`). Its slots
+  are moved to `suppressed_slots` and must NEVER be quoted, not even as "maybe." Treat that
+  platform as "not found" for this venue; say so if it matters.
+- **`synthetic:true`** → placeholder grid; slots are in `suppressed_slots`. Never quote them.
+  Give Tom the OT link to check himself.
+- **`verified:false`** (OT-only slot, e.g. Gage & Tollner, which isn't on Resy) → may be
+  mentioned only as "OpenTable shows 7:00, unverified, tap to confirm" with the link. Never
+  "there's a table at 7:00." `has_verified_slots:false` = nothing may be asserted as open.
+- **Multi-venue sweeps use `batch`**, never a shell loop of `check`. Synthetic detection only
+  sees venues in the same process; a loop of single `check`s can't catch the repeated grid.
 
 **Confirm the Resy `find` plumbing is alive before trusting a batch of empties.** If a sweep
 returns "none" across many venues, sanity-check by re-running ONE at `any`/full-day (or
@@ -162,6 +196,9 @@ Two shapes of request:
 - **A NAMED venue** ("look for a reservation at X", "is there a table at X", "book X") →
   **`availability.mjs check "<name>" <day> <party> [when]` — all three platforms in
   parallel, always.** Never conclude "no tables" from Resy alone.
+- **Several named venues** (a sweep: "anything in the West Village Thursday") →
+  `availability.mjs batch <day> <party> <when|-> "<v1>" "<v2>" …` (one process, so the
+  synthetic-grid check can see every venue).
 
 Then:
 
@@ -191,8 +228,10 @@ Then:
 
    No bold (iMessage renders Unicode bold in a fallback font — Tom rejected it; see
    [[project_sms_command_path]]). Plain text, emoji header, blank line, then fields.
-   Same shape for OpenTable/SevenRooms — just the link goes to their page. **Never say
-   "booked."** Tom books manually under a clean personal account.
+   Same shape for SevenRooms and for **`verified:true`** OpenTable slots — just the link goes
+   to their page. An OT slot with `verified:false` goes in as `Open: 7:00 PM (OpenTable,
+   unverified – tap to confirm)`; `name_mismatch`/`synthetic` slots never appear (see "As
+   code" above). **Never say "booked."** Tom books manually under a clean personal account.
 4. **Log it once Tom confirms he booked.** When Tom says he tapped it through, append one
    line to `reservation_log.jsonl` in this skill's dir:
    `{"ts":"<now ISO>","venue":"…","day":"YYYY-MM-DD","time":"HH:MM","party":N,"platform":"resy|opentable|sevenrooms","status":"booked","requested_by":"tom|elsie","source":"named|recommendation|nearby"}`
@@ -204,7 +243,7 @@ Then:
    Tom's Inverted work calendar.** Don't default everything to household — that was wrong
    (Tom 2026-09-18: a founding-engineer recruiting dinner is a WORK event; I mis-filed it on
    the household cal and had to delete it). Title `Dinner — <Venue> (<party>)`, start = slot
-   time, 1.5h default, location = venue, Busy. Dedup first.
+   time, 1.5h default, location = venue, Busy. Dedup first: `python3 ~/.claude/scripts/calendar_write/calendar_write.py find-dupes both --day <YYYY-MM-DD> [--start HH:MM] [--keyword <title/venue/person word>]...` with `--start` = slot time and `--keyword` = venue (exit 0 = no match → create · 10 = exactly one → reconcile THAT event in place, on the calendar it lives on (calendar-event-handling.md invariant 3: fill missing, correct conflicts, never a copy on the other calendar) · 11 = two+ → ask, don't guess · 2 = calendar unreachable → don't create).
    **For a work dinner with other attendees, Tom usually creates + sends the invite himself**
    (external invitees) — so for a clearly-work dinner, ASK before auto-adding rather than
    silently creating a parallel event he'll duplicate. The platform also emails a booking

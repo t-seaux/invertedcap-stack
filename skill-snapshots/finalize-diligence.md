@@ -253,27 +253,22 @@ Status in the Opportunities DB, never stated inside the Final Assessment
 ## Step 4: Replace Existing Final Assessment (if any) + Prepend New (Subagent C)
 
 Delete any existing Final Assessment block range and prepend the new one, PATCH the page title
-to the `… Final` suffix, and confirm the `:claude-color:` icon. REST is canonical for delete +
-prepend + title; MCP `insert_content` is a narrow fallback for complex embeds only (its
+to the `… Final` suffix, and confirm the `:claude-color:` icon. **As code (2026-10-04):** delete
+range + ordered batch prepend + readback verification + title de-stacking are
+`shared-references/notion_prepend_section.py --replace-heading "Final Assessment" --title-suffix Final`
+(dry run without `--apply`; exit 3 = refused before writing, 4 = rolled back, 5 = manual repair —
+see the exit table). MCP `insert_content` is a narrow fallback for complex embeds only (its
 multi-block ordering is non-deterministic — `feedback_mcp_insert_content_ordering_bug`).
 
 **Full procedure in `references/step-4-notion-write.md` — read it now before proceeding.** It
-carries the parallel block-delete (4.1), the canonical insert-after-first-block + delete prepend
-pattern (4.2), the title PATCH (4.3), and the icon check (4.4). (No progress ping fires here —
-the run's only early alert is the audit-started ping at Step 6; completion is the single Step 9 alert.)
+carries the script invocation + exit handling, the incidents behind each rule, the MCP fallback,
+and the icon check (4.4). (No progress ping fires here — the run's only early alert is the
+audit-started ping at Step 6; completion is the single Step 9 alert.)
 
 **Destructive op acknowledgment.** The block delete is the prescribed step of an
 explicitly-invoked skill — the `feedback_always_confirm_before_delete` exemption applies.
-Proceed autonomously, but state the delete scope in the run summary.
-
-**MCP timeout handling — MANDATORY** (only if the MCP fallback is in use): on
-`notionhq_client_request_timeout`, do NOT retry — wait, verify the H1 via REST, retry only if
-absent.
-
-**Post-prepend ordering verification — MANDATORY.** After the prepend lands, list the first 10
-top-level blocks and confirm the H1 → Company Overview (Updated …) → Thesis (Updated …) →
-Diligence Journey → Standing Open Questions → Footnotes order. If scrambled, delete the misplaced blocks and re-prepend — never
-silently publish a scrambled FA.
+Proceed autonomously, but state the delete scope (the script's `deleted` + `delete_heading`) in
+the run summary.
 
 ---
 
@@ -360,65 +355,31 @@ the Step 8 Drive upload; do NOT upload until all three exit 0:
 
 ## Step 8: Upload + Replace in Notion + Retention Sweep (Subagent C)
 
-Upload the new PDF to the same company subfolder under Diligence root
-`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`. Use the Apps Script endpoint — same as
-`update-diligence-priors` Step 5b. The `createFolder` call is idempotent and returns the
-existing subfolder if it's already there.
-
-(No progress ping here — the run stays silent until the single completion alert at Step 9.)
-
-### Retention sweep — destructive, autonomous
-
-Per memory `feedback_diligence_pdf_retention`: the new `_vFinal.pdf` is a full
-consolidated snapshot containing every prior update. Once uploaded and linked, trash every
-prior diligence-snapshot PDF in the same Drive subfolder.
-
+**Publish with one call — never by hand (code-enforced 2026-10-04):**
 ```bash
-rclone lsf "gdrive:Diligence/[Company]"
-# For each [Company]_Master_Diligence_*.pdf AND legacy [Company]_First_Pass_Diligence_*.pdf
-# that is NOT the new one:
-rclone deletefile "gdrive:Diligence/[Company]/<OLD_NAME>.pdf" --drive-use-trash
+python3 ~/.claude/skills/shared-references/rotate_diligence_snapshot.py --company "<Opp title>" --opp-id <opp page id> --kind final --pdf <local pdf>          # plan: prints filename, version, what retires
+python3 ~/.claude/skills/shared-references/rotate_diligence_snapshot.py --company "<Opp title>" --opp-id <opp page id> --kind final --pdf <local pdf> --apply  # do it
 ```
+In order, stopping at the first failure (exit 1 + `failed_at` → surface it in the completion alert): upload to
+`Diligence/<Company>/` as the convention filename (it computes N), add the chip to `Diligence Materials` with
+`--no-alert`, remove every older snapshot's chip, then move every older snapshot file to Drive trash (retention rule,
+memory `feedback_diligence_pdf_retention`). Only files carrying the `Master_Diligence` / legacy `First_Pass_Diligence`
+token in this company's own folder can match — source materials can't. The Files property is the ONLY destination:
+**never write a `## 📎 Diligence Materials` section into the Opp page body**, and leave any existing one alone (Tom:
+Kestrel 2026-05-14, reconfirmed Root 2026-09-02). Report `steps` in the run summary, then go to the Step 9 completion alert.
 
-Do NOT trash source materials in the same folder (founder memo, deck, plan, ACV build,
-positioning notes, Q&A docs, etc.) — only prior diligence-snapshot PDFs (`_v*.pdf`,
-`_v*_Final.pdf`, `_Update.pdf`, etc.) that this skill or `update-diligence-priors` previously
-wrote.
-
-State the scope in the run summary: "Trashed N prior diligence-snapshot PDFs from
-gdrive:Diligence/<Company>/."
-
-### Update Notion links
-
-The new `_vFinal.pdf` becomes the only diligence link anywhere on the Opp. Update both
-locations via REST API (per `update-diligence-priors` Step 5b — MCP is slower and less reliable
-on text-only patches):
-
-1. **Opp page body** — PATCH the existing `## 📎 Diligence Materials` bullet's `rich_text` in
-   place. New label text: `[Company]_Master_Diligence_MM.DD.YYYY_vFinal.pdf — Final
-   Claude diligence snapshot (consolidates Final Assessment + all updates + original
-   first-pass)`. If no existing bullet, POST a new one with `after: <heading_2 id>`.
-
-2. **`Diligence Materials` files-property** — follow
-   `~/.claude/skills/shared-references/add-link-to-files-property.md`, passing `--no-alert`
-   (the helper auto-fires a `📎 Materials:` ping on every Diligence Materials write, which is
-   redundant with this skill's Step 9 completion alert — suppress it so the run posts only one
-   message). After PATCH, re-fetch the Opp page and verify the new Drive URL is in the
-   `files[*].external.url` set. If absent after 3 retries, surface to Tom rather than publish
-   silently (the MANDATORY verification pattern from update-priors Step 5b applies in full).
-
-3. **Scrub stale URLs** — any entry in the files-property pointing at a trashed Drive file must
-   be removed. Any bullet in the page body still pointing at a trashed PDF must be patched to
-   the new URL.
-
-Once the Diligence Materials write verifies and stale URLs are scrubbed, proceed directly to
-the Step 9 completion alert. (No progress ping — that's the single alert below.)
+(No progress ping — the run stays silent until the single completion alert at Step 9.)
 
 Per memory `feedback_no_permission_for_user_initiated_analysis` and
 `feedback_first_pass_no_permission_prompts`: all writes (PATCH, POST, DELETE) execute
 autonomously. No pre-flight confirmation prompts inside this skill.
 
 ---
+
+**Record what this run processed (ledger — code-enforced 2026-10-04).** After the publish lands, run
+`python3 ~/.claude/skills/update-diligence-priors/compute_delta.py record --opp-id <opp id> --doc-id <diligence page id> --note-id <id> ... --material-url <chip url> ...`
+for every note and material this run read. Future `compute_delta.py check` runs diff against this ledger instead of
+re-parsing citations.
 
 ## Step 9: Send Signal Alert (Subagent C)
 

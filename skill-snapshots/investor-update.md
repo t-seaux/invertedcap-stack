@@ -449,6 +449,14 @@ The Company Updates DB (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`) hol
 
 **Step 4a — Compute the row key.** Apply the "Row Key & Naming Convention" rules above: reporting month for monthlies (a June letter sent Jul 10 → the `Jun 2026` row), latest covered month for multi-month letters, own row for quarterly/annual/plan (`{Company} – Q1 2026` / `– 2025` / `– 2026 (Plan)`), meeting month for board materials. Title: `{Company} – {Period label}`, en dash.
 
+> **Writes are code (2026-10-04): `python3 ~/.claude/skills/shared-references/company_updates_upsert.py upsert`** — find-or-create the row (en-dash title, initial-investment Opp,
+> refuses an FO), the per-artifact idempotency check (exit 3 = already processed → skip), the dated section INSERT at the
+> right place (formal → top via `position:start`; call → after the formal zone, newest-first by date; never `after: ""`,
+> never `replace_content` on the body), zone-order readback (exit 4 = repair in this run), Period / Update Type / Update
+> Date / Source Email merge, the Live prior-month freeze and Traction precedence, then the Artifacts chip last.
+> You produce: the period label, the section body (`--section-file`, markdown), `--pdf-url/--pdf-label` (email-body PDF), `--link` = Gmail thread URL, `--summary/--traction`, and run the grounding check +
+> validators on Summary/Traction BEFORE the call. `--kind formal|board`. The steps below are the WHY.
+
 **Step 4b — Find or create the row.** Search the data source by exact title; disambiguate multiple hits by exact `Company` relation match. If no row exists, create it via `notion-create-pages` with the properties below and the Formal section as the initial body. If a row already exists (e.g., Live calls populated it earlier in the month), upsert into it.
 
 **Step 4c — Idempotency check (replaces the old page-exists dedup).** The row existing means nothing — the question is whether THIS message has already been incorporated. Skip processing (no PDF re-upload, no body write) when:

@@ -21,6 +21,18 @@ Reads Tom's replies in `#decision-retros` threads, extracts framework nuggets, l
 - On per-item failures, log to `audit-log/YYYY-MM-DD.log` and continue (Mode A) or exit non-zero so the job lands in `failed/` (Mode B).
 - **No Slack DM alert in either mode.** Mode A's success signal is the per-Opp page Retro section + nugget appends to `DECISION_RETROS.md` + queue items flipped to `completed`. Mode B exits silently after writing. Tom does NOT want listener summaries in the `tom` self-DM channel — all retro chatter stays in `#decision-retros`.
 
+## As code (2026-10-04)
+
+The deterministic steps live in `~/.claude/skills/decision-retro/retro_ops.py` (harness: `decision-retro/tests/test_retro_ops.py`, real queue / DECISION_RETROS / Notion-page fixtures). Run the script; never re-implement the rule from prose. Prose below keeps the WHY.
+
+| Step | Command | Exit codes |
+|---|---|---|
+| A3 expiry | `retro_ops.py expire` | 0 done · 3 some entry's decision has no ledger mapping (left `prompted`, listed under `refused` — log `REVIEW:` to audit, continue) · 4 ledger write failed (left `prompted`, retried next run — log `ERROR:`, continue) · 2 queue missing/unreadable (abort run) |
+| 3d skip | `retro_ops.py is-skip --text "<concatenated retro>"` | 0 skip · 1 real retro |
+| 3f guard | `retro_ops.py has-retro --date <today> --page-file <notion-fetch text>` | 0 safe to append · 1 already present → skip 3f |
+| 3g append | `retro_ops.py append-nuggets --json <payload.json>` | 0 ok (per-nugget dedup done inside) · 2 bad payload — fix, never hand-append |
+| 3h map | `retro_ops.py ledger-decision --status "<queue decision>" --scope <opp\|neg1> --json` | 0 → `{decision, source}` · 3 unmapped → do NOT write a ledger row; log `REVIEW:` |
+
 ## Shared paths
 
 - Queue: `/Users/tomseo/.claude/skills/decision-retro/queue.json`
@@ -45,9 +57,7 @@ If the Slack MCP tool is NOT attached, use `ToolSearch` with `query: "select:mcp
 
 For each, run the single-item processor defined in the **Shared processing** section below. If processing succeeds, continue to the next item. If it fails, log to audit and continue — do not abort the run.
 
-Before running the processor, also check age:
-- Compute `age_days = now - prompted_at`
-- If `age_days > 7`: set `status = "no_retro"`, `completed_at = now`, `nugget_count = 0`, skip the processor, **and still append a bare ledger row** (same command as step 3h, `--why "[no retro] prompt expired unanswered"`) — the decision is a fact even when the why was never given. A later reply can enrich it (upsert on label+decision).
+**Before iterating, run the expiry pass once:** `python3 ~/.claude/skills/decision-retro/retro_ops.py expire` (handle exit codes per the As-code table). It flips every `prompted` entry older than 7 days (strict `>`, fractional days — the 2026-04-30 sweep expired entries at 7.06d) to `no_retro` with `nugget_count = 0`, **and still writes a bare ledger row** (`--why "[no retro] prompt expired unanswered"`) — the decision is a fact even when the why was never given. A later reply can enrich it (upsert on label+decision); an existing ledger row is never overwritten by the bare one. Then iterate only the entries still `prompted`.
 
 ### A4. Summary alert
 
@@ -208,9 +218,10 @@ Join all user messages in thread order with `\n\n`. This is the raw retro text.
 
 ### 3d. Skip keyword check
 
-If the concatenated text — trimmed, lowercased, punctuation stripped — matches `^(ignore|skip|pass|n/?a|no thanks|nope|nah|nvm|not today)$`, treat as an explicit skip:
+Run `python3 ~/.claude/skills/decision-retro/retro_ops.py is-skip --text "<concatenated text>"` (the keyword regex + normalization live there — don't restate them). Exit 0 = explicit skip:
 - Set queue entry `status = "skipped"`, `completed_at = now()`, `nugget_count = 0`
 - Do NOT extract nuggets, do NOT write to the source page, do NOT append to `DECISION_RETROS.md`
+- Still write the ledger row (3h) with `--why "retro declined"`
 - Return success
 
 ### 3e. Extract nuggets
@@ -242,7 +253,7 @@ Rules:
 
 ### 3f. Log raw retro to the source page
 
-> **Guard first — this append is not idempotent (added 2026-08-04).** Fetch the page and check whether a `## Retro (YYYY-MM-DD)` heading bearing **today's date** is already present. If it is, a prior run already wrote this — skip 3f and continue to 3g. Never append a second block.
+> **Guard first — this append is not idempotent (added 2026-08-04).** Save the `notion-fetch` page text to a temp file and run `python3 ~/.claude/skills/decision-retro/retro_ops.py has-retro --date <today> --page-file <file>`. Exit 1 = a `## Retro (<today>)` heading is already present (prior run wrote it) — skip 3f and continue to 3g. Exit 0 = append. Never append a second block.
 >
 > Why: 3f and 3g are blind appends, but the record marking this entry done is the `status` flip in 3i. A run killed between 3f and 3i leaves the entry at `prompted`, so the daily Mode A sweep re-processes it and appends a **second** `## Retro` block to the page plus a **duplicate of every nugget** in `DECISION_RETROS.md` — the corpus the quarterly back-tests query. Content guards make 3f/3g idempotent by construction, which is stronger than a claim-and-verify ledger: a re-run becomes a plain no-op rather than something needing repair.
 
@@ -260,7 +271,7 @@ Page ID is `opp_id` in the queue entry (historical name — for `scope == "neg1"
 
 Path: `/Users/tomseo/.claude/skills/founder-taste/DECISION_RETROS.md`
 
-For each non-empty taxonomy array, append entries under the matching H2:
+**Run the script — never hand-append:** write `{"date": "<today>", "name": "<opp_name>", "decision": "<queue decision>", "scope": "<opp|neg1>", "source_url": "<opp_url>", "nuggets": {<taxonomy from 3e>}}` to a temp JSON file and call `python3 ~/.claude/skills/decision-retro/retro_ops.py append-nuggets --json <file>`. It owns the section map, entry format, `-1:` prefix, missing-section creation, atomic write, and per-nugget dedup. Reference (what the script writes):
 
 | Taxonomy key | H2 section |
 |---|---|
@@ -283,9 +294,9 @@ For `scope == "neg1"`, prepend `-1:` to the Decision label:
   - Source: <-1 Scanner page URL>
 ```
 
-If a section header doesn't exist yet, add it alphabetically before appending.
+Missing section headers are created alphabetically; with duplicate H2s (the live file has two `## Founder signals` and two `## Positioning / moat`) entries go under the first.
 
-> **Guard per nugget — not per run (added 2026-08-04).** Before appending each entry, read `DECISION_RETROS.md` and skip that entry if its exact line (`- **YYYY-MM-DD · <Name> · <Decision>** — <nugget text>`) is already present. Check **per nugget**, not once for the whole batch: a run killed part-way through 3g wrote some nuggets and not others, and a batch-level check would either skip the missing ones or duplicate the written ones. Per-line matching lets a re-run complete exactly the remainder.
+> **Guard per nugget — not per run (added 2026-08-04; in `append-nuggets` since 2026-10-04).** An entry is skipped when its exact line (em- or en-dash separator) is already anywhere in the file. Per nugget, not once for the whole batch: a run killed part-way through 3g wrote some nuggets and not others, and a batch-level check would either skip the missing ones or duplicate the written ones. Per-line matching lets a re-run complete exactly the remainder.
 
 ### 3h. Append the ledger row (NEVER SKIP — added 2026-07-27)
 
@@ -294,11 +305,13 @@ Every processed retro writes a decisions-table row via append_decision.py — th
 ```bash
 python3 ~/.claude/scripts/decision-ledger/append_decision.py \
   --label "{opp_name}" \
-  --decision {map: Pass (DNM)→pass-dnm, Pass (Met)→pass-met, Pass Note Pending→pass-met, Active Portfolio→invested, scope neg1→no-outreach} \
-  --date {today} --source {pipeline | "-1 scanner" for scope neg1} \
+  --decision {decision from `retro_ops.py ledger-decision --status "<queue decision>" --scope <scope> --json`} \
+  --date {today} --source {source from the same call} \
   --verdict-raw "{queue decision string}" \
   --why "{Tom's verbatim reply}"
 ```
+
+The map (incl. `Committed → invested`, missing here until 2026-10-04 although Committed is a trigger status) lives only in `retro_ops.py`; exit 3 = unmapped (e.g. legacy bare `Pass`) → don't guess a decision, log `REVIEW:` and continue.
 
 Upsert semantics match on (label, decision) — if a bare backfilled row exists, this enriches it with the why. A `skipped` entry (Tom declined the retro) still writes the row with `--why "retro declined"` — the decision is a fact regardless.
 

@@ -22,6 +22,7 @@ The local processor invokes this skill with these args (set by `deal-scanner.js`
 - `referrerEmail` (optional) — outer envelope email when `forwardedFromReferrer` is true.
 - `referrerName` (optional) — outer envelope display name when `forwardedFromReferrer` is true.
 - `knownTerminalOpp` (optional, object `{id, name, status, matchedVia?}`) — set by `deal-scanner.js` when the envelope sender (or, via `matchedVia`, another address under the same display name — see `~/.claude/skills/shared-references/revive-gate.md`) is the `Contact` of an existing Opp at a **terminal** status (`Pass (Met)`, `Pass (DNM)`, `Lost`, `NR / Missed`). The webhook skips its Haiku gate for these (a known founder re-engaging is signal by definition) and routes here so the Revive Gate v2 runs. See Step 3 — the update-vs-pitch and confidence gates do NOT apply; the only question is whether the email carries new company signal.
+- `introConnected`, `introBranch`, `introStage`, `introOldStage`, `introFounderEmail`, `introCorroboration` (optional; only WITH `knownTerminalOpp`) — set by `intro-connected-detect.js` for EVERY corroborated three-way intro on a passed Opp, same round (`introBranch:"reopen"`, `introStage` the stated Stage or `""`) or new raise (`"new-row"`) (`revive-gate.md` § "Intro path"). `introConnected` already proves new company signal — `idd_gate.py` needs no `new_company_signal` then, checks `introBranch` against `revive_branch` (exit 2 on drift), passes the keys to add-to-crm, sets the Stage hint to `introStage` when one was stated and the status to `Connected`. Classify as usual; don't second-guess the Stage.
 - `materialUrls` (optional, array of strings) — deck/material URLs the webhook extracted from the email body (Drive, DocSend, Dropbox, Brieflink, Pitch.com, Figma, Canva, Notion.site, raw PDFs). When present, this list is **authoritative**: every URL MUST be passed through to `add-to-crm` so it runs Step 1B (read for thin-body field extraction) and Step 6 (link in Diligence Materials property). Skipping a URL because "the body context didn't seem deck-shaped" is not allowed — the webhook already filtered out company-website links. See the 2026-05-12 Unicorn Snot regression for why this gate moved server-side.
 
 ### Dash lane (`mail_source: "dash-local"`)
@@ -110,11 +111,17 @@ Apply the classifier rubric below. Return a single JSON object — **no markdown
       "round_details": "string",
       "stage": "string",
       "material_urls": ["string", ...],
-      "material_urls_ambiguous": true | false
+      "material_urls_ambiguous": true | false,
+      "investor_referrer": true | false,
+      "sender_is_founder": true | false,
+      "status_escalation": "" | "Outreach" | "Connected" | "Scheduled"
     }
-  ]
+  ],
+  "new_company_signal": true | false
 }
 ```
+
+The last four fields are the judgment inputs `idd_gate.py` (Step 3) cannot compute: `investor_referrer` = the sender is a VC/investor pitching this company (medium-gate signal 4); `sender_is_founder` = a free-mail sender is the named founder writing personally (the only way a free-mail sender can be `Direct`); `status_escalation` = an OBSERVED event per opp-status-sets.md § "Status inference for an inbound" (Tom opted in → `Outreach`; founder in the thread → `Connected`), else `""`; `new_company_signal` = REQUIRED whenever `knownTerminalOpp` is set (the revive question below), omit otherwise.
 
 **`companies` is always an array.** A single-company pitch (the common case) returns a one-element array. A multi-company digest (e.g. David Talpalar's "A Few Interesting Ones" — one email pitching 4 distinct startups) returns one element per company. The sender of a multi-company digest is the Source/referrer for ALL of them (no founder can write a digest about 4 separate startups); Step 4 applies that convention without needing to be told.
 
@@ -157,7 +164,17 @@ When in doubt, return one company. False fan-out creates ghost Opps Tom has to c
 
 ### Step 3: Gate on classification
 
-- **`knownTerminalOpp` present → the revive path, BEFORE any of the gates below (Tom, 2026-09-22, Solid Credit).** A founder whose Opp Tom already closed out is writing in again. Ignore `is_deal` / `is_update_not_pitch` / `confidence`; ask only: does the email carry **new company signal** — a raise starting or planned, a deck or materials (attachment or `materialUrls`), a pivot, traction, or an ask for Tom's time *about the company*? If YES → enqueue `add-to-crm` (Step 4) with the extracted fields plus `knownTerminalOpp` passed through verbatim; add-to-crm's Protected Status Guard runs the Revive Gate v2 (enrich the existing row now, 🔁 text card for the status flip). Log `terminal-contact-revive-route opp=<name> status=<status>`. If NO (pure scheduling, social, thanks) → log `terminal-contact-no-signal` and exit 0. Never mint a new Opp for this sender.
+> **As code (2026-10-04).** Steps 3 and 4's mechanics run in `idd_gate.py` — write the Step 2 JSON to `/tmp/idd-cls-<messageId>.json` and this job's args verbatim to `/tmp/idd-args-<messageId>.json`, then:
+> ```bash
+> python3 ~/.claude/skills/inbound-deal-detect/idd_gate.py gate --classifier /tmp/idd-cls-<messageId>.json --args /tmp/idd-args-<messageId>.json
+> ```
+> - **exit 0** → it wrote one `/tmp/addcrm-args-<messageId>-<slug>.json` per surviving company (paths in stdout `files`); run Step 4's helper on each. Do NOT hand-write or edit those files.
+> - **exit 1** → gated skip: log stdout `log` verbatim; run blurb capture; post the Step 5 alert only if `slack_alert` is true; exit 0.
+> - **exit 2** → bad input (missing `messageId`, or `knownTerminalOpp` set without a boolean `new_company_signal`) → `JOB_FAILED: IDD_GATE <log>`.
+>
+> The code owns: the gate order below, the medium 2-of-4 evidence count, empty-name drops, the revive routing, the Source/Status directive (Direct only when PROVEN — sender domain == company website domain, or a free-mail sender with `sender_is_founder`; digests are always referrer; `senderEmail` is copied verbatim from the envelope, never from the body — New Issue IQ), and the name slug. The prose below is the WHY and the judgment you feed it.
+
+- **`knownTerminalOpp` present → the revive path, BEFORE any of the gates below (Tom, 2026-09-22, Solid Credit).** A founder whose Opp Tom already closed out is writing in again. Ignore `is_deal` / `is_update_not_pitch` / `confidence`; ask only: does the email carry **new company signal** — a raise starting or planned, a deck or materials (attachment or `materialUrls`), a pivot, traction, or an ask for Tom's time *about the company*? If YES → enqueue `add-to-crm` (Step 4) with the extracted fields plus `knownTerminalOpp` passed through verbatim; add-to-crm's Protected Status Guard runs the Revive Gate (`revive-gate.md`: new raise → new linked row on 👍; same round → enrich the existing row now + 🔁 card for the status flip). Log `terminal-contact-revive-route opp=<name> status=<status>`. If NO (pure scheduling, social, thanks) → log `terminal-contact-no-signal` and exit 0. Never mint a new Opp for this sender.
 - **Blurb capture (every skip exit in this step):** before exiting, run `~/.claude/skills/shared-references/blurb-capture.md`. If the sender maps to an existing Opp AND the email carries a founder / intro-er blurb, enqueue `log-company-blurb` headless. That skill logs the blurb verbatim and alerts Tom. (Thermis, 2026-09-24: Emily's forwardable blurb was classified not-deal and dropped.)
 - `is_deal: false` → log `not-deal` with the reason and exit 0.
 - `is_update_not_pitch: true` → log `update-not-pitch-skip` and exit 0, regardless of confidence. Founder updates route through `investor-update`, never through add-to-crm.
@@ -170,7 +187,7 @@ When in doubt, return one company. False fan-out creates ghost Opps Tom has to c
 
 This skill runs on **Haiku** (per Tom's model tier framework — it's a classifier). The downstream `add-to-crm` work — Notion dedup queries, ContactOut/web enrichment, page creation with full property mapping, materials handling — is Sonnet-class. Splitting the two via the queue keeps each tier doing what it's good at and was the structural fix for the Evalion 2026-06-01 failure mode (Haiku narrated `(would execute)` instead of running add-to-crm inline).
 
-Do NOT read `add-to-crm/SKILL.md` or attempt to execute its steps inline. Instead, write a typed args JSON file per company and invoke the canonical helper `~/.claude/scripts/enqueue-addcrm.sh` — it wraps the args in the queue envelope, computes the idempotency key (using the optional `idempotencySuffix` field for fan-out disambiguation), and POSTs to `/enqueue`. The helper exists so Haiku doesn't have to template a mixed-shape JSON inline (bools, arrays, mixed-shape `sourceDirective`).
+Do NOT read `add-to-crm/SKILL.md` or attempt to execute its steps inline. Instead, write a typed args JSON file per company and invoke the canonical helper `~/.claude/scripts/enqueue-addcrm.sh` — it wraps the args in the queue envelope, computes the idempotency key itself (`-<slug>` of `classifierHints.company`; the file's `idempotencySuffix` is not trusted), and POSTs to `/enqueue`. The helper exists so Haiku doesn't have to template a mixed-shape JSON inline (bools, arrays, mixed-shape `sourceDirective`).
 
 #### Source attribution for multi-company digests
 
@@ -187,7 +204,7 @@ Before the loop, decide the `sourceDirective` shape. The rule applied per-compan
 
 For each company in `companies[]` (use the array index `i`, zero-based):
 
-1. Write `/tmp/addcrm-args-<messageId>-<i>.json` with the shape below. Use exact JSON types — booleans unquoted, arrays as arrays, `sourceDirective` either a string OR an object:
+1. `idd_gate.py gate` (Step 3) has already written `/tmp/addcrm-args-<messageId>-<slug>.json` per company with the shape below — reference only; never hand-template it. Use exact JSON types — booleans unquoted, arrays as arrays, `sourceDirective` either a string OR an object:
 
 ```json
 {
@@ -217,6 +234,7 @@ For each company in `companies[]` (use the array index `i`, zero-based):
 }
 ```
 
+  - **As code:** `enqueue-addcrm.sh` now IGNORES any `idempotencySuffix` in the file and recomputes `-<slug>` from `classifierHints.company` via `idd_gate.py slug` (the only exception is add-to-crm-detect's literal `-cmd`); no company + no `-cmd` → exit 2.
   - **`idempotencySuffix` is ALWAYS `"-<slug>"` derived from the company NAME — never from the loop index, and never omitted.** Slug = company name lowercased, non-alphanumeric runs collapsed to a single hyphen, trimmed to 40 chars (`"Acme AI, Inc."` → `"acme-ai-inc"`). Apply this identically whether there is one company or ten, so the key is `add-to-crm-<messageId>-<slug>` in every case.
   - For `companies.length >= 2`: additionally set `batchContext` to `{ "total": <companies.length>, "index": <i> }` so `add-to-crm` can surface "(2 of 4 from David Talpalar digest)" in its Slack alert. `batchContext` is presentation only — **it must never feed the idempotency key.**
 
@@ -231,10 +249,10 @@ For each company in `companies[]` (use the array index `i`, zero-based):
 2. Invoke the helper:
 
 ```bash
-~/.claude/scripts/enqueue-addcrm.sh /tmp/addcrm-args-<messageId>-<i>.json
+~/.claude/scripts/enqueue-addcrm.sh /tmp/addcrm-args-<messageId>-<slug>.json
 ```
 
-The helper reads `$CLAUDE_JOB_QUEUE_SECRET` from env (injected by `processor.py:_skill_env()`) and POSTs the envelope to `https://claude-job-queue.tom-182.workers.dev/enqueue`. Idempotency key is computed automatically as `add-to-crm-<messageId><idempotencySuffix>`.
+The helper reads `$CLAUDE_JOB_QUEUE_SECRET` from env (injected by `processor.py:_skill_env()`) and POSTs the envelope to `https://claude-job-queue.tom-182.workers.dev/enqueue`. Idempotency key is computed by the helper as `add-to-crm-<messageId>-<slug(classifierHints.company)>`.
 
 3. Check the result. The helper exits:
    - **0** + response body `{"enqueued": true, ...}` → success, this company's downstream `add-to-crm` job will run on its own tick.

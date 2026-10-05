@@ -45,17 +45,11 @@ Then execute:
    ```
    Two lines total. Header: envelope emoji + the WHOLE line bolded, `Drafted: -1 ({Name})` shape. Second line: the three links dot-separated (` · `) on ONE line — NO bullets (Tom removed them same day). Labels are Title Case (Gmail Draft / CRM Opp / Eval Note). Links EMBEDDED in the label text, never bare URLs (bare Gmail URLs also trigger an ugly accounts.google.com unfurl — post with `unfurl_links: false`).
 
-**pass <why> (v2):** `set-state --state passed` + ledger append + retro logging (nuggets to DECISION_RETROS.md; the raw reply is quoted in the ledger `why` — there is no Notion page to hold a Retro block pre-draft, and none is needed). No decision-retro queue registration (no scanner row → the 9:05am scan won't prompt).
-
-**Ledger append — RUN THIS COMMAND HERE, in v2, on every pass verdict.** (Bug 2026-07-27: the command template previously lived only in the RETIRED Notion-era section far below, so v2 runs skipped it — zero -1 decisions reached the ledger Jun 4 → Jul 27; ten were backfilled by hand. The quarterly back-tests — When-gate calibration, wildcard conversion, prefilter false-kill audit — all query this table; a pass that skips the ledger is invisible to every feedback loop.) Use STORE fields:
+**pass <why> (v2):** ONE command does the store flip AND the ledger row (same transaction — `candidates.py` pulls label, scores, rubric verdict and rubric version from the store; you supply only the verdict and Tom's words), then retro logging (nuggets to DECISION_RETROS.md). No decision-retro queue registration (no scanner row → the 9:05am scan won't prompt).
 ```bash
-python3 ~/.claude/scripts/decision-ledger/append_decision.py \
-  --label "{store name}" --decision no-outreach --date {today} --source "-1 scanner" \
-  --verdict-raw "Pass (Tom)" --rubric-verdict {store pre_gate_rec: ✅→reach-out, 🤔/❌→pass} \
-  --scores '{store scores JSON}' --rubric-version "{current RUBRIC.md version}" \
-  --why "{Tom's verbatim reply}"
+python3 ~/.claude/scripts/decision-ledger/candidates.py set-state --li <url> --state passed --verdict-raw "Pass (Tom)" --why "{Tom's verbatim reply}"
 ```
-Omit `--scores` if the store row has none. `track`/`snooze` write NO ledger row (deferrals, not decisions); `draft` writes none here — the reach-out lands at SEND time via pipeline-agent Task 7.
+Exit 2 = you forgot `--verdict-raw` (nothing was written — rerun with it). Exit 3 = rolled back, nothing written — report it. Never call `append_decision.py` separately for a pass (bug 2026-07-27: a separate prose ledger step was skipped Jun 4 → Jul 27; code-coupled 2026-10-04). `track`/`snooze` write NO ledger row (deferrals, not decisions); `draft` writes none here — the reach-out lands at SEND time via pipeline-agent Task 7.
 
 **Prefilter promotion (added 2026-07-20 — the top-of-funnel feedback loop):** after logging a pass, classify the reason:
 - **Category-level** — Tom excludes a SHAPE, not just this person: "you should not be flagging X", "never show me Y", "stop surfacing Z-shaped people", or a reason that plainly generalizes ("Carta is a stale unicorn; not much signal for folks working there"). → Append a new rule (or extend an existing one, e.g. add a company to PF-3's stale-unicorn list) in `~/.claude/skills/founder-taste/PREFILTERS.md`, with the verbatim quote + date as Source. If the rule is code-expressible, mirror it in `neg1_sourcing.py` (EXCLUDE_ROLES / FUND_NAME_RE / STALE_UNICORNS) in the same change — doctrine-coupled. Then note it in the close-loop reply: `→ promoted to prefilter ({rule id}): {one-clause rule}. Veto by replying here.`

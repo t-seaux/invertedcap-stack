@@ -31,7 +31,37 @@ If Chrome is not available or Tom is not logged in, tell him what's needed befor
 
 ## Step 0: Parse the Invoice
 
-Before touching Chrome, read the uploaded invoice PDF and extract:
+**As code (2026-10-04):** the parse and every hard gate below run in
+`superbill_preflight.py` (this dir). Run it FIRST, before Chrome:
+
+```bash
+python3 ~/Projects/invertedcap-skills/uhc-superbill-filer/superbill_preflight.py "<invoice.pdf>"
+```
+
+It runs `pdftotext -layout` and prints JSON with the parsed sessions, `expected_pairs`, `total_expected`
+and `failures[]`. Branch on the exit code, never on your own read of the PDF:
+
+| Exit | Meaning | Action |
+|------|---------|--------|
+| 0 | all gates pass | proceed; use `expected_pairs` as the Step 6d ground truth |
+| 2 | usage / IO (file missing, no pdftotext, bad `--form` JSON or date) | fix the invocation; do not proceed |
+| 3 | parse failure (image-only PDF, layout changed, invalid/duplicate day) | stop; show Tom `failures[]`, never guess values |
+| 4 | total ≠ sessions × $450 (or ≠ sum of line items) | stop and flag to Tom |
+| 5 | diagnosis ≠ F43.20 | stop, ask Tom to confirm |
+| 6 | CPT outside {99214, 90836}, or a session missing/doubling a code | stop, ask Tom to confirm |
+| 7 | a line item ≠ $225.00 | stop and flag to Tom |
+| 8 | NPI / Tax ID not Dr. Jain's | stop: probably the wrong invoice |
+| 9 | Step 6d portal diff (only with `--form`) | correct each listed entry via "Edit details", then re-run until 0 |
+
+All failures are listed. The exit code is the first failing gate in the order above. Step 6d re-runs
+the same script with the portal values: `--form '<json>'` (or a file path). The JSON is a list of
+`[date, cpt]` pairs or `{date, cpt, quantity, amount}` objects in portal display order, optionally
+wrapped as `{"diagnosis": "F4320", "services": [...]}`. Dates can be MM/DD/YYYY or YYYY-MM-DD.
+Harness: `tests/test_superbill_preflight.py` (real March 2026 invoice fixture). Run it after any edit.
+The prose below is the WHY. The script is the authority, and a gate edit goes in the code and the
+harness first.
+
+Before touching Chrome, read the uploaded invoice PDF (via the script above) and extract:
 
 1. **Month and year** of service (e.g., "March 2026")
 2. **Session dates** – the day-of-month numbers listed on the left side (e.g., 2, 9, 16, 30)
@@ -53,8 +83,11 @@ discrepancy, stop and flag it to Tom before proceeding.
 2. **CPT codes must be a subset of `{99214, 90836}`.** Any other code on the invoice →
    stop and ask Tom to confirm. Do not assume a new code is a harmless addition.
 3. **Compute the expected service-date pairing** as a list: `[(date1, 99214), (date1, 90836),
-   (date2, 99214), (date2, 90836), ...]`. This list is the ground truth diffed
-   programmatically against the portal form fields in Step 6d — not eyeballed.
+   (date2, 99214), (date2, 90836), ...]`. This list (`expected_pairs` in the script output) is the
+   ground truth diffed programmatically against the portal form fields in Step 6d — not eyeballed.
+4. **Each session bills exactly one 99214 and one 90836, each at $225.00, under Dr. Jain's NPI / Tax ID.**
+   The total check alone misses some errors. For example, one line at $250 and one at $200 still
+   sum to $1800, so each of these is refused on its own (exit 6 / 7 / 8).
 
 Read `references/static-data.md` for the full set of static values used throughout the flow.
 
@@ -166,8 +199,9 @@ Expand each service entry and verify:
   - And so on...
 - All dates use the correct month and year from the invoice
 
-**Programmatic pairing diff**: extract the portal's (date, CPT) list from the expanded
-service entries and diff it against the expected pairing list computed in Step 0. Every
+**Programmatic pairing diff**: extract the portal's (date, CPT, quantity, amount) list from the
+expanded service entries plus the diagnosis. Diff it against Step 0's expected pairing by re-running
+`superbill_preflight.py "<invoice.pdf>" --form '<json>'` (exit 9 = diffs listed in `form_diff`). Every
 mismatch (wrong date, wrong code order, missing/extra entry) gets corrected via
 "Edit details" — list the diffs explicitly in the Step 6e report rather than relying
 on visual inspection.

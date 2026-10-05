@@ -27,6 +27,8 @@ Read `~/.claude/skills/shared-references/feedback-note-format.md` §"Text-thread
 `notion-create-pages` into the Notes data source with `Name`, `⭐️`="__NO__", and the body. Best-effort `Opportunity` relation: `notion-search` the company/subject; on a confident single Opportunities match, set it at creation (else leave blank for the auto-tagger). **Verify by readback** (`notion-fetch`) — Notion MCP writes can silently no-op (see [[reference_notion_tooling]]).
 
 ## Step 5 — Classify + confirm
+**As code (2026-10-04) — post-write check, before confirming:** `python3 ~/.claude/skills/shared-references/notes_page_check.py check --page-id <new page id> --kind thread` (add `--title-verbatim` when Tom dictated the title). It verifies the parent is the Notes DB (9/18 ICONIQ orphan), the title shape, no self-referential link, no fenced code block. Exit **0** → confirm. Exit **1** → fix what `failures` names (move the page into the Notes data source, retitle, unlink, re-render the block), re-run, then confirm. Exit **2** → Notion unreachable: report the page as unverified, never `✓`. Pre-create: `notes_page_check.py title --kind thread "<title>"`.
+
 Run `note-classifier` (`~/.claude/skills/note-classifier/SKILL.md`) to set `Category` (diligence threads → Diligence). Then one line: `✓ Saved to Notes: **<title>** → <url>`.
 
 ## Chaining — "stitch and log"

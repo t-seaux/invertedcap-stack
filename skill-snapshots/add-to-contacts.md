@@ -37,7 +37,7 @@ Behavior:
 1. Fetch the existing page by `page_id` and read its current state. If Name, Email, Company, Role, Category, City, and State are all already populated, log "already enriched" and exit.
 2. Read the row's `LI` URL. Run the standard Step 1 LinkedIn URL workflow against it — ContactOut MCP for email + profile photo, then Sales Nav fallback if needed.
 3. Skip the duplicate-name search at the top of the manual flow — the page_id IS the dedup answer; we are enriching a row Tom intentionally created.
-4. Update the existing page in place (`notion-update-page`) — never create a new one. Set the page icon from ContactOut's `profile_picture_url` if available.
+4. Update the existing page in place (`notion-update-page`) — never create a new one. Set the page icon from ContactOut's `profile_picture_url` if available. Run `touch /tmp/.people-edit-bypass` right before the call: a PreToolUse hook (`~/.claude/hooks/gate-people-contact-fields.py`) refuses contact-field writes (Email/Name/Company/Role/LI/Phone/City/State) on People pages without it (People DB Guardrails Rule 2; this skill is an exempt maintenance path). 5-min TTL.
 5. Apply the unattended-execution guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md` — never ask, skip-and-log on missing data, always reach Slack with a result line.
 6. On completion, post a single-line Slack alert via `send-alert` describing what was filled in.
 
@@ -86,7 +86,7 @@ For **each** identified person, run the standard person pipeline from this skill
 1. **Enrich** — start from the email address (and name from the header/signature). Call `contactout_email_to_linkedin` / `contactout_enrich_person` to resolve the LinkedIn URL, then follow Step 1's ContactOut → Sales Nav → **web-search fallback** ladder to fill Role, Company, City/State, and photo. Cache raw ContactOut payloads per Step 1.5. Honor "exhaust web search before leaving a field blank."
 2. **Signature/body as ground truth** — the email signature and body are Tom-adjacent context: a title, company, or direct-domain email in the signature overrides stale ContactOut per the "Tom-supplied fields override ContactOut" rule. Infer Company from a custom-domain email when it disagrees with ContactOut's current position.
 3. **Dedup** — run the `workspace_search` dedup (see "Dedupe before create"). 
-   - **Match found → UPDATE in place** (`notion-update-page`): fill only blank/stale fields, add the newly-found email to the row if missing, set the icon if unset. Do not archive-and-recreate in unattended mode.
+   - **Match found → UPDATE in place** (`notion-update-page`): fill only blank/stale fields, add the newly-found email to the row if missing, set the icon if unset. Do not archive-and-recreate in unattended mode. Run `touch /tmp/.people-edit-bypass` right before the call: a PreToolUse hook (`~/.claude/hooks/gate-people-contact-fields.py`) refuses contact-field writes (Email/Name/Company/Role/LI/Phone/City/State) on People pages without it (People DB Guardrails Rule 2; this skill is an exempt maintenance path). 5-min TTL.
    - **No match → CREATE** a fresh row per Step 4 (including the `touch /tmp/.addcontacts-bypass` gate marker and the icon).
 4. Populate Category, City, State, and set the icon exactly as in the manual flow.
 
@@ -266,6 +266,8 @@ based on what appears to be their primary current activity. When in doubt, go wi
 specific category rather than N/A.
 
 ### Step 3: Map City and State
+
+> **Metro City/State = the WORK address only.** Apple holds it on the WORK address, and that is what syncs to Notion City/State. A personal/home address is a separate HOME address on the Apple card with the real street and city (Brooklyn, not New York), never written to Notion and never overwriting WORK. Command: `carddav.py add-home-address` (see `shared-references/calendar-event-handling.md` rule 10).
 
 **City:** Use the metro area name, not the specific neighborhood or suburb. For example:
 - Brooklyn, Queens, Manhattan → **New York**

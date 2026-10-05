@@ -137,7 +137,7 @@ For each candidate from Step 2:
    - `previously-declined` → drop
 3. Cross-check against Query A (prior notes) — if the candidate was named in a prior note for the same Opp BUT is NOT in any of the four lifecycle fields, that's a corner case worth surfacing in the alert (`prior-mention-but-untracked`). Still process them this run.
 4. Cross-check against Query B (past sent emails) — if a sent email exists addressed to this person about this Opp BUT they're not in any lifecycle field, surface as `outreach-sent-but-untracked` and skip this skill's draft step (intro-outreach-agent's sweep should pick it up). Don't add to Qualified — they're effectively already at Outreach.
-5. **Subject-agnostic sent-check (MANDATORY).** Query B only catches canonical outreach subjects — Tom often intros manually with free-form subjects ("Re-intro'ing! …", "X <> Y", inline replies). For each candidate with a resolved email, also run `in:sent (to:<email> OR cc:<email>) newer_than:90d` and inspect hits for this Opp (founder/`Contact` email as co-recipient, or Opp corroboration in subject/body). Dual-recipient hit → intro already Made: drop with `intro-already-sent`, skip both the Qualified write and the draft. Single-recipient hit about this Opp → treat as `outreach-sent-but-untracked` per point 4. Full rule: `shared-references/intro-lifecycle-contract.md`, Pre-Draft Sent-Check section.
+5. **Subject-agnostic sent-check (MANDATORY, code-enforced 2026-10-04).** For each candidate with a resolved email run `python3 ~/.claude/skills/shared-references/intro_sent_check.py --target-email <email> --opp-name "<Opp>" --opp-id <opp id>` — it searches Tom's sent mail (any subject) and reads whole threads: exit 20 `made` → skip the draft AND any Qualified write, surface `intro-already-sent`; exit 21 `outreach-in-flight` → skip the draft, surface `outreach-sent-but-untracked`; exit 2 → Gmail unreachable, do NOT draft; exit 0 → clear. (Travis Skelly / Outmarket 2026-07-29: a free-form "Re-intro'ing!" send was missed by subject queries.)
 
 ### Step 5: Resolve each candidate in the People DB
 
@@ -175,9 +175,9 @@ Before any Qualified write, every candidate must pass these gates:
 
 **Gate 1 — Directionality.** Confirm the meeting note describes intros Tom (or the Opp's founder) is committing to make to a third party. If the note instead describes someone else offering to intro Tom INBOUND to an Opp (e.g., a coinvestor on a call said "I can intro you to X"), that's a deal-sourcing signal for `add-to-crm`, NOT a Qualified candidate for this Opp. Skip with `direction-inbound-skip` and surface in the alert.
 
-**Gate 2 — Terminal-status skip.** If the Opp's `Status` ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, skip ALL candidates for this Opp. Log: `[Opp] terminal status [status] — skipping N candidates`. Closed Opps should not accumulate new intro lifecycle entries. (Active Portfolio status is fine — portfolio companies still get intros.)
+**Gate 2 — Terminal-status skip.** If `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set closed` exits 0 (Status is in the `closed` set), skip ALL candidates for this Opp. Log: `[Opp] terminal status [status] — skipping N candidates`. Closed Opps should not accumulate new intro lifecycle entries. (Active Portfolio status is fine — portfolio companies still get intros.)
 
-**Gate 3 — Common-word Opp name corroboration.** If the Opp's `Name` is a single common English word or short token (≤6 chars) — `Current`, `Scout`, `Pulse`, `Echo`, `Core`, `Pillar`, `Arc`, `Atlas`, `Compass`, etc. — and the Opp link was set via title-based matching upstream (meeting-note-processor Mode B-link), require that the note body corroborates the Opp identity: founder name appearing in the note, `Contact` email domain appearing, or explicit framing ("@CompanyName", "[CompanyName Inc.]"). If no corroboration, skip all candidates with `ambiguous-common-word-opp` and surface in the alert for Tom to re-link manually.
+**Gate 3 — Opp name corroboration (ALL Opp names, length-agnostic).** When the Opp link was set via title-based matching upstream (meeting-note-processor Mode B-link), run `python3 ~/.claude/skills/shared-references/opp_corroborate.py check --opp-id <opp_id> --haystack-file <note body file> [--recipient <email> ...]` on the note body. exit 0 → proceed · exit 1 (name only in a common phrase, or absent) or exit 3 (no founder name / Contact or Website domain / "@Name" / "[Name Inc.]" / fundraising-context signal) → skip ALL candidates for this Opp with `ambiguous-common-word-opp` and surface in the alert for Tom to re-link manually · exit 2 → skip (fail closed). Fixed 2026-10-04: this gate used to apply only to names "≤6 chars", contradicting the contract's length-agnostic rule (`Bottleneck`, `Connect`, `Compass` are 7–10 chars and collided too); the shared script is now the single definition — `shared-references/intro-lifecycle-contract.md` § Word-Boundary Corroboration.
 
 If any gate fails, write nothing for that Opp and surface in the Slack alert (Step 8).
 
@@ -185,16 +185,13 @@ If any gate fails, write nothing for that Opp and surface in the Slack alert (St
 
 Collect all resolved-and-deduped candidates that need to be added (i.e., found in People DB AND not in any lifecycle field).
 
-Read the current `👓 Intros (Qualified)` JSON array from the fetch in Step 4. Compose the new array as `existing + new_candidates`, deduplicated by page URL. Write once:
+Write each with the lifecycle wrapper (one call per person; never `notion-update-page` on an intro relation):
 
-```
-Tool: notion-update-page
-Command: update_properties
-Page ID: <opp_page_id>
-Properties: { "👓 Intros (Qualified)": "<JSON array string of all page URLs>" }
+```bash
+python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp_id> --person-id <person_id> --target qualified --source intro-note-processor
 ```
 
-The relation field expects a JSON array string (e.g. `"[\"https://www.notion.so/p1\",\"https://www.notion.so/p2\"]"`). Always include existing entries — passing only the new entries replaces the relation and wipes existing Qualified intros.
+Exit 0 = done (`result`: added / promoted / noop — noop means already at or past that stage; report the `stage`). Exit 5 = refused by a gate, nothing written — `blocked`: `self-row` (Tom's own row), `terminal-status` (closed Opp → Needs Review), `pending-feedback` (backchannel, not an intro). Exit 4 = benign verify lag. Exit 2/3 = error → report. The script also heals cross-field dupes it finds (`healed`) and lists conflicts it won't touch (`needsReview`) — include both in the report. Only draft (Step 7) for people whose `result` is `added`.
 
 ### Step 7: Draft an outreach email per new Qualified person
 

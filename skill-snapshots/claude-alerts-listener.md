@@ -66,23 +66,21 @@ Three reactions, one per lifecycle stage. Reactions carry the whole status conve
 | 👀 `eyes` | working | this skill, Step 0 |
 | 🏁 `checkered_flag` | done | this skill, when Step 4's close-loop posts |
 
-Before doing anything else, add 👀 to the message that triggered this job, then clear the Worker's ⏳ — it has served its purpose the moment 👀 lands:
+Before doing anything else, claim the job. `claim.sh` reads the bot's OWN reactions on the trigger message FIRST, then claims it (adds 👀, clears the Worker's ⏳) — so a re-run can tell itself apart from a fresh run:
 
 ```bash
-/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
-  "<channel_id from args>" \
-  "<reply_ts from args>" \
-  eyes
-
-/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
-  "<channel_id from args>" \
-  "<reply_ts from args>" \
-  hourglass_flowing_sand remove
+/Users/tomseo/.claude/skills/claude-dm-listener/claim.sh "<channel_id from args>" "<reply_ts from args>"
 ```
 
-Use `channel_id` from the args, not a hardcoded id — this skill serves both `#claude-alerts` and `#personal-alerts`. If either call fails, log to audit and continue; the close-loop reply at Step 4 is still required. `remove` is a no-op-safe call (a missing ⏳ exits 0).
+| exit | verdict | do |
+|---|---|---|
+| 0 | `fresh` | proceed normally |
+| 10 | `done` — a prior run already posted its final reply (🏁) | exit 0 with an audit note; no work, no reply |
+| 11 | `resume` — a prior run claimed (👀) and died before finishing | side effects may be partially applied: **verify before every non-idempotent step** (e.g. search for an existing draft and reuse it), finish only the remainder, and say so in the reply |
+| 1 | `error` — couldn't read reactions | treat as `resume` |
 
-**👀/🏁 remain the claim/complete pair Step 4a reads for idempotency — ⏳ is not part of it.** The Worker adds ⏳ to every enqueued job, including ones that never start, so it says nothing about whether a run happened.
+Only the bot's reactions count — Tom's ✅ means "confirm", never "done". (Code-enforced 2026-10-04: the old "add 👀, later check for 👀" read always saw its own 👀.)
+Use `channel_id` from the args, not a hardcoded id — this skill serves both `#claude-alerts` and `#personal-alerts`.
 
 ---
 
@@ -120,6 +118,7 @@ Each branch fires on a specific parent-alert header (+ reply shape). Check them 
 7. **Skill-map function assignment** — parent is a `skill-map-refresh` pending-categorization alert (header `🗺️`, body names an uncategorized skill with a recommended Function) AND Tom's reply either names a Function OR is a bare confirm (👍 / "confirm" / "yes" / "lgtm" → accept the recommendation). Procedure in `references/special-branches.md#special-branch-skill-map-function-assignment` — read it now.
 8. **Contact enrichment retry** — parent header contains `👤 Created People DB entry` AND Tom's reply contains a `linkedin.com/in/…` URL (he's supplying the identity ContactOut couldn't resolve, or correcting a bad match). Procedure in `references/special-branches.md#special-branch-contact-enrichment-retry-linkedin-url-reply` — read it now.
 9. **Writeback review apply** — parent header starts with `🧹 Writeback Review Triage` AND Tom's reply is a bare confirm (👍 / "confirm" / "yes") OR contains overrides (`skip <name>`, `make <name> <category>`, a corrected `linkedin.com/in/…` URL after a name). Procedure in `references/special-branches.md#special-branch-writeback-review-apply` — read it now.
+10. **Code-First Sweep convert / skip** — parent header starts with `🧱` AND contains `Code-First Sweep:` AND Tom's reply is `convert <n>[, <n>…]` / `convert all` / `skip <n>`. Procedure in `references/special-branches.md#special-branch-code-first-sweep-convert--skip`; **read it now**.
 
 ---
 
@@ -165,10 +164,13 @@ Use the helper:
 
 ```bash
 /Users/tomseo/.claude/skills/claude-alerts-listener/post_close_loop.sh \
-  "C0B06385BP1" \
+  "<channel_id from args>" \
   "<thread_ts from args>" \
-  "✅ done — <one-line summary of what was changed, with file path>"
+  "✅ done — <one-line summary of what was changed, with file path>" \
+  "<reply_ts from args>"
 ```
+
+The 4th arg adds 🏁 to Tom's message once the post lands (the completion half of `claim.sh`). Always pass it — the close-loop is the final reply.
 
 Format conventions:
 - `✅ done — <summary>` for successful changes
@@ -206,15 +208,7 @@ Tags should be short: `format-tweak`, `denylist-edit`, `notion-update`, `memory-
 ## Notes
 
 - **Bot identity for posting back:** the close-loop reply posts as the `claude` Slack app via the bot token at `~/.claude/skills/claude-alerts-listener/.bot_token` (mode 600). Do NOT use the Slack MCP for the close-loop — that posts as `tom`, which defeats the whole point of the bot identity split.
-- **Idempotency — read the reactions, not the thread text (revised 2026-08-04).** Most edits are idempotent (adding to a deny-list, setting a Notion property) and re-running them is harmless. The dangerous ones are the **non-idempotent** branches — above all NEW DEAL opt-in/opt-out, which calls `create_draft` on the referrer's thread. Before any such branch, read the reactions on Tom's reply and act on them:
-
-  | Reactions on Tom's reply | Meaning | Do |
-  |---|---|---|
-  | 🏁 present (or legacy ✅ added by a pre-2026-08-24 run) | a prior run completed | exit 0 with an audit note |
-  | 👀 present, no 🏁/✅ | **a prior run started and died mid-branch** | side effects may be partially applied — verify before acting (for NEW DEAL: check for an existing draft via `searchMail` `in:draft to:<referrer>` — gmail-webhook endpoint, `shared-references/gmail-label.md`, works headless — and reuse it instead of creating a second), finish only the remainder, and say so in the close-loop |
-  | neither | fresh | proceed normally |
-
-  Step 0 already writes 👀 **before any work**, so the tombstone has existed all along — nothing ever read it. Add 🏁 (`checkered_flag`) when Step 4's close-loop is posted, so the two reactions form a claim/complete pair. **NEVER react ✅/✔️/☑️/👍 as a tombstone** — those are in the Worker's CONFIRM_REACTIONS set (they mean "Tom confirmed"), and a listener-added one on a bot alert would enqueue a phantom confirm job. 🏁 was chosen precisely because it's disjoint from that set (tombstone moved off ✅ on 2026-08-24 when the ✅-family became confirm triggers).
+- **Idempotency — `claim.sh` (Step 0) decides, from the bot's own reactions (revised 2026-08-04, code-enforced 2026-10-04).** Most edits are idempotent (adding to a deny-list, setting a Notion property). The dangerous ones are **non-idempotent** — above all NEW DEAL opt-in/opt-out, which calls `create_draft` on the referrer's thread. On a `resume` verdict, before any such branch, check for the artifact first (for NEW DEAL: `searchMail` `in:draft to:<referrer>` — gmail-webhook endpoint, `shared-references/gmail-label.md`, works headless — and reuse it instead of creating a second). **NEVER react ✅/✔️/☑️/👍 as a tombstone** — those are in the Worker's CONFIRM_REACTIONS set (they mean "Tom confirmed"), and a listener-added one on a bot alert would enqueue a phantom confirm job. 🏁 is disjoint from that set (tombstone moved off ✅ on 2026-08-24).
 
   > **Why the old rule didn't hold.** It said to check whether the close-loop reply is already in the thread. But the close-loop is posted at **Step 4, after** the Step 3 side effect — so a run that died between creating the Gmail draft and posting the close-loop leaves no close-loop, and the guard cheerfully concludes "proceed." It was structurally blind to the exact failure it needed to catch. Not hypothetical: a `claude-alerts-listener` job was killed at its 600s timeout on 2026-06-18, and D1 lease reclaim re-runs a job under the same id whenever `/complete` doesn't land. A duplicate here is a **second outbound draft on a third party's thread** — the same artifact as the Charlie Schwartz double-draft.
 - **Don't reply for ack-only feedback:** if Tom says "thanks" or "good catch" with no actionable content, still post a close-loop reply (`✅ noted, no change needed`) so he knows you read it. Tom said he won't send filler replies, so this branch is rare.

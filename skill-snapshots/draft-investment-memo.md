@@ -186,10 +186,12 @@ rules are the full procedure for this step — in
 
 ### Format-consistency checklist (run BEFORE the audit in Step 5)
 
-MANDATORY self-check gate. Self-check the draft against the full checklist —
-full procedure in `references/format-consistency-checklist.md`; **read it now
-before proceeding.** Failures must be fixed in the draft before the audit
-invocation. This same checklist runs again in Step 5 on the post-audit draft.
+MANDATORY gate, in code (2026-10-04): `python3 ~/.claude/scripts/memo_lint.py memo <draft.md>` — exit 1 = fix every ✗ in the draft and re-run until exit 0, BEFORE the
+audit. It checks the H1 title, Round Overview (2 cols × the 7 canonical rows), Team (3 cols), `[N]` markers, em dashes,
+escaped `\~ \$ \[ \]`, banned transitions, `# Appendix` + `## Diligence Materials & Notes`, Title Case headers, and
+Thesis pillars as bold lead-ins (never H3). Then self-check the items it can't see (pillar quality, no closing synthesis
+paragraph, every portfolio / call-note / quantitative mention hyperlinked) per `references/format-consistency-checklist.md`.
+Runs again in Step 5 on the post-audit draft.
 
 ---
 
@@ -306,10 +308,8 @@ partials > 0), the final draft path is either `$NORMALIZED_DRAFT` (if Step
 ## Step 5: Re-check format consistency on the post-audit draft
 
 After the audit and normalization, the draft may have lost or gained content.
-Re-run the Step 2 format-consistency checklist against the final draft path
-(full checklist in `references/format-consistency-checklist.md` — **read it
-now before proceeding**). Fix any drift introduced by audit edits before
-publishing.
+Re-run `python3 ~/.claude/scripts/memo_lint.py memo <draft.md>` on the final draft path — exit 0 is required before publishing (audit edits drift format). Then the
+judgment items from `references/format-consistency-checklist.md`.
 
 Also re-read `~/.claude/skills/writing-style/letters-and-memos/STYLE.md` and
 do one final voice pass — looking specifically for:

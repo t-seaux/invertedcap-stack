@@ -24,61 +24,60 @@ base, rather than presenting a sanitized summary.
 
 ---
 
-## Skip first-pass on follow-on rounds
+## Preflight: follow-on skip + existing-artifact gate
 
-Never run this skill on a follow-on round Opportunity. First-pass is for net-new
-companies — Tom already has full context on prior investments and the framework is
-mis-calibrated for follow-ons. Detect via either signal:
+**As code (2026-10-04).** Runs BEFORE Step 0 in every mode (webhook, diligence-agent worker, manual). Read-only:
 
-1. `"FO"` in parens anywhere in the Opportunity name (e.g., `Caplight (FO)`, `Caplight FO`) — Tom's near-universal convention
-2. Earlier Opportunity entries for the same company in Notion
+```bash
+python3 ~/.claude/skills/first-pass-diligence/fpd_preflight.py --opp-id <OPP_ID>   # add --explicit-redo only on Tom's explicit redo
+```
 
-If either is present, do not run first-pass. Confirm with Tom what he actually wants
-— likely an `update-diligence-priors` refresh against the original thesis, or just
-materials handling for the new round.
+| exit | route | do |
+|---|---|---|
+| 0 | `first-pass` | proceed to Step 0 |
+| 10 | `update-priors` | fire the routed-start alert below, then run update-diligence-priors against `hit_page` |
+| 11 | `follow-on-skip` | do NOT first-pass; ask Tom what he wants (likely update-priors against the original thesis, or materials handling for the new round) |
+| 2 | error | do NOT run; alert ⚠ preflight failed + the error (fail closed) |
 
----
+The script owns the rules — don't re-derive them by hand. WHY each exists:
 
-## Existing-artifact gate: route to update-priors, never re-first-pass
+- **Follow-ons never get a first pass.** First-pass is calibrated for net-new companies; Tom already has full
+  context on prior investments. FO = `name_exclude_regex` in `shared-references/triggers/first-pass-diligence.json`
+  (the same file the notion-webhook Worker reads): a parenthesized `(… FO …)` marker. ONE rule — the old prose
+  example `Caplight FO` (no parens) contradicted the JSON and is retired; the 2026-10-04 census found every real
+  follow-on row parenthesized and zero bare `FO` names. Backstop: an earlier Opp for the same company whose Status
+  is in the portfolio set (we invested) also means follow-on. An earlier PASSED Opp is a re-look, not a follow-on —
+  it's reported in `prior_opps`, and its artifact (if any) routes to update-priors via the gate below. Same name ≠
+  same company: differing Website domains split them (two Fairs: getfair.co 2024 vs fairappeal.com 2026).
+- **Existing artifact → update-priors, never a second first pass.** Every trigger means "make diligence current". A
+  Status flip to Active must not produce a second first pass when an artifact already exists (Soapbox, 2026-09:
+  first-passed ad hoc at Exploration, then re-first-passed on the move to Active). The gate matches ALL
+  `dedup_title_patterns` at ANY date (Quiet AI duplicate 2026-06-26: the check only knew the legacy strings), by
+  exact company prefix or by Opportunity relation. It is NOT the Resume Protocol's `<today>`-dated search (that
+  one detects THIS run's partial output). `[OLD]` / `[ARCHIVED-…]` pages are reported as `retired`, not hits; a
+  same-name artifact linked to another company's Opp is a `collision`, not a hit.
 
-Runs BEFORE Step 0, in every mode (webhook, diligence-agent worker, manual). The
-semantic of every trigger into this skill is "make diligence current" — a Status flip
-to Active must not produce a second first-pass when an artifact already exists (e.g.,
-a deal first-passed ad hoc while still at Exploration, then moved to Active later —
-Soapbox, 2026-09).
+**On exit 10**, fire the run's ONE early alert immediately — it names the routing decision (Tom, 2026-09-11: one
+start alert, and it should say first pass was skipped in favor of update priors):
 
-1. Search the Notes data source (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) for an
-   existing diligence artifact for this company: one title search per pattern in
-   `~/.claude/skills/shared-references/triggers/first-pass-diligence.json` →
-   `dedup_title_patterns` (`Master Diligence Doc` + both legacy `First-Pass Diligence`
-   variants), matching `[Claude] <Company> <pattern>` with ANY date suffix. This is
-   NOT the Resume Protocol's `<today>`-dated search — that detects THIS run's partial
-   output; this gate detects any prior run's artifact, whatever its date. Title-only —
-   never fetch page bodies here.
-2. **No hit** → proceed to Step 0 and run first-pass normally.
-3. **Hit** → do NOT first-pass. Fire the run's ONE early alert immediately — it names
-   the routing decision (Tom, 2026-09-11: one start alert, and it should say first
-   pass was skipped in favor of update priors):
+```bash
+COMPANY="<company from the preflight JSON>"
+cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
+🔍 <u>**Update Priors Starting: ${COMPANY}**</u>
 
-   ```bash
-   COMPANY="<company name>"
-   cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-   🔍 <u>**Update Priors Starting: ${COMPANY}**</u>
-   ✓ First pass skipped – Master Diligence Doc exists · updating priors on new material
-   EOF
-   ```
+✓ First pass skipped – Master Diligence Doc exists · updating priors on new material
+EOF
+```
 
-   Then read `~/.claude/skills/update-diligence-priors/SKILL.md` in full and run THAT
-   skill for this Opp in the same session/job. Its incremental diff picks up everything
-   added since the artifact's last update. Because this routed-start alert already
-   fired, SKIP update-priors' Step 4.5 audit-start ping — the run posts exactly this
-   alert plus the completion (or zero-delta skip) alert, nothing else. If update-priors
-   finds no net-new materials, it skips and alerts per its own zero-delta clause — that
-   outcome is expected and correct, not a failure; do not fall back to running
-   first-pass.
-4. **Manual override:** if Tom explicitly asks for a fresh first-pass despite an
-   existing artifact ("redo the first pass on X", "run a fresh first pass"), honor it.
-   The gate guards automated triggers and casual asks, not an explicit redo.
+Then read `~/.claude/skills/update-diligence-priors/SKILL.md` in full and run THAT skill for this Opp in the same
+session/job. Its incremental diff picks up everything added since the artifact's last update. Because this
+routed-start alert already fired, SKIP update-priors' Step 4.5 audit-start ping — the run posts exactly this alert
+plus the completion (or zero-delta skip) alert, nothing else. A zero-delta skip from update-priors is the expected
+outcome, not a failure — never fall back to first-pass.
+
+**Manual override:** if Tom explicitly asks for a fresh first pass despite an existing artifact ("redo the first
+pass on X", "run a fresh first pass"), pass `--explicit-redo` (route=first-pass, hits still reported). The gate
+guards automated triggers and casual asks, not an explicit redo. FO skip is never overridden by the flag.
 
 ---
 
@@ -106,6 +105,8 @@ export PAGE_ID=<page_id from args, or extracted from Opportunity URL>
 export WORKSPACE=/tmp/firstpass-${PAGE_ID}
 mkdir -p "$WORKSPACE"
 ```
+
+(Equivalent: `export WORKSPACE=$(python3 ~/.claude/skills/shared-references/job_workspace.py init --prefix firstpass --page-id "$PAGE_ID")`. The guard is shared code — `first_pass_audit.py` and `first_pass_lint.py` refuse legacy `/tmp/firstpass_*`, `/tmp/teardown_*` and `/tmp/<x>_premortem_*` paths with exit 3.)
 
 Every `/tmp/firstpass_<file>` path in this skill is rewritten to use
 `$WORKSPACE/<basename>`. The mapping is:
@@ -470,7 +471,7 @@ explicitly in Section 5 — the evaluation runs with whatever evidence is availa
 fetches of every memo, which cost 15-25 min for content that changes ~monthly):
 
 ```bash
-python3 ~/.claude/skills/first-pass-diligence/memo_cache.py sync
+python3 ~/.claude/skills/first-pass-diligence/memo_cache.py sync > "$WORKSPACE/memo_sync.json"
 ```
 
 The script lists the canonical Drive memo folder (`1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO`)
@@ -535,13 +536,16 @@ actual memo and fails the gate if the overlay is ungrounded. **A run where the c
 is empty or missing means the analog-grounding gate is disabled — call out explicitly in
 the publish summary if that happens.**
 
-**Manifest coverage gate — MANDATORY before proceeding to Step 1f.** Run
+**Manifest coverage gate — MANDATORY before proceeding to Step 1f.** Build the manifest by code (no analogs yet —
+Step 4a rebuilds it with them), then run
 `verify_memo_manifest.py` to assert that `$WORKSPACE/manifest.json`'s
 `memo_manifest` lists every memo currently in the Drive folder. Exit code 3 =
 missing memos; the script names them so you can re-read them and re-write the
 manifest. Do not proceed to Step 1f / Step 2 with a failing gate.
 
 ```bash
+python3 ~/.claude/skills/first-pass-diligence/build_lint_manifest.py --opp-id "$PAGE_ID" --analogs "" \
+  --memo-report "$WORKSPACE/memo_sync.json" > "$WORKSPACE/manifest.json"
 python3 ~/.claude/skills/first-pass-diligence/verify_memo_manifest.py \
   --manifest "$WORKSPACE/manifest.json" \
   --folder-id 1yqWgJf35SjZdIpFozBRQOX8ympX-gkvO
@@ -1686,32 +1690,28 @@ prevent (Kestrel-Suppli "Ryan Walsh", Kestrel-Oun "Robert", fabricated memo
 citations, Clusia/Third Space portfolio misattribution, fabricated burn-rate
 numerics, and uncited synthesized Working Thesis claims).
 
-**Build the manifest first.** Write a JSON file to a tmp path with this shape:
+**Build the manifest by code — never by hand (as code, 2026-10-04):**
 
-```json
-{
-  "subject_company": "<name>",
-  "memo_manifest": {"<analog company>": "<drive_url>", ...},
-  "portfolio_set": ["<active+exited+committed companies from Opps DB>"],
-  "founder_names_by_company": {
-    "<subject company>": ["<founder full names from 🏁 Founder(s) + Contact email surnames>"],
-    "<each analog company referenced in draft>": ["<their founders>"]
-  },
-  "narrator_names": ["Tom", "Claude"]
-}
+```bash
+python3 ~/.claude/skills/first-pass-diligence/build_lint_manifest.py --opp-id "$PAGE_ID" \
+  --analogs "<every portfolio company the Framework Mapping section names, comma-separated>" \
+  --memo-report "$WORKSPACE/memo_sync.json" > "$WORKSPACE/manifest.json"
 ```
 
-Sources for each manifest field:
-- `memo_manifest` — exactly the manifest you built in Step 1e (company → Drive URL)
-- `portfolio_set` — query Opps DB for `Status IN ("Active Portfolio", "Exited", "Committed")`
-- `founder_names_by_company` — for the subject company AND every analog company named
-  in the draft's Framework Mapping section, pull from that company's Opp row: the
-  `🏁 Founder(s)` relation (People DB names) + `Contact` email local-parts where they
-  resemble surnames (`rayers@gosuppli.com` → add "Ayers" as a candidate). Analog
-  company founder sets MUST be populated — this is the check that catches the Kestrel
-  failure mode.
-- `narrator_names` — defaults `["Tom", "Claude"]`; extend if other narrator names
-  appear in the doc.
+Exit 0 = manifest written. **Exit 4 = refused** (stderr names it): an analog matches no Opp row, a company has an
+empty founder set, or the memo manifest is empty — fix the analog name / Opp row / memo sync and rebuild; never
+hand-patch the JSON (a partial manifest is exactly how the lint went blind). Exit 2 = Notion/file error → retry, then
+stop.
+
+What the script fills (the WHY — each field closes a past incident):
+- `memo_manifest` — company → Drive URL from the Step 1e sync report. AgentBay 2026-06-24 shipped on 3 of 6 memos.
+- `portfolio_set` — every Opp whose Status is in opp_status's `portfolio` set (Committed, Active Portfolio,
+  Portfolio: Follow-On, Exited), FO rows collapsed to the company name. (The old prose listed three statuses and
+  missed Portfolio: Follow-On.) Clusia / Third Space was a portfolio misattribution this catches.
+- `founder_names_by_company` — subject + every analog, across ALL of that company's Opp rows: `🏁 Founder(s)` People
+  names + Contact-email surname candidates (`rayers@gosuppli.com` → "Ayers"). Analog sets MUST be populated — that's
+  the Kestrel 2026-05-13 "Ryan Walsh" check; the script refuses rather than emit an empty set.
+- `narrator_names` — `["Tom", "Claude"]`; add others with `--narrator "<Name>"`.
 
 **Write the draft markdown to a tmp file**, then run the lint:
 
@@ -2218,126 +2218,70 @@ it in Notion and send the alert with the URL (no file attachment).
 
 ### 6a. Upload PDF to Google Drive and Link in Notion
 
-Upload the generated PDF to the company's opportunity folder on Google Drive, then add the
-Drive link to the Diligence Materials field on the Notion opportunity page. This makes the
-PDF accessible alongside the other diligence materials (deck, memo, one-pager) in a single place.
-
-**Uploading:** Use the Google Apps Script endpoint for all Drive operations. **NEVER use Zapier** — it is deprecated and unreliable. Read the full reference at `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`.
-
-**MANDATORY — always create a NEW Drive file. Never overwrite an existing one in place.** Even when re-running for an Opp that already has a prior first-pass PDF, upload as a fresh file with a new Drive file ID. The reason: Notion caches PDF previews keyed on the URL/file ID. If you `files().update()` the existing file's content, the file ID stays the same, the URL stays the same, and Notion keeps showing the OLD cached preview no matter what's actually in Drive — observed 2026-04-27 on the Inlets re-run. A fresh file ID forces Notion to fetch a fresh preview. Tom can manually delete the stale prior version from Drive after verifying.
-
-The workflow is:
-1. **Create a company subfolder** under the Diligence root folder (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`) via the Apps Script `createFolder` action. This is idempotent — if the folder already exists, it returns the existing one.
-2. **Upload the PDF** into the company subfolder via the Apps Script `upload` action, passing the returned `folderId`. ALWAYS use this `upload` action — it creates a new file. Do NOT use `files().update()` to overwrite.
-3. The upload response includes a direct `url` field (e.g. `https://drive.google.com/file/d/<fileId>/view`) — use this directly in the Notion link. No need to search for the file ID after upload.
-
-```python
-import requests, base64
-
-DRIVE_URL = "https://script.google.com/macros/s/AKfycbzRPkebxLe-VoJq1UDxUOR8bujyG0T8_rskdmF66lcUYD_JeMh8ODZ6cpeayU61_h8z/exec"
-DILIGENCE_ROOT = "1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d"
-
-# 1. Create company subfolder (idempotent)
-folder_resp = requests.post(DRIVE_URL, json={
-    "action": "createFolder",
-    "folderName": "<COMPANY_NAME>",
-    "parentFolderId": DILIGENCE_ROOT
-}, allow_redirects=True, timeout=60)
-folder_result = folder_resp.json()
-subfolder_id = folder_result["folderId"]
-
-# 2. Upload PDF
-with open(pdf_path, 'rb') as f:
-    pdf_b64 = base64.b64encode(f.read()).decode('utf-8')
-
-upload_resp = requests.post(DRIVE_URL, json={
-    "action": "upload",
-    "fileName": "[Company]_Master_Diligence_MM.DD.YYYY.pdf",
-    "fileBase64": pdf_b64,
-    "mimeType": "application/pdf",
-    "folderId": subfolder_id
-}, allow_redirects=True, timeout=120)
-upload_result = upload_resp.json()
-file_url = upload_result["url"]  # Direct link — use this in Notion
+**Publish with one call — never by hand (code-enforced 2026-10-04):**
+```bash
+python3 ~/.claude/skills/shared-references/rotate_diligence_snapshot.py --company "<Opp title>" --opp-id <opp page id> --kind first-pass --pdf <local pdf>          # plan: prints filename, version, what retires
+python3 ~/.claude/skills/shared-references/rotate_diligence_snapshot.py --company "<Opp title>" --opp-id <opp page id> --kind first-pass --pdf <local pdf> --apply  # do it
 ```
+In order, stopping at the first failure (exit 1 + `failed_at` → surface it in the completion alert): upload to
+`Diligence/<Company>/` as the convention filename (it computes N), add the chip to `Diligence Materials` with
+`--no-alert`, remove every older snapshot's chip, then move every older snapshot file to Drive trash (retention rule,
+memory `feedback_diligence_pdf_retention`). Only files carrying the `Master_Diligence` / legacy `First_Pass_Diligence`
+token in this company's own folder can match — source materials can't. Report `steps` in the run summary, then go to
+6b. Act autonomously — no permission ask, no progress ping (the run stays silent until the 6b completion alert).
 
-**Important:** Python `requests.post(..., allow_redirects=True)` handles Apps Script 302 redirects correctly. `curl -L` does NOT work for POST.
+WHY the script does it this way (don't re-implement any of it by hand — the old manual Apps Script upload +
+`notion_files_property.py` + re-fetch steps that lived here are retired; they duplicated the script and carried a
+stale chip label):
+- **Always a NEW Drive file, never an in-place overwrite.** Notion caches PDF previews keyed on file ID; an
+  overwrite keeps showing the old preview (Inlets re-run, 2026-04-27). Drive ops go through the Apps Script endpoint
+  (`shared-references/drive-upload.md`), never Zapier.
+- **The `Diligence Materials` Files property is the ONLY destination.** Never write a `## 📎 Diligence Materials`
+  section into the Opp page body, and leave any existing one alone (Tom: Kestrel 2026-05-14, reconfirmed Root
+  2026-09-02) — a body section is duplicate state that drifts.
+- **`--no-alert` on the chip write.** The helper's auto `📎 Materials:` ping is redundant with the 6b alert; the run
+  posts exactly one Slack message. This is why first-pass doesn't route through materials-handler.
+- **Write verification is in the helper.** `notion_files_property.py` re-fetches after its PATCH and fails loudly
+  if the URL isn't in the files array (Factir 2026-05-15 silent 200) — a script failure, never a body-link fallback.
 
-Act autonomously — do not ask for permission. Report what was done in the summary.
-
-(No progress ping here — the run stays silent until the single completion alert at Step 6b.)
-
-**Linking in Notion — the Files property ONLY.**
-
-**Never write a `## 📎 Diligence Materials` section into the Opportunity page body**, and never append to one that already exists. The Files property is the canonical, actionable surface (it renders in board views and is searchable); a body section is duplicate state that drifts the moment one side is updated. This applies to the first-pass PDF specifically — Tom's standing rule is that it lives in the property field, NOT the body (Kestrel 2026-05-14, reconfirmed on Root 2026-09-02 after this step wrote a duplicate section). If a body section already exists on an Opp from an older run, leave it alone — do not append to it and do not proactively clean it up.
-
-1. **Diligence Materials Files property field — MANDATORY in EVERY run, every code path.** Do not skip this step under any circumstance, including when an existing first-pass PDF link is already present in the property field. The helper is idempotent on URL (skips if the exact URL is already there) but a freshly-uploaded file always has a NEW URL per the rule above, so this call always adds the new entry. Shell out to the public-API helper:
-
-   ```bash
-   python3 ~/.claude/scripts/notion_files_property.py \
-       --page-id <opportunity_page_id> \
-       --prop "Diligence Materials" \
-       --url "<drive_url>" \
-       --label "<Company>_Master_Diligence.pdf" \
-       --no-alert
-   ```
-
-   **`--no-alert` is MANDATORY here.** The helper auto-fires a consolidated `📎 Materials:`
-   ping as a side effect of every Diligence Materials write. In the first-pass flow that
-   ping is redundant with the Step 6b completion alert (which already links the PDF), so it
-   must be suppressed — the run posts exactly one Slack message. (This is why first-pass links
-   the property inline instead of routing through materials-handler, whose whole purpose is
-   that auto-ping.)
-
-   Exit 0 = ok (including idempotent skip), 1 = hard failure (log it and surface the failure in the completion alert — do NOT fall back to a page-body link; the body is never a valid destination). See the canonical interface at `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md`. Pass the opportunity page ID, the Drive file URL (`https://drive.google.com/file/d/<fileId>/view`), and a display name like `[Company]_First_Pass_Diligence.pdf`.
-
-   The helper uses the public Notion API (PATCH `/v1/pages/{id}` with the Files property's `files` array). No Chrome dependency.
-
-   **MANDATORY verification — never trust the 200 response alone.** Immediately after the PATCH, re-fetch the Opportunity page and scan the `Diligence Materials` files array for an entry whose `external.url` matches the Drive URL you just wrote. If not present, the write silently failed (observed on Factir 2026-05-15 — PATCH returned 200 but Notion kept the prior URL in the files array). Re-try the PATCH with an explicit replacement payload (read the full files array, mutate, PATCH the whole array), then re-verify. If verification still fails after 3 retries, surface to Tom in the publish summary — do NOT publish silently. Reference snippet:
-
-   ```python
-   opp = json.loads(urlopen(Request(f"https://api.notion.com/v1/pages/{OPP_ID}", headers=HDR)).read())
-   urls = {f.get("external",{}).get("url") for f in opp["properties"]["Diligence Materials"]["files"]}
-   assert drive_url in urls, f"Property write did NOT take — URL {drive_url} not in {urls}"
-   ```
-
-After the Diligence Materials property write is verified, proceed directly to the
-completion alert. (No progress ping — that's the single alert below.)
+**Record what this run processed (ledger — code-enforced 2026-10-04).** After the publish lands, run
+`python3 ~/.claude/skills/update-diligence-priors/compute_delta.py record --opp-id <opp id> --doc-id <diligence page id> --note-id <id> ... --material-url <chip url> ...`
+for every note and material this run read. Future `compute_delta.py check` runs diff against this ledger instead of
+re-parsing citations.
 
 ### 6b. Send the alert
 
-Read the `send-alert` skill (`**/send-alert/SKILL.md`) for delivery and format conventions.
-Send the alert as **exactly 3 lines**. No header line, no blank lines between lines, no
-trailing flags. The third line is the feedback prompt that closes the learning loop —
-Tom's thread replies are routed through `claude-alerts-listener` and appended to
-`FEEDBACK_PATTERNS.md` (loaded in Step 1f of future runs).
+**As code (2026-10-04)** — render (and send) with the shared renderer; never hand-compose the body:
 
-**Alert body — exactly 3 lines. Use GFM `[text](url)` link syntax, NEVER Slack mrkdwn `<url|text>` syntax** (the converter passes Slack mrkdwn through as literal text inside the underline+bold wrapper, which is what produced broken alerts in the past):
-
-Template (substitute the three values directly — do not keep angle brackets around the placeholders):
-
-```
-🔍 <u>**First Pass Diligence: [COMPANY_NAME](OPP_URL) ([PDF](PDF_URL))**</u>
-ONE_LINER_SUMMARY · T+TOTAL_MIN min
-💬 Reply in thread with any takeaways for next time.
+```bash
+python3 ~/.claude/skills/shared-references/diligence_alert.py --kind first-pass \
+    --company "<Company>" --opp-url "<Opportunity URL>" --pdf-url "<Drive URL from 6a>" \
+    --summary "<1–2 sentence verdict>" --start-ts "$WORKSPACE/start_ts.txt" \
+    [--caveat "<plain-impact caveat>"] --send
+# PDF publish failed → --analysis-url "<Master Diligence Doc URL>" instead of --pdf-url (never skip the alert)
 ```
 
-Concrete example of the rendered body that should be piped into `send.sh`:
+| exit | meaning | do |
+|---|---|---|
+| 0 | rendered + sent | done |
+| 2 | refused (bad URL, multi-line summary, mrkdwn link, audit jargon in caveat, missing start ts) | fix the input and re-run — never hand-write the alert |
+| 3 | `send.sh` failed | retry once with the same args |
 
-```
-🔍 <u>**First Pass Diligence: [Shine](https://www.notion.so/35700beff4aa8147b93ede0f63694110) ([PDF](https://drive.google.com/file/d/1mjbovMWmrjdYWCqc6RNnlbhHfuxFxdHW/view))**</u>
-Moderate founder pair; wedge is real but UserEvidence and Listen Labs are 10-50x better-capitalized. · T+34 min
-💬 Reply in thread with any takeaways for next time.
-```
+Rendered shape (shared with teardown 7b): `🔍 <u>**First Pass Diligence: [Co](opp) ([PDF](pdf))**</u>`, the
+convention's blank line, an optional `⚠ <caveat>` (action-needed leads, per alert-convention.md), `<summary> · T+N min`,
+then the literal `💬 Reply in thread with any takeaways for next time.`
 
-Conventions:
-- **Line 1 — bolded title with two links.** `🔍` (magnifying-glass emoji) outside the wrapper, then `<u>**...**</u>` wrapping the title `First Pass Diligence: COMPANY (PDF)`. The company name is hyperlinked to the Notion Opportunity URL (NOT the analysis page URL). The literal text `PDF` (in parens) is hyperlinked to the Drive PDF URL returned from step 6a.
-- **Line 2 — one-liner summary + total runtime.** Plain text, no bold, no bullets, no links. 1–2 sentences max — what Tom needs to know before clicking through. Lead with the most important signal (e.g., "Strong founder fit + obvious market, but $3M seed is later than my typical entry — fund-fit pass."). This is the series **close**, so it carries the verdict. Append ` · T+<N> min` as the cumulative elapsed marker (total run time), computed `T+$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 )) min` — same anchor every ping uses; the gap from the audit ping's T+N is how long audit + publish took.
-- **Line 3 — feedback prompt.** Literal text `💬 Reply in thread with any takeaways for next time.` Do not modify or personalize. The static prompt is the trigger `claude-alerts-listener` keys on for routing first-pass feedback to `FEEDBACK_PATTERNS.md`.
-
-If the lint or audit surfaced findings that publish-proceeded with caveats, append a fourth line (after the feedback prompt) starting with the plain state glyph `⚠ ` (never the emoji `⚠️` — alert-convention anti-pattern) and naming the count and category in **plain-impact language, not raw audit jargon** (see the operator-facing wording rule under "Diligence-specific Slack publish-summary surface") — e.g. `⚠ Audit flagged 2 unverifiable claims; see Notion page note for details.` (not "untraced claims").
-
-If for any reason the PDF upload (step 6a) failed and only the Notion analysis exists, replace `([PDF](PDF_URL))` on line 1 with `([analysis](NOTION_ANALYSIS_URL))` so the user always has one click-through. Do NOT skip the alert.
+WHY (inputs are judgment, shape is code):
+- **Summary** — 1–2 sentences, plain text, leads with the strongest signal; this is the series close, so it carries
+  the verdict. **T+N** is cumulative run time from the Step 0 anchor (`$WORKSPACE/start_ts.txt`); the gap from the
+  audit ping's T+N is how long audit + publish took.
+- **Company links to the Opportunity, `PDF` to Drive** — GFM links only; Slack mrkdwn `<url|text>` renders as literal
+  text inside the underline wrapper (the historical broken-alert cause).
+- **The 💬 line is static** — `claude-alerts-listener` keys on the `🔍 … First Pass Diligence:` header and routes
+  thread replies into `FEEDBACK_PATTERNS.md` (loaded in Step 1f of future runs).
+- **Caveat** — only when lint/audit findings shipped with caveats; plain-impact language, not audit jargon (see
+  "Diligence-specific Slack publish-summary surface"), e.g. `Audit flagged 2 unverifiable claims; see Notion page note
+  for details.` The script prefixes the plain `⚠` glyph (never the `⚠️` emoji).
 
 ---
 

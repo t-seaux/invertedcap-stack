@@ -108,6 +108,12 @@ If the note has **no Opportunity relation** AND any of the following apply, clas
 
 ### Step 3: Check the Opportunity relation — Status short-circuit + Close Date comparison
 
+**Run it in code (2026-10-04):** `python3 ~/.claude/skills/note-classifier/classify_note.py classify --note-id <note id>` →
+exit 0 prints `category` (Diligence / Portfolio) + `why`; exit 3 = no Opportunity relation (go to Steps 1/2/4/5).
+Applies to EVERY linked note, feedback notes, diligence docs and pass notes included — the date rule wins (Tom
+2026-10-04, option B; 15 notes re-tagged to match, log in `~/.claude/scripts/state/note_category_retag_2026-10-04.jsonl`).
+`classify_note.py audit` re-checks the whole DB read-only. The rule below is the WHY.
+
 If the note has an **Opportunity relation set**, fetch the linked Opportunity to read its `Status` and `Close Date` fields. Cache the result if processing multiple notes linked to the same Opportunity.
 
 ```
@@ -118,7 +124,7 @@ Fields needed: Status, date:Close Date:start
 
 **Status short-circuit (check this first, before the date comparison):**
 
-If the Opportunity's `Status` is a passed/dead status — `Pass (Met)`, `Pass (DNM)`, `Pass`, `No Response`, or any variant indicating the deal did not close — then regardless of the Close Date field, classify the note as **Diligence**. These are notes from the evaluation process on companies that were never invested in. Do not apply the Portfolio date logic to passed opportunities.
+If the Opportunity's `Status` is a passed/dead status — `Pass (Met)`, `Pass (DNM)`, `Lost`, `NR / Missed`, `N/A` (the live options — `shared-references/status_sets.json`) — then regardless of the Close Date field, classify the note as **Diligence**. These are notes from the evaluation process on companies that were never invested in. Do not apply the Portfolio date logic to passed opportunities.
 
 If the Opportunity's `Status` is a portfolio status — `Active Portfolio`, `Committed`, `Portfolio: Follow-On`, or `Exited` — then apply the Close Date comparison:
 

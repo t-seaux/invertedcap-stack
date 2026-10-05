@@ -164,6 +164,26 @@ Sub-Item Email Rollup) mean one contact edit also fires `properties_updated` on 
 each a different page id. Keyed per-page, one edit produced a burst of identical pulls, each
 redeploying the portal and each firing its own alert.
 
+## Mode C — as code (2026-10-04)
+
+The JSON edits below are no longer hand-edits. After the Notion step (create the page first / archive it
+first), run ONE of:
+
+    notion_sync.py add    --email E --name N [--bucket active_lp|other|relationship] [--parent ENTITY] --notion-id ID
+    notion_sync.py temp   --email E --name N --notion-id ID [--expires YYYY-MM-DD | --days N (default 7)] [--notes "..."]
+    notion_sync.py remove --email E --notion-archived
+    (all take [--path allowlist.json] [--dry-run]; they edit ONLY the JSON — no Notion, KV or deploy)
+
+then `notion_sync.py push --deploy` as before. They dedupe by email (case-insensitive → `NO-OP`, exit 0), stamp
+`surfaces` from `SURFACES_BY_BUCKET` (the Worker gates on it), require the Notion page id (push PATCHes
+`/pages/{notion_id}` — this resolves the old "push currently expects a notion_id" gap: page FIRST, then JSON),
+refuse a temp row for anyone with a permanent row (active_lp / other / relationship — change their Category
+instead), refuse temp→permanent while a temp row exists, refuse an unknown `--parent`, refuse removing a parent
+entity with children or the last portal email, and refuse `remove` until `--notion-archived` asserts the Notion
+archive happened. **Exit 0 = done or no-op (report which); 1 = refused → tell Tom the printed reason, change
+nothing, do NOT push/deploy; 2 = bad args.** Harness: `tests/test_allowlist_edits.py` (temp copies only). The
+steps below stay as the WHY / ordering.
+
 ## Mode C (manual) — add a row
 
 When Tom says "add <email>" / "give <person> portal access" / similar:
@@ -221,5 +241,11 @@ Trigger: "remove <email>" / "revoke X" / etc.
 - Explicitly-invoked maintenance task: do NOT ask permission for the edit + `bash deploy.sh` +
   `notion_sync.py push`.
 - Deploy uses `bash deploy.sh` from `~/code/lp-portal/worker`.
+- **Commit (as code, real-time, 2026-10-04):** every write of `allowlist.json` commits + pushes it alone right away —
+  `add` / `temp` / `remove` at write time, `pull` right after it rewrites the JSON, and `push --deploy` / `pull` after
+  the deploy as a catch-all — message naming who was added / removed / updated. Shared helper
+  `~/code/lp-portal/git_log_change.py` (path-scoped, git failure warns, never fails the write). After a bare
+  `bash deploy.sh`, run `notion_sync.py commit`. Never sweep other dirty lp-portal files into it; the Monday
+  weekly-backup is only a backstop that alerts when a flow missed its commit.
 - If Tom gives a name without an email, ask — never guess an LP's email.
 - Related: [[lp_portal_fixes_deploy_default]], [[soi_notion_generator]].

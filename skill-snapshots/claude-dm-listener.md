@@ -68,25 +68,23 @@ Reactions carry the status signal — never post an up-front text "Working on it
 | | meaning | who adds it |
 |---|---|---|
 | ⏳ `hourglass_flowing_sand` | queued | **slack-retro-webhook**, at ingest (sub-second) |
-| 👀 `eyes` | working | this skill, Step 0 |
+| 👀 `eyes` | working | this skill, Step 0 (`claim.sh`) |
+| 🏁 `checkered_flag` | done | this skill, Step 3 (`post_reply.sh … done`) |
 
-There's no completion tombstone here — Step 3's reply *is* the completion signal. (`claude-alerts-listener` additionally adds 🏁, because it needs a machine-readable claim/complete pair for idempotency; this skill doesn't.)
-
-Before doing anything else, add 👀 to Tom's message, then clear the Worker's ⏳ — it has served its purpose the moment 👀 lands:
+Before doing anything else, claim the job. `claim.sh` reads the bot's OWN reactions on the trigger message FIRST, then claims it (adds 👀, clears the Worker's ⏳) — so a re-run can tell itself apart from a fresh run:
 
 ```bash
-/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
-  "<channel_id from args>" \
-  "<reply_ts from args>" \
-  eyes
-
-/Users/tomseo/.claude/skills/claude-dm-listener/react.sh \
-  "<channel_id from args>" \
-  "<reply_ts from args>" \
-  hourglass_flowing_sand remove
+/Users/tomseo/.claude/skills/claude-dm-listener/claim.sh "<channel_id from args>" "<reply_ts from args>"
 ```
 
-If either call fails, log to audit and continue; the result reply at Step 3 is still required. `remove` is a no-op-safe call (a missing ⏳ exits 0).
+| exit | verdict | do |
+|---|---|---|
+| 0 | `fresh` | proceed normally |
+| 10 | `done` — a prior run already posted its final reply (🏁) | exit 0 with an audit note; no work, no reply |
+| 11 | `resume` — a prior run claimed (👀) and died before finishing | side effects may be partially applied: **verify before every non-idempotent step** (e.g. search for an existing draft and reuse it), finish only the remainder, and say so in the reply |
+| 1 | `error` — couldn't read reactions | treat as `resume` |
+
+Only the bot's reactions count — Tom's ✅ means "confirm", never "done". (Code-enforced 2026-10-04: the old "add 👀, later check for 👀" read always saw its own 👀.)
 
 ---
 
@@ -137,8 +135,11 @@ Use the helper:
 /Users/tomseo/.claude/skills/claude-dm-listener/post_reply.sh \
   "<channel_id from args>" \
   "<reply text>" \
-  "<reply_ts from args>"
+  "<reply_ts from args>" \
+  done
 ```
+
+`done` adds 🏁 to Tom's message once the post lands (the completion half of `claim.sh`). Pass it on the FINAL reply only — never on an interim progress update.
 
 The third argument (`reply_ts`) makes the reply thread under Tom's command. Threading keeps each command's response self-contained.
 
@@ -164,5 +165,5 @@ Append to `~/.claude/skills/claude-dm-listener/audit-log/YYYY-MM-DD.log`:
 ## Notes
 
 - **Bot identity for posting back:** the reply posts as the `claude` Slack app via the bot token at `~/.claude/skills/claude-dm-listener/.bot_token` (mode 600). Do NOT use the Slack MCP for replies — that posts as `tom`, defeating the bot identity split (Tom would be talking to himself).
-- **Idempotency:** if the queue file gets reprocessed, check the thread first via `mcp__claude_ai_Slack__slack_read_thread` (channel=channel_id, thread_ts=reply_ts). If the bot has already posted a reply in this thread, exit 0 with audit note — don't duplicate work.
+- **Idempotency:** `claim.sh` (Step 0) decides — `done` → exit quietly, `resume` → verify partial side effects before redoing any (code-enforced 2026-10-04; the old "has the bot replied in-thread" check was blind to a run that died after its side effect but before replying).
 - **Long tasks:** the per-job timeout is 900s (15 min) — `timeout_sec` set by `slack-retro-webhook` when it enqueues, matching the processor's own default (raised from 600s on 2026-08-03). For longer work, post an interim reply early so Tom knows the task is in flight, then continue. If you genuinely need >15min, raise `timeout_sec` in the Worker or break the work into multiple commands.

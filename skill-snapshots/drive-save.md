@@ -42,41 +42,25 @@ If Tom doesn't specify a folder, ask before proceeding.
 
 ### Step 3: Upload
 
-Use the Python snippet from `drive-upload.md`:
+**As code (2026-10-04)** — one command; never paste the endpoint snippet:
 
-```python
-import requests, base64
-
-DRIVE_URL = "https://script.google.com/macros/s/AKfycbzRPkebxLe-VoJq1UDxUOR8bujyG0T8_rskdmF66lcUYD_JeMh8ODZ6cpeayU61_h8z/exec"
-
-with open(local_path, "rb") as f:
-    file_b64 = base64.b64encode(f.read()).decode("utf-8")
-
-resp = requests.post(DRIVE_URL, json={
-    "action": "upload",
-    "fileName": filename,
-    "fileBase64": file_b64,
-    "mimeType": "application/pdf",   # adjust for non-PDF files
-    "folderId": folder_id
-}, allow_redirects=True, timeout=120)
-
-result = resp.json()
-print(result)  # {"success": true, "fileId": "...", "url": "...", "size": ...}
+```bash
+python3 ~/.claude/scripts/drive_upload.py upload "<local_path>" --folder-id <ID or folder URL> \
+    [--company "<Company>"]   # get-or-create that subfolder first (e.g. a new Investor Updates company)
+    [--name "<target filename>"]   # default = the local filename; MIME comes from the extension
+# → {"ok":true,"fileId":"…","url":"https://drive.google.com/file/d/…/view","folderUrl":…}
 ```
 
-**MIME types for common file types:**
-- PDF → `application/pdf`
-- Excel → `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
-- Word → `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
-- PNG → `image/png`
-- CSV → `text/csv`
+Exit handling: **0** → Step 4 with `url` · **1** endpoint refused → report its `error`, retry once ·
+**2** bad invocation (file missing / no folder) → fix the input, nothing was uploaded · **3** transport →
+retry once, then report. Spec + folder names: `shared-references/drive-upload.md`.
 
 ### Step 4: Report
 
 On success, report:
 - Filename uploaded
 - Target folder name (not just the ID)
-- Direct file URL from the response (`result["url"]`)
+- Direct file URL from the output (`url` — always present on exit 0; never report an upload without it)
 
 On failure, report the full error from the response and suggest next steps.
 

@@ -44,9 +44,27 @@ and sent same day).
 
 ## Distribution List + Source Exclusion
 
-Deal shares go to a standing distribution list (pilot roster, 2026-08-20 — Tom will eventually
-manage this as a proper list; until then THIS TABLE is the source of truth, edit it when he
-adds/removes members):
+> **As code (2026-10-04).** The roster is `shared-references/deal_share_roster.json` (single source —
+> members, Bcc + legacy inboxes, pseudo-page ids, known people, domains, company names, the `Shared` N/A
+> page). The Bcc is computed, not assembled by hand:
+> ```bash
+> /opt/homebrew/bin/python3 ~/.claude/skills/shared-references/share_recipients.py --opp-id <page id> \
+>     [--firms "primary,fika"] [--author-email <source-email From>] [--extra one-off@firm.com]
+> ```
+> → `{"bcc": [...], "excluded": [{"member", "reason"}], "unknown_firms": [...]}`. Use `bcc` verbatim (To
+> stays empty); quote `excluded[].reason` in the Mode C confirmation. **Exit handling:** `0` draft with that
+> Bcc · `4` every member excluded → nothing to send: exit SILENTLY in webhook / text modes, tell Tom in
+> Mode C · `3` Tom named a firm that is not on the roster → ask him for the address (never guess or look one
+> up); recurring → add a member to the JSON · `2` Notion read / input error → stop and report; NEVER fall
+> back to the full list. Read-only (GETs).
+> **Adding / changing a member:** edit the JSON, then mirror `DEAL_SHARE_MEMBER_PAGES` in
+> `~/code/gmail-webhook/deal-share-sent.js` and run `node ~/code/gmail-webhook/tests/run.js` — the
+> `deal_share_roster` parity gate fails on any drift. `neg1_sourcing.py` card Source labels read the JSON
+> directly. Harness: `shared-references/tests/test_share_recipients.py`.
+> The table and rules below are the WHY (and the human-readable view of the JSON) — when they disagree,
+> the JSON wins; fix the table.
+
+Deal shares go to a standing distribution list (pilot roster, 2026-08-20):
 
 **UNIVERSAL FIRM-WIDE EXCLUSION — applies automatically to every member, present and future**
 (Tom, 2026-08-20, final form — superseding the same day's named-identities-only experiment; he
@@ -93,12 +111,12 @@ webhook modes, tell Tom in Mode C.
 Before setting Bcc, resolve the Opp's `Source(s)` relation (and the source-email author, and
 anything Tom has flagged) and drop any member whose entity roster matches a source. A deal
 sourced to the Primary pseudo-page (or by Jordan Fox on legacy rows) excludes Primary's deal
-agent, exactly as a deal with TX Zhuo in `Source(s)` excludes `tx@fika.vc`. E.g. NewCo (Connor
-Theilmann): `Source(s) = Rachel Pavey + TX Zhuo` → `tx@fika.vc` excluded, Primary-only Bcc.
+agent, exactly as a deal with TX Zhuo in `Source(s)` excludes the Fika inbox (`investments@fika.vc`). E.g. NewCo (Connor
+Theilmann): `Source(s) = Rachel Pavey + TX Zhuo` → Fika (`investments@fika.vc`) excluded, Primary-only Bcc.
 
 **All recipients go in Bcc — the To field stays empty** (Tom, 2026-08-20). Members shouldn't see
 each other, and Tom can stack more addresses onto one draft and send a single email. When adding
-to an existing attachment draft: re-create-with-full-Bcc, then delete the stale one with
+to an existing attachment draft: re-create-with-full-Bcc via **`gmail-replace-draft.py -- --to "" --bcc … --attach … <create args>`** (As code 2026-10-04 — creates, trashes the older same-subject Bcc-only drafts, re-verifies; see its docstring). Manual fallback: re-create, then delete the stale one with
 `python3 ~/.claude/scripts/gmail-delete-draft.py --superseded --subject "<exact subject>" --message-ids <old hex>`
 (no `--to` — Bcc-only drafts), since `update_draft` drops attachments. Raw `deleteDraft` is blocked by
 the delete guard hook (2026-09-30).
@@ -192,8 +210,9 @@ If the company has multiple round cards, share from the card Tom means — defau
 
 ## Step 2: Resolve recipients
 
-Distribution List minus source exclusions (see that section). This is the only step that can
-block (unregistered firm, no address) — everything else proceeds without asking.
+Run `share_recipients.py` (see the As-code block in Distribution List) — it applies the roster, the
+firm-wide source exclusion, the already-shared exclusion and any `--firms` subset. This is the only step
+that can block (exit 3: unregistered firm, no address) — everything else proceeds without asking.
 
 ---
 
@@ -390,7 +409,7 @@ base64 through the MCP `attachments` param (bytes transit the model's token stre
    Response `{ok, messageId, threadId}` — the messageId is the persistent hex id.
 
 ⚠️ If iterating on a draft that has attachments, MCP `update_draft` does NOT merge them — any
-body tweak must re-create via the endpoint, then delete the stale draft with
+body tweak must re-create. As code (2026-10-04): `python3 ~/.claude/scripts/gmail-replace-draft.py -- <gmail-create-draft.py args incl. --bcc/--attach>` does create → trash older same-subject drafts → verify. Manual fallback: re-create via the endpoint, then delete the stale draft with
 `python3 ~/.claude/scripts/gmail-delete-draft.py --superseded --subject "<exact subject>" --message-ids <hex>`
 (it refuses unless a newer same-subject draft survives; raw `deleteDraft` is blocked by the delete
 guard hook, 2026-09-30). Delete only drafts THIS flow created; Tom's own drafts are his.

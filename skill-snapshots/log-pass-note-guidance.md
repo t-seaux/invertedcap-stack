@@ -170,6 +170,13 @@ certainly a wrong-Opp resolution. Surface the ambiguity rather than writing.
 
 ### Step 3: Fetch the Opp Body and Detect Existing Section
 
+**As code (2026-10-04) — Steps 3–5 for appends:**
+```bash
+python3 ~/.claude/skills/shared-references/pass_note_guidance.py plan --opp-id <opp_id> --bullet "<cleaned point 1>" --bullet "<point 2>"            # dry-run: prints Case A/B/C + the exact REST writes
+python3 ~/.claude/skills/shared-references/pass_note_guidance.py plan --opp-id <opp_id> --bullet "<cleaned point 1>" --bullet "<point 2>" --apply    # writes, then re-reads + verifies
+```
+Same detector as pass-note-drafter Step 3f, so the writer and the reader can never disagree on whether a section exists. Dry-run exit **10** = writes planned → re-run with `--apply` · **0** = every bullet already present → report the Step 4 idempotency line. `--apply` exit **0** = written + verified (report per Step 6) · **5** = verification failed → retry once, then surface the `problems` to Tom · **2** = Notion error. Case A inserts the dated italic ⛔ callout directly after the 📚 callout (no blurb → top); Case B appends inside the dated callout and bumps the date; Case C appends in place, never converts. **Revising or overwriting an existing bullet** (Tom restating / correcting a point) is NOT planned by the script — that judgment call stays manual via `notion-update-page` below. The prose below is the WHY.
+
 Use `notion-fetch` on the Opp page (no `include_transcript` — this is a routing fetch, not
 a transcript-consuming one; per `feedback_notion_fetch_always_include_transcript.md` we
 skip the flag here).

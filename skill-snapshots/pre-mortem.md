@@ -9,6 +9,19 @@ Draft a rigorous, evidence-grounded pre-mortem for an investment opportunity and
 
 ---
 
+## Step 0: Per-job workspace (as code, 2026-10-04)
+
+Every working file lives under a per-Opportunity directory — never fixed `/tmp/<company>_premortem_*` paths
+(concurrent runs stomp on each other; first-pass's 2026-06-24 AgentBay collision is the precedent). The audit
+runner and lint refuse legacy paths with exit 3.
+
+```bash
+export WORKSPACE=$(python3 ~/.claude/skills/shared-references/job_workspace.py init --prefix premortem --page-id <OPP_ID>)
+# exit 2 = not a Notion page id → resolve the Opportunity first
+```
+
+---
+
 ## Step 1: Gather Diligence Materials
 
 Before drafting, you need the full evidence base. Do all of the following:
@@ -98,19 +111,19 @@ whole point of a pre-mortem exercise. The judge prompt at
 
 | Binding (per research-artifact-audit) | Value (pre-mortem) |
 |---|---|
-| `DRAFT` | `/tmp/<company>_premortem_only.md` |
-| `SOURCES` | `/tmp/<company>_premortem_sources.md` |
-| `AUDIT_JSON` | `/tmp/<company>_premortem_audit.json` |
+| `DRAFT` | `$WORKSPACE/draft.md` |
+| `SOURCES` | `$WORKSPACE/sources.md` |
+| `AUDIT_JSON` | `$WORKSPACE/audit.json` |
 | `JUDGE_PROMPT` | `/Users/tomseo/.claude/skills/pre-mortem/pre_mortem_audit.prompt.md` |
 | `AUDIT_RUNNER` | `/Users/tomseo/.claude/skills/first-pass-diligence/first_pass_audit.py` |
 | `MAX_ITER` | `3` |
 | `WEB_RESEARCH_CAP` | `6` |
-| `ITER_SNAPSHOT_PREFIX` | `/tmp/<company>_premortem_draft.iter` |
-| `NORMALIZED_DRAFT` | `/tmp/<company>_premortem_draft.normalized.md` |
+| `ITER_SNAPSHOT_PREFIX` | `$WORKSPACE/draft.iter` |
+| `NORMALIZED_DRAFT` | `$WORKSPACE/draft.normalized.md` |
 
 ### Pre-mortem-specific source bundle structure (Step A in research-artifact-audit)
 
-Write `/tmp/<company>_premortem_sources.md` with this layout. The A.0 verbatim mandate
+Write `$WORKSPACE/sources.md` with this layout. The A.0 verbatim mandate
 from research-artifact-audit applies in full — every section must contain the full
 verbatim body of each cited source, NOT pointer manifests or summaries.
 
@@ -152,8 +165,8 @@ that for the full spec. The pre-mortem binding is:
 
 ```bash
 python3 ~/.claude/skills/shared-references/bundle_completeness_check.py \
-    --draft  /tmp/<company>_premortem_only.md \
-    --bundle /tmp/<company>_premortem_sources.md \
+    --draft  $WORKSPACE/draft.md \
+    --bundle $WORKSPACE/sources.md \
     --notes-section 'LINKED NOTES' \
     --required-sections 'LINKED NOTES,DILIGENCE MATERIALS,ORIGINAL FIRST-PASS MEMO' \
     --self-page-ids <Master Diligence Doc page ID, 32hex no hyphens>
@@ -178,7 +191,7 @@ re-run. The audit verdict on a broken bundle is structurally meaningless.
 
 ### Draft to audit
 
-Build `/tmp/<company>_premortem_only.md` containing JUST the pre-mortem markdown body
+Build `$WORKSPACE/draft.md` containing JUST the pre-mortem markdown body
 (Opening Frame through Closing note). This is identical to what Step 3 will write to the
 Notion page — the audit fires on the publish-ready text.
 
@@ -193,10 +206,10 @@ The final published pre-mortem markdown is `$NORMALIZED_DRAFT` when Step C ran (
 Step 3's Notion write so partials Step C just resolved aren't re-introduced:
 
 ```bash
-if [ -f /tmp/<company>_premortem_draft.normalized.md ]; then
-  FINAL_PREMORTEM_MD=/tmp/<company>_premortem_draft.normalized.md
+if [ -f $WORKSPACE/draft.normalized.md ]; then
+  FINAL_PREMORTEM_MD=$WORKSPACE/draft.normalized.md
 else
-  FINAL_PREMORTEM_MD=/tmp/<company>_premortem_only.md
+  FINAL_PREMORTEM_MD=$WORKSPACE/draft.md
 fi
 echo "publishing from: $FINAL_PREMORTEM_MD"
 ```
@@ -208,7 +221,7 @@ Use `$FINAL_PREMORTEM_MD`'s contents as the `content` field in Step 3's
 
 If the audit ends with residual untraced findings after max iterations OR any partials
 were normalized, surface this in the final summary message to Tom alongside the Notion
-URL: `⚠️ Audit: <N> untraced after <K> iterations, <M> partials normalized`. Include
+URL: `⚠ Audit: <N> untraced after <K> iterations, <M> partials normalized`. Include
 the residual untraced claims with judge notes and any normalized partials as
 before→after diffs per research-artifact-audit Step D.
 
@@ -216,20 +229,43 @@ before→after diffs per research-artifact-audit Step D.
 
 ## Step 3: Save to Notion
 
+**Title:** `[Claude] Pre-Mortem: <OPPORTUNITY NAME>` — the form every real pre-mortem page uses (census
+2026-10-04: `[Claude] Pre-Mortem: Clusia`, `… Tuor`). The older prose form `Claude Pre-Mortem: X` was never what
+shipped; it is retired.
+
+**Dedup guard first (as code, 2026-10-04).** The title carries no date, so a re-run used to create a second
+pre-mortem page silently. Exact-title property filter (lag-free, unlike search) on both forms:
+
+```bash
+TITLE="[Claude] Pre-Mortem: <OPPORTUNITY NAME>"
+python3 ~/.claude/skills/shared-references/notes_dedup.py check --title "$TITLE" &&
+python3 ~/.claude/skills/shared-references/notes_dedup.py check --title "Claude Pre-Mortem: <OPPORTUNITY NAME>"
+# exit 0 clear → create · exit 10 a page with this exact title exists → do NOT create; give Tom its URL (stdout)
+#   and ask: replace its body, or publish alongside as "$TITLE – MM.DD.YYYY" (re-run check on that title)
+# exit 2 Notion error → do NOT create (fail closed)
+```
+
 Create a new page in the Notes database (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`) with the following:
 
 ```
 parent: { data_source_id: "e8afa155-b41a-4aa2-8e9d-3d4365a11dfb" }
 pages: [{
   properties: {
-    "Name": "Claude Pre-Mortem: [OPPORTUNITY NAME]",
+    "Name": "<TITLE>",
     "Opportunity": "[Opportunity page URL]"
   },
   content: "[Full pre-mortem content in Notion-flavored markdown]"
 }]
 ```
 
-After creating the page, confirm the URL to Tom.
+Then confirm the page landed in the Notes DB (an orphan at workspace root is invisible in the Notes view):
+
+```bash
+python3 ~/.claude/skills/shared-references/notes_dedup.py assert-parent --page-id <new page id>
+# exit 1 = wrong parent → move it into the Notes DB before confirming to Tom
+```
+
+After both pass, confirm the URL to Tom.
 
 ---
 
@@ -279,6 +315,11 @@ Read the skill at `/Users/tomseo/.claude/skills/note-classifier/SKILL.md` and fo
 A pre-mortem is a long-form document. When rendering it (or any authored long-form artifact — memo, PRD, LP letter, investor report) to PDF, default to the canonical long-form PDF spec at `~/.claude/skills/shared-references/long-form-pdf-spec.md` using `~/.claude/skills/shared-references/pdf_builder_template.py` as the template.
 
 That means: reportlab (not Chrome headless), Helvetica (not JetBrains Mono), black + white only (no orange/accent colors), underlined H1, italic 9pt #333 subtitle, page numbers bottom-center, no horizontal dividers.
+
+**Content lint before delivering/uploading any pre-mortem PDF (as code, 2026-10-04):**
+`python3 ~/.claude/skills/shared-references/pdf_content_lint.py --pdf "$WORKSPACE/<file>.pdf" --title "<title line>"` —
+exit 1 = tofu / literal `---` / `[N]` / leftover `**` or `#` / repeated body-leading date → fix the builder input and
+rebuild; exit 2 = unreadable → rebuild. Save PDFs under `$WORKSPACE`, not fixed `/tmp` names.
 
 **Why:** `design-language.md` (dark theme, JetBrains Mono) is for PNG exports and on-brand visual artifacts (skill maps, charts, LP letter exhibits). It is NOT the default for long-form authored documents. Tom had to redirect the first Founder Framework PRD render after it used Chrome + design-language styling; the canonical long-form spec is the right default.
 

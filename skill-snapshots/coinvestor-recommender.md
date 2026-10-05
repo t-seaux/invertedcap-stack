@@ -301,6 +301,20 @@ tells you who already converted, the sweep tells you who you're missing. At mini
   pedigree (corpus shows these convert on fintech-infra deals)
 - **generalist-at-stage** (Step 5.5's principle — generalists who write at this stage, no sector fit)
 
+**As code (2026-10-04) — the pool assembly is `coinvestor_pool.py`; the queries and the ranking stay yours.**
+Write the 10–14 queries to a file (one per line; `c: <query>` = csearch `--no-vc` lineage/operator lane), then
+`python3 coinvestor_pool.py --queries q.txt --opp-id <Opp id> --company "<Co>"` → `~/.claude/data/coinvestor_pool/<co>/pool.json`
++ `pool.json.queries.log` (the exact commands — paste the query list into the output from it). It runs every query
+read-only, merges by best distance per person, applies the ~1.12 noise cutoff (meaningful < 1.05 / borderline
+tagged), cuts ONLY wrong-type People-DB `Category` Services/Startup (csearch operator lane + Tom-calibrated names
+exempt; every cut listed with its reason), diffs People DB `Category='Investor'` (live read-only query) vs the KB
+with the "recently added — not yet behavior-tested" flag (Step 5.5), overlays Tom's Category Calibration +
+founder-scoped exclusions + firm-dedup notes (Step 7), and groups by firm with every contact nested (Step 8).
+It never ranks or fit-cuts — firms are ordered by distance only. Exit 0 = pool written (a `⚠ 0 hits` line names
+dead queries — rephrase or say why); **1 = refused: fewer than 10 queries without `--narrow-reason "<why>"`
+(an under-sweep must be visible), or a query failed — fix and re-run, never proceed on a partial pool**; 2 = bad
+input. Harness: `tests/test_coinvestor_pool.py` (real AgentBay sweep captured 2026-10-04 + the real KB).
+
 That's **~10–14 queries, not 3–4.** Merge results deduped by best distance per name before ranking.
 **List the exact queries you ran in the output** so coverage is auditable — an under-sweep must be
 visible, never silent. If you genuinely narrow the sweep, say why.

@@ -206,7 +206,8 @@ For each named person, in order:
    **never write it onto the People page** — report "⚠️ Email mismatch – [Name]'s People page has [X],
    draft uses [Y]; not updating the page." A blank page Email is reported the same way, not filled.
    Personal-email-only from ContactOut → flag it in the report so Tom can confirm.
-4. **Self-relation guard (every recipient, every mode) — the Opp's own Contact/Founder is never a
+4. **Sent-check before drafting (code).** `python3 ~/.claude/skills/shared-references/intro_sent_check.py --target-email <email> --opp-name "<Opp>" --opp-id <opp id>` — exit 20 `made` → skip the draft AND any Qualified write, surface `intro-already-sent`; exit 21 `outreach-in-flight` → skip the draft, surface `outreach-sent-but-untracked`; exit 2 → Gmail unreachable, do NOT draft; exit 0 → clear.
+5. **Self-relation guard (every recipient, every mode) — the Opp's own Contact/Founder is never a
    valid recipient for ITS OWN Opp.** Tom, 2026-09-21: "you can't add TJ's People DB entry to his -1
    TJ opportunity, that doesn't make logical sense" — you don't introduce someone to themselves. Check
    the resolved recipient's People-DB id/email against the Opp's `Contact` property and `🏁 Founder(s)`
@@ -283,6 +284,7 @@ that he should never have to. **Catching a decline is the drafter's job, not Tom
 - **Recipient already in Qualified for this Opp** → just (re)draft; don't duplicate the relation entry.
 - **Multiple recipients** → one draft each, one batched Qualified update, one report.
 - **Recipient not a clean identity match** → ask for LI URL/email; do not guess (hard rule).
+- **Re-draft to the SAME recipient** (copy tweak) → As code (2026-10-04): `python3 ~/.claude/scripts/gmail-replace-draft.py -- <gmail-create-draft.py args>` (create → trash older same-subject drafts → verify; docstring has exit codes).
 - **Wrong/updated email after drafting** → the connector can't EDIT a draft (update_draft flattens the
   signature), so create a fresh draft via `gmail-create-draft.py` — then **delete the superseded draft
   yourself** with `python3 ~/.claude/scripts/gmail-delete-draft.py --superseded --subject "<exact subject>"

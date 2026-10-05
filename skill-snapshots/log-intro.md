@@ -85,7 +85,7 @@ This is needed for the terminal-status guard (Step 2.5), duplicate detection (St
 
 ### Step 2.5: Terminal-Status Guard (MANDATORY)
 
-If the Opp's `Status` ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, SKIP the write and report back to Tom: `⚠️ [Opp Name] is in terminal status [status] — not a live deal. Confirm you still want to log [Person Name] here, and I'll proceed.` Tom can override by re-running with explicit confirmation; otherwise stop without writing.
+If `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set closed` exits 0 (Status is in the `closed` set), SKIP the write and report back to Tom: `⚠️ [Opp Name] is in terminal status [status] — not a live deal. Confirm you still want to log [Person Name] here, and I'll proceed.` Tom can override by re-running with explicit confirmation; otherwise stop without writing.
 
 Rationale: Tom occasionally names a closed Opp by accident (homonym, stale recall, or genuine intent to add to a revived deal). Stopping to confirm is cheaper than silently polluting closed Opps.
 
@@ -140,17 +140,11 @@ fetched in Step 2. If so, do NOT add them to Qualified:
 
 **Opportunity path — append to `👓 Intros (Qualified)`:**
 
-Use `notion-update-page` with `command: "update_properties"`. The relation field expects a
-**JSON array string** of Notion page URLs. Always include existing entries to avoid
-overwriting them:
-
-```
-"👓 Intros (Qualified)": "[\"https://www.notion.so/existing\",\"https://www.notion.so/new\"]"
+```bash
+python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp_id> --person-id <person_id> --target qualified --source log-intro [--override-terminal]
 ```
 
-If the field was previously empty, pass a single-element array:
-```
-"👓 Intros (Qualified)": "[\"https://www.notion.so/<person-page-id>\"]"
+`--override-terminal` ONLY after Tom explicitly confirms logging on a closed Opp (Step 3's ⚠️ prompt). Exit 0 = done (`result`: added / promoted / noop — noop means already at or past that stage; report the `stage`). Exit 5 = refused by a gate, nothing written — `blocked`: `self-row` (Tom's own row), `terminal-status` (closed Opp → Needs Review), `pending-feedback` (backchannel, not an intro). Exit 4 = benign verify lag. Exit 2/3 = error → report. The script also heals cross-field dupes it finds (`healed`) and lists conflicts it won't touch (`needsReview`) — include both in the report.
 ```
 
 **No Opportunity path — no Notion write beyond People DB:**

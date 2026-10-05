@@ -79,7 +79,6 @@ Scan the skills directory to build a complete inventory.
      | `company-sync` | Infrastructure — monthly Python sync of Companies DB → Notion cache + Exa enrich + embed; feeds `company-scan` skill |
      | `company-quarterly-refresh` | Infrastructure — quarterly full re-enrich + re-embed of company cache; feeds `company-scan` skill |
      | `voice-examples-sync` | infrastructure sync agent — no user-facing skill, syncs voice examples corpus |
-     | `agentic-commerce-agent` | infrastructure — scheduled skill, no user-facing skill |
      | `connector-preflight-watch` | infrastructure — preflight watch process with no user-facing skill |
      | `data-health` | infrastructure — health monitoring agent with no user-facing skill |
      | `add-contact-inbound` | infrastructure — webhook handler, no user-facing skill |
@@ -123,6 +122,8 @@ Scan the skills directory to build a complete inventory.
      | `work-mail-event` | `work-mail-event` |
      | `work-mail-event-inbound` | `work-mail-event` |
      | `cofounder-detect-inbound` | `pipeline-agent` |
+     | `lp-letter-sent` | `lp-letter-workshop` |
+     | `dash-lp-update-sent` | `dash-lp-update-email` |
 
    **Ad Hoc** — the skill is invoked manually by Tom (trigger phrase in chat, no cron, no webhook).
 
@@ -147,9 +148,9 @@ Scan the skills directory to build a complete inventory.
 |---|---|
 | Pipeline Management | `pipeline-agent`, `add-to-crm`, `batch-add-to-crm`, `neg1-enricher`, `neg1-sourcing`, `neg1-sourcing-listener`, `founder-outreach`, `add-to-contacts`, `materials-handler`, `draft-feedback`, `log-deal-share`, `add-contact-inbound`, `deal-share-out`, `add-to-crm-detect`, `deal-text-scanner`, `add-missed-to-crm` |
 | Intro Management | `intro-agent` (single box — absorbs former `intro-outreach-agent`, `intro-resolution-agent`, `intro-draft-agent`, `log-intro`, `intro-note-processor` as microsteps of one end-to-end value chain), `network-scan`, `intro-status-summary` |
-| Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan`, `intro-outreach-drafter`, `safe-drafter`, `pro-forma-round`, `add-follow-on-round`, `investor-crm`, `fund-update-drafter`, `dash-lp-update-email` |
+| Portfolio Management | `investor-update`, `coinvestor-recommender`, `soi-portfolio-event`, `soi-refresh-inputs`, `talent-scan`, `intro-outreach-drafter`, `safe-drafter`, `pro-forma-round`, `add-follow-on-round`, `investor-crm`, `fund-update-drafter` |
 | Diligence Management | `diligence-agent`, `feedback-outreach` (absorbs drafter + scanner), `pass-note-drafter`, `first-pass-diligence`, `update-diligence-priors`, `pre-mortem`, `product-build-teardown`, `log-pass-note-guidance`, `add-conversation-to-notion`, `decision-retro`, `draft-investment-memo`, `finalize-diligence`, `diligence-qa`, `founder-taste`, `question-bank`, `memo-workshop`, `deal-doc-drafter`, `brain-dump` |
-| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan`, `investing-style` (composite — absorbs `founder-taste`, whose home function is Diligence Management; see Composite breakdown), `launchagent:com.tomseo.scheduled.investing-style-quarterly`, `agentic-commerce-agent`, `log-document-to-notes`, `log-thread-to-notes` |
+| Research Management | `research-agent`, `log-transcript-to-notion`, `deal-digest`, `log-investor-letter-to-notion`, `add-to-companies`, `company-scan`, `investing-style` (composite — absorbs `founder-taste`, whose home function is Diligence Management; see Composite breakdown), `launchagent:com.tomseo.scheduled.investing-style-quarterly`, `log-document-to-notes`, `log-thread-to-notes` |
 
 #### Hidden Categories (tracked but NOT rendered on the stack page)
 
@@ -157,10 +158,12 @@ These functions are tracked internally for completeness but do NOT appear in ANY
 
 | Function | Skills | Why hidden |
 |---|---|---|
-| Fund Ops | `mmf-to-lp-calc`, `cpa-report`, `fund-audit`, `lp-portal-allowlist`, `lp-letter-workshop`, `office-cleaning-expense` | Running the funds themselves — fund accounting, audit, CPA/tax, fund expenses, LP access, LP letters. Work, but not part of the deal/research workflow. `office-cleaning-expense` logs to the Inverted I outstanding-expenses sheet (fund expense, not household). |
+| Fund Ops | `mmf-to-lp-calc`, `cpa-report`, `fund-audit`, `lp-portal-allowlist`, `lp-letter-workshop`, `office-cleaning-expense`, `dash-lp-update-email`, `dash-lp-letter-drafter`, `dash-lp-quarterly-update`, `dash-distribution`, `inverted-capital-call` | Running the funds themselves — fund accounting, audit, CPA/tax, fund expenses, LP access, LP letters. Work, but not part of the deal/research workflow. `office-cleaning-expense` logs to the Inverted I outstanding-expenses sheet (fund expense, not household). |
 | Personal | `add-to-calendar`, `coop-finances`, `coop-annual-statement`, `family-inbox`, `haircut`, `purchase-agent`, `restaurant-reservation`, `nysif-payroll-report`, `meal-prep-reschedule`, `uhc-superbill-filer`, `preference-miner`, `word-bank` | Tom's life + household (family, kids, home, co-op treasurer role, household employee, personal health/insurance) — never rendered on the work-facing stack page. Formerly named `Family` (renamed 2026-09-28; "family" is an accepted alias). Repo routing rule (Tom, 2026-09-04): household capability skills live in the SHARED repo `~/code/home-agent-skills` (GitHub `t-seaux/home-agent-skills`, co-edited with Elsie), NOT `invertedcap-skills`; Tom-only personal skills (e.g. `uhc-superbill-filer`) may stay in `invertedcap-skills` but are still categorized Personal. |
-| Admin | `note-classifier`, `docsend-to-pdf`, `drive-save`, `weekly-backup`, `design-language`, `writing-style`, `meeting-note-processor`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh`, `share-skills`, `remote-session-cleanup`, `data-health`, `log-company-blurb`, `add-reminder`, `update-profile-photo`, `sms-listener`, `writeback-review-triage`, `blurb-draft-sync`, `evening-digest`, `work-mail-event` | Work-side infrastructure — listeners, alert delivery, scheduling/orchestration, backups, Notion/Drive plumbing, reference corpora (`design-language`, `writing-style`), and meta-skills over the corpus (`skill-map-refresh`, `share-skills`). Invoked by other skills or run in the background; no standalone deal/research workflow. Dual-use transport primitives that serve BOTH work and household (`sms-listener`, `add-reminder`) stay here (Tom, 2026-09-04). (`mademeals-weekly-order` DELETED 2026-08-12 — drop it from any regenerated visual.) `weekly-backup` (formerly `nightly-backup`) is the Monday 3am ET LaunchAgent (`com.invertedcap.weekly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to backup repos + SA-key rotation; lives in `~/.claude/local-agents/weekly-backup/` and has no SKILL.md. `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. `evening-digest` is the 17:50 orchestrator that rolls the evening work agents into one Slack digest. |
+| Admin | `note-classifier`, `docsend-to-pdf`, `drive-save`, `weekly-backup`, `design-language`, `writing-style`, `meeting-note-processor`, `claude-alerts-listener`, `claude-dm-listener`, `decision-retro-listener`, `research-artifact-audit`, `run-all`, `schedule`, `send-alert`, `skill-map-refresh`, `share-skills`, `remote-session-cleanup`, `data-health`, `log-company-blurb`, `add-reminder`, `update-profile-photo`, `sms-listener`, `writeback-review-triage`, `blurb-draft-sync`, `evening-digest`, `work-mail-event`, `text-tend-to` | Work-side infrastructure — listeners, alert delivery, scheduling/orchestration, backups, Notion/Drive plumbing, reference corpora (`design-language`, `writing-style`), and meta-skills over the corpus (`skill-map-refresh`, `share-skills`). Invoked by other skills or run in the background; no standalone deal/research workflow. Dual-use transport primitives that serve BOTH work and household (`sms-listener`, `add-reminder`) stay here (Tom, 2026-09-04). (`mademeals-weekly-order` DELETED 2026-08-12 — drop it from any regenerated visual.) `weekly-backup` (formerly `nightly-backup`) is the Monday 3am ET LaunchAgent (`com.invertedcap.weekly-backup`) that runs Apps Script API pull + Notion export + ai_block fallback + push to backup repos + SA-key rotation; lives in `~/.claude/local-agents/weekly-backup/` and has no SKILL.md. `meeting-note-processor` is a webhook-driven internal processor that classifies Notion AI meeting notes and links them to Opportunities — no user trigger. `evening-digest` is the 17:50 orchestrator that rolls the evening work agents into one Slack digest. |
 
+> **Dash is never visible** (Tom, 2026-10-04: "No dash stuff should be visible in map"). Every Dash fund skill (`dash-*`) is **Fund Ops**, and no Dash skill name or the word "Dash" may appear on the page, the Quick Reference, the changelog or a public snapshot. `compute_pending.py validate-names` flags any of it as a hidden leak.
+>
 > **Hidden-bucket decision rule** (Tom, 2026-09-28) — apply in order, first match wins:
 > 1. **Personal** — does it serve Tom's life or household rather than Inverted/Dash? (family, kids, home, co-op, household employee, personal health/insurance, personal-agent learning). Anything living in `~/code/home-agent-skills` is Personal by definition. Utility-shaped doesn't matter — a household utility is still Personal.
 > 2. **Fund Ops** — does it operate the funds themselves? (accounting, audit, tax/CPA, fund expenses, LP access, LP letters/comms infra).
@@ -245,6 +248,18 @@ Never phrase any pending item as a bare discrepancy ("registered but not in the 
 2. For each item in the fresh set: if already in `_pending.json`, preserve the original date; if new, record today's date.
 3. For each item in existing `_pending.json` that is NOT in the fresh set: DELETE it. Do not carry forward.
 4. Write back the reconciled `_pending.json` (only push if it changed vs. the GitHub copy, per the Idempotency rule below).
+
+**As code (2026-10-04):** steps 1–4 above ARE `compute_pending.py compute --out ~/code/invertedcap-stack/skill-snapshots/_pending.json`
+(read-only `launchctl list`, `~/code/gmail-webhook/Code.js` handlers array, `~/.claude/skills/*/SKILL.md` glob, all
+five OR'd sources parsed from THIS file incl. Composite column 2). It prints the pending sets + `added` / `removed` /
+`changed`; push only when `changed` is true (via `push_stack.sh`, one commit). Exit 0 = computed (pending may be
+non-empty — every item still needs its recommended resolution in the alert, which stays judgment); **2 = a mapping
+table is missing or parsed empty → STOP and alert Tom, never emit a pending list** (an unparsed source is exactly the
+2026-07-30 false "11 skills" alert); 3 = I/O (launchctl / Code.js unreadable). Before pushing any regenerated
+`stack-page.html`, run `compute_pending.py validate-names <html>` — exit 1 lists rendered names with no skill dir and
+no table row, or Hidden-category names on the public page → fix the HTML, do not push. (First live run 2026-10-04
+flagged `agentic-commerce-agent`, on /stack since 2026-08-13 with no skill dir or mapping row — retired 2026-10-03, removed from the page 2026-10-04; the harness now also validates the real local page.) Harness:
+`tests/test_compute_pending.py`.
 
 Carry-forward without re-validation is a bug: an item that has since been added to the Scheduled mapping (lines 44–66) or Excluded LaunchAgents table (lines 70–76) must drop out of the next alert. Do not include any item in the Step 7 "Pending items" alert unless it is in the freshly-computed set for the current run.
 

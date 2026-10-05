@@ -86,17 +86,13 @@ One of: person's name, LinkedIn URL, or Notion page URL.
 
 **2. Run the precondition check** (above). Halt with a clear refusal message if anything is missing.
 
-**3. Handle existing drafts — dedup by SWEEP, not by a single tracked hex.**
-Gmail's `create_draft` does NOT dedupe, and create is **non-idempotent**: a retry or a re-invocation of this skill for the same recipient mints a brand-new draft. So dedup must NOT rely on remembering one "old hex" — a duplicate born from a retry is untracked and would survive. (This is exactly how two `Introducing Inverted Capital` drafts to one recipient appeared on 2026-08-03.) The rule is a **full sweep**: after the canonical draft exists and Notion points to it, delete EVERY other draft to that recipient.
+**3. Handle existing drafts — As code (2026-10-04): `~/.claude/scripts/gmail-replace-draft.py`.**
+Create is **non-idempotent** (two `Introducing Inverted Capital` drafts to one recipient, 2026-08-03), so whenever a draft for this subject + recipient may already exist (any re-draft, any retry), run Step 7 through the wrapper instead of calling `gmail-create-draft.py` directly:
+`python3 ~/.claude/scripts/gmail-replace-draft.py [--opp-id <Notion page id>] -- <the exact Step 7 args>`.
+**Store mode (default): omit `--opp-id`** — this skill makes no Notion writes; write the new `draftUrl` with `candidates.py set-state --gmail-draft-url` as usual. Pass `--opp-id` only on a legacy Notion-row path whose page carries `Gmail Draft URL`.
+It snapshots, creates (`--allow-duplicate`), with `--opp-id` points `Gmail Draft URL` at the new hex and reads it back BEFORE any delete (webhook pass-detection), trashes every older same-subject draft to that recipient via `gmail-delete-draft.py --superseded`, and re-verifies. Exit codes, ordering and guards live in its docstring — don't restate them here. Exit 0 = done (with `--opp-id`, Step 8's `Gmail Draft URL` write is already made; still set Status). Exit 3 = create failed, nothing deleted. Exit 5 = new draft exists but the repoint/cleanup didn't hold — it already posted the ⚠ alert; report it. Harness: `~/.claude/scripts/tests/test_gmail_replace_draft.py`.
 
-**Non-idempotent create — never blind-retry.** If `gmail-create-draft.py` (Step 7) errors or times out, do NOT immediately re-run it. First run a `searchMail` query `in:draft to:{email}` via the gmail-webhook endpoint (`shared-references/gmail-label.md` — works headless, where the Gmail MCP doesn't exist) to check whether the draft actually landed; only create if none exists. A blind retry is the single most common way a second draft is born.
-
-Safe ordering (the Notion-before-delete sequencing still matters for the webhook's pass-detection):
-1. `searchMail` `in:draft to:{email}` — snapshot existing drafts BEFORE creating.
-2. Create the NEW canonical draft (Step 7); capture its persistent hex (Step 8).
-3. **Point Notion's `Gmail Draft URL` at the NEW hex (Step 10) BEFORE any deletion.** The gmail-webhook pass-detection reads Notion when the delete event lands; if Notion still points at an old hex, the discard is misread as a real Tom-pass.
-4. `searchMail` `in:draft to:{email}` AGAIN, then delete **every hex ≠ the canonical hex** with `python3 ~/.claude/scripts/gmail-delete-draft.py --superseded --subject "<exact subject>" --to {email} --message-ids <hex1,hex2,…>` — not just the one you happened to track. The script refuses unless the canonical (newer) draft survives; raw `deleteDraft` / `delete-gmail-draft.sh` are blocked by the delete guard hook (2026-09-30). The webhook sees each `messageDeleted(hex)`, finds Notion pointing at the canonical hex → mismatch → orphan cleanup → no spurious pass.
-5. **Verify, then surface on failure.** Re-`searchMail` `in:draft to:{email}`. `deleteDraft` returns `{deleted, notFound}` — a hex in `notFound` usually means the draft was re-saved under a NEW hex (Tom opened it); re-sweep rather than assume gone. If anything other than the canonical hex remains after the re-sweep, post a `send-alert` note — "{N} duplicate draft(s) to {email} couldn't be auto-removed — delete the extras in Mail." Tom cannot otherwise tell the sweep didn't hold.
+**Never blind-retry a failed create.** On exit 3, check `strayMessageId` in its stdout (and `searchMail` `in:draft to:{email}` via `shared-references/gmail-label.md`) before running again.
 
 **Edit-in-place exception (future):** if the skill ever uses Gmail's `users.drafts.update` API to mutate an existing draft in place, no deletion is needed (and the webhook smartening also handles the same-batch `messagesAdded(DRAFT)` companion event). Today the skill uses `create_draft` only, so this path is not yet active.
 
@@ -147,7 +143,7 @@ Stdout is one JSON line: `{"ok": true, "messageId": "19dd...", "threadId": "..."
 
 Exit code 0 = both writes succeeded. Exit codes 1/2/3 = failure — abort the row, do NOT advance to Step 8, surface the error to Tom.
 
-**On re-drafts** (Tom asked for a tweak — Step 3 deleted the prior Gmail draft): re-run this helper. A new hex is minted, a new snapshot is written. Stale snapshots auto-purge after 30 days via `purgeOldSnapshots` in the Apps Script.
+**On re-drafts** (Tom asked for a tweak): re-run via `gmail-replace-draft.py` (Step 3), which wraps this helper. A new hex is minted, a new snapshot is written. Stale snapshots auto-purge after 30 days via `purgeOldSnapshots` in the Apps Script.
 
 **8. Update Notion**:
 - `Gmail Draft URL` → `draftUrl` from Step 7 stdout

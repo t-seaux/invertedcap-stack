@@ -34,6 +34,22 @@ Format rules:
 - Escape `$` as `\$` (and other spec-required chars) in markdown ops. Preserve pasted rich text verbatim — links `[text](url)`, bold, en dashes. Never reword the blurb.
 - Sections elsewhere on the page (TS House Take, meeting notes, Materials, etc.) are never touched.
 
+**As code (2026-10-04)** — the format rules above are `shared-references/blurb_block.py callout-ops`; build the
+ops with it, then apply them yourself (it never writes):
+
+```bash
+python3 ~/.claude/skills/shared-references/blurb_block.py callout-ops --page-md /tmp/<opp>.md \
+    --blurb-file /tmp/blurb.md --date YYYY-MM-DD [--audience "<Audience>"]
+# /tmp/<opp>.md = `ntn api /v1/pages/<id>/markdown` (ground truth, not the cached notion-fetch)
+# → {"case": "a|c|unchanged", "ops": [{"old_str","new_str"} | {"prepend"}], "demoted": "<old first paragraph>"}
+```
+
+Exit **0**: `case a` → one `update_content` op (new callout, prior version prepended to the History toggle — the
+toggle is created when missing); `case c` → put `prepend` at the very top of the body; `unchanged` → identical text,
+log `blurb-unchanged`, skip Step 6. Exit **3** → legacy flat sections (Case (b)) or the callout is not the first block:
+migrate by hand per the rules above, then re-run. Exit **2** → bad input. It escapes `$`, never emits a `color`
+attribute, keeps audience variants in place. Harness: `shared-references/tests/test_blurb_block.py`.
+
 ## Audience-specific blurbs (per Tom, 2026-08-24)
 
 A company can have variant blurbs tailored to a specific audience (e.g., card networks, prospective customers, downstream investors). Format:

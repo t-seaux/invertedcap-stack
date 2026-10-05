@@ -98,7 +98,7 @@ PRE-FILTERED STATUS VIEWS (use notion-query-database-view — no verification fe
 Key Opportunity Fields:
 - Name (title): Company name
 - Description (text): One-liner
-- Status (status): Qualified | Outreach | Connected | Scheduled | Active Portfolio | Pass (DNM) | Pass (Met) | Pass (Deep) | Dropped | Tracking
+- Status (status): the 18 live options are in `shared-references/status_sets.json` (`all_statuses`); `opp_status.py` rejects anything else
 - Stage (select): Pre-Seed 💡 | Seed 🌾 | Seed+ 🛣️ | Series A 🏎️ | Series B 📈 | Growth 🚀 | Incubation 🐣 | Angel 😇 | Fund 💸 | Recap 🧱
 - HQ (select): Infer from founder LinkedIn location, email body, or company website. Default "??? 🌀" only if no signal available.
 - Fund (select): Inverted 1️⃣ | Dash 1️⃣ | Dash 2️⃣ | PA 🏠 | SPV 💵 | Primary 🎖️
@@ -110,7 +110,7 @@ Key Opportunity Fields:
 - Website (url): company website. Infer from source email (e.g. email body links, founder email domain if it's a company domain — not gmail/outlook/etc.). Use "N/A" if not available.
 - Round Details (text): format per `shared-references/round-details-format.md`. Leave blank if not available.
 
-PROTECTED STATUS GUARD: Before ANY notion-update-page call that writes to Status, check the opportunity's current status. If it is Active Portfolio, Portfolio: Follow-On, Exited, or Committed — DO NOT update the Status field. Skip the update and note "skipped — protected status" in your summary.
+PROTECTED STATUS GUARD (code-enforced): NEVER write Status with notion-update-page. Every Status write goes through `python3 ~/.claude/skills/shared-references/opp_status.py set --opp-id <opp_id> --status "<Status>"` — it refuses a Protected Opp (Committed / Active Portfolio / Portfolio: Follow-On / Exited) with exit 4 → note "skipped — protected status" in your summary; exit 5 = read-back mismatch → report it. Other fields still use notion-update-page.
 
 PLACEHOLDER RENAME RULE: Read `/Users/tomseo/.claude/skills/pipeline-agent/references/placeholder-rename.md` at the start of each task and apply the rule as specified there. Do not embed or paraphrase the rule — always read the file at runtime so any updates to the rule propagate automatically. Log renames in the task summary per the format defined in that file.
 
@@ -149,36 +149,22 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    If the email is from a known founder updating Tom on a company that already exists in the pipeline, it is NOT a new deal — it's a founder update. Skip it. Note "skipped — founder update, not a new deal: [name]" in the summary.
 
 4. **Deduplication (CRITICAL — search broadly before creating anything)**:
-   Use a **two-layer dedup strategy**: (A) deterministic view queries + (B) semantic notion-search. A deal is a duplicate if EITHER layer finds a match. **If ANY existing opportunity is found with the same company or founder name — regardless of its current status — treat it as a duplicate and DO NOT create a new entry.** This applies to ALL statuses: Qualified, Outreach, Connected, Scheduled, Active Portfolio, Portfolio: Follow-On, Exited, Committed, Pass (Met), Pass (DNM), Pass (Deep), Dropped, Tracking, NR/Missed, Lost, and any other status. If an entry exists in any form, the deal is already known — skip creation and note "existing: [name] (status: [status])" in the summary.
-
    **LP / INVESTMENT FIRM EXCLUSION RULE (check first, before any dedup):** If the incoming deal is from or represents a known LP, fund of funds, allocator, institutional investor (e.g., Fourbridge), VC fund, hedge fund, family office, or any other investment firm — NOT a startup seeking investment — skip it entirely. Do NOT create a Notion entry. Signals include: firm name contains "Capital", "Ventures", "Partners", "Fund", "Advisors", "Management", "Holdings", "Group" combined with investment/financial context; sender identifies as GP, LP, managing partner, or portfolio manager; email discusses fund performance, co-investment opportunities, or capital allocation. Note "skipped — investment firm/LP entity, not a startup: [name]" in the summary.
 
-   **Layer A — Deterministic view queries (catches entries that semantic search may miss):**
-   Query ALL THREE of the following pre-filtered views via `notion-query-database-view` and do case-insensitive string matching of the new deal's company name and founder name against every entry's Name and Founder First Name(s) fields:
-   - Agent View (Qualified/Outreach/Connected/Scheduled/Exploration/Active/Committed/Pass Note Pending): `https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673`
-   - Track View: `https://www.notion.so/tomseo/5fa871c765d74251b8f96b63f248ef25?v=f365db74f5f44da89b84f11511aa40bc`
-   - Pass View (Pass (Met) / Pass (DNM) / Pass (Deep) / NR/Missed / Lost / Dropped): query the full Opportunities DB via `notion-search` with `data_source_url: "collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"` using the company name, and check if any result has a status in this terminal set. **A prior pass is a hard block — treat as duplicate regardless of how long ago it was passed.**
-   If a match is found in any layer, treat as duplicate — do not proceed to Layer B.
+   **Dedup — one script call, both layers in code** (2026-10-04; replaces the old view-query + semantic-search
+   layers, which said ANY same-name Opp is a duplicate — the Remi false positive — and called a prior pass a
+   "hard block", contradicting the revive gate). Pass every signal you have:
+   ```bash
+   python3 ~/.claude/skills/shared-references/opp_dedup.py check [--thread-id <gmail threadId>] \
+     --company "<every title candidate>" ... --person "<founder full name>" ... \
+     --email <every harvested email> ... --website <every website/domain> ... \
+     [--founder-id <founder People page id>] ... [--source-id <inbound sender's People page id>] ...
+   ```
 
-   **Layer B — Semantic search (belt-and-suspenders catch for any missed entries):**
-   Check Notion for duplicates via `notion-search` with company/founder name against `data_source_url: "collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"`. This catches entries with emoji prefixes, alternate names, or abbreviations that Layer A string-matching may miss.
-
-   **Broad search strategy** (existing entries may have emoji prefixes, abbreviations, or alternate names that cause exact-match searches to miss):
-   - Search for the exact company name as extracted from the email
-   - Also search for a stripped/normalized version: remove any leading emoji characters (e.g. "🛡️ Panta" → "Panta"), special characters, and extra whitespace
-   - Try partial/substring matches — e.g., if the deal is "Panta Health", also search just "Panta"
-   - If the founder name is known, also search by founder name as a fallback
-   - Run at least 2 `notion-search` queries (company name + a normalized/partial variant) before concluding a deal is net-new
-   - When in doubt, err on the side of NOT creating a duplicate — flag it in the summary for Tom's manual review instead ("flagged for review: [name] — possible duplicate?")
-
-   **PRE-CREATION NAME-MATCH GATE (hard block — runs after both layers):**
-   Before enqueueing ANY deal for Tom's 🆕 card (Step 7), you MUST have executed both Layer A and Layer B with zero matches. If you skipped either layer or encountered an error querying a view, treat the deal as unverified and flag it for manual review — DO NOT enqueue it. This gate is non-negotiable and cannot be short-circuited for context budget reasons. If context is tight, skip creation and flag rather than skip dedup.
-
-   **Name-matching rules for Layer A:**
-   - Strip all leading emoji characters and whitespace from both the candidate name and every existing entry's Name field before comparing
-   - Use case-insensitive substring matching: if "Serfin" appears anywhere in "🏰 Serfin", that's a match
-   - Also match on Contact email: if the sender's email matches any existing entry's Contact field, that's a match
-   - Also match on Founder First Name(s): if the sender's first name matches any existing entry's Founder First Name(s) field, treat as a strong signal and search further before creating
+   Exit 0 → net-new, continue. Exit 1 → existing Opp: report it per `route` (`same-thread` / `protected` /
+   `revive` → the revive gate's 🔁 path / `live` → materials or follow-up), never card it. Exit 3 `possible` →
+   don't card; list `flagged for review: <name> — possible duplicate of <match> (<status>)`. Exit 2 → don't
+   card; flag the deal as unverified. A deal without a dedup verdict of 0 is never enqueued for a 🆕 card.
 
 5. **Status Default Rule (STRICT — no improvisation)**:
    Task 1 never writes Status — the 🆕 card's 👍 creates at `Qualified` (`shared-references/opp-status-sets.md` § "New-deal card 👍 and the reply that advances it"). The sub-agent must NOT assign alternative statuses like Track, Connected, Outreach, or any other value. If the email doesn't look like a real deal that warrants Qualified status, the correct action is to SKIP creation entirely (per the Deal Classification Gate in Step 3), NOT to create with a softer status. Similarly, do NOT hallucinate Round Details, Stage, or other fields — only populate them if the email contains explicit, unambiguous information (e.g., "raising $2M on a $10M cap" → Round Details: "$2m on $10m cap"). If no fundraising terms are mentioned, leave Round Details blank.
@@ -206,7 +192,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
 2. For each, note company/founder/Source names and Contact emails.
 3. Search Gmail (past 3 days) for intro status signals. Acceptance: "happy to intro", "connecting you", "looping in". Decline: "not a fit", "pass", "decline".
 4. **Direct outreach detection (reconciler fallback)**: Also check Tom's Gmail sent mail for direct emails to Qualified deal founders. Run a batch query: `in:sent -is:draft to:(<email1> OR <email2> OR <email3>) newer_than:3d`. The `-is:draft` is mandatory — Gmail's `in:sent` can surface drafts in some thread configurations, and treating a draft as a send misclassifies the row. If Tom has sent a message directly to a founder, this is a direct outreach signal — move to **Outreach** (not Connected). This catches webhook-missed cases; the `outreach-detector` gmail-webhook handler is the primary path for Qualified→Outreach.
-5. Update via `notion-update-page`. **Before updating Status, verify current status is not Active Portfolio, Portfolio: Follow-On, Exited, or Committed — if it is, skip and note "skipped — protected status."** Ambiguous → leave as-is.
+5. Update via `notion-update-page`. **Write Status only via `python3 ~/.claude/skills/shared-references/opp_status.py set --opp-id <opp_id> --status "<Status>"` (exit 4 = protected → skip and note "skipped — protected status.")** Ambiguous → leave as-is.
 6. Return concise summary (under 500 chars): include any Qualified→Outreach moves from direct outreach detection alongside intro acceptance/decline results.
 
 ## Task 3: Outreach Triage
@@ -225,7 +211,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    - `"meet" OR "intro" OR "looping in" OR "want you to meet" OR "pick your brain" OR "chat with" OR "you two should" newer_than:3d`
    - `subject:("<>" OR "/") OR "three-way" OR "double opt" newer_than:3d`
    Read the returned messages (limit 20 per query via `maxResults: 20`). For each message, check if any Outreach deal's founder name, company name, or email appears in the thread. Build a match list: {deal → matching email evidence}. **Match on the deal's OWN founder name/email or company name — a Source-only match is NOT sufficient.** Sources (introducers) also appear in unrelated correspondence — portfolio board/monthly syncs, other deals they sourced — so a thread where only the Source appears, with none of the matched deal's own founder/company signals, is not a connect for that deal. If the only tie to an Outreach deal is the shared Source, drop it (do not guess which Source-linked Opp it "must" be).
-4. For each matched deal, **first verify current status is not Active Portfolio, Portfolio: Follow-On, Exited, or Committed — if it is, skip and note "skipped — protected status."** Next, **portfolio-domain counterparty guard:** identify the thread's non-Tom counterparty (the apparent "founder"/other party). If that party's email domain matches the `Website` or `Contact` of ANY existing Opp in a portfolio/committed status (Active Portfolio, Portfolio: Follow-On, Committed, Exited), the thread is portfolio correspondence surfaced via a shared Source — skip and note `skipped — portfolio-domain counterparty ([domain] → [Opp])`. Do NOT flip the matched Outreach deal. Otherwise, update via `notion-update-page`: Status → Connected. *(2026-08-04 miss: a "Signal7 Monthly Sync" from Tx Zhuo — Source on the IGO and -1 Zak Lambert Outreach Opps — was read as a three-way intro because the counterparty `armen@signal7.ai` belongs to Signal7, an existing Portfolio: Follow-On position.)*
+4. For each matched deal, **write Status only via `python3 ~/.claude/skills/shared-references/opp_status.py set --opp-id <opp_id> --status "<Status>"` (exit 4 = protected → skip and note "skipped — protected status.")** Next, **portfolio-domain counterparty guard:** identify the thread's non-Tom counterparty (the apparent "founder"/other party). If that party's email domain matches the `Website` or `Contact` of ANY existing Opp in a portfolio/committed status (Active Portfolio, Portfolio: Follow-On, Committed, Exited), the thread is portfolio correspondence surfaced via a shared Source — skip and note `skipped — portfolio-domain counterparty ([domain] → [Opp])`. Do NOT flip the matched Outreach deal. Otherwise, update via `notion-update-page`: Status → Connected. *(2026-08-04 miss: a "Signal7 Monthly Sync" from Tx Zhuo — Source on the IGO and -1 Zak Lambert Outreach Opps — was read as a three-way intro because the counterparty `armen@signal7.ai` belongs to Signal7, an existing Portfolio: Follow-On position.)*
 5. Return concise summary (under 500 chars): how many Outreach deals checked, how many moved to Connected (with names), how many unchanged, how many skipped due to cap.
 
 ## Task 4: Connected + Tracked Triage
@@ -247,11 +233,17 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    `newer_than:2d -category:promotions -category:updates -category:social`
    Retrieve up to 50 messages (`maxResults: 50`). For each message, note the messageId, sender name, sender email, subject, and body snippet.
 
-3. **Classify each email** using the Anthropic API (`https://api.anthropic.com/v1/messages`, model: `claude-sonnet-4-20250514`, max_tokens: 300). Send each email's from/subject/body to the following classification prompt:
+3. **Classify each email** using the Anthropic API (`https://api.anthropic.com/v1/messages`, model: `claude-sonnet-5-5`, max_tokens: 300, `thinking: {"type": "between_tools"}` + `output_config: {"effort": "low"}` so a 300-token classification isn't eaten by thinking; check `stop_reason` — `refusal` → treat as not-scheduling and note it). (Was `claude-sonnet-4-20250514`, a stale dated id — replaced 2026-10-04.) Send each email's from/subject/body to the following classification prompt:
 
    > You are a venture capital assistant classifying incoming emails for an early-stage investor. Analyze the email and determine: (1) Does it contain a request or intent to schedule a meeting, call, or coffee? (2) If yes, extract the sender's full name and company name if mentioned. (3) One-sentence reasoning. Respond ONLY in JSON: {"is_scheduling_intent": true/false, "sender_name": "name or null", "company": "company name or null", "reasoning": "one sentence"}
 
    Collect all emails where `is_scheduling_intent: true` into a confirmed signal list. Each entry should carry: sender_name, sender_email, company (may be null), reasoning.
+
+> **As code (2026-10-04) — steps 4, 6's guard and 7's gate.** Write the step-1 work list as `[{"id","name","status","contacts":[…],"founders":[…],"sources":[{"name","email"}],"website"}]`, each confirmed signal as `{"sender_email","sender_name","company","subject","body","to","cc","reply_to"}`, and the candidate calendar event (step 6's GCal hit) as `{"summary","start","attendees":[{"email","displayName","responseStatus"}]}`, then:
+> ```bash
+> python3 ~/.claude/skills/pipeline-agent/sched_match.py --work-list /tmp/sched-work.json --signal /tmp/sched-sig-<n>.json [--event /tmp/sched-ev-<n>.json]
+> ```
+> **exit 0** → promote (step 7). **1** → no tracked founder, skip. **3** → ambiguous (2+ Opps) → summary line, no change. **4** → source-only invite → the step-6 "attendees are source-only" note, no change. **5** → no relevant attendee, no change. **6** → matched but no event passed → step 8 "monitor". **2** → bad input. The scheduler-bot list is `shared-references/people_denylist.json` (via `people_resolve.denylisted`) plus `sched_match.SCHEDULER_EXTRA` (scheduling domains the shared list still lacks — migrate them there, never re-list them here). Steps 4–7 below are the WHY.
 
 4. **Match each confirmed signal to the Notion work list** built in step 1. Match on any of:
    - sender_email matches a Contact email in the work list
@@ -259,13 +251,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    - company (case-insensitive, if non-null) matches a Name (title) in the work list
    If no match is found in Connected or Tracking, skip — this email is not from a tracked founder.
 
-   **Scheduler-bot fallback (IMPORTANT)**: Meeting confirmations frequently arrive from scheduler bots rather than the founder directly. Recognize these sender patterns:
-   - `bot@blockit.com`, `*@blockit.com` (Blockit)
-   - `*@calendly.com` (Calendly)
-   - `notifications@google.com` (Google Calendar invites forwarded)
-   - `*@x.ai`, `amy@x.ai`, `andrew@x.ai` (x.ai scheduler, if still in use)
-   - `*@sidekickai.com`, `*@clara-labs.com`, `*@meetings.hubspot.com`, `*@savvycal.com`, `*@reclaim.ai`
-   - Generic patterns: local-part of `bot@`, `scheduler@`, `assistant@`, `hello@`, `no-reply@` with a scheduling-tool domain
+   **Scheduler-bot fallback (IMPORTANT)**: Meeting confirmations frequently arrive from scheduler bots (Blockit, Calendly, x.ai, Reclaim, SavvyCal, HubSpot meetings, Google Calendar notifications …) rather than the founder directly. The sender list is code — `sched_match.bot_reason()` over `people_denylist.json` + `SCHEDULER_EXTRA`; do not maintain a host list here.
 
    When the sender matches a scheduler-bot pattern, do NOT require sender_email/sender_name to match a founder. Instead:
    - Re-run matching against the email's **subject line** and the **quoted original thread** embedded in the body. The founder's email and name typically appear as "On [date] [Founder] <[email]> wrote:" blocks.
@@ -285,7 +271,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    - If at least one attendee matches a founder/company contact → meeting confirmed
    - If all attendees match only the Source(s) relation or are unrelated → meeting is source-only, skip promotion
 
-7. **Promote to Scheduled** for each match where a calendar event is confirmed AND the founder-on-invite guard passes. First verify the protected status guard — if status is Active Portfolio, Portfolio: Follow-On, Exited, or Committed, skip and note "skipped — protected status." Otherwise call `notion-update-page` to set Status → Scheduled.
+7. **Promote to Scheduled** for each match where a calendar event is confirmed AND the founder-on-invite guard passes. Set Status → Scheduled via `python3 ~/.claude/skills/shared-references/opp_status.py set --opp-id <opp_id> --status "Scheduled"` (exit 4 = protected → skip and note "skipped — protected status.").
 
    **Acceptance is not required for Scheduled.** Invite-sent is the real state transition; counterparty acceptance is noisy (founders forget, accept day-of, etc.). If a calendar event exists with the founder on the invite list but RSVP is still pending, treat as Scheduled. Do NOT demote, flag, or surface "not accepted" as a movement marker. Only move out of Scheduled on actual reschedule/cancel/meeting-occurred signals.
 
@@ -419,15 +405,11 @@ State flow (candidate store — the Notion Status vocabulary below is historical
 
 2d. **Re-surface sweep (watchlist)**: `candidates.py due-resurface` (tracked rows whose date arrived). For each: re-post the step 2b card with the Timing bullet reading `**Timing.** Open – track period elapsed ({original date} → today); {what changed if the row's Company relations show news, else "no visible change"}`, then `set-state --state surfaced --card-ts <new ts>` (clears it from due-resurface). Same channel-id gate as 2b.
 
-2c. **Implicit-pass sweep (ledger + store)**: `candidates.py list --state surfaced`, keep rows WITH `card_ts` set (a judgment was actually requested; archive-migrated uncarded rows are `state=archived` and exempt) whose `updated_at` is more than **14 days** ago. Each is a revealed-preference soft pass — the candidate surfaced and Tom chose not to act. For each, parse the store row's `signals_line` scores + `rec` exactly as in Task 7 step 3c, run the ledger append below, then `candidates.py set-state --li {li_url} --state passed`. (Rewritten in store terms 2026-08-11 — the old text still said "query the same data source … Status ∈ {Enriched, Draft Ready} … Last Enriched", all Notion-era vocabulary against the deleted DB, despite being declared LIVE in bullet 6.)
+2c. **Implicit-pass sweep (ledger + store)**: `python3 ~/.claude/scripts/decision-ledger/candidates.py stale --days 14` — **as code (2026-10-04)**: returns exactly the `state=surfaced` rows WITH `card_ts` set (a judgment was actually requested; archive-migrated uncarded rows are `state=archived` and exempt) whose `updated_at` is more than **14 days** ago, each with `stale_days` (use it as `{N}` below). Do not re-filter `list --state surfaced` by hand. Each is a revealed-preference soft pass — the candidate surfaced and Tom chose not to act. For each, run the ONE command below — it flips the store row AND upserts the ledger row in one transaction (label / scores / rubric verdict / rubric version come from the store). (Rewritten in store terms 2026-08-11 — the old text still said "query the same data source … Status ∈ {Enriched, Draft Ready} … Last Enriched", all Notion-era vocabulary against the deleted DB, despite being declared LIVE in bullet 6.)
    ```bash
-   python3 ~/.claude/scripts/decision-ledger/append_decision.py \
-     --label "{Name}" --decision no-outreach --date {today} \
-     --source "-1 scanner" --verdict-raw "Implicit pass (stale {N}d)" \
-     --scores '{...}' --rubric-verdict {reach-out|pass} \
-     --rubric-version {frontmatter version} --retro-ref "{row URL}"
+   python3 ~/.claude/scripts/decision-ledger/candidates.py set-state --li {li_url} --state passed --verdict-raw "Implicit pass (stale {N}d)"
    ```
-   Idempotent: `append_decision.py` upserts on (name, decision), so daily re-runs refresh the same row. Tom can still act later — a subsequent `draft` reply supersedes the implicit pass (Task 7's ledger step + the dedup-vs-seen rule handle it). Non-fatal on error.
+   Idempotent: the ledger upserts on (name, decision), so re-runs refresh the same row. Tom can still act later — a subsequent `draft` reply supersedes the implicit pass (Task 7's ledger step + the dedup-vs-seen rule handle it). Non-fatal on error.
 
 3. ~~**Draft Requested sweep**~~ — **DEAD (2026-08-11).** There is no `Draft Requested` state in v2: the Request Draft button is retired, and drafting fires inline when Tom replies `draft` on a card (neg1-sourcing-listener → founder-outreach store mode). The old sweep queried the deleted Notion DB for a status that no longer exists anywhere. Do not execute; nothing replaces it.
 
@@ -443,18 +425,28 @@ State flow (candidate store — the Notion Status vocabulary below is historical
 Spawn with `Task` tool.
 
 **v2 HEADLESS (2026-07-16 — CURRENT):** query the candidate store for `state=drafted` rows (`python3 ~/.claude/scripts/decision-ledger/candidates.py list --state drafted`) instead of Draft Ready scanner rows. For each, run the same Gmail sent-mail scan (step 2 below). On a detected send:
-- `set-state --state reached-out`
-- Ledger: append_decision.py `--decision reached-out` with scores/rec from the store row (same flags as step 3c below); pass the row's `draft_why` as `--why` when populated + delete any implicit-pass row (supersede rule below).
+- `python3 ~/.claude/scripts/decision-ledger/candidates.py set-state --li <url> --state reached-out [--why "{row draft_why}"] --date {send date}` — writes the `reached-out` ledger row in the same transaction (scores / rubric fields from the store) and deletes any implicit-pass row for the person (supersede rule). Do NOT also run append_decision.py.
 - **NO CRM bridge here** — in v2 the Opportunity was already created at draft time by neg1-sourcing-listener (`notion_opp_url` on the row). Optionally confirm the Opp exists; if it's somehow missing, fall back to step 3b's add-to-crm table.
 - **Trashed-draft detection (v2) — FAIL-SAFE, never fail-to-pass (2026-08-13, Charlie Schwartz):** absence of Gmail evidence is NOT proof Tom trashed the draft — it is equally consistent with a SEND the scan missed, or a stale/wrong store `email` that every Gmail check silently misses on. (Charlie's store email was a bad enrichment, `tls10ace@aol.com`; the real address `cschwartz1020@gmail.com` lived only on the Opp, so the sent-scan + draft-existence check both matched nothing and the detector wrongly flipped an already-reached-out row with a meeting on the calendar to `passed`.) Before EVER flipping `drafted → passed`, resolve the real recipient set and clear these hard gates in order; if ANY shows contact, do NOT pass.
-  1. **Resolve emails.** Build the recipient set = store `email` ∪ the linked Opp's `Contact` email (`notion-fetch` the row's `notion_opp_url`). Never key Gmail checks on the store email alone — if it differs from the Opp's, backfill the store to the Opp's address (direct sqlite `UPDATE candidates SET email=... WHERE li_url=...` — `set-state` has no email flag).
+  > **As code (2026-10-04) — run ONE command per drafted row; do not execute gates 1–5 by hand:**
+  > ```bash
+  > python3 ~/.claude/scripts/decision-ledger/candidates.py verify-trashed --li <li_url>
+  > ```
+  > It runs gates 1–5 below in order, READ-ONLY (Notion Opp, `admin_run.py` Gmail, Calendar API), and backfills the store email from the Opp Contact itself. Exit handling:
+  > - **exit 0** `verdict: trashed` → the auto-pass below (`set-state --state passed --verdict-raw "Draft trashed"` + card-thread reply).
+  > - **exit 1** `verdict: sent` → `set-state --state reached-out --date <evidence.date>` + the Opp Qualified → Outreach flip. `verdict: live` (`gate` = opp-status / calendar / draft-exists) → leave `drafted`, nothing to do.
+  > - **exit 3** `verdict: unverified` (no Opp, draft URL without an id, fetch error) → leave `drafted`; list `name + gate + evidence` in the run summary. NEVER pass on exit 3.
+  > - **exit 2** row missing / not `drafted` → summary line.
+  >
+  > Manual email backfill (if ever needed): `candidates.py set-state --li <url> --email <addr>` — never a raw sqlite UPDATE. The numbered gates are the WHY.
+  1. **Resolve emails.** Build the recipient set = store `email` ∪ the linked Opp's `Contact` email (`notion-fetch` the row's `notion_opp_url`). Never key Gmail checks on the store email alone — if it differs from the Opp's, backfill the store to the Opp's address (`verify-trashed` does this; manually: `candidates.py set-state --li <url> --email <addr>`).
   2. **Opp-status gate.** If the linked Opp's `Status` is past `Qualified` (Outreach / Scheduled / Met / any terminal) OR it has a `Next Meeting` date → the candidate is demonstrably live. STOP — no pass.
   3. **Unbounded send gate.** `in:sent -is:draft to:({all resolved emails})` with NO subject filter and NO date bound. Any hit = a SEND, not a trash → `set-state --state reached-out` (+ the reached-out ledger/Opp-flip above), NOT a pass.
   4. **Calendar belt.** Any accepted/scheduled calendar event with a resolved email → live → no pass.
   5. **Draft-existence check — DETERMINISTIC, by draft ID (2026-09-16 fix — READ THIS).** The old `searchMail in:draft to:(…)` check was **BROKEN**: `in:draft` (singular) via `GmailApp.search` returns empty even when the draft still exists, so it silently reported live drafts as "gone" and false-passed real candidates (2026-09-16: Nina Carriero + Charles Wong — both top-scored, drafts sitting untouched in Drafts the whole time; Charles's rubric even said "reach-out"). **Never trust a `to:`-scoped `in:draft` search.** Confirm the draft is gone by BOTH of these, and only both:
      - **(a) By draft ID (authoritative).** If the store row's `gmail_draft_url` carries a hex (`…/#drafts/<hex>`), read that exact draft: `python3 ~/code/gmail-webhook/admin_run.py _readMessageBody <hex>`. If it returns a message (no `error` field), the draft **EXISTS → NOT trashed → do NOT pass.** Only an `error` of entity-not-found counts as gone.
      - **(b) Corrected search.** `in:drafts -in:trash to:({all resolved emails})` — plural `drafts`, trash excluded — via the endpoint (`admin_run.py _searchGmail "<query>" 5`) returns nothing. (Proven 2026-09-16: this operator finds draft-only threads that `in:draft` misses.)
-  - **Auto-pass IS correct here — but ONLY on a deterministically-verified deletion (2026-09-16 — Tom: "if I explicitly delete those drafts you can assume I passed").** Tom deleting a neg1 draft IS his pass signal; do not add a confirmation step. When gates 1–4 are empty AND (a) reports entity-not-found AND (b) returns nothing: `set-state --state passed`, ledger `no-outreach` (verdict-raw "Draft trashed", scores/rec from the store), and post a one-line reply in the candidate's card thread (md_to_blocks bot-token mode, `SLACK_THREAD_TS={card_ts}`): `Draft trashed — logged as a pass. Reply with a one-line why to teach the taste engine.` The listener captures any reply as the pass reason. **The whole point of the deterministic (a)+(b) check is that this auto-pass now fires ONLY when the draft is genuinely gone — never on a live draft a fuzzy `in:draft` search missed** (that false-negative was the 2026-09-16 Nina Carriero / Charles Wong bug: their drafts were untouched, so under (a)+(b) they correctly stay `drafted`).
+  - **Auto-pass IS correct here — but ONLY on a deterministically-verified deletion (2026-09-16 — Tom: "if I explicitly delete those drafts you can assume I passed").** Tom deleting a neg1 draft IS his pass signal; do not add a confirmation step. When gates 1–4 are empty AND (a) reports entity-not-found AND (b) returns nothing: `set-state --state passed --verdict-raw "Draft trashed"` (one command — writes the ledger row too), and post a one-line reply in the candidate's card thread (md_to_blocks bot-token mode, `SLACK_THREAD_TS={card_ts}`): `Draft trashed — logged as a pass. Reply with a one-line why to teach the taste engine.` The listener captures any reply as the pass reason. **The whole point of the deterministic (a)+(b) check is that this auto-pass now fires ONLY when the draft is genuinely gone — never on a live draft a fuzzy `in:draft` search missed** (that false-negative was the 2026-09-16 Nina Carriero / Charles Wong bug: their drafts were untouched, so under (a)+(b) they correctly stay `drafted`).
 - **Which of the steps below are dead, precisely** (corrected 2026-08-11): **step 1 is DEAD** — the Notion `-1 Scanner` query 404s (DB deleted 2026-07-16) and there are **zero** in-flight scanner rows; Chris Angove, the last one, was migrated to the store (`state=drafted`). Use the v2 store query above instead. **Steps 2, 3b and 3c are LIVE** — the bullets above reference them by number (sent-mail scan, add-to-crm fallback table, ledger flags). Do not delete them. Prior to this correction the section was labelled "still valid only for pre-2026-07-16 scanner rows in flight", which read as conditionally-live and kept getting executed against an empty set.
 
 **Goal**: Detect when Tom has SENT one of the drafted outreach notes (not just saved the draft).
@@ -488,7 +480,7 @@ Spawn with `Task` tool.
 
    | Field | Value |
    |---|---|
-   | **Name** (title) | `-1 ([{Founder First Name} {Founder Last Name}]({LI URL}))` — **parens around the linked name** (Tom, 2026-07-27); the name is clickable to LinkedIn. Example: `-1 ([Greg Reiner](https://linkedin.com/in/gregreiner))`. Validate: `validate_eval_note.py --opp-title "<Name md>"` |
+   | **Name** (title) | `-1 ([{Founder First Name} {Founder Last Name}]({LI URL}))` — **parens around the linked name** (Tom, 2026-07-27); the name is clickable to LinkedIn. Example: `-1 ([Greg Reiner](https://linkedin.com/in/gregreiner))`. Build it with `python3 ~/.claude/skills/shared-references/opp_fields.py title --kind -1 --founder "First Last|<li url>"` (multiple founders → repeat `--founder`, joined ` & `), then run the whole property dict through `opp_fields.py normalize --json '<props>'` (exit 1 = fix input, don't write) before `notion-create-pages`. Validate: `validate_eval_note.py --opp-title "<Name md>"` |
    | **Stage** | `Pre-Seed 💡` |
    | **Source(s)** | **Provenance-aware — check the store row's `source` field first** (Tom, 2026-08-29, Charles Wong). TWO shapes, no registry: `source` is an **email address** → resolve the **People DB by Email** (Primary = `deal-agent@primary-os.com`, Fika = `investments@fika.vc`; same lookup as any human referrer) → that row; **Named engine-operator alias (Tom, 2026-09-24):** `liam@levelvc.com` → **Level Ventures** (`3e500bef-f4aa-81a6-9d79-f076a83c1174`), NOT Liam's own row. That row deliberately has no email, so apply this override BEFORE the People-DB email lookup. Liam counts as the Source only if he explicitly introduced Tom to the founder. email not found → Claude + flag the gap, never auto-create. Anything else = engine-internal → `["https://www.notion.so/07500beff4aa8213a8f801cfa3cb9a12"]` — the **Claude** source page (Tom, 2026-07-27: every candidate sourced through the engine gets Source = Claude). ⚠️ NOT `0fb9a640…` — that is **Direct**'s page, the exact 2026-08-03 copy-paste bug documented in neg1-sourcing-listener/SKILL.md; it survived here until the 2026-08-11 review |
 
@@ -507,7 +499,7 @@ Spawn with `Task` tool.
 
    **Post-create field verification (2026-08-12):** `notion-fetch` the new page and diff EVERY row of this table against what actually landed — don't just confirm the page exists. Placeholder values (`Description: TBD`, `Website: N/A`, `Icon: 🌱`) are the easiest to silently drop from the `notion-create-pages` call since nothing downstream errors on them being blank (Yu Zhou Lee's Opp shipped with blank Description despite this table already saying TBD).
 
-   **c) Log to the decision ledger**: parse the per-signal ratings from the row's `Signals` compact line `NL:{n} · Reps:{n} · Rigor:{n|U} · Ant:{n} · Int:{n} · Rng:{n} · rec:{✅|🤔|❌}` (0-10 numbers; U = unobservable; legacy rows may carry H/M/L letters; `rec` = the PRE-gate auto-rec) into a JSON dict `{"Non-Linearity": 5, ...}` (use the H/M/L word when no number is present), map `Claude Rec` to `reach-out` / `pass`, then run:
+   **c) Log to the decision ledger** — ⚠ v2 store rows: SKIP this step entirely; `candidates.py set-state --state reached-out` already upserts the ledger row and deletes the implicit-pass row in one transaction (running the commands below too double-writes). Legacy scanner-era rows only: parse the per-signal ratings from the row's `Signals` compact line `NL:{n} · Reps:{n} · Rigor:{n|U} · Ant:{n} · Int:{n} · Rng:{n} · rec:{✅|🤔|❌}` (0-10 numbers; U = unobservable; legacy rows may carry H/M/L letters; `rec` = the PRE-gate auto-rec) into a JSON dict `{"Non-Linearity": 5, ...}` (use the H/M/L word when no number is present), map `Claude Rec` to `reach-out` / `pass`, then run:
    ```bash
    python3 ~/.claude/scripts/decision-ledger/append_decision.py \
      --label "{Name}" --decision reached-out --date {send date YYYY-MM-DD} \

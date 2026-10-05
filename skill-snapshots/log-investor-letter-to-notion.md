@@ -58,28 +58,16 @@ If the URL is behind a paywall, returns a login wall, or is otherwise inaccessib
 **When the user provides a PDF or document file** (path in conversation, not a URL or pasted text), upload it to the **Non-Inverted Letters** Drive folder so the source link in Step 5 points at a real artifact.
 
 - Target folder: `LP Letters / Non-Inverted Letters` — folder ID `1f4GM9uQRtH-hhQeLIPki92es_CvstcHn`
-- Use the `drive-save` upload pattern (`shared-references/drive-upload.md`):
+- **As code (2026-10-04)** — upload with the shared CLI (spec: `shared-references/drive-upload.md`):
 
-```python
-import requests, base64
-
-DRIVE_URL = "https://script.google.com/macros/s/AKfycbzRPkebxLe-VoJq1UDxUOR8bujyG0T8_rskdmF66lcUYD_JeMh8ODZ6cpeayU61_h8z/exec"
-
-filename = f"{firm} - {letter_subtitle}.pdf"  # e.g. "SCGE Quarterly Review - Q4 2025 Letter.pdf"
-
-with open(local_path, "rb") as f:
-    b64 = base64.b64encode(f.read()).decode()
-
-resp = requests.post(DRIVE_URL, json={
-    "action": "upload",
-    "fileName": filename,
-    "fileBase64": b64,
-    "mimeType": "application/pdf",
-    "folderId": "1f4GM9uQRtH-hhQeLIPki92es_CvstcHn",
-}, allow_redirects=True, timeout=120).json()
-
-drive_url = resp["url"]  # use as Source URL in Step 5
+```bash
+python3 ~/.claude/scripts/drive_upload.py upload "<local_path>" --folder non-inverted-letters \
+    --name "<Firm> - <letter subtitle>.pdf"   # e.g. "SCGE Quarterly Review - Q4 2025 Letter.pdf"
+# → {"ok":true,"fileId":"…","url":"https://drive.google.com/file/d/…/view"}  → `url` is the Source URL in Step 5
 ```
+
+Exit **0** → use `url`. Exit **1/3** → retry once; still failing → fall through to Source precedence #2/#3
+below and say so in the reply (never a self-referential Source). Exit **2** → the local path is wrong.
 
 **Source URL precedence for Step 5:**
 1. Uploaded Drive URL (Step 1.5 result) — preferred when a file was provided
@@ -212,6 +200,8 @@ Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/cla
 ---
 
 ## Step 8: Confirm to User
+
+**As code (2026-10-04) — post-write check, before confirming:** `python3 ~/.claude/skills/shared-references/notes_page_check.py check --page-id <new page id> --kind investor-letter` (add `--title-verbatim` when Tom dictated the title). It verifies the parent is the Notes DB (9/18 ICONIQ orphan), the title shape, no self-referential link (and no notion.so / notion.site 📄 Source). Exit **0** → confirm. Exit **1** → fix what `failures` names (move the page into the Notes data source, retitle, unlink, re-render the block), re-run, then confirm. Exit **2** → Notion unreachable: report the page as unverified, never `✓`. Pre-create: `notes_page_check.py title --kind investor-letter "<title>"`.
 
 After successful creation, respond with one line:
 

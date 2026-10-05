@@ -203,16 +203,17 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
    The draft agent independently re-checks sent/draft mail before creating, so a spurious enqueue never produces a duplicate or a draft for an already-sent intro.
 7. **Execute atomic write via the JS endpoint** (replaces direct `notion-update-page` calls in Mode B):
    ```bash
-   ~/.claude/scripts/intro-resolution-write.py \
+   ~/.claude/scripts/intro-lifecycle-write.py \
        --opp-id <oppId> \
        --person-id <personId> \
        --target made|declined \
        --message-id <messageId> \
+       --from "☎️ Outreach|👓 Qualified" \
        --person-name "<Name>" \
        --opp-name "<OppName>"
    ```
    The script POSTs to `gmail-webhook` which:
-   - Atomically writes all 4 relation fields (scrubs Outreach + Qualified, adds to target, leaves the other terminal field untouched).
+   - Atomically writes all 4 relation fields (scrubs Outreach + Qualified AND the opposite terminal field, adds to target — fixed 2026-10-04: an earlier line here said the other terminal is left untouched; `intro-resolution-endpoint.js` scrubs it. That is exactly why the split-state audit NEVER writes a Made+Declined person).
    - Re-fetches the Opp post-write and returns observed state.
    - Returns a JSON response with `ok`, `wrote`, `wasAlreadyInTarget`, `splitStateDetected`, `observed` (the 4 bool flags), and `verifiedClean`.
 
@@ -225,6 +226,8 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
 
    Parse the JSON response and use the observed state to compose the alert.
 
+   **As code (2026-10-04):** `~/.claude/scripts/intro-lifecycle-write.py` takes the same flags (plus `--from "<☎️ Outreach|👓 Qualified>"`, the pre-write stage), has the same exit codes, adds the Tom self-row gate, and prints `alert: {line, level, note}` computed from the exit code + `observed` by `alert_line()`. Prefer it over `intro-resolution-write.py` and use `alert.line` verbatim (`level`: ok → report line, silent → no alert, review → Needs Review, error → ❌ Slack; `note` on exit 4 → reconciliation inbox only). The wording rules below are what `alert_line()` encodes — except that `alert.line` uses the alert convention's plain state glyphs (`⚠` / `✗`, send-alert/references/alert-convention.md), which supersede the emoji forms (`⚠️` / `❌`) quoted below.
+
 8. **Alert wording (MANDATORY — compose from `observed`, not intent)**:
    - **Standard move** (`wrote === true`, `verifiedClean === true`, `wasAlreadyInTarget === false`, `splitStateDetected === false`):
      `moved <source> → <target>` where source is "☎️ Outreach" or "👓 Qualified" (whichever the person was in pre-write).
@@ -234,7 +237,7 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
    - **Genuine split — exit 1** (`verifiedClean === false`, `residual === 'upstream-dupe'`): person is still in an upstream field after the write. Surface in Needs Review with `⚠️ verification failed — person still in <upstream> after write` and the raw `observed` flags. Do NOT use the word "moved".
    - **Benign target-add lag — exit 4** (`verifiedClean === false`, `residual === 'target-add-lag'`): the write LANDED and the person is NOT in any upstream field — only the target-terminal read lagged the retry budget. True state is clean and self-heals next sweep. Do NOT surface to Tom, do NOT claim a failure, and NEVER write "person still in <upstream>" (that is false here). Treat as a successful `moved <source> → <target>`; if this is a scheduled sweep, drop a self-healing note to the reconciliation inbox for a no-alert re-verify. (Byron Edwards / Redwagon, 2026-09-10.)
    - **Endpoint error** (`ok === false`): post Slack with `❌ endpoint error: <error>`. No state claims.
-   - **Wrapper exit 2** (no JSON parseable on stdout — network failure, missing secret, etc.): post Slack with `❌ intro-resolution-write.py invocation failed: <stderr>`. No state claims. Do NOT silently retry the LLM-driven write path — loud failure is the design (Tom can fix and re-run manually).
+   - **Wrapper exit 2** (no JSON parseable on stdout — network failure, missing secret, etc.): post Slack with `❌ intro-lifecycle-write.py invocation failed: <stderr>`. No state claims. Do NOT silently retry the LLM-driven write path — loud failure is the design (Tom can fix and re-run manually).
 9. Skip Step 3+'s scheduled-scan reporting. Emit a single-line run-log summary: `single-message resolution: <person> on <opp> — <verdict> → <action>` where `<action>` reflects observed state.
 10. Idempotency is also enforced at the JS gate (`handleIntroResolutionReply` skips re-enqueue when person is cleanly terminal for all candidate Opps) and at the queue layer (`intro-resolution-reply-{messageId}`).
 
@@ -270,11 +273,26 @@ Result: A roster mapping each person to their contact info, the relevant founder
 
 The atomic endpoint prevents the automated pipeline from creating split-state, but manual edits in the Notion UI bypass it entirely — Tom adding someone to 🚫 Declined by hand without removing them from ☎️ Outreach leaves a dupe that sits until someone eyeballs it (2026-08-28 miss: Bruno Werneck on Fair, in both Outreach and Declined/NR). This audit is the proactive catch: it runs on every scheduled sweep, needs no email signal, and heals via the same wrapper.
 
+**As code (2026-10-04)** — run this; do not classify by hand:
+```bash
+python3 ~/.claude/scripts/intro-lifecycle-write.py --audit --all            # Mode A sweep (every Opp with any lifecycle entry)
+python3 ~/.claude/scripts/intro-lifecycle-write.py --audit --opp-id <id>    # one Opp; add --dry-run to classify without writing
+```
+It reads all four relations (paginated past 25), classifies every person, heals through the ONE write path
+(the endpoint, `--message-id split-audit-YYYY-MM-DD`), and prints `{findings:[{kind, person, oppName, rc, alert:{line, level, note}}], summary}`.
+Copy each finding's `alert.line` into the Step 4 report verbatim. Exit handling: **0** = clean or every split healed
+(incl. exit-4 lag heals — silent) → nothing to surface beyond the one-liners; **6** = needsReview items remain
+(cross-terminal, Tom self-row, a heal blocked on a closed Opp / Pending Feedback, or an exit-1 residual) → put those
+`alert.line`s under Needs Review; **3** = an endpoint error on a heal → ❌ line in the report, continue the sweep;
+**2** = Notion read failed → report `❌ split-state audit skipped: <error>` and continue with Step 2.
+Harness: `~/.claude/scripts/tests/test_intro_lifecycle_write.py`. The rules below are the WHY the code implements.
+
 Step 1's Opp fetches already return all four lifecycle arrays — extract ✉️ Made and 🚫 Declined/NR alongside Outreach and Qualified (no extra fetches). Then for each Opp, for each person:
 
 - **In exactly one terminal field (Made or Declined) AND in Outreach and/or Qualified** → split-state. Invoke the wrapper (Step 3 syntax) with `--target` set to the terminal field they're already in — the terminal state wins; the original resolution already classified, this is cleanup only. Pass `--message-id split-audit-YYYY-MM-DD`. Report as `removed from <upstream> — already in <target> [split-state audit]`. Do NOT re-classify from email — no thread reads for audit heals.
 - **In BOTH terminal fields (Made AND Declined)** → cross-terminal conflict. The audit cannot know which is correct — do NOT write. Surface in Needs Review: `⚠️ [Person] on [Opp] in both Made and Declined — needs manual call`.
-- **In Outreach AND Qualified (no terminal)** → upstream dupe, not resolvable here (no terminal target to move to). Surface in Needs Review for manual scrub.
+- **In Outreach AND Qualified (no terminal)** → upstream dupe. Heal with `--target outreach`: the endpoint's existing self-heal keeps Outreach and scrubs Qualified (contract § Single-Stage Invariant — Outreach is further along). Only a block (closed Opp / Pending Feedback) lands it in Needs Review.
+- **Tom's own row in any lifecycle field** → Needs Review (the endpoint never writes Tom as `--person-id`; any other write on that Opp scrubs the self-row as a side effect).
 
 Audit heals are silent-by-default in the grouped alert EXCEPT as a one-line entry per heal in the Step 4 report — they represent state cleanup, not new resolutions. A run with zero splits adds nothing to the report.
 
@@ -370,7 +388,7 @@ This skill trusts that entries sitting in `☎️ Intros (Outreach)` were placed
 
 **Gate 1 — Terminal-status skip.** Read the Opp's `Status`. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, do NOT add the person to Made or Declined — closed Opps should not accumulate fresh intro lifecycle entries. Log: `[Person Name] — opp [Company] is terminal status [status], skipping resolution write`. Surface in Needs Review so Tom can decide whether to scrub the stale Outreach entry manually.
 
-**Gate 2 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** When detection relied on matching a reply or thread to an Opp by name (rather than by an unambiguous person→Opp link already in the Outreach roster), corroboration is required regardless of name length. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7), `Compass` (7), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4) all require the same check. Acceptable corroboration (one is sufficient): Opp's `Website`/`Contact` domain in the haystack or recipients, founder name in the message, or explicit "@CompanyName"/"[CompanyName Inc.]" framing, or capitalized Name adjacent to fundraising context. Bare word-boundary match with no corroboration → skip with `⚠️ ambiguous match on Opp name "[Name]" — no corroboration, skipping resolution`. Concrete misses: Tom using "connect" as a verb produced false Outreach writes on Connect Opp; "bottleneck" / "anchor" mentions wrote to same-named Opps.
+**Gate 2 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** **As code (2026-10-04):** `python3 ~/.claude/skills/shared-references/opp_corroborate.py check --opp-id <opp_id> --haystack-file <subject+body file> [--recipient <email> ...]` (on exit 3 log `⚠️ ambiguous match on Opp name "[Name]" — no corroboration, skipping resolution`) — exit 0 corroborated → proceed · 1 no-match (name absent, or only in a common phrase like "let's connect") → not about this Opp, skip silently · 3 uncorroborated → skip and log its `alert` line verbatim · 2 read error → skip the write (fail closed). Rules + WHY: contract § Word-Boundary Corroboration. When detection relied on matching a reply or thread to an Opp by name (rather than by an unambiguous person→Opp link already in the Outreach roster), corroboration is required regardless of name length. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7), `Compass` (7), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4) all require the same check. Acceptable corroboration (one is sufficient): Opp's `Website`/`Contact` domain in the haystack or recipients, founder name in the message, or explicit "@CompanyName"/"[CompanyName Inc.]" framing, or capitalized Name adjacent to fundraising context. Bare word-boundary match with no corroboration → skip with `⚠️ ambiguous match on Opp name "[Name]" — no corroboration, skipping resolution`. Concrete misses: Tom using "connect" as a verb produced false Outreach writes on Connect Opp; "bottleneck" / "anchor" mentions wrote to same-named Opps.
 
 **Gate 3 — Reference-check outreach is not an intro.** Before classifying any reply as an opt-in — and especially before enqueuing `intro-draft-agent` — determine whether the outreach thread is a REFERENCE-CHECK request rather than a network intro. Tells (any one is sufficient): the thread frames the person as a reference / diligence source ABOUT a founder ("doing references on [founder]", "diligence on [founder]", "[founder] gave/shared your name", "[founder] listed you as a reference", "get your perspective on [founder]", working through a reference sheet); the founder is the SUBJECT of the conversation, not a party being introduced TO the person. In a reference check, the person's positive reply ("sounds great, does Friday 3–5p work?") is scheduling a reference call, NOT opting into an intro — the founder is deliberately NOT CC'd because no intro is intended, so the "founder not CC'd → awaiting double-opt-in" heuristic MUST NOT fire here. When this gate trips: do NOT classify as opt-in, do NOT enqueue `intro-draft-agent`, do NOT write a terminal state. Surface in Needs Review as `reference-check outreach, not an intro — no draft queued`, and flag that the person should not be sitting in the 👓/☎️ intro relations at all (references don't belong in the intro lifecycle) for Tom to correct. *(2026-08-04 miss: Paula Lauris replied to a reference-check outreach on Avery Alchek (Fair) — classified as opt-in and an intro-draft was enqueued.)*
 
@@ -378,16 +396,17 @@ If any gate fails, surface the skip in the report (Needs Review section) and wri
 
 ### Step 3: Execute Moves
 
-For each resolved contact, delegate the atomic 4-field write to the JS-backed endpoint via `~/.claude/scripts/intro-resolution-write.py`. **Do NOT issue `notion-update-page` calls against the lifecycle relation fields directly from this skill** — the wrapper handles pre-fetch, atomic write, post-write re-fetch, and verified observed state in one call. This applies uniformly to Mode A (scheduled sweep), Mode B (webhook), and Mode C (manual).
+For each resolved contact, delegate the atomic 4-field write to the JS-backed endpoint via `~/.claude/scripts/intro-lifecycle-write.py` (same exit codes as the older `intro-resolution-write.py`, plus the self-row gate and a computed `alert` — use `alert.line` for the Step 4 report). **Do NOT issue `notion-update-page` calls against the lifecycle relation fields directly from this skill** — the wrapper handles pre-fetch, atomic write, post-write re-fetch, and verified observed state in one call. This applies uniformly to Mode A (scheduled sweep), Mode B (webhook), and Mode C (manual).
 
 For each move:
 
 ```bash
-~/.claude/scripts/intro-resolution-write.py \
+~/.claude/scripts/intro-lifecycle-write.py \
     --opp-id <opportunity_page_id> \
     --person-id <person_page_id> \
     --target made|declined \
     --message-id <gmail-msg-id-or-manual-tag> \
+    --from "<pre-write stage label>" \
     --person-name "<Name>" \
     --opp-name "<OppName>"
 ```

@@ -173,53 +173,18 @@ When Tom reviews a digest and gives feedback like "the only ones worth keeping a
 
 1. **Add keepers not yet on Tier 1** — if Tom names a firm worth keeping that isn't already in the Tier 1 curated list, add it to the appropriate section (or create a new one if needed).
 2. **Remove Tier 1 firms Tom rejects** — if a Tier 1 firm appears in his trim list, delete that row from Tier 1.
-3. **Append rejected Tier 2 firms to the deny-list below** — never replace, only append.
+3. **Add rejected Tier 2 firms to the deny-list** with `research_denylist.py add` (below) — never hand-edit, never replace.
 4. **Annotate publishing cadence as it's learned** — when a scan confirms a Tier 1 firm's publishing pattern (e.g. quarterly letter typically lands in the first two weeks after quarter-end; annual letter in Jan–Mar), append a short cadence note to that firm's Tier 1 row. Never guess a cadence — only record it after observing an actual publication or when Tom states it. Cadence notes explain "no new letter from X" results: if a firm is outside its window, that's expected; if it's well inside its window with no hit, try the firm's own site/landing page directly before concluding nothing was published.
 
 Confirm the edits back to him with a one-liner — don't just say "noted."
 
 ### Tier 2 Deny-List (Do Not Surface)
 
-Tom has reviewed and rejected these firms — they are **not interesting** for his research scan and must be filtered out of Tier 2 / discovery output. If a search result matches any name below, exclude it from the digest body and never flag it as a "promotion candidate" — but list the matched names in a one-line `Skipped (deny-list): [firm, firm]` footer at the bottom of the digest. The footer keeps the filter auditable and gives Tom a cheap reconsideration path ("actually, add Crescat back") without polluting the digest itself. Tom curates this list iteratively — when he flags additional firms as not interesting, append them here; if he names a deny-listed firm as worth keeping again, remove it from this list and restore it to Tier 2 eligibility (or Tier 1 if he says so).
+Tom has reviewed and rejected these firms — they are **not interesting** for his research scan and must be filtered out of Tier 2 / discovery output: excluded from the digest body and never flagged as a "promotion candidate", but listed in a one-line `Skipped (deny-list): [firm, firm]` footer at the bottom of the digest. The footer keeps the filter auditable and gives Tom a cheap reconsideration path ("actually, add Crescat back") without polluting the digest itself.
 
-- Ariel Investments (all funds — Ariel Fund, Ariel Focus Fund, Ariel Small Cap Value Fund, etc.)
-- Aristotle Capital Management (all funds — Aristotle Core Equity Fund, etc.)
-- Artisan Partners (all funds — Mid Cap Fund, etc.)
-- Baron Capital (all funds — Baron Asset Fund, etc.)
-- Brasada Capital Management
-- Broyhill Asset Management
-- ByteTree
-- Carillon Tower Advisers (incl. Carillon Eagle Mid Cap Growth Fund)
-- Conestoga Capital Advisors
-- Crescat Capital (Kevin Smith / Tavi Costa)
-- Diamond Hill Capital (all funds/strategies)
-- Fiduciary Management Inc.
-- FPA Funds (all funds — FPA Crescent Fund, etc.)
-- Fundsmith (Terry Smith — Fundsmith Equity Fund, Smithson, semi-annual/annual shareholder letters)
-- Greystone Capital
-- Henchmen Partners
-- Hotchkis & Wiley (all funds)
-- Janus Henderson (all funds — Forty Fund, etc.)
-- JB Global Capital
-- Jensen Investment Management (all funds — Jensen Quality Mid Cap Fund, etc.)
-- Laughing Water Capital
-- Lawrence Lepard / Equity Management Associates
-- Longleaf Partners (Southeastern Asset Management — all funds: Longleaf Partners Fund, Small-Cap Fund, International Fund, etc.)
-- Matrix Asset Management
-- Montaka Global Investments
-- Moon Capital Management
-- Nightview Capital
-- Polen Capital (all strategies — 5Perspectives Small Growth Strategy, etc.)
-- Praetorian Capital
-- Right Tail Capital
-- Rowan Street Capital
-- SouthernSun Asset Management (all funds — SMID Cap Strategy, etc.)
-- Value Guinea (GVI)
-- Wedgewood Partners
-- Weitz Investment Management (all funds — Weitz Large Cap Equity Fund, etc.)
-- White Brook Capital
-
-
+> **As code (2026-10-04).** The list lives in `research_denylist.json` (36 firms, each with its fund-family aliases — Longleaf ↔ Southeastern Asset Management, Fundsmith ↔ Smithson / Terry Smith, Crescat ↔ Tavi Costa, FPA ↔ FPA Crescent, …). Never retype or hand-edit it here.
+> - **Filter:** write the candidate Tier 2 results as `[{"firm", "title", "snippet"}]` and run `python3 ~/.claude/skills/research-agent/research_denylist.py filter --file <results.json>` → use `kept` for the digest, print `footer` (if non-empty) as the digest's last line. Spot check one name: `research_denylist.py match "<text>"` (exit 0 = denied).
+> - **Tom rejects a firm:** `research_denylist.py add "<Firm>" [--alias "<Fund family>"]...` (exit 1 = already listed; new aliases merged). **Tom restores one:** `research_denylist.py remove "<Firm or alias>"`, then restore it to Tier 2 eligibility (or Tier 1 if he says so). `research_denylist.py list` prints the current names.
 
 ### Discovery Search Queries
 
@@ -281,7 +246,7 @@ Then fill in firm-specific searches only for firms that weren't already covered 
 
 After completing Tier 1, run the discovery queries defined above. Deduplicate against Tier 1 results — if a discovery query surfaces a letter from a Tier 1 firm, skip it (already captured). Limit to ~8-10 discovery queries per scan to keep execution time reasonable — prioritize the highest-signal query patterns.
 
-**Apply the Tier 2 Deny-List**: Before including any discovery result in the digest, check the firm name against the Tier 2 Deny-List defined above. If matched, drop the result silently — no entry in the digest, no "promotion candidate" flag. The deny-list is the canonical record of firms Tom has explicitly rejected.
+**Apply the Tier 2 Deny-List**: Before including any discovery result in the digest, run `research_denylist.py filter` (Tier 2 Deny-List above). Matched results get no digest entry and no "promotion candidate" flag — only the `Skipped (deny-list): …` footer line it prints (the footer is required; "drop silently" in older text meant "no body entry"). `research_denylist.json` is the canonical record of firms Tom has explicitly rejected.
 
 ### Step 3: Validate Results
 

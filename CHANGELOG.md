@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-10-05] (Week of 2026-10-05)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- pipeline-agent, add-to-crm, inbound-deal-detect -- duplicate detection now runs as a single deterministic check across thread, contact, website, name and founder signals; status writes are code-guarded against the full status list
+- diligence-agent -- schedule and lookback window documented in one place; now runs three sub-agents then a consolidated alert
+- first-pass-diligence, update-diligence-priors, finalize-diligence, pre-mortem -- preflight and delta checks moved into code (skip when nothing new, skip follow-on rounds); section prepend/replace verified with readback and rollback; per-job workspaces for concurrent runs
+- intro-agent family -- intro lifecycle writes go through one wrapper that merges relations safely and blocks invalid stage moves
+- neg1-sourcing -- prefilter rules consolidated into one shared config used by both the skill and the sourcing script
+- research-agent -- rejected-firm deny-list moved to a managed file with alias-aware filtering
+**Total skills:** 50
+**Functions:** No changes
+
 ## [2026-10-04] (Week of 2026-09-28)
 
 **Added:** None

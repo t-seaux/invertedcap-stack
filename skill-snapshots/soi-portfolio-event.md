@@ -190,6 +190,22 @@ longer hold — apply company-level (drop the per-round flags) and re-mark per-r
 later. Full command forms + the close-loop reply in `references/mode-c-apply.md` — read it now before
 proceeding.
 
+## Portfolio guard — catching what never fired this skill (Tom 2026-10-04)
+
+This skill only fires on a Notion Opp edit. A round, exit or shutdown that lives only in a Company Update or
+Note (no FO row, no status flip) never reaches the portal. `portfolio_guard.py` closes that gap, read-only:
+Company Updates + Portfolio Notes → classify (shared spec `~/.claude/scripts/portfolio_events.py`, same as the
+Dash `exit_scan.py`) → compare with the latest `archive/soi_*.json` + `fund_inputs.priced_round_marks`.
+- **exit** language → needs `Exited` or a distribution · **winddown** → needs `Exited` or FMV $0 (no winddown
+  status exists — a flag means Tom decides the mark-down) · **raise** (closed-round language, or cash up ≥$1m
+  and ≥1.5× between updates) → needs a round / priced mark dated ≤120 days before the update.
+- `--daily`: the 🛡️ section of the 17:50 evening digest (`scheduled-tasks/portfolio-guard/run.sh`, weekdays).
+- `--quarter <YYYY-Qn>`: lp-letter-workshop gate — adds the quarter pin (stale vs portal for in-quarter
+  changes, missing in-quarter companies) and the letter Doc (every in-quarter round / exit named).
+- A flag is fixed by the normal path (edit the Opp → this skill drafts → Tom confirms), never by the guard.
+  False positives → `references/guard_dismissed.json` keyed by update TITLE with a reason (never by company).
+- Tests: `tests/test_portfolio_guard.py` (36 cases incl. live Signal7 cash jump and Oun "logo acquisition").
+
 ## Listener wiring (one-time)
 
 One-time setup of the notion-webhook SOI handler (fires on Inverted-1 Opp changes with a SOI-relevant

@@ -31,6 +31,12 @@ The company must already exist in the Opportunities DB — this skill adds a rou
 
 ## Step 2: Assemble the new card's fields
 
+> **As code (2026-10-04).** Steps 1.2–2 are one READ-ONLY command — run it instead of assembling fields by hand:
+> ```bash
+> python3 ~/.claude/skills/add-follow-on-round/follow_on.py plan --base-opp <any card id in the cluster> --stage "Series B" [--round-details "<per round-details-format.md>"] > /tmp/fo-plan-<company>.json
+> ```
+> **exit 0** → pass `mcp_properties` verbatim to `notion-create-pages` (Step 3) and use `icon.mcp_icon` if set; a `file` icon has `mcp_icon: null` + `copy_steps` (the 4-step `ntn` copy below) — do those after create. Surface any `warnings` (Fund disagreement, missing icon) to Tom. **exit 1** → a card with that FO name already exists in the cluster: stop, tell Tom, link it. **exit 2** → unrecognized stage or Notion unreachable — fix / retry, never hand-assemble. The plan implements the inheritance, fixed defaults, name, and Stage mapping below (Series C and later → `Growth 🚀`, title keeps `Series C`); those bullets are the WHY. Lead/coinvestor linking stays judgment (below).
+
 **Inherited from the base card (do NOT re-enrich):**
 - `Fund` — read off the existing cards and match it (e.g. `Dash 2️⃣`). Never fall back to add-to-crm's `Inverted 1️⃣` default.
 - `Description`, `HQ`, `Website`, `Contact` — copy from the base card.
@@ -63,7 +69,7 @@ The company must already exist in the Opportunities DB — this skill adds a rou
 
 ## Step 3: Create the card
 
-The Opportunities DB has a PreToolUse gate (`~/.claude/hooks/gate-opps-creation.sh`) that blocks direct writes. **Before the `notion-create-pages` call, run `touch /tmp/.addcrm-bypass`** (the marker auto-expires in 5 min; no cleanup needed). If the hook denies with "Direct creation of Notion Opportunities-DB rows is gated", you forgot this step.
+The Opportunities DB has a PreToolUse gate (`~/.claude/hooks/gate-db-creation.sh`) that blocks direct writes. **Before the `notion-create-pages` call, run `touch /tmp/.addcrm-bypass`** (the marker auto-expires in 5 min; no cleanup needed). If the hook denies with "Direct creation of Notion Opportunities-DB rows is gated", you forgot this step.
 
 Create with parent `{"data_source_id": "fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"}` and the fields from Step 2.
 
@@ -76,6 +82,13 @@ Create with parent `{"data_source_id": "fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"}` 
 Swap the header noun by source type: `**Original Text**` (screenshot/SMS), `**Original DM**` (LinkedIn). If Tom only stated terms verbally (no artifact), omit the body.
 
 **URL fidelity:** any URL written into the body must be a literal substring of the source — never reconstruct or guess one.
+
+### Step 3b: Readback (as code)
+
+```bash
+python3 ~/.claude/skills/add-follow-on-round/follow_on.py verify --page-id <new page id> --plan /tmp/fo-plan-<company>.json
+```
+**exit 0** → every planned field + the icon landed. **exit 1** → apply `fix_patch` with `ntn api -X PATCH '/v1/pages/<id>'` (body on stdin) — this is the Active → Track catch — and if `icon_ok` is false run `icon_copy_steps`; then re-run verify once. **exit 2** → Notion unreachable: say the card is unverified. This replaces the manual "read the card back via REST" check in the Status bullet above.
 
 ## Step 4: Confirm
 

@@ -164,26 +164,36 @@ Before running the queries below, harvest signals from these sources and **take 
 
 The dedup queries below run against the **union** of all harvested signals — not just the classifier-extracted `company`/`website`/`contact email`. This is the failure mode the Agentiq dup (2026-05-12/13) exposed: two outer senders (`aadik@povventures.com` and `ben.futor@gmail.com`) bounced the same Reuben Abraham pitch, both with inner `From: reuben@agentiqsports.com` and inner `Subject: Agentiq Seed`. The second arrival's outer envelope alone produced zero dedup hits; the inner `From:` would have hit Step 3 immediately.
 
-### Dedup procedure (run all four — don't short-circuit on a single miss)
+### Dedup procedure — one script call (code-enforced 2026-10-04)
 
-0. **Source Thread ID match — deterministic, run this FIRST.** If the input carries a Gmail `threadId`, query the Opportunities data source with `notion-query-data-sources` for `Source Thread ID = {threadId}` — **SQL, not `notion-search`**. Any hit means this exact referral thread is already logged: treat as `duplicate-in-pipeline-skip` and stop.
+Pass the **union** of every harvested signal above to `opp_dedup.py`. It runs deterministic Notion API filters
+(Source Thread ID equality first, then Contact / Website / Name / 🏁 Founder(s) / Source(s)) — never `notion-search`,
+whose semantic index lags same-run writes and misses exact titles (Clara 2026-07-24, Agentiq re-entry 2026-08-04) —
+and applies `opp-dedup-match.md` § "Which hits count" and § "Domain matches" in code.
 
-   > **Why this gate exists, and why it runs first (added 2026-08-04).** Queries 1–3 all use `notion-search`, whose default mode is `ai_search` — the semantic index, which (a) **lags same-run writes**, so it cannot see a row created seconds ago, and (b) is documented to miss exact title matches (the Clara miss 2026-07-24; see also `add-to-contacts/SKILL.md:309-314`). Both are exactly what a re-entry hits. `add-to-crm` has two live producers — gmail-webhook `deal-scanner` → `inbound-deal-detect`, and the 17:50 `pipeline-deal-scanner` sweep — and on top of that D1 lease reclaim can re-execute a killed job under the same job id. Any of those can re-enter with the same thread while the semantic index is still cold, minting a second Opportunity. `Source Thread ID` is already written on every webhook-created row (see the field spec below) and was never used for dedup; a SQL equality match on it is immune both to index lag and to the name variance ("Acme" vs "Acme AI") a second pass can introduce by reading the deck differently.
+```bash
+python3 ~/.claude/skills/shared-references/opp_dedup.py check [--thread-id <gmail threadId>] \
+  --company "<every title candidate>" ... --person "<founder full name>" ... \
+  --email <every harvested email> ... --website <every website/domain> ... \
+  [--founder-id <founder People page id>] ... [--source-id <inbound sender's People page id>] ...
+```
 
-1. **Title match.** For every title candidate in the harvested set (the classifier's `company` field PLUS every inner `Subject:` stem), call `notion-search` with `data_source_url: "collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"`, `content_search_mode: "workspace_search"`, and the candidate as the query. Check results whose title matches the company name exactly OR with a `(Series X FO)` / `(Seed FO)` / similar follow-on suffix. **If this returns nothing, back it with a SQL `Name LIKE '%{stem}%'` query via `notion-query-data-sources` before concluding the company is absent** — an empty semantic result is not evidence of absence.
-2. **Website-domain match.** For every domain in the harvested set (classifier's `website` PLUS every inner-email domain stem), query with the bare domain — Notion semantic search indexes page properties, so this surfaces rows where only the `Website` or `Contact` field matches.
-3. **Contact-email match.** For every email in the harvested set (classifier's `contact email` PLUS every inner `From:`/`Cc:` email), query with that email — this catches cases where the company was logged under a different spelling/casing OR forwarded by a different outer referrer.
+| exit | verdict / `route` | do |
+|---|---|---|
+| 0 | `new` | no counted match → proceed |
+| 1 | `match`, route `same-thread` | this exact thread is already logged → `duplicate-in-pipeline-skip`, stop |
+| 1 | `match`, route `protected` | portfolio / Committed / Exited → 🛡️ path below; never touch Status |
+| 1 | `match`, route `revive` | terminal → Revive Gate below |
+| 1 | `match`, route `live` | live pipeline → re-surface path below |
+| 3 | `possible` | exact company name, but nothing on the lead can confirm or contradict it → do NOT create; flag `possible duplicate of <name> (<status>)` for Tom |
+| 2 | error | Notion unreachable → do NOT create; flag for review |
 
-Collect the union of matches from all queries across all harvested signals, then fetch each candidate page and read its `Status`.
-
-### Filter name-only collisions
-
-→ `~/.claude/skills/shared-references/opp-dedup-match.md` § "Which hits count" (the ONE rule: company-title-only hits need corroboration; person-title hits count). Applies to every caller of this guard.
+`dropped` lists same-name companies it ruled out (Remi rule) — mention them in the report, don't act on them.
 
 ### Decision table
 
 - **Any candidate has Status ∈ {Active Portfolio, Portfolio: Follow-On, Exited, Committed}** — do NOT create a duplicate. Do NOT modify the existing page's Status. In manual mode, alert the user with the existing page URL and ask how to proceed. In unattended mode, log `protected-status-skip` with the existing page ID, post the `🛡️` Step 8 alert (this skill owns it — callers post nothing), and exit 0.
-- **Any candidate has Status ∈ {Pass (Met), Pass (DNM), Lost, NR / Missed}** — do NOT create a duplicate, and do NOT silently reactivate. Run the **Revive Gate** (`~/.claude/skills/shared-references/revive-gate.md`) — the ONE spec for what lands at detection (materials, the update email as a PDF on `Diligence Materials`, Stage/Round Details/Description from the deck, rebrand rename), the 🔁 text card, the staged `action:"revive"` payload, and `target_status`. Do not restate or improvise those rules here. Log `prior-pass-enriched-revive-proposed` with the existing page ID and exit 0. Webhook runs arrive with `knownTerminalOpp` already resolved by `deal-scanner.js` (with `matchedVia` on a rebrand alias hit) — use it as the primary dedup candidate, but still run the queries above.
+- **Any candidate has Status ∈ {Pass (Met), Pass (DNM), Lost, NR / Missed}** — do NOT create a duplicate, and do NOT silently reactivate. Run the **Revive Gate** (`~/.claude/skills/shared-references/revive-gate.md`) — FIRST its branch (`staged_payload.py revive-plan`: a new raise → a NEW linked Opp on 👍 with the old row left as it was; same round → reopen the old row; § "New raise vs same round"), then the ONE spec for what lands at detection (materials, the update email as a PDF on `Diligence Materials`, Stage/Round Details/Description from the deck on a reopen — staged for the new row on a new raise, rebrand rename), the 🔁 text card, the staged `action:"revive"` payload, and `target_status`. Do not restate or improvise those rules here. Log `prior-pass-enriched-revive-proposed` with the existing page ID and exit 0. Webhook runs arrive with `knownTerminalOpp` already resolved by `deal-scanner.js` (with `matchedVia` on a rebrand alias hit) — use it as the primary dedup candidate, but still run the queries above. A job carrying `introConnected` (a corroborated three-way intro for a passed company, either branch — `revive-gate.md` § "Intro path") passes `introStage` verbatim as `revive-plan --new-stage` (empty when the intro stated none) and stages `intro_sourced: true` + `target_status: "Connected"`.
 - **Any candidate is in an in-progress status (Qualified / Outreach / Connected / Scheduled / Active / Track / Exploration / Assigned / Pass Note Pending)** — this is a re-surface of an existing live deal. Do NOT create a duplicate. In manual mode, surface the existing page and ask whether to update it in place. In unattended mode, **first run the completeness check below**; only if it passes, log `duplicate-in-pipeline-skip` with the existing page ID and exit 0.
 
   > **Completeness check — presence is not completion (added 2026-08-04).** Before skipping, compare the matched row against what this invocation is carrying. If the row is missing `Diligence Materials` chips **and this input has materials to attach**, the row is not a finished deal — it is the wreckage of a run that created the Opp (Step 5) and was then killed during the long tail of Step 6 (Drive uploads, DocSend→PDF conversion, Chrome — minutes of work). In that case **re-enter at Step 6 to attach the materials** rather than exiting; log `resumed-incomplete-opp` with the page ID.
@@ -251,7 +261,7 @@ After extracting data from the source, assess whether the extracted fields are s
 
 ### What counts as a "hyperlinked deck URL"
 
-The trigger discriminates on **content type** (deck/memo/data room), not **transport** (Gmail attachment vs. inline URL). Treat the following identically to a PDF attachment:
+The trigger discriminates on **content type** (deck/memo/data room), not **transport** (Gmail attachment vs. inline URL). Treat the following identically to a PDF attachment. **The host patterns are code: `python3 ~/.claude/skills/shared-references/deck_urls.py scan --text-file <source>` (or `kind <url>`) — the list below is a readable summary of that module; edit the module, not this list.**
 
 - Google Drive file URLs (`drive.google.com/file/d/<id>/view`) and Drive folder URLs (`drive.google.com/drive/folders/<id>`)
 - DocSend (`docsend.com/view/<id>` or data rooms `/view/s/`)
@@ -366,7 +376,7 @@ contract = `~/.claude/skills/deal-text-scanner/references/deal-lane.md` §3 — 
 card each):
 
 1. Card via `~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<card>"` (capture
-   `H=${H#ok }`). Canonical 🆕 shape; closer `👍 / 👎 to Add to CRM. 🗑️ to Archive Email. Respond to make
+   `H=${H#ok }`). Canonical 🆕 shape; closer `👍 or 👎 to Add to CRM. 🗑️ to Archive Email. Respond to make
    changes.`
 2. Stage `~/.claude/skills/deal-text-scanner/staged/<H>.json` — the deal-lane fields
    (`opp_title, stage, round_details, hq, description, source, source_context, contact, website,
@@ -382,6 +392,11 @@ card each):
    branch reads (it stamps `Source Thread ID = dash:<Message-Id>` and archives via `dash_mail.py`).
    Audit/ledger lines say `dash rowid=<rowid>` and go to `~/.claude/skills/inbound-deal-detect/.proposed`
    (pre-2026-10-01 Dash history: `inbound-deal-detect/dash-history/`, read-only).
+   **As code (2026-10-04):** build the payload first, run
+   `python3 ~/.claude/skills/shared-references/staged_payload.py validate <payload.json>` (exit 1 = fix the payload, never
+   send the card), send the text from `staged_payload.py render-card <payload.json>` (step 1's card), then save it as
+   `staged/<H>.json`. Canonical keys: `messageId` / `threadId` (inverted-gmail), `rowid` / `fund` (dash-local) — never
+   `message_id` / `mail_rowid` alone. Spec of the checks: `deal-text-scanner/references/deal-lane.md` §3b.
 3. Audit line `[<ts>] sent_handle=$H notes=proposed add-to-crm <founder> via <source> (inverted thread=<threadId>)`
    → `~/.claude/skills/sms-listener/audit-log/$(date +%F).log`; append
    `YYYY-MM-DD <company> via <source> thread=<threadId>` to
@@ -392,7 +407,13 @@ card each):
 
 Use `notion-create-pages` with parent `{"data_source_id": "fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"}`.
 
-**Before the `notion-create-pages` call, run `touch /tmp/.addcrm-bypass`** to set the hook bypass marker. A PreToolUse hook at `~/.claude/hooks/gate-opps-creation.sh` blocks all direct writes to the Opportunities data source unless this marker is fresh (≤5 min old). The marker auto-expires, so no cleanup is needed. If the hook denies a call with "Direct creation of Notion Opportunities-DB rows is gated", that's the signal you forgot this step.
+> **As code (2026-10-04) — field formats.** Immediately before `notion-create-pages` (and before any `notion-update-page` that writes Name / Stage / Website / Contact / Description), pass the flat property dict through the ONE normalizer and write its `properties` output verbatim:
+> ```bash
+> python3 ~/.claude/skills/shared-references/opp_fields.py normalize --json '<properties JSON>'
+> ```
+> exit 0 → write `properties` as printed (it has already bare-domained Website, `; `-joined + lowercased Contact, added the Description period, joined founders with ` & `, forced `Pre-Seed 💡` on a `-1`). exit 1 → a violation code can't fix (founder not linked to linkedin.com/in/, a domain sitting in Contact, an email in Website) — fix the INPUT and re-run; never write past it. Build person titles with `opp_fields.py title --kind -1|NewCo --founder "First Last|<li url>" [...]`. Live census 2026-10-04: 249 / 1,065 existing rows violate (90 Website, 136 Contact — 115 of them a bare domain in Contact, 33 Description, 6 Name, 3 Stage); the prose rules below are the WHY.
+
+**Before the `notion-create-pages` call, run `touch /tmp/.addcrm-bypass`** to set the hook bypass marker. A PreToolUse hook at `~/.claude/hooks/gate-db-creation.sh` blocks all direct writes to the Opportunities data source unless this marker is fresh (≤5 min old). The marker auto-expires, so no cleanup is needed. If the hook denies a call with "Direct creation of Notion Opportunities-DB rows is gated", that's the signal you forgot this step.
 
 ### Page Icon
 
@@ -402,6 +423,7 @@ Use `notion-create-pages` with parent `{"data_source_id": "fab5ada3-5ea1-44b0-8e
 
 Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Notion inline markdown link syntax `[Name](url)`. This gives quick access to founder profiles directly from the pipeline board.
 
+- **Format enforced by `opp_fields.py`** (see the As-code block above) — `title` builds it, `normalize` rejects an unlinked founder.
 - **Company name known:** Title is the company name. Example: `Tuor`
 - **No company name (very early stage):** two variants, split by where the founder is (Tom 2026-09-01): `NewCo ([First Last](linkedin_url))` when they've SETTLED ON AN IDEA and are raising / about to raise — the company just isn't named yet; `-1 ([First Last](linkedin_url))` when caught BEFORE the leap — still AT their current company (hasn't left yet), or exploring/pre-idea. Still-employed beats idea-status: an idea while still employed is -1; NewCo requires having left AND settled idea + raising. Multiple founders: `-1 ([First Last](url) & [First Last](url))`. **Any `-1` opportunity always defaults to `Pre-Seed 💡` stage, regardless of what external sources (Crunchbase, etc.) say about the company's fundraising history.** The `-1` designation means the deal is pre-company from Tom's pipeline perspective, so the stage should reflect that.
 
@@ -422,7 +444,7 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 - `date:Close Date:start`: Set to the scheduled call date when Status is `Scheduled` (this anchors the pipeline agent's close-date logic). Leave blank otherwise — the pipeline agent will manage close dates for earlier stages.
 - `Website`: Infer from source material (email body links, founder email domain if company domain). `N/A` if unavailable.
 - `Contact`: Set to the founder's email if found (per Step 3 priority order). Who may ever be in Contact: `~/.claude/skills/shared-references/opp-dedup-match.md` § "Writing Contact". **Never leave this field empty/blank** — if no email is found after all lookup attempts, always set to `N/A`.
-- `Description`: One-liner only. Extra context goes in page body. **End with a period** when it's a proper sentence (not `TBD` or blank) — Tom 2026-09-09.
+- `Description`: One-liner only. Extra context goes in page body. **End with a period** when it's a proper sentence (not `TBD` or blank) — Tom 2026-09-09. (`opp_fields.py normalize` adds it.)
 - `Round Details`: per `~/.claude/skills/shared-references/round-details-format.md` (the ONE spec — format, `pre` only when it's the only figure stated, secondaries, fill-only-if-blank). Blank if no concrete $ figure after reading the deck (Step 1B); an upstream `""` hint is also correct.
 - `Followed Up`: Always `__NO__`
 - `Fund`: Default `Inverted 1️⃣` unless user specifies otherwise
@@ -517,9 +539,17 @@ If materials-handler encounters an error or stalls, fall back to adding a **Dili
 
 Before declaring add-to-crm complete (manual reply summary, or unattended exit-0), run a verification pass:
 
+> **As code (2026-10-04).** Steps 1–3 below are ONE read-only command:
+> ```bash
+> # expected set: the caller's materialUrls verbatim → /tmp/addcrm-expected-<pageId>.json (JSON list);
+> # no materialUrls → python3 ~/.claude/skills/shared-references/deck_urls.py scan --text-file <source text> > /tmp/addcrm-expected-<pageId>.json
+> python3 ~/.claude/skills/shared-references/opp_materials_verify.py --opp-id <pageId> --expected-json /tmp/addcrm-expected-<pageId>.json [--baseline-json <chip URLs before this run, for an EXISTING Opp>]
+> ```
+> **exit 0** → `materials-verified: ✅`. **exit 3** → stdout `missing` = step 4's list: re-invoke materials-handler with exactly those URLs, re-run the command ONCE; still exit 3 → `⚠️ Manual upload needed: <missing>`. **exit 2** → Notion unreachable / bad input: say `materials-verified: ⚠️ unverified (<error>)` — never claim ✅. A DocSend/Papermark/Dropbox/raw-PDF/foreign-Drive URL is satisfied by its Drive re-host (one Drive-file chip per URL; the `[G DRIVE]` pin never counts); link-only hosts must be chipped verbatim; Deal Docs chips count too. The steps below are the WHY.
+
 1. **Build the expected-URL set:**
    - If the caller passed an explicit `materialUrls` arg (e.g. from `inbound-deal-detect`), the expected set is that list verbatim — it's authoritative.
-   - Otherwise, re-scan the source material (email body, screenshot text, pasted text, full thread plaintext) for deck/material URL patterns: `drive.google.com/file/`, `drive.google.com/drive/folders/`, `docsend.com/view/`, `dropbox.com/s/`, `dropbox.com/scl/`, `brieflink.com/`, `pitch.com/v/`, `figma.com/(deck|file|proto|slides)/`, `canva.com/design/`, `notion.site/`, raw `*.pdf` URLs.
+   - Otherwise, re-scan the source material (email body, screenshot text, pasted text, full thread plaintext) for deck/material URLs with `deck_urls.py scan` — the ONE pattern list (`shared-references/deck_urls.py`); do not retype hosts here.
 2. **Re-fetch the newly-created Notion page** and read the `Diligence Materials` property (Files property — chips at the top of the page).
 3. **For each URL in the expected set, assert that either:**
    - (a) the URL appears as a chip in the Diligence Materials property field, OR
@@ -621,7 +651,7 @@ Every new entry in the Opportunities DB must ship enriched, not as a stub:
 - **HQ — MANDATORY, deterministic. Run the full cascade on every row before it is considered complete; never ship `??? 🌀` as a first resort.** Order: source material (email sig, forwarded thread) → LinkedIn via WebFetch → company website footer → **`WebSearch` for `"{company}" headquarters` / `"{company}" {founder} San Francisco|New York|…`** (this is what surfaces HQ for stealth/early companies with a bare marketing site — do NOT skip it) → ContactOut `company.headquarter` as the paid fallback. YC company page is case-by-case (only when clearly YC-backed per LI headline). Map the result to the nearest existing `HQ` select option (per the mapping rule in `references/schema.md`). `??? 🌀` is permitted ONLY after every step above has actually been run and genuinely returned nothing — it is never an acceptable resting state for a row that simply wasn't investigated. **This applies identically in webhook/unattended mode** (the `inbound-deal-detect` / `add-to-crm-detect` paths): the thin `classifierHints` (or the raw forwarded text) are a starting point, not a substitute for the cascade — Step 2 enrichment still runs in full, and HQ is resolved deterministically before exit. Do NOT ask whether to enrich HQ; enrichment is automatic, not prompted.
   > **Location-mention trap (Collar 2026-08-26 incident):** a location name appearing in the pitch body is not automatically the company's HQ — it may name a *customer, investor, or market* instead (e.g. "we're piloting with Temasek, Singapore's sovereign wealth fund" names an institutional customer, not where the company is based; similarly "backed by Sequoia" or "used by clients across Southeast Asia" are not HQ signals). That run set HQ to Singapore from exactly this misread, found Singapore wasn't a valid schema option, and shipped `??? 🌀` — while the founder's own LinkedIn (which the cascade never actually reached) said San Francisco. Before accepting any location string as HQ, confirm it's attached to the FOUNDER or the COMPANY ENTITY itself (a signature block, an "HQ:"/"based in" line, LinkedIn's location field, a company-website address) — not to a named customer, investor, or market the pitch is name-dropping for credibility.
 - **Contact** — founder email. Source material first (signatures, forwarded threads, deck last slide), then public LinkedIn, then company website contact page. ContactOut (`profile_only=false` for `email`/`personal_email`) is the fallback.
-- **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none. **Format: bare domain** (`solidcredit.com`) — never `https://` or `www.`. **Contact format:** every founder/co-founder email, `; `-separated (`bernardomenezes@gmail.com; eric@solidcredit.com; rodrigo@solidcredit.com`). Contact holds **co-founders only** — never assistants, EAs, employees, advisors or investors, even on the company domain; founder status needs an explicit statement ("my co-founder X"), a title alone doesn't count. When a later email or calendar invite surfaces co-founder emails or the company domain on an existing Opp, append them / fill Website in this format and alert Tom (Slack) naming what changed and who was skipped. Enforced in gmail-webhook `cofounder-detect.js` (both lanes).
+- **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none. **Format: bare domain** (`solidcredit.com`) — never `https://` or `www.` (`opp_fields.py normalize` enforces this and the Contact format below). **Contact format:** every founder/co-founder email, `; `-separated (`bernardomenezes@gmail.com; eric@solidcredit.com; rodrigo@solidcredit.com`). Contact holds **co-founders only** — never assistants, EAs, employees, advisors or investors, even on the company domain; founder status needs an explicit statement ("my co-founder X"), a title alone doesn't count. When a later email or calendar invite surfaces co-founder emails or the company domain on an existing Opp, append them / fill Website in this format and alert Tom (Slack) naming what changed and who was skipped. Enforced in gmail-webhook `cofounder-detect.js` (both lanes).
 - **Description** — one-line what-they-do: YC one-liner, company site hero/meta, LI headline, or deck. Not `TBD`.
 - **🏁 Founder(s)** — if the founder already exists in People DB (dedupe via `workspace_search` on "{first} {last}"), link the relation. If they DON'T exist, **leave the relation blank** — do not auto-create a People row. Note the gap in the response so Tom can decide whether to add them. The page body Team section is where founder names + LinkedIn URLs live; there is no separate scalar property for first names anymore.
 

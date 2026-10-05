@@ -100,13 +100,17 @@ Queue grows over time (acceptable — small file). No pruning required.
 
 ### Step 2 — Listen + extract + log (6pm ET)
 
+> **As code (2026-10-04).** The deterministic steps of this flow live in `retro_ops.py` (this dir; harness `tests/test_retro_ops.py`): `expire` (step 1), `is-skip` (4a), `has-retro` (6 guard), `append-nuggets` (7), `ledger-decision` (7a map). Exit codes + handling: see the "As code" table in `decision-retro-listener/SKILL.md` — the listener is the canonical runner of this step; this section is the reference shape. Never restate the regex / map / expiry window here.
+>
+> **Expiry contradiction resolved to the listener's rule.** This step used to say "set `no_retro`, continue (no processing)" — i.e. no ledger row — while listener A3 said expiry still writes a bare ledger row. Listener wins (the decision is a fact even without a why; the Jun 4 → Jul 27 ledger gap came from exactly this kind of dropped write). `retro_ops.py expire` now does both, under the queue lock.
+
 For each `items[]` entry where `status == "prompted"`:
 
-1. Check age: if `prompted_at > 7 days ago`, set `status="no_retro"`, continue (no processing).
+1. Expire: run `python3 ~/.claude/skills/decision-retro/retro_ops.py expire` once before iterating. Entries prompted more than 7 days ago flip to `no_retro` (`nugget_count=0`) AND get a bare ledger row (`--why "[no retro] prompt expired unanswered"`); a later reply can enrich it.
 2. Call `mcp__claude_ai_Slack__slack_read_thread` with the stored `thread_ts` on `#decision-retros`.
 3. Filter replies to those from Tom (user ID check). If no replies, continue (leave in queue for next run).
 4. Concatenate Tom's replies in thread order → raw retro text.
-4a. **Skip check**: if the concatenated reply (trimmed, lowercased, punctuation stripped) matches `^(ignore|skip|pass|n/?a|no thanks|nope|nah|nvm|not today)$`, treat as an explicit skip. Set queue item `status="skipped"`, `completed_at=now()`, `nugget_count=0`. Do NOT run extraction, do NOT write to Opp page, do NOT append to `DECISION_RETROS.md`. Send no Slack alert for skips. Continue to next queue item.
+4a. **Skip check**: `python3 ~/.claude/skills/decision-retro/retro_ops.py is-skip --text "<concatenated reply>"` — exit 0 = explicit skip. Set queue item `status="skipped"`, `completed_at=now()`, `nugget_count=0`. Do NOT run extraction, do NOT write to Opp page, do NOT append to `DECISION_RETROS.md`. Send no Slack alert for skips. Continue to next queue item.
 5. **Extract**: Claude call with prompt:
    ```
    Given this raw retro on [Opp Name] ([Decision]) and the context below,
@@ -155,22 +159,22 @@ For each `items[]` entry where `status == "prompted"`:
      use "open". Reserve "n/a" for cases where the founder is genuinely
      a stranger or the retro is non-founder-focused.
    ```
-6. **Log to Opp page** — append a `## Retro (YYYY-MM-DD)` block with the raw reply text verbatim. Below the raw text, append a single-line annotation when applicable: `**Would back again:** <yes|open|no|profile_mismatch> — <one-line rationale>`. **Skip the annotation entirely if `would_back_again == "n/a"`** (first-time cold pass / no founder relationship — the line would be noise).
-7. **Log to `DECISION_RETROS.md`** — append to each relevant thematic section:
+6. **Log to Opp page** — guard first with `retro_ops.py has-retro --date <today> --page-file <fetched page>` (exit 1 = already written, skip). Then append a `## Retro (YYYY-MM-DD)` block with the raw reply text verbatim. Below the raw text, append a single-line annotation when applicable: `**Would back again:** <yes|open|no|profile_mismatch> — <one-line rationale>`. **Skip the annotation entirely if `would_back_again == "n/a"`** (first-time cold pass / no founder relationship — the line would be noise).
+7. **Log to `DECISION_RETROS.md`** — via `retro_ops.py append-nuggets --json <payload>` (per-nugget exact-line dedup, atomic write). Sections it writes:
    - `## Founder signals` — from `founder_signal` nuggets
    - `## Market` — from `market`
-   - `## Company` — from anything not slotted elsewhere, plus `other`
+   - `## Other` — from `other` (the legacy `## Company` section is no longer written)
    - `## Business model` — from `biz_model`
    - `## Positioning / moat` — from `positioning`
    - `## Valuation & terms` — from `valuation`
 
    Entry format:
    ```
-   - **YYYY-MM-DD · [Company] · [Invested/Pass]** — [nugget verbatim or lightly paraphrased]
+   - **YYYY-MM-DD · [Company] · [queue decision string, e.g. Pass (DNM)]** — [nugget verbatim or lightly paraphrased]
      - Source: [Opportunity page URL]
    ```
 7a. **Log to the decision ledger** (`~/.claude/data/decision_ledger.db`) — one structured row per decision so the rubric can be back-tested against Tom's actual calls:
-   - **Decision mapping**: `Committed` → `invested`; `Pass (Met)` / `Pass Note Pending` → `pass-met`; `Pass (DNM)` → `pass-dnm`. For `scope="neg1"`: `Outreach` → `reached-out`; `Passed` → `no-outreach`.
+   - **Decision mapping**: `retro_ops.py ledger-decision --status "<raw status>" --scope <opp|neg1> --json` → `{decision, source}`. Exit 3 = unmapped (e.g. legacy bare `Pass`) → don't guess; log and skip the ledger write.
    - **Signal scores**: for `scope="neg1"` rows, parse from the row's `Signals` compact line `NL:{n} · Reps:{n} · Rigor:{n|U} · Ant:{n} · Int:{n} · Rng:{n} · rec:{✅|🤔|❌}` (0-10 numbers; U = unobservable; legacy rows may carry H/M/L letters; `rec` = the PRE-gate auto-rec) and map `Claude Rec` → `--rubric-verdict reach-out|pass`. For `scope="opp"` rows, do a **quick retro-time 6-signal read** from the Opp page context already fetched in Step 5 (founder background, call notes, first-pass block): H/M/L per signal with the founder-taste/RUBRIC.md §5 anchors, omitting signals with no evidence. This is a coarse read, NOT an enrichment — never call ContactOut or run web research here. Omit `--rubric-verdict` for opp rows (no auto-rec existed at decision time).
    - **Call**:
      ```bash

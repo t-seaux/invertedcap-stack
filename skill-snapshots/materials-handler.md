@@ -123,12 +123,12 @@ The consolidated `#claude-alerts` ping fires deterministically from inside `noti
    - **DocSend link** → Python convert (`requests` + `Pillow`) → save to `/Users/tomseo/Downloads/` → upload to Drive via Drive Upload Apps Script
    - **Direct file URL** (Dropbox, raw PDF) → `web_fetch` / `curl` download → save to `/Users/tomseo/Downloads/` → upload to Drive via Drive Upload Apps Script
    - **Email body (no attachment)** — e.g. investor updates, memos written inline — render the body to PDF via Chrome headless, save to `/Users/tomseo/Downloads/`, upload to Drive via Drive Upload Apps Script. Use this path whenever Tom says things like "add this investor update as a diligence material" or "save this email as a material" and the email itself is the artifact. **Not** when the body is only a wrapper around a link or attachment ("access the update here [DocSend]") — convert the linked artifact and skip the body PDF (Step 2 judgment bar).
-5. **Skip the Decks folder** — the primary target is the Diligence folder (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Only use the Decks folder if explicitly asked.
+5. **Decks go to Diligence** — there is no separate Decks folder any more (the old one was deleted; Drive "not found", 2026-10-04). Decks land in `Diligence/[Company]/` like every other Diligence Materials artifact (`drive_upload.py --folder decks` is an alias for the Diligence root).
 6. **Do not attempt direct googleapis.com API calls** — `googleapis.com` does not resolve in the Apps Script path either way, so use the deployed endpoints documented in `shared-references/`.
 7. **Upload autonomy — Drive Upload Apps Script, never ask** — use the Drive Upload Apps Script (see `/Users/tomseo/.claude/skills/shared-references/drive-upload.md`) for every non-Gmail file: call `createFolder` to get or create the company folder under the routing-appropriate root (Step 3 target folder gate: Deal Docs–routed artifacts → `Deal Docs/[Company]/`, everything else → `Diligence/[Company]/`), then `upload` with the returned `folderId` and the base64-encoded file content. On failure, retry once, then note the failure in the summary. Do not ask Tom to upload files manually.
 8. **Per-company subfolders in Diligence** — all Diligence Materials–routed artifacts for a given opportunity (NOT Deal Docs–routed ones; those follow rule 9) go into a dedicated subfolder: `Diligence/[Company Name]/`. Use the Apps Script's `createFolder` action to get-or-create the subfolder idempotently under the Diligence root (`1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d`). Use the company name exactly as it appears in Notion (the opportunity title). When linking in Notion, link to the specific file URL whenever possible, and the company subfolder URL as a fallback.
 9. **Deal Docs go to the canonical top-level `Deal Docs/` store, one folder per Opp, with subfolders.** Follow `~/.claude/skills/shared-references/deal-docs-layout.md` exactly (Tom, 2026-09-23). The folder is `Deal Docs/<Opp title>/` under `1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN`, named like the Diligence folder. A follow-on such as `Outmarket (Series B FO)` gets its own folder, and the original-investment folder (`Outmarket`) is never touched or merged. The Opp root holds only the latest pro forma, the wire docs, and the main docs. Signature packets go to `Signature Packets/`, redlines to `Redlines/`, W-9s to `W-9s/`, and superseded versions to `Archive/`. None of those get a Notion chip. Nothing Deal Docs-routed ever lands under `Diligence/…`.
-10. **Every saved material's filename carries its SENT date (Tom, 2026-09-14).** Canonical convention: `[Company Name] - [Descriptive Title] MM.DD.YY.pdf` — the date appended at the end of the name, before the extension (e.g. `Paravel Health - Next Steps Email 09.14.26.pdf`, `Paravel Health - Deck 09.08.26.pdf`). The date is when the material was SENT to Tom — the email's internal date for attachments and body PDFs; for converted links (DocSend, Papermark, direct URLs), the date of the email that delivered the link. NOT the processing date — a run that catches up on a week-old email stamps the email's date. Chip display labels match the filename exactly. Applies to every Drive-hosted artifact (3A, 3B, 3C, 3D, 3G) on both Diligence Materials and Deal Docs routing, AND to link-only chip labels (3E/3F/3H — Figma, demos, videos): the chip label ends with the sent date, e.g. `Bloom - Deck (Figma) 09.14.26`, `Inlets Demo (login: demo@inlets.ai; pw: Password124!) 09.14.26` — Tom wants the date he was sent every material, live links included. The only undated chips are infrastructure (the `[G DRIVE]` folder pin) and diligence-output snapshots (`_Master_Diligence_*`), which keep their own established naming.
+10. **Every saved material's filename carries its SENT date (Tom, 2026-09-14)** — generate it with `python3 ~/.claude/skills/materials-handler/material.py name --company "<Opp title>" --title "<descriptive title or raw name>" --sent-date <YYYY-MM-DD> [--ext xlsx] [--fund "Dash II"|"Dash II-A"] [--platform Figma]` (strips a redundant company prefix and emoji, never double-dates, refuses `Dash-A`). Chip writes on Diligence Materials / Deal Docs ALWAYS pass `--require-convention` to `notion_files_property.py` — it refuses (exit 3, nothing written) a label that isn't `<Company> - <Title> MM.DD.YY` (Ardent's raw `Memo.pdf` chip, 2026-09-10). Canonical convention: `[Company Name] - [Descriptive Title] MM.DD.YY.pdf` — the date appended at the end of the name, before the extension (e.g. `Paravel Health - Next Steps Email 09.14.26.pdf`, `Paravel Health - Deck 09.08.26.pdf`). The date is when the material was SENT to Tom — the email's internal date for attachments and body PDFs; for converted links (DocSend, Papermark, direct URLs), the date of the email that delivered the link. NOT the processing date — a run that catches up on a week-old email stamps the email's date. Chip display labels match the filename exactly. Applies to every Drive-hosted artifact (3A, 3B, 3C, 3D, 3G) on both Diligence Materials and Deal Docs routing, AND to link-only chip labels (3E/3F/3H — Figma, demos, videos): the chip label ends with the sent date, e.g. `Bloom - Deck (Figma) 09.14.26`, `Inlets Demo (login: demo@inlets.ai; pw: Password124!) 09.14.26` — Tom wants the date he was sent every material, live links included. The only undated chips are infrastructure (the `[G DRIVE]` folder pin) and diligence-output snapshots (`_Master_Diligence_*`), which keep their own established naming.
 11. **Pin a Drive-folder chip at the top of Diligence Materials.** Every Opp's Diligence Materials property carries a permanent first chip linking to its whole Drive subfolder, labeled `[G DRIVE] [Company Name] Diligence Materials` and pointing at `https://drive.google.com/drive/folders/<company subfolder id>`. This gives one click to the full materials folder — including anything not individually chipped — without disturbing the per-file chips below it. Check for it (by folder URL) before any new chips are added on a run; if missing, add it first via `--prepend` so it leads the list (subsequent default-append chips then naturally land after it). See Step 4.
 12. **Every confirmation reply links the Notion Opp (Tom, 2026-09-28).** Whichever surface reports the outcome back to Tom — a text-lane reply (Mode C via sms-listener), a Slack alert, or a chat response — includes the Notion Opportunity page URL (`https://www.notion.so/<page-id-no-dashes>`), not just prose naming the company. Mode B's alert already does this via the `[opp](...)` footer link; Mode C/manual replies didn't, and Tom called it out after a materials add came back without one. Add it as a plain link on its own line (or inline, surface permitting) in every "added to diligence materials" / "saved to X's Opp" confirmation, no exceptions.
 
@@ -148,7 +148,6 @@ Opportunities data_source_id: fab5ada3-5ea1-44b0-8eb7-3f1120aadda6
 Agent View URL: https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673
 Google Drive Diligence folder ID: 1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d
 Google Drive Diligence folder URL: https://drive.google.com/drive/folders/1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d
-Google Drive Decks folder ID: 1YUxmNe8LI9ctlMKQ22WoVSbyjkyKJXr0
 ```
 
 ## Environment Detection
@@ -159,15 +158,11 @@ All file uploads go through the Drive Upload Apps Script and the Gmail Attachmen
 
 ## Step 0: Status Guard (always runs)
 
-This skill is for **pipeline opportunities only**. Before doing any Gmail searching, Drive uploading, or Notion writing, verify the resolved Opp's `Status` is NOT in the portfolio set:
-
-- `Active Portfolio`
-- `Portfolio: Follow-On`
-- `Exited`
+This skill is for **pipeline opportunities only**. Before doing any Gmail searching, Drive uploading, or Notion writing, run `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set portfolio_closed` — exit 0 means abort (`Active Portfolio`, `Portfolio: Follow-On`, `Exited`):
 
 These statuses are `investor-update`'s territory — formal-comms artifacts (board decks, investor updates, fund reports) route to the Company Updates DB, not Diligence Materials. If the resolved Opp matches any of them, **abort immediately**: no Notion writes, no Drive uploads, no Slack alert. Log the skip with reason `portfolio-status-guard` and the matched status name.
 
-**`Committed` is NOT in the portfolio set** — Tom often runs final diligence (materials, references, term-sheet review) while an Opp sits at Committed before flipping to Active Portfolio. Treat Committed as pipeline; let materials flow through normally.
+**`Committed` is deliberately NOT in `portfolio_closed`** (it IS in the general Portfolio set, but not for materials) — Tom often runs final diligence (materials, references, term-sheet review) while an Opp sits at Committed before flipping to Active Portfolio. Treat Committed as pipeline; let materials flow through normally.
 
 This guard applies in all modes:
 - **Mode B (webhook)** — fetch the Opp page from `oppId` (Mode B otherwise skips Step 1) just to read Status before proceeding.
@@ -261,6 +256,17 @@ Classify each relevant email's materials into **delivery categories** (how to fe
 
 Every saved artifact lands in EITHER `Diligence Materials` OR `Deal Docs`, never both. Default is Diligence Materials; route to Deal Docs only when the filename or content matches a transaction-artifact signal.
 
+**Run it in code — per artifact, every time (2026-10-04):**
+```bash
+python3 ~/.claude/skills/materials-handler/material.py route --filename "<as received>" --opp-title "<Opp title>" [--subject "<email subject>"] \
+  [--first-page-text-file <txt of pages 1-2>] [--stated-type "<type Tom named, if any>"]
+```
+Output gives `prop`, `drive_root`, `folder` (incl. the Deal Docs subfolder), `chip` (false = upload but never chip)
+and `slot`. **Exit 5 = e-sign completion certificate → skip entirely, no upload, no chip.** The script is
+authoritative and was fitted to a census of every real filename in Drive `Deal Docs/` and `Diligence/`
+(`tests/fixtures/drive_census_2026-10-04.json`); the lists below are its rationale. A misroute → fix the
+script + add the filename to the harness, never override it ad hoc.
+
 **Route to `Deal Docs` when filename or first-page text matches any of:**
 - **Term sheets:** "term sheet", "term-sheet", "termsheet", " TS ", "TS_", "TS-", "TS v", "TS draft", "[EXECUTED]"/"[FINAL]" prefixing any of the above, MyCase/DocuSign/Dropbox-Sign "Completed:" e-sign subjects
 - **Investment instruments:** "SAFE" (incl. "post-money SAFE", "pre-money SAFE", "SAFE agreement"), "convertible note", "conv note", "KISS", "promissory note"
@@ -284,6 +290,12 @@ The chip-add helper (`notion_files_property.py`) takes `--prop "Deal Docs"` or `
 ## Step 2.5: Per-message Idempotency Gate (`claude/materials-processed`)
 
 **Applies in all modes (B and C).** This gate is the canonical "this message was already handled" check — without it, a webhook+manual race or two delegated invocations against the same email produce duplicate Drive uploads and duplicate chips on the Opp (each upload gets a fresh fileId, so URL-based dedup at the chip-write layer misses).
+
+**Run the gate in code (2026-10-04):** `python3 ~/.claude/skills/materials-handler/materials_gate.py check --thread-id <threadId> [...]` — reads labels as NAMES via
+`_readThread` (never raw `labelIds`). Exit 3 = nothing to do (log `already-processed`, no writes, no alert); exit 0 =
+process exactly `delta` (an `in_flight` item = a prior run died: check Drive + chips, upload only what's missing);
+exit 2 = Gmail unreachable → don't process. Then `python3 ~/.claude/skills/materials-handler/materials_gate.py claim <ids>` immediately before the first Drive upload and
+`python3 ~/.claude/skills/materials-handler/materials_gate.py finish --outcome ok|failed <ids>` after the chips land. The steps below are the WHY.
 
 **Before processing each message in the working set:**
 
@@ -327,7 +339,7 @@ The helper round-trips through `gmail-webhook/label-endpoint.js`, which holds `g
 | **Deal Docs** (term sheets, SAFEs, side letters, SPAs, wire SSI, cap tables, closing docs…) | `1mKStCJl9YKXObL4bBWBFjgfWxYj0vDwN` (top-level `Deal Docs/`) | `Deal Docs/<Opp title>/` + subfolder per `shared-references/deal-docs-layout.md` (rule 9) |
 | **Diligence Materials** (everything else — decks, memos, updates…) | `1QINUouO6CpJ7iZa0HF2LHL6kK8hm612d` (`Diligence/`) | `Diligence/[Company Name]/` |
 
-Get-or-create the company folder idempotently via the Drive Upload Apps Script `createFolder` with the routing-appropriate `parentId` from the table. A mixed email (deck + term sheet) resolves the gate **per attachment**, not per email. Wherever a step below says "the target folder," it means the folder this gate selected.
+Use `route`'s `drive_root` + `folder` (it already resolves the Deal Docs subfolder). Get-or-create the company folder idempotently via the Drive Upload Apps Script `createFolder` with the routing-appropriate `parentId` from the table. A mixed email (deck + term sheet) resolves the gate **per attachment**, not per email. Wherever a step below says "the target folder," it means the folder this gate selected.
 
 ### 3A: Gmail Attachments (Apps Script)
 

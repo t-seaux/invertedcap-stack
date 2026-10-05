@@ -219,10 +219,20 @@ back-test can compare *sourced-as* against *scored-as*.
 
 ## Step 1.6 — Prefilter screen (Tom-taught hard disqualifiers)
 
+> **As code (2026-10-04).** Every code-expressible rule is decided by
+> `~/.claude/skills/founder-taste/prefilter_check.py --experience-json <probe payload> --source <store source> --li-url <url>`
+> (exit `0` proceed · `1` KILL · `2` unreadable payload — refuse, never treat as a pass). Its lists, regexes and
+> thresholds live in ONE file, `founder-taste/prefilters.json`, which `neg1_sourcing.py` also imports — the
+> code mirrors are no longer retyped anywhere. On exit 1, take `audit_line` for the audit log and the
+> kill's `reason` (plain English, no PF-id) for the digest `filtered` row. `borderline` reasons are not kills.
+> `judgment_rules` (PF-6 career manager, PF-7 public-co C-suite, PF-14 no startup pace) plus the sourcing-time
+> reads below remain your call. Referrer sources (an email) are never killed — the script enforces it.
+
 Read `~/.claude/skills/founder-taste/PREFILTERS.md` and screen every surviving candidate (warm AND
 cold) against each rule checkable from the data in hand (role, company, cache tenure — arc-shape
-rules wait for enrichment). The script already mirrors PF-1/PF-3 in code (EXCLUDE_ROLES, fund-name
-heuristic, STALE_UNICORNS); this pass catches what code can't express — judgment calls like "this
+rules wait for enrichment). The script already applies PF-1/3/4/10/11/12/13 at sourcing time from
+`founder-taste/prefilters.json` (EXCLUDE_ROLES, fund-name heuristic, STALE_UNICORNS, MATURE_ENTERPRISES,
+INSTITUTION_RE, founder-seat regex, non-NA subdomain); this pass catches what code can't express — judgment calls like "this
 cached role reads as an investor seat" or "this employer is past its window per the momentum field".
 
 On a kill: drop the candidate, do NOT upsert or enqueue, and log `[PREFILTERED] {name/url} — {rule id}: {one clause}`
@@ -421,6 +431,26 @@ The card ends with proposed changes as a checklist; Tom approves/vetoes in-threa
 
 ## Step 4 — Slack digest
 
+> **As code (2026-10-04).** The digest is rendered AND posted by the script — do not compose it:
+> ```bash
+> /opt/homebrew/bin/python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py digest --run-date {YYYY-MM-DD} --json /tmp/neg1_digest.json [--dry-run]
+> ```
+> Input: the Step 1 `run` JSON (`reconnect` / `cold` rows) AFTER the Step 1.5 probe overwrote `name` / `role` /
+> `company`, minus discards, plus `"filtered": [{"name", "linkedin_url", "reason"}]` (one per Step 1.6 kill —
+> `reason` = the plain-English `reason` from `founder-taste/prefilter_check.py`, NEVER the rule id) and
+> `"failed": N`. Accepts `warm` as an alias for `reconnect`.
+> The code owns: canonical `https://www.linkedin.com/in/{slug}` links on every name, blank lines between
+> sections, `[wildcard · signal]` tags, recipe key → archetype label (`RECIPE_LABELS` / `WILDCARD_LABELS` /
+> lookalike / post-liquidity — never a letter), `Mature` over `Scaled` for any `MATURE_ENTERPRISES` employer,
+> dropped `Unknown` segments, title-casing of all-lowercase keyword roles, empty sections omitted, no footer,
+> the `⚠ N row(s) failed` line, and a header that passes `send-alert/alert_lint.py` untouched.
+> **Exit handling:** `0` posted (prints `{"posted": true, "ts": …}`) / dry-run printed · `2` REFUSED — a row
+> without a real name or LinkedIn URL, a slug used as a name, a filtered reason carrying a PF-id / recipe letter /
+> W-code, or an empty run; fix the input (write the plain-English fact) and rerun — never hand-compose
+> around a refusal; an empty run is a failure to report, not a digest · `3` post failed or `#neg1-sourcing`
+> not configured — the body is on stdout; send it through `send-alert` (default channel) verbatim.
+> Harness: `tests/test_digest.py`. The prose below is the WHY behind each rule the code enforces.
+
 **Channel routing (gate in code):** if `~/.claude/skills/neg1-sourcing/.sourcing_channel_id` exists, post via `send-alert/md_to_blocks.py` in bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py` (prints the message `ts` — no webhook needed) — all sourcing surfaces live in `#neg1-sourcing` (this weekly digest of raw candidates + pipeline-agent Task 6's post-enrichment Reach Out ✅ cards). If the file does not exist, fall back to the default `send-alert` channel.
 
 **This digest is the ONE AND ONLY completion post (guardrail, 2026-09-21).** run.sh tells you to "always reach the Slack alert" — *this* Warm / Cold / Filtered-out digest **is** that alert. Do NOT compose any additional "Run Complete" / run-status / ops / telemetry summary from the Step 5 audit line or the script's stdout counts. Every fact a status ping would carry already has a readable home: the kill breakdown lives in **Filtered out** with plain-English reasons (never `PF-11×1`), and reservoir/restock health rides the Step 1.5d thread-line. A freelanced ops summary shipped on 2026-09-21 — `✓ 5 upserted + enqueued | 🚫 4 killed: PF-11×1, PF-10×1… | 🔁 Restocked … reservoir=431` — and Tom flagged it: it leaked banned PF-ids, used a routing-key emoji (🔁), and read as a log line, not a notification. Never emit that shape; the only completion artifact is the digest below (plus its per-candidate cards).
@@ -429,14 +459,14 @@ Invoke the `send-alert` skill with the following message. Bodies are GFM markdow
 
 **Format (Tom's locked shape, 2026-07-27; the separate Deep Sweep section was retired 2026-09-07 — warm + cold only):**
 ```
-📡 **-1 Sourcing Summary – Week of {run_date}**
+📡 <u>**-1 Sourcing Summary: Week of {run_date}**</u>
 
 **Warm ({actual count, 2-3})**
 • [{Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier} · {timing_signal}]
 • (one row per warm reconnect this run — 2 or 3)
 
 **Cold ({actual count, 7-8}, incl. 2 wildcards — tag those rows `[wildcard]`)**
-• [{Full Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier}]
+• [{Full Name}]({linkedin_url}) — {Role} @ {Company} [{growth_tier} · {archetype label}]   (wildcard rows: [wildcard · {signal in plain words}])
 • (7-8 rows — warm 2-3 + cold 7-8 = 10; on first Mondays the monthly structured post-liquidity / scarred-alumnus rows land here too, growing the count accordingly)
 
 **Filtered out ({N})**
@@ -496,7 +526,10 @@ internal machinery and mean nothing to him at a glance. Write the disqualifying 
 "already a founder; runs his own seed-stage company, $7.5M raised", not "PF-10". The rule id stays
 in the local audit log and the store row, where the back-test reads it.
 
-- **Header is exactly** `-1 Sourcing Summary – Week of {run_date}` (en dash) — not "neg1 sourcing".
+- **Header is exactly** `📡 <u>**-1 Sourcing Summary: Week of {run_date}**</u>` — not "neg1 sourcing". (Was an
+  en dash until 2026-10-04; the alert convention's `Headline: Subject` colon rule supersedes it — `alert_lint`
+  was auto-repairing the dash to a colon at the send boundary every week, e.g. 2026-09-28. The code now emits
+  the colon so nothing is rewritten in flight.)
 - **No Deep Sweep section (retired 2026-09-07).** The digest is Warm + Cold + Filtered-out only. Warm connects come from the weekly network-pool scan; the monthly structured post-liquidity / scarred-alumnus rows are cold strangers and list under **Cold**. Still the rule: the weekly digest must be the single complete index of everyone sourced this run, so every first-Monday structured row appears in the Cold list (each also gets its individual `#neg1-sourcing` card).
 - **`{growth_tier}` vocabulary — four mutually-exclusive values.** `Scaled` = a company that reached scale THROUGH genuine hypergrowth (Deal-Digest tier-1 and NOT on the PF-4 `MATURE_ENTERPRISES` set) — tenure there is a real hypergrowth rep. `Mature` = an established mega-enterprise on that PF-4 set (Goldman, Visa, Amazon, Meta, Microsoft, Datadog, …) — a big-company job, not a rep. `Emerging` = tier-2, `Promising` = tier-3. **A tier-1 employer that sits on `MATURE_ENTERPRISES` renders `[Mature]`, never `[Scaled]`** (Tom, 2026-09-07 — the two were conflated; Datadog shipped as `[Scaled]` the same day). The `neg1_sourcing.py run` code path computes this via `_growth_label()` for every warm/cold row it emits; anywhere a label is written by hand (e.g. the monthly structured cold rows), check the employer against `MATURE_ENTERPRISES` first.
 - **Never render "Unknown"**: when `timing_signal` (or any bracket segment) is Unknown, omit that segment — `[Scaled · Unknown]` → `[Scaled]`.
