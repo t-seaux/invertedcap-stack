@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026-10-04] (Week of 2026-09-28)
+
+**Added:** None
+**Removed:** agentic-commerce-agent (retired 2026-10-03)
+**Modified:** None
+**Total skills:** 56
+**Functions:** Research Management -1 (agentic-commerce-agent)
+
 ## [2026-10-02] (Week of 2026-09-28)
 
 **Added:** None
