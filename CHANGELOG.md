@@ -2,20 +2,19 @@
 
 ## [2026-10-04] (Week of 2026-09-28)
 
-**Added:** dash-lp-letter-drafter, dash-lp-quarterly-update
+**Added:** None
 **Removed:** agentic-commerce-agent (retired 2026-10-03)
 **Modified:** None
-**Total skills:** 58
-**Functions:** Research Management -1 (agentic-commerce-agent); Portfolio Management +2 (quarterly LP letter drafting and the end-to-end quarterly LP update)
+**Total skills:** 50
+**Functions:** Research Management -1 (agentic-commerce-agent); Portfolio Management -1 (a fund-reporting skill moved off the map)
 
 ## [2026-10-02] (Week of 2026-09-28)
 
 **Added:** None
-**Removed:** dash-deal-detect
+**Removed:** None
 **Modified:**
 - add-to-contacts -- extra emails found for a person are now kept and staged as secondary addresses; UK locations now record state as UK
 - add-to-crm, add-to-crm-detect, inbound-deal-detect -- the second-inbox lane now runs through the same webhook path and reads from the Gmail API instead of local mail storage; stage is always populated
-- dash-lp-update-email -- draft is now saved as a Gmail draft rather than a Mail.app draft
 - investor-update -- second-inbox variant now enqueued by the webhook handler; alert links to the update PDF alongside the Notion row
 - materials-handler -- second-inbox follow-up variant now enqueued by the webhook handler and fetches via the Gmail API
 - outreach-detector -- retired the second-inbox queue-job mode (now handled by the webhook)
@@ -27,7 +26,7 @@
 **Added:** None
 **Removed:** None
 **Modified:**
-- add-to-crm, dash-deal-detect -- new-deal card closer now reads "to Archive Email" instead of "to archive"
+- add-to-crm -- new-deal card closer now reads "to Archive Email" instead of "to archive"
 - deal-share-out, founder-outreach, intro-outreach-drafter -- superseded drafts are now removed through a guarded delete script that refuses unless a newer matching draft exists
 - materials-handler -- spreadsheet chips now carry the sent date in their names
 - pass-note-drafter -- duplicate-draft check no longer relies on connector search; the draft script itself refuses same-subject, same-recipient drafts, and style-gate warnings are fixed before drafting
@@ -60,7 +59,7 @@
 - neg1-promote -- added a headless thread-read fallback for source-thread fetches (used by the neg1-sourcing-listener path)
 - outreach-detector -- now flips a Qualified/Track Opp to Connected (not just Outreach) when Tom's sent message is a reply to a founder already in the thread
 - pipeline-agent -- the evening sweep no longer auto-creates Opportunities; it routes new deals through Tom's 👍-gated text card instead, matching the webhook lane
-- add-to-contacts, coinvestor-recommender, dash-deal-detect, deal-share-out, feedback-outreach-drafter, founder-outreach, fund-update-drafter, intro-draft-agent, intro-outreach-drafter, intro-status-summary, log-deal-share, pass-note-drafter, soi-refresh-inputs, talent-scan -- documented a headless Gmail fallback path for reliability when the Gmail MCP isn't attached (no behavior change)
+- add-to-contacts, coinvestor-recommender, deal-share-out, feedback-outreach-drafter, founder-outreach, fund-update-drafter, intro-draft-agent, intro-outreach-drafter, intro-status-summary, log-deal-share, pass-note-drafter, soi-refresh-inputs, talent-scan -- documented a headless Gmail fallback path for reliability when the Gmail MCP isn't attached (no behavior change)
 **Total skills:** 58
 **Functions:** No changes
 
@@ -71,8 +70,7 @@
 **Added:** None
 **Removed:** None
 **Modified:**
-- add-to-crm -- new deals are now staged as a 👍-gated text card before the Opportunity row is created, mirroring the Dash inbox lane; deals sourced from the Dash inbox are always filed under the Inverted fund; now reads the full referral thread for an explicit stage signal before falling back to the Pre-Seed default
-- dash-deal-detect -- new deals sourced from the Dash inbox are now filed under the Inverted fund instead of Dash; added an archive option on email-sourced cards; added founder/intro-er blurb capture for senders matching an existing Opportunity
+- add-to-crm -- new deals are now staged as a 👍-gated text card before the Opportunity row is created, mirroring the second-inbox lane; deals sourced from the second inbox are always filed under the main fund; now reads the full referral thread for an explicit stage signal before falling back to the Pre-Seed default
 - deal-text-scanner -- clarified that texts with founders of existing pipeline or portfolio companies never produce a deal signal or note, however substantive
 - feedback-outreach-drafter -- outreach-email blurb text now favors a founder's verbatim memo language over auto-generated copy
 - inbound-deal-detect -- added founder/intro-er blurb capture for inbound emails matching an existing Opportunity; updated to reflect add-to-crm's new text-card gate for new deals
@@ -101,7 +99,6 @@
 - materials-handler -- Deal Docs Drive layout changed from a flat per-company folder to one folder per Opportunity with Archive, Redlines, W-9s, and Signature Packets subfolders
 - deal-doc-drafter -- superseded drafts now move to an Archive subfolder instead of Diligence Materials; layout follows a centralized shared spec
 - add-conversation-to-notion -- framework title callouts now lead with a content-matched emoji
-- dash-deal-detect -- cold-follow-up and revive-gate logic centralized into shared specs; vendor and cold sales pitches added to the silent bucket
 - inbound-deal-detect -- round-details and status-escalation logic centralized into shared specs; per-company job idempotency keys now use a name-derived slug instead of a loop index
 - neg1-promote -- terminal/protected status check and Contact-writing rules now reference centralized shared specs
 - outreach-decliner -- declining from Track status now flips to Pass (Met) instead of Pass (DNM)
@@ -119,7 +116,6 @@
 - pipeline-agent -- added mandatory People DB Guardrails: no path may auto-create a People row; a missing person now triggers a 👍-gated text to Tom instead, and founder-relation resolution requires an existing identity match
 - add-to-crm -- Revive Gate upgraded to v2: enriches the existing terminal-status row immediately (materials, dated update note, refreshed stage/round details from the deck) and proposes only the status flip, rather than staging all the info for later; added People DB Guardrails
 - batch-add-to-crm -- added People DB Guardrails (no auto-create; requires Tom's approval per person)
-- dash-deal-detect -- added a lookup so senders who already have a CRM row route to follow-up/update lanes instead of triggering a new-deal card; upgraded to Revive Gate v2; an upstream code gate now drops cold, never-replied-to follow-up senders before they reach this skill
 - inbound-deal-detect -- added a webhook-side gate that routes senders with a known terminal-status Opp straight to the Revive Gate v2 path, bypassing the usual deal-classifier confidence gates; cold non-replied follow-ups are now dropped upstream before reaching this skill
 - feedback-outreach-drafter -- revoked prior auto-creation of new People DB rows for feedback recipients; a missing contact now gets a 👍-gated text to Tom instead
 - feedback-outreach-scanner -- same auto-creation revocation on the webhook reply path; a missing recipient now gets a 👍-gated text instead of an auto-created row
@@ -146,13 +142,12 @@
 - pipeline-agent -- added calendar-invite branch (📅 invite card with dual-calendar dedup and threaded confirm/decline/tentative); Revive Gate for known terminal-status companies; 👎 on a proposal card now creates Pass (DNM) instead of discarding; network-refresh lane added
 - add-to-crm -- Revive Gate replaces hard-block for terminal-status companies: stages a 👍-gated update card instead of alerting and stopping
 - inbound-deal-detect -- terminal-status CRM hits now trigger the Revive Gate instead of posting a stop-alert
-- dash-deal-detect -- expanded from single-lane deal classifier to three-lane router: deals → add-to-crm, diligence materials → materials-handler, portfolio updates → investor-update
 - materials-handler -- alert format changed to one bullet per artifact; auto-replaces unsigned chips with executed versions on signing; excludes e-sign completion certificates from upload
 - neg1-sourcing -- added on-demand re-surface mode: any "surface" request re-posts all unreacted queue rows without new enrichment
 - neg1-sourcing-listener -- added tapback reaction handling (👍/👎/⏱ tapbacks routed as decisions); added surface-unreacted command path for channel-level posts
 - deal-share-out -- subset-resolution for multi-founder deals: only fully-resolved founders receive LinkedIn and email fields
 - intro-outreach-drafter -- added Mode B (offer-intent webhook): triggers when a contact replies YES to a forwarded intro offer; resolves the target person and stages them as Qualified
-- investor-update -- added Dash variant: reads email body and attachments from local Apple Mail store when mail_source is dash-local
+- investor-update -- added second-inbox variant: reads email body and attachments from local Apple Mail store when mail_source is 
 - pass-note-drafter -- pre-flip mode added (Tom can request a draft before status reaches Pass Note Pending, preventing dual-fire race with notion-webhook); archive body formatting contract enforced; Argument Pillars source updated to pillars.json
 - add-conversation-to-notion -- multi-block Tom turns now each receive a distinct color prefix in the archive; log-command turn and everything below it is excluded
 - investing-style -- bullets derived verbatim from pillars.json (replaces PILLARS.md); 9 legacy "Other" section bullets promoted to formal pillars P41–P49
@@ -166,7 +161,7 @@
 
 ## [2026-09-21] (Week of 2026-09-21)
 
-**Added:** dash-deal-detect (Pipeline Management), log-document-to-notes (Research Management), log-thread-to-notes (Research Management) — confirmed from 2026-09-18 pending set
+**Added:** log-document-to-notes (Research Management), log-thread-to-notes (Research Management) — confirmed from 2026-09-18 pending set
 **Removed:** None
 **Modified:**
 - neg1-sourcing -- switched to CANDIDATE STORE upsert + immediate per-candidate enrichment queue; cards post to #neg1-sourcing within minutes; removed lookalike backlog lottery wording from description
@@ -176,19 +171,18 @@
 - intro-status-summary -- condensed description; investor-feedback trigger aliases now explicitly equal-weight entrypoints alongside intro-status aliases
 - inbound-deal-detect -- clarified downstream notification path: outcome Slack alert now owned by add-to-crm, not inbound-deal-detect
 **Total skills:** 58
-**Functions:** Pipeline Management +1 (dash-deal-detect), Research Management +2 (log-document-to-notes, log-thread-to-notes)
+**Functions:** Pipeline Management +1 , Research Management +2 (log-document-to-notes, log-thread-to-notes)
 
 ---
 
 ## [2026-09-18] (Week of 2026-09-15)
 
-**Added:** log-document-to-notes, log-thread-to-notes, dash-deal-detect (pending categorization)
+**Added:** log-document-to-notes, log-thread-to-notes
 **Removed:** None
 **Modified:**
 - add-conversation-to-notion -- added context-dependent routing to new sibling skills; bare "log" now routes to log-thread-to-notes (text screenshot), log-document-to-notes (doc/PDF), or log-transcript-to-notion (video) when an object is attached
 - add-to-crm -- added mandatory inline flag when contact email is inferred from domain rather than sourced; placement rules differ by whether a Founder callout is present
-- add-to-crm-detect -- added Dash lane: reads from local Apple Mail store and passes Fund field to the enqueued add-to-crm job; Inverted lane unchanged
-- dash-lp-update-email -- updated alert reference to new convention file name; behavior unchanged
+- add-to-crm-detect -- added second-inbox lane: reads from local Apple Mail store and passes Fund field to the enqueued add-to-crm job; Inverted lane unchanged
 - deal-share-out -- updated alert reference to new convention file name; behavior unchanged
 - deal-text-scanner -- INTRO lane now explicitly covers the REVERSE arrow: opt-ins and declines to Tom's own portco-intro offers are handled inline; sender on Active-Portfolio intro roster forces INTRO lane load regardless of message content
 - diligence-agent -- updated alert reference to new convention file name; behavior unchanged
@@ -202,18 +196,18 @@
 - intro-resolution-agent -- updated alert reference to new convention file name; behavior unchanged
 - log-investor-letter-to-notion -- tightened scope to external investment-firm letters (hedge fund / public-equity / VC / family-office); general reports/docs/white papers now routed to log-document-to-notes instead
 - log-transcript-to-notion -- added context-dependent routing carve-outs: text-thread screenshots route to log-thread-to-notes, letter/report/doc PDFs route to log-document-to-notes; bare "log" now disambiguates by object type
-- materials-handler -- added Dash follow-up variant: when a contact on an existing Dash Opp sends materials, dash-deal-detect enqueues this skill with mail_source="dash-local"; reads via dash_mail.py instead of Gmail API
+- materials-handler -- added second-inbox follow-up variant: when a contact on an existing second-fund Opp sends materials enqueues this skill with mail_source=""; reads via dash_mail.py instead of Gmail API
 - neg1-enricher -- updated exception reference to new convention file name; behavior unchanged
 - pro-forma-round -- added prior-round pro formas from Deal Docs as a sanity-check source; reads executed cap table spreadsheets to verify SOI ownership and make tranche splits exact
 - question-bank -- updated alert reference to new convention file name; behavior unchanged
 - send-alert -- renamed visual identity reference file from alert-grammar.md to alert-convention.md; behavior unchanged
-- skill-map-refresh -- added dash-lp-update-email to Portfolio Management canonical mapping; added nysif-payroll-report to Family hidden category
+- skill-map-refresh -- added to Portfolio Management canonical mapping; added nysif-payroll-report to Family hidden category
 - sms-listener -- added screenshot stitch feature: inbound image bursts are staged; "stitch" command combines them top-to-bottom with chrome-dedup into a single file saved to Downloads by default
 - update-diligence-priors -- updated alert reference to new convention file name; behavior unchanged
 - word-bank -- updated alert reference to new convention file name; behavior unchanged
 - writing-style -- added no-bold-hyperlink rule: link text in Gmail-bound drafts must never be bolded; surrounding prose may still be bold
-**Total skills:** 55
-**Functions:** Portfolio Management +1 (dash-lp-update-email, previously categorized but missing from canonical mapping)
+**Total skills:** 50
+**Functions:** Portfolio Management +1 (previously categorized but missing from canonical mapping)
 
 ---
 
