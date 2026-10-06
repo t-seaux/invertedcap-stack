@@ -19,9 +19,10 @@ in this warm session is still in context — don't re-read it unless it changed.
 | Intent / trigger | Read |
 |---|---|
 | Calendar query / add / move / delete; haircut lookups; any "when is X" / "do we have anything" | `references/calendar.md` |
-| 👍 / "we're going" / worded reply on a `📅 Invited:` card (branch 4-CAL) | `references/invite-cards.md` + `references/confirm-routing.md` |
+| 👍 / "we're going" / worded reply on a `📅 Invited:` or `📅 Send Invite` card (branch 4-CAL) | `references/invite-cards.md` + `references/confirm-routing.md` |
 | Bare "confirm" / "yes" / "ok", a tapback on any proposal, an inline reply to a card, or a free-form reply to a confirmable alert | `references/confirm-routing.md` (then the card's branch file) |
 | 🆕 Opportunity / 🔁 Revive card: 👍, 👎, 🗑️, edits, corrections (branch 4 — incl. Dash / Inverted lanes, network-refresh, archive) | `references/deal-cards.md` |
+| Job with `mode:"email-implied-confirm"` (Tom replied by email on a pending 🆕 card = implied 👍 / 👎) | `references/deal-cards.md` § "Email reply = implied 👍" |
 | 👍 on a `✅ Added to CRM`, `🤝 Email Captured`, or `🧍 People DB` card (branch 4b) | `references/people-db-confirm.md` |
 | 👍 / worded reply on a `💸 Capital Call #N Issued` card ("👍 to update the LP portal", Tom only) | `references/capital-call-confirm.md` |
 | A durable rule ("always… / never… / from now on…"), "confirm pN" / "reject pN" / "confirm all" (steps 2–3) | `references/preferences.md` |
@@ -30,7 +31,7 @@ in this warm session is still in context — don't re-read it unless it changed.
 | Editing a Notion page / Sheet / Google Doc ("work a doc"), burst edits | `references/doc-edits.md` |
 | Any edit to an existing intro/connect Gmail draft | `references/email-drafts.md` |
 | Deal share ("kick X out to Fika", "deal share X"), neg1 / -1 queue surfacing, "sync contacts" (Tom only) | `references/work-commands.md` |
-| Family Drive folder, family inbox (kenyonseo@) reads / drafts, "skip X" / "include X" in the family text | `references/family.md` |
+| Family Drive folder, family inbox (kenyonseo@) reads / drafts, "skip X" / "include X" in the family text, "EK doing pickup tomorrow" / "TS drop off" | `references/family.md` |
 | Substantive / researched / multi-step ask (draft from docs, synthesis) | `references/long-tasks.md` |
 | Unattended alert that should thread by `--topic`; a job with `source=imessage` / `sms-webhook` | `references/transport.md` |
 | About to say "I didn't send that", or unrecognized output under your identity | `references/ledger.md` — check it first, always |
@@ -76,6 +77,8 @@ rediscover it.
 - **Tom** (`+12012567714`) → full authority; "my work calendar" = Inverted; work purchases OK on request.
 - **Elsie** (`+16179219845`) → **HOUSEHOLD SCOPE ONLY — Tom's work is a hard wall, not a soft preference.** She is a full peer on the family side and completely fenced from the work side. There is NO "unless she clearly asks" exception — if a request is work-scoped, decline it regardless of how it's phrased.
 - **Unknown but dispatched** → treat as household scope (never work).
+- **No `from`, `mode:"email-implied-confirm"`, source `gmail-webhook`** → Tom's authority (it is HIS sent email, routed by
+  gmail-webhook on his own mailbox — Tom 2026-10-05). Work scope; replies go to Tom (`+12012567714`) under the 🆕 card.
 
 ### Elsie's fence — READ/WRITE split (enforce for EVERY Elsie request)
 The rule: **Elsie may READ Tom's work CALENDAR (for childcare/coordination), but may NEVER WRITE to any of Tom's work surface.**

@@ -374,7 +374,7 @@ State flow (candidate store — the Notion Status vocabulary below is historical
    **Cap at 10 rows per run** to bound ContactOut credit consumption (enrichment + Company Search + online research per row). If more exist, process the 10 oldest and note the remainder were deferred.
 
 2. **For each detected row, enrich + score**: read `/Users/tomseo/.claude/skills/neg1-enricher/SKILL.md` and follow its Steps 1–5 in Task 6 mode (do NOT chain to founder-outreach):
-   - Call `contactout_enrich_linkedin_profile` on the row's `li_url` value
+   - Call `contactout_enrich_linkedin_profile` on the row's `li_url` value (routing: `shared-references/contactout-routing.md`)
    - Resolve Companies relations (Step 3 — dedup by Domain, create/backfill as needed, respect Last Enriched skip rule). The **Companies** DB is live; only the `-1 Scanner` DB is gone.
    - Write results back to the store with `candidates.py upsert --li <url> --json '{…}'` — **not** `notion-update-page`
    - Apply the rubric (Step 5) — writes `signals_line`, `working_desc`, `rec`, `eval_summary`

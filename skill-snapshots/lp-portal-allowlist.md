@@ -169,7 +169,7 @@ redeploying the portal and each firing its own alert.
 The JSON edits below are no longer hand-edits. After the Notion step (create the page first / archive it
 first), run ONE of:
 
-    notion_sync.py add    --email E --name N [--bucket active_lp|other|relationship] [--parent ENTITY] --notion-id ID
+    notion_sync.py add    --email E --name N --bucket active_lp|other|relationship [--parent ENTITY] --notion-id ID
     notion_sync.py temp   --email E --name N --notion-id ID [--expires YYYY-MM-DD | --days N (default 7)] [--notes "..."]
     notion_sync.py remove --email E --notion-archived
     (all take [--path allowlist.json] [--dry-run]; they edit ONLY the JSON — no Notion, KV or deploy)
@@ -181,7 +181,7 @@ refuse a temp row for anyone with a permanent row (active_lp / other / relations
 instead), refuse temp→permanent while a temp row exists, refuse an unknown `--parent`, refuse removing a parent
 entity with children or the last portal email, and refuse `remove` until `--notion-archived` asserts the Notion
 archive happened. **Exit 0 = done or no-op (report which); 1 = refused → tell Tom the printed reason, change
-nothing, do NOT push/deploy; 2 = bad args.** Harness: `tests/test_allowlist_edits.py` (temp copies only). The
+nothing, do NOT push/deploy; 2 = bad args (incl. a missing `--bucket` — it decides portal/NAV access, so it is never defaulted: ask Tom if unclear).** Harness: `tests/test_allowlist_edits.py` (temp copies only). The
 steps below stay as the WHY / ordering.
 
 ## Mode C (manual) — add a row

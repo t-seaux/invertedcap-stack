@@ -280,7 +280,7 @@ The only thing that does NOT count is a generic company-website link (`unicornsn
 
 2. **Foreign Google Drive URLs (e.g. a founder's or referrer's own Drive)** — DO NOT re-upload to Tom's Drive at this step; the URL gets linked as-is in Step 6. To read content for field extraction: `curl -sL "https://drive.google.com/uc?export=download&id=<fileId>" -o /tmp/<slug>.pdf` (extract `<fileId>` from the URL between `/file/d/` and `/view`), check the output is a PDF not an HTML interstitial (`file /tmp/<slug>.pdf`), then `pdftotext -layout`. If `curl` returns the virus-scan interstitial (small file is HTML), fall back to Chrome: navigate to the Drive file URL and `get_page_text` against the rendered viewer.
 
-3. **DocSend URLs** — convert to PDF via `docsend-to-pdf` skill (Python `requests` + `Pillow`), then `pdftotext`. Same skill handles data room URLs (`/view/s/`). If the Latency-discipline background conversion was launched at session start, do NOT re-run it — collect that job's output PDF here (wait for the file if the background shell hasn't finished).
+3. **DocSend URLs** — convert to PDF via `docsend-to-pdf` skill (`docsend_pdf.py`), then `pdftotext`. An email gate is handled in code: docsend2pdf.com first (no email of Tom's). Exit 8 = still locked → continue without the deck and stage `materialUrls` as usual; Step 6 (materials-handler, which has the Opp id) sends Tom the 🔐 👍 card. Never pass `--email`, never exit `DECK_EMAIL_GATED` (Tom, 2026-10-05; Filot). Same skill handles data room URLs (`/view/s/`). If the Latency-discipline background conversion was launched at session start, do NOT re-run it — collect that job's output PDF here (wait for the file if the background shell hasn't finished).
 
 3b. **Papermark URLs (`papermark.com/view/…`)** — do NOT WebFetch (returns only Papermark's marketing shell). Capture the slides to a Drive PDF per `/Users/tomseo/.claude/skills/shared-references/papermark-deck-capture.md`, then read the captured slide PNGs for field extraction (round, valuation, HQ, founders, product). Interactive GUI only; in headless/webhook runs, link the Papermark URL as-is and proceed with what the email gave you. (Step 6 / materials-handler runs the same reference to produce the final linked PDF — pass it the captured file so it isn't re-done.)
 
@@ -397,23 +397,47 @@ card each):
    send the card), send the text from `staged_payload.py render-card <payload.json>` (step 1's card), then save it as
    `staged/<H>.json`. Canonical keys: `messageId` / `threadId` (inverted-gmail), `rowid` / `fund` (dash-local) — never
    `message_id` / `mail_rowid` alone. Spec of the checks: `deal-text-scanner/references/deal-lane.md` §3b.
+   Then register it as pending: `python3 ~/.claude/skills/shared-references/staged_payload.py pending add staged/<H>.json`
+   (Tom 2026-10-05: an email reply on this thread before a 👍 = implied 👍 — gmail-webhook `card-pending.js`). Exit 1/2 →
+   say so in the audit line; the card still stands.
 3. Audit line `[<ts>] sent_handle=$H notes=proposed add-to-crm <founder> via <source> (inverted thread=<threadId>)`
    → `~/.claude/skills/sms-listener/audit-log/$(date +%F).log`; append
    `YYYY-MM-DD <company> via <source> thread=<threadId>` to
    `~/.claude/skills/inbound-deal-detect/.proposed`.
 4. Exit 0. No Slack alert at this point — the text card IS the notification.
 
-## Step 5: Create the Notion Page
+## Step 5: Create the Notion Page — ONE command
 
-Use `notion-create-pages` with parent `{"data_source_id": "fab5ada3-5ea1-44b0-8eb7-3f1120aadda6"}`.
+**Never `notion-create-pages` an Opportunity** (Costanoa 10/3 was exactly this shape: a model-assembled create, no
+readback, and a ✅ that didn't depend on anything). Write a spec file in your scratch dir, then:
 
-> **As code (2026-10-04) — field formats.** Immediately before `notion-create-pages` (and before any `notion-update-page` that writes Name / Stage / Website / Contact / Description), pass the flat property dict through the ONE normalizer and write its `properties` output verbatim:
-> ```bash
-> python3 ~/.claude/skills/shared-references/opp_fields.py normalize --json '<properties JSON>'
-> ```
-> exit 0 → write `properties` as printed (it has already bare-domained Website, `; `-joined + lowercased Contact, added the Description period, joined founders with ` & `, forced `Pre-Seed 💡` on a `-1`). exit 1 → a violation code can't fix (founder not linked to linkedin.com/in/, a domain sitting in Contact, an email in Website) — fix the INPUT and re-run; never write past it. Build person titles with `opp_fields.py title --kind -1|NewCo --founder "First Last|<li url>" [...]`. Live census 2026-10-04: 249 / 1,065 existing rows violate (90 Website, 136 Contact — 115 of them a bare domain in Contact, 33 Description, 6 Name, 3 Stage); the prose rules below are the WHY.
+```bash
+python3 ~/.claude/skills/shared-references/opp_create.py --spec <spec.json> [--dry-run]
+```
 
-**Before the `notion-create-pages` call, run `touch /tmp/.addcrm-bypass`** to set the hook bypass marker. A PreToolUse hook at `~/.claude/hooks/gate-db-creation.sh` blocks all direct writes to the Opportunities data source unless this marker is fresh (≤5 min old). The marker auto-expires, so no cleanup is needed. If the hook denies a call with "Direct creation of Notion Opportunities-DB rows is gated", that's the signal you forgot this step.
+Spec keys (full schema in the script docstring): `title`, `status`, `stage`, `description`, `round_details`, `hq`
+(city or null), `website`, `contact`, `icon`, `fund` (omit → Inverted 1️⃣), `source` (`"direct"` / `{"id"}` /
+`{"name","email","company"}`), `founders` (`[{"id"}]` or `[{"name","email","li","company"}]`), `founder_links`
+(`[{"name","li"}]` → the 🏁 callout), `original` (`{"kind": "Email|DM|Text|Post|LI Profile", "text": <verbatim>}`),
+`source_thread_id`, `close_date` (Scheduled), `funding_history`, `deck` (`{"url","label"}`), and `signals` — EVERY
+harvested dedup signal from the forward layers (`companies`, `persons`, `emails`, `websites`).
+
+What stays yours (judgment): Status per the rules below, Stage, Description, which person is the referrer, the icon
+emoji, what counts as the original text. What the script owns (never re-do by hand): field formats (`opp_fields`),
+the exact Stage option, Fund (Dash → Inverted 1️⃣ for new rows), Shared = N/A, Followed Up off, exact-match People
+resolution (Jordan Fox → Primary alias; unresolved → blank + ⚠️, never a new People row), the full `opp_dedup`
+battery, the create with the parent hardcoded, a property-by-property readback, and the deck chip.
+
+- **exit 0** → reply with its `reply` (`✓ Added – <title> (<Status>)` + link, plus any ⚠️ line) VERBATIM.
+- **exit 10** → duplicate: send `reply` (the two-line 🚫 Dupe). Check `dedup.route` for revive / protected (Protected Status Guard).
+- **exit 11** → possible duplicate: send `reply`; nothing created.
+- **exit 3** → fix the INPUT named in `failures` (HQ guess, unlinked founder title, bad Status…) and re-run. Never write past it.
+- **exit 4** → the row was created, read back wrong, and was archived again. Report the failure; never ✓.
+- **exit 5** → added, but the deck chip failed; `reply` already carries the ⚠️.
+- **exit 2** → Notion unreachable: say it did NOT add.
+
+The Property Rules / Title Conventions / Page Content / Relation Fields sections below are the WHY behind the spec
+values; the script enforces every one that is mechanical.
 
 ### Page Icon
 
@@ -510,7 +534,7 @@ When this skill is invoked via `inbound-deal-detect` (gmail-webhook deal-scanner
 Read the `materials-handler` skill at `/Users/tomseo/.claude/skills/materials-handler/SKILL.md` and follow its instructions, passing:
 
 - **Company name**: the opportunity title just created
-- **Notion page ID**: the page ID returned by `notion-create-pages`
+- **Notion page ID**: `page_id` from `opp_create.py`'s stdout
 - **Material URLs**: any deck or material URL extracted from the source — DocSend links, Google Drive links, Dropbox links, direct PDF URLs, AND third-party deck-sharing platforms (`brieflink.com`, `pitch.com`, `decko`, similar). Pass all of them; the materials-handler decides whether to convert-to-PDF or link as-is.
 - **Gmail message ID**: if the source was a forwarded email, pass the message ID so materials-handler can find and process attachments
 - **Pre-saved file IDs** (if Step 1B ran): pass the Drive file IDs and URLs so materials-handler skips re-uploading
@@ -648,10 +672,10 @@ When running add-to-crm, if the email body doesn't name the founders, round, or 
 Every new entry in the Opportunities DB must ship enriched, not as a stub:
 
 - **Icon** — always set. Pick a thematic emoji from Notion's standard emoji set. Never create with a blank/default icon.
-- **HQ — MANDATORY, deterministic. Run the full cascade on every row before it is considered complete; never ship `??? 🌀` as a first resort.** Order: source material (email sig, forwarded thread) → LinkedIn via WebFetch → company website footer → **`WebSearch` for `"{company}" headquarters` / `"{company}" {founder} San Francisco|New York|…`** (this is what surfaces HQ for stealth/early companies with a bare marketing site — do NOT skip it) → ContactOut `company.headquarter` as the paid fallback. YC company page is case-by-case (only when clearly YC-backed per LI headline). Map the result to the nearest existing `HQ` select option (per the mapping rule in `references/schema.md`). `??? 🌀` is permitted ONLY after every step above has actually been run and genuinely returned nothing — it is never an acceptable resting state for a row that simply wasn't investigated. **This applies identically in webhook/unattended mode** (the `inbound-deal-detect` / `add-to-crm-detect` paths): the thin `classifierHints` (or the raw forwarded text) are a starting point, not a substitute for the cascade — Step 2 enrichment still runs in full, and HQ is resolved deterministically before exit. Do NOT ask whether to enrich HQ; enrichment is automatic, not prompted.
+- **HQ — MANDATORY, deterministic. Run the full cascade on every row before it is considered complete; never ship `??? 🌀` as a first resort.** Order: source material (email sig, forwarded thread) → LinkedIn via WebFetch → company website footer → **`WebSearch` for `"{company}" headquarters` / `"{company}" {founder} San Francisco|New York|…`** (this is what surfaces HQ for stealth/early companies with a bare marketing site — do NOT skip it) → ContactOut `company.headquarter` as the paid fallback. **No founder named** (an incubator / studio / fund presenting the company): the presenting person's signature city / LinkedIn location stands in for the founder's (Sorted 2026-10-05 → Priscilla Guevara, Science, San Diego — Tom: "look up priscilla and see where she is based"). YC company page is case-by-case (only when clearly YC-backed per LI headline). Map the result to the nearest existing `HQ` select option (per the mapping rule in `references/schema.md`). `??? 🌀` is permitted ONLY after every step above has actually been run and genuinely returned nothing — it is never an acceptable resting state for a row that simply wasn't investigated. **This applies identically in webhook/unattended mode** (the `inbound-deal-detect` / `add-to-crm-detect` paths): the thin `classifierHints` (or the raw forwarded text) are a starting point, not a substitute for the cascade — Step 2 enrichment still runs in full, and HQ is resolved deterministically before exit. Do NOT ask whether to enrich HQ; enrichment is automatic, not prompted.
   > **Location-mention trap (Collar 2026-08-26 incident):** a location name appearing in the pitch body is not automatically the company's HQ — it may name a *customer, investor, or market* instead (e.g. "we're piloting with Temasek, Singapore's sovereign wealth fund" names an institutional customer, not where the company is based; similarly "backed by Sequoia" or "used by clients across Southeast Asia" are not HQ signals). That run set HQ to Singapore from exactly this misread, found Singapore wasn't a valid schema option, and shipped `??? 🌀` — while the founder's own LinkedIn (which the cascade never actually reached) said San Francisco. Before accepting any location string as HQ, confirm it's attached to the FOUNDER or the COMPANY ENTITY itself (a signature block, an "HQ:"/"based in" line, LinkedIn's location field, a company-website address) — not to a named customer, investor, or market the pitch is name-dropping for credibility.
 - **Contact** — founder email. Source material first (signatures, forwarded threads, deck last slide), then public LinkedIn, then company website contact page. ContactOut (`profile_only=false` for `email`/`personal_email`) is the fallback.
-- **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none. **Format: bare domain** (`solidcredit.com`) — never `https://` or `www.` (`opp_fields.py normalize` enforces this and the Contact format below). **Contact format:** every founder/co-founder email, `; `-separated (`bernardomenezes@gmail.com; eric@solidcredit.com; rodrigo@solidcredit.com`). Contact holds **co-founders only** — never assistants, EAs, employees, advisors or investors, even on the company domain; founder status needs an explicit statement ("my co-founder X"), a title alone doesn't count. When a later email or calendar invite surfaces co-founder emails or the company domain on an existing Opp, append them / fill Website in this format and alert Tom (Slack) naming what changed and who was skipped. Enforced in gmail-webhook `cofounder-detect.js` (both lanes).
+- **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none. **Format: bare domain** (`solidcredit.com`) — never `https://` or `www.` (`opp_fields.py normalize` enforces this and the Contact format below). **Contact format:** every founder/co-founder email, `; `-separated (`bernardomenezes@gmail.com; eric@solidcredit.com; rodrigo@solidcredit.com`). Contact holds **co-founders only** — except for an incubated company (a studio / incubator building it, e.g. Science): the incubator people working the deal are Contacts alongside any co-founders (Sorted 2026-10-05, Tom: "keep both in contacts – they're both a part of the firm incubating the biz" — Priscilla Guevara + Talia Rosenthal, Science). Otherwise — never assistants, EAs, employees, advisors or investors, even on the company domain; founder status needs an explicit statement ("my co-founder X"), a title alone doesn't count. When a later email or calendar invite surfaces co-founder emails or the company domain on an existing Opp, append them / fill Website in this format and alert Tom (Slack) naming what changed and who was skipped. Enforced in gmail-webhook `cofounder-detect.js` (both lanes).
 - **Description** — one-line what-they-do: YC one-liner, company site hero/meta, LI headline, or deck. Not `TBD`.
 - **🏁 Founder(s)** — if the founder already exists in People DB (dedupe via `workspace_search` on "{first} {last}"), link the relation. If they DON'T exist, **leave the relation blank** — do not auto-create a People row. Note the gap in the response so Tom can decide whether to add them. The page body Team section is where founder names + LinkedIn URLs live; there is no separate scalar property for first names anymore.
 
@@ -659,7 +683,7 @@ Every new entry in the Opportunities DB must ship enriched, not as a stub:
 
 **How to apply:**
 1. Whenever a founder LinkedIn URL exists in the source, run the enrichment cascade *before* writing the page (or immediately after, same turn): **source material → WebFetch on LI → YC page (if YC) → company website → ContactOut as fallback**. Don't burn ContactOut credits when the answer is free to find on LI or an email signature.
-2. Always set `icon` in the `notion-create-pages` call or in an immediate follow-up `update-page`. Use a thematic emoji from Notion's standard emoji set.
+2. Always pass a thematic `icon` emoji in the `opp_create.py` spec (it refuses a blank one).
 3. If the LinkedIn URL isn't in the source, try a quick WebSearch for `{founder name} {company} founder` and grab the LI URL from the first LinkedIn result before giving up.
 4. Treat `??? 🌀`, `TBD`, `N/A`, and blank Contact as failures to investigate — not acceptable end-states — unless the source genuinely offers no way to resolve them.
 5. Applies equally to scheduled pipeline-agent runs AND `inbound-deal-detect` webhook runs — the unattended-execution guard is NOT an excuse to skip enrichment. HQ specifically runs the full cascade including a company `WebSearch` on every path.

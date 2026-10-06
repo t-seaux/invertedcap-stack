@@ -228,7 +228,7 @@ If the email contained something materially new beyond the pipeline — a commit
 
 ## Error Handling
 
-- **DocSend email gate fails:** the sender may have restricted the link to a verified email. Fall back to driving Tom's authenticated Chrome tab (see the data-room section of `docsend-to-pdf`).
+- **DocSend email gate:** `docsend_pdf.py` tries docsend2pdf.com first (no email of Tom's). Exit 8 = still locked: the 🔐 👍 card goes to Tom (pass `--opp-id`), and his email is entered only on that 👍. Never fall back to Tom's authenticated Chrome tab, because that identifies him the same way (Tom, 2026-10-05).
 - **`object_not_found` on a `file-upload://` reference in the MCP:** you uploaded with the wrong integration. See the warning in Step 4 — this is the expected failure, not a bug.
 - **Upload expired (1 hour):** re-run the upload to mint a fresh id, then re-attach.
 - **PDF has no text layer:** expected for DocSend. Use `Read` with a `pages` range, not `pdftotext`.

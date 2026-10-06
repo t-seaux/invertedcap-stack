@@ -1,5 +1,10 @@
 {
-  "skills": {},
+  "skills": {
+    "alert-healer": "2026-10-06",
+    "carta-invoice": "2026-10-06"
+  },
   "launchAgents": {},
-  "webhookHandlers": {}
+  "webhookHandlers": {
+    "carta-invoice-inbound": "2026-10-06"
+  }
 }

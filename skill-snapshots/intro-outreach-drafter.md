@@ -1,7 +1,7 @@
 ---
 name: intro-outreach-drafter
 description: |-
-  Draft first-touch intro-request notes — the "would you be open to connecting with [X]?" ask Tom sends to gauge interest BEFORE any formal double-opt-in. Purpose-agnostic: customer, investor, advisor, strategic partner, or hiring chat, on behalf of a company (portfolio or pipeline) OR a person Tom is championing. Per recipient: resolve their existing People-DB row (never auto-creates; missing → asks Tom), draft in Tom's intro-outreach voice as a Gmail DRAFT (never send), and add them to the Opp's 👓 Intros (Qualified) when the subject maps to an Opportunity; intro-outreach-agent moves them to ☎️ Outreach on send. Modes: (B) Targeted/Enqueued — gmail-webhook's handleOppHostIntroOptIn fires this when an Opp's own contact replies YES to an intro Tom offered them to someone in his network ("would love to intro you to Liam, up for it?" → "yes please"); drafts the ask to the OTHER person (the target) so their opt-in can be gathered too. Distinct trigger from intro-note-processor (which finds intro offers by scanning call TRANSCRIPTS, not Gmail replies) but identical output — kept in one skill, not duplicated. (C) Manual. Trigger on: "draft an intro note to [names] for [company/person]", "draft outreach to [X] about [Y]", "ask [X] if they'd connect with [Y]", "[founder] wants intros to [names]", "draft a note introducing [company] to [potential customer/investor]", "[person] said yes to the [target] intro, draft the note", or any variant asking for first-touch intro-request notes. Composes with talent-scan, coinvestor-recommender, network-scan, add-to-contacts. NOT intro-draft-agent (double-opt-in connect email, post BOTH opt-ins), NOT talent-scan (candidate sourcing) — this is the drafting layer. Always trigger inline.
+  Draft first-touch intro-request notes — the "would you be open to connecting with [X]?" ask Tom sends to gauge interest BEFORE any formal double-opt-in. Purpose-agnostic: customer, investor, advisor, strategic partner, or hiring chat, on behalf of a company (portfolio or pipeline) OR a person Tom is championing. Per recipient: resolve their existing People-DB row (never auto-creates; missing → asks Tom), draft in Tom's intro-outreach voice as a Gmail DRAFT (never send), and add them to the Opp's 👓 Intros (Qualified) when the subject maps to an Opportunity; intro-outreach-agent moves them to ☎️ Outreach on send. Modes: (B) Targeted/Enqueued — gmail-webhook's handleOppHostIntroOptIn (or deal-text-scanner §5c over text) fires this when an Opp's contact replies YES to Tom's "open to connecting with X?"; that yes is the second opt-in (the first is implied — Tom got it in person / on a call / by text), so Mode B drafts the double-opt-in CONNECT email, never a further ask. (C) Manual. Trigger on: "draft an intro note to [names] for [company/person]", "draft outreach to [X] about [Y]", "ask [X] if they'd connect with [Y]", "[founder] wants intros to [names]", "draft a note introducing [company] to [potential customer/investor]", "[person] said yes to the [target] intro, draft the note", or any variant asking for first-touch intro-request notes. Composes with talent-scan, coinvestor-recommender, network-scan, add-to-contacts. NOT intro-draft-agent (connect email after an Outreach target's opt-in reply), NOT talent-scan (candidate sourcing) — this is the drafting layer. Always trigger inline.
 
 ---
 
@@ -73,34 +73,45 @@ happens on send and is owned by `intro-outreach-agent`. Do not duplicate that lo
 
 ## Modes
 
-- **Mode B — Targeted (Enqueued).** Fired by `gmail-webhook`'s `handleOppHostIntroOptIn` when an
-  Opp's own contact replies "yes" to an intro Tom offered them to someone in his network. See "Mode B
-  — Opp-host opt-in" below; it resolves the subject (the Opp) and the recipient (the target) itself,
-  then falls through to Steps 1-5 below unchanged.
+- **Mode B — Targeted (Enqueued).** An Opp's contact replies "yes" (email or text) to Tom's ask →
+  draft the CONNECT email. Self-contained — see "Mode B" below; it does NOT fall through to Steps 1-5.
 - **Mode C — Manual.** Tom names the recipient(s) and subject directly. Standard entry point, Steps
   1-5 below.
 
-## Mode B — Opp-host opt-in (Targeted, Enqueued)
+## Mode B — Opt-in reply to Tom's ask → draft the CONNECT (Targeted, Enqueued)
 
-Tom, 2026-09-21: "when I ask if someone wants to chat with someone and they say yes, you draft the
-note I need to send to the other person to get the double opt-in." **Not the same trigger as**
-`intro-note-processor` (which finds intro offers by scanning Notion AI **call transcripts**) — this
-fires off a **Gmail reply**. Different signal, identical output (a Step 3 draft + Step 4 Qualified
-entry), so it lives here rather than as a separate skill — keep the drafting logic in ONE place.
+**The rule (Tom, 2026-10-05): a yes to Tom's ask IS the second opt-in.** "Typically I'll get an initial
+opt-in when I'm catching up with someone in person, over a call or over a text. So when I reach out to
+the other person, it's already implied that there's already an opt-in. Explicitly looking for a two-way
+opt-in is overkill." So when someone replies yes to Tom's "would you be open to connecting with X?" —
+by email or text — draft the double-opt-in **connect** email (never send) and the ✍️ draft ping is the
+alert. Do NOT go hunting for the other side's opt-in and do NOT draft a first-touch ask to X.
+All that matters is the two-way opt-in, and Tom reaching out means the first side is already in —
+so a yes is always the second one. Don't classify whether Tom was asking or offering (Tom, 2026-10-05:
+"it doesn't matter whether you're being asked or you're offering"); the asking-vs-offering split only
+sets To/Cc below. (Supersedes the 2026-09-21 "draft the ask to the other person" behavior. Rengo/Samit
+2026-10-05 is the incident.)
 
-**Args** (from `gmail-webhook`):
+**Args** (from `gmail-webhook` `handleOppHostIntroOptIn`):
 ```json
 {
-  "messageId": "<Gmail message id of the Opp-host's reply>",
+  "messageId": "<Gmail message id of the yes>",
   "threadId": "<Gmail thread id>",
-  "senderEmail": "<Opp-host's email — matched an Opp's Contact property>",
+  "senderEmail": "<replier's email — matched an Opp's Contact property>",
   "oppId": "<Notion Opportunity page id>",
-  "oppName": "<Opportunity title, for logging/alerts>",
+  "oppName": "<Opportunity title>",
   "qualifiedPersonIds": ["<People DB page id>", "..."]
 }
 ```
-`qualifiedPersonIds` is the Opp's FULL `👓 Intros (Qualified)` roster at enqueue time, not necessarily
-just the person this reply names — resolved below.
+`qualifiedPersonIds` = the Opp's `👓 Intros (Qualified)` roster — candidates for X, not evidence.
+
+**Text variant** (from `deal-text-scanner` intro lane §5c — the yes came over iMessage):
+```json
+{"channel": "text", "oppId": "…", "oppName": "…", "senderHandle": "+1…", "hostPersonId": "<replier People id>",
+ "optInText": "<verbatim yes>", "offerText": "<Tom's verbatim ask>", "offerTs": "…", "qualifiedPersonIds": ["…"]}
+```
+No Gmail thread: B1 reads `offerText` / `optInText` instead of fetching messages. The replier's email
+comes from their People row / the Opp's `Contact` (none → no draft; say so in the run log + 🧍 card).
 
 **B1 — Confirm it's a real opt-in AND extract the named target, deterministically first.** Fetch
 `messageId` (plain text) and Tom's prior message in the same thread (`SENT` label). Tom, 2026-09-21:
@@ -148,7 +159,7 @@ be non-empty (a separate scan may not have staged this person yet; don't depend 
   does: scoped + `workspace_search` of the People collection for the extracted name / LI URL. **No
   existing row → do NOT create one** (this path is unattended): log `target-not-in-people-db`, list
   the person via `people_db_ask.py` (texts Tom a 👍 card with the extracted LI URL / company,
-  `--relation "👓 Intros (Qualified)"`, the Opp, and `--then "draft the intro-outreach note (Step 3)"` if the draft was skipped), note "🧍 texted for 👍" in the ✍️ alert, and skip the Step 4 Qualified write for them. The draft itself may still be created
+  `--relation "☎️ Intros (Outreach)"`, the Opp, and `--then "draft the intro connect (Mode B3)"` if the draft was skipped), note "🧍 texted for 👍" in the ✍️ alert, and skip B4's CRM write for them. The draft itself may still be created
   if the target's email is known from the thread — it needs no People page — but say so in the alert.
 - **B1 found nothing at all, or two genuinely ambiguous candidates** → log `target-ambiguous`, exit
   0. Do not guess; a wrong target drafted to a stranger is the exact failure this gate exists to
@@ -158,24 +169,37 @@ be non-empty (a separate scan may not have staged this person yet; don't depend 
   Opp-host's own name (rather than the target they actually named) would otherwise self-loop — draft
   an "intro" to the person the Opp already IS. Guard, don't skip.
 
-**B3 — Intro subject = the Opp** (`oppId`/`oppName`) — run Step 1's company-subject path using this
-Opp directly (no `notion-search` needed, you already have the ID). **Relevance line:** reuse whatever
-hook Tom's own offer email (B1) already gave — it usually states it ("figured you two would have a
-lot to compare notes on given X").
+**B3 — Draft the connect** per `intro-draft-agent` Step 3 + `writing-style/intro-connect/STYLE.md`,
+created ONLY via `intro_draft_guard.py create` (guard + draft + `Intro Drafted` label in one call;
+refusal → log the verdict, exit 0). Never send.
+- Email: `--thread-id <threadId> --label-msg <messageId>`. Text: `--channel text --no-label`.
+- Always `--target-email <X's email> --opp-name "<oppName>" --opp-id <oppId>`.
+- **To / Cc by the favor:** whoever wanted the connection is To (first in subject, named in the
+  handoff); whoever is granting their time is Cc. Tom asked the replier to give X time ("open to
+  connecting with my friend Samit?") → To = X, Cc = replier: `Samit (Story & Signal) / Erik (Rengo)`.
+  Tom offered the replier X's time ("would love to intro you to Liam @ Level") → To = replier (+ their
+  co-founders on the thread), Cc = X: `TJ (FourBridge) / Liam (Level Ventures)`. Companies verbatim
+  from the thread / People row / their own site — never guessed.
+- X's email: the thread (a forwarded message's From, Tom's links) → X's People row. None → no draft;
+  `target-no-email`, 🧍 card via `people_db_ask.py` naming the missing email.
+- X already in `✉️ Made` from an EARLIER, different intro → not a blocker, not worth a flag.
 
-**B4 — Then run Steps 2 (recipient already resolved per B2, just finish dedupe/enrich if that's
-still pending) through 5 unmodified.** Same About-block rule, same `gmail-create-draft.py` call, same
-mandatory ✍️ alert (never pass `--no-alert`), same post-create `list_drafts`-confirms-exactly-one-draft
-check. **Step 4's Qualified write is a REAL write here, not a no-op** — this is the mechanism that
-stages the target when nothing else has yet (union with existing relation, per Step 4's rule); confirm
-it landed (readback) before Step 5 reports done.
+**B4 — CRM.** X (People row resolved per B2) → the Opp's `☎️ Intros (Outreach)` — opted in, connect
+pending; the email side moves them to `✉️ Made` when Tom sends:
+`python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <oppId> --person-id <X> --target outreach --source intro-outreach-drafter`.
+No People row → skip (the 🧍 card from B2 covers it). Exit 5 → log `blocked`.
 
 **B5 — Log and exit.** Run-log entry: `oppId`, `oppName`, resolved target name + id, draft URL. No
 separate Slack alert beyond Step 3's ✍️ draft-created ping.
 
-**Manual equivalent (Mode C phrasing that means the same thing):** "TJ said yes to the Liam intro,
-draft the note" / "[Opp] is up for chatting with [target], draft the ask" — skip B1/B2's email
-detection, resolve Opp + target by name instead, run B3-B5.
+⛔ **Never freelance a Slack alert in Mode B.** The ONLY Tom-facing outputs are the ✍️ draft ping and
+the 🧍 People-DB card. No-draft exits (`not-a-clear-optin`, `no-offer-found-in-thread`,
+`target-ambiguous`, `target-no-email`, guard refusals) are run-log only. If you catch yourself writing a
+reasoning paragraph as an alert headline ("X said yes. No first-touch drafted – …"), something is
+wrong — a clear yes always ends in a connect draft. (2026-10-05 Rengo alert: a 60-word Title-Cased
+headline explaining why nothing was drafted.)
+
+**Manual equivalent:** "TJ said yes to the Liam intro, draft it" — resolve Opp + X by name, run B3–B5.
 
 ## Workflow (Mode C — Manual)
 

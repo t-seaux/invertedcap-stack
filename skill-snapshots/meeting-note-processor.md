@@ -87,7 +87,7 @@ For each surviving candidate, query the Company Updates DB for the period row wh
 
 (Do NOT filter by Update Type — the row is shared with Formal content and may not carry `Live` yet.)
 
-If a matching row exists AND its `Artifacts` files property includes this note's URL → already processed, drop the candidate. The Artifacts entry is the canonical "this note has been incorporated" marker because `add_link_to_files_property.py` writes it as the last step of B-process Step 6.
+If a matching row exists AND its `Artifacts` files property includes this note's URL → already processed, drop the candidate. The Artifacts entry is the canonical "this note has been incorporated" marker because `company_updates_upsert.py` (via `notion_files_property.py`) writes it as the last step of B-process Step 6.
 
 If no matching entry OR matching entry exists but doesn't reference this note → this is a real gap; keep the candidate.
 
@@ -339,6 +339,28 @@ If the note is a feedback call, rename it to the `feedback-outreach-scanner` tit
 Extract Round Details (and Stage) from the call body onto the linked Opp — but only when the Opp's Round Details is empty AND Status is in-pipeline (skip if already set, or if Status is any `Pass *` / Committed / Active Portfolio / Portfolio: Follow-On / Exited). GUARD — context co-occurrence cross-check: every extracted figure must co-occur with fundraising context ("raising"/"round"/"post"/"cap"/"SAFE"/"valuation") in the same transcript passage, else leave empty and log `figure-without-fundraising-context`. Full procedure + format-spec pointer in `references/round-details-extraction.md`; **read it now before proceeding.**
 
 ### Step 6: Upsert call into the Company Updates period row
+
+**ONE command does Step 6 (2026-10-05) — never hand-run the gate, the grounding scripts or the upsert separately:**
+```bash
+python3 ~/.claude/skills/meeting-note-processor/live_upsert_run.py --note-id <pageId> \
+    --section-file <per-call summary .md> --source-file <note body + transcript .txt> \
+    --summary "<cumulative Summary>" --traction "<Traction>"
+```
+You write: the per-call summary (or the `[not a portfolio update – …]` / `[thin call – …]` marker), the cumulative
+Summary / Traction (v2 prompt in company-updates-db.md), and the source file (body + `<transcript>` — no transcript →
+the Transcript-missing HALT below). The script owns: the Opp-side gate (portfolio Status, Created ≥ Close Date, title
+patterns, the content-gate marker), FO / Secondary-linked notes → the initial-investment Opp, the period label (ET),
+the prior-month freeze, its own scratch dir, Layer 1 → Layer 2 → speaker attribution, and `company_updates_upsert.py`.
+- **exit 0** → written (`frozen: true` = prior month, Summary / Traction untouched) → Step 7 alert.
+- **exit 10** → gated skip: log `content-gate-skip` / the `reason`, surface it in the Step 7 alert. Nothing written.
+- **exit 3** → already processed — no-op.
+- **exit 6** → grounding failed at `layer` (1 / 2 / attribution): re-generate the Summary ONCE with `details` as the
+  corrective addendum (templates in the reference) and re-run; a second 6 → HALT, alert with the violations.
+- **exit 5** → Traction / Summary lint refused → fix the value, re-run. **exit 4** → repair zone order now.
+- **exit 2** → NOT written (Notion / claude unreachable) — never report success.
+`"regenerate": true` runs keep the in-place rebuild below (not covered by the script yet).
+
+The rest of this step is the WHY.
 
 If `Category = Portfolio` AND `Opportunity` is set, roll the call into the `📚 Company Updates` DB (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`) — one row per Company × Period, shared with Formal content. Upsert the call as a dated subsection and re-derive rolling `Summary`/`Traction` (Case A new row / Case B current-month / Case C prior-month freeze).
 

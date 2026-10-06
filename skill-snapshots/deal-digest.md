@@ -7,17 +7,26 @@ description: Log deal digest content to a monthly rolling page in the Notion Not
 
 Log deal digest content into a single monthly rolling page in the Notes DB (`e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`). Every ingest — Chris Oh batch, ad-hoc competitor intel, single traction snippet — prepends as a dated, source-tagged block to that month's page. Newer entries on top. No merging across ingests, no benchmark synthesis.
 
-## Workflow
+## Workflow — ONE command
 
-1. **Determine the page** — derive the title from the current month: `Deal Digest – [Month YYYY]` (e.g. `Deal Digest – April 2026`).
-2. **Locate or create** — search Notes DB for that page.
-   - **If exists** — fetch its current content.
-   - **If missing** — create it via `notion-create-pages`. Title above, Category=`Research`, Icon=🤝, body empty (the first ingest fills it).
-3. **Build the new ingest block** (see Ingest Block Format below).
-4. **Prepend** at the top of the page — ALWAYS. Every new ingest goes ABOVE every existing block. Doesn't matter if it's a full Chris-Oh-style batch or a one-off single-company snippet, doesn't matter what date stamp it carries — most recently logged sits at the top. Log order governs vertical position, not date stamp.
+Write the ingest's verbatim content (formatted per the Body formatting rules below) to a scratch file, decide its
+source, then:
 
-   Use `notion-update-page` with `update_content`; `old_str` = first line of existing content, `new_str` = `[new block] + [old first line]`. If the page is empty (just created), use `update_content` with empty old_str OR write content directly during create.
-5. **Classify** — run `note-classifier` to confirm Category=Research.
+```bash
+python3 ~/.claude/skills/deal-digest/deal_digest_ingest.py --date <YYYY-MM-DD, the log date> \
+    (--source "<who / channel>" | --no-source) [--context "<retrieval framing>"] --body-file <ingest.md>
+```
+
+**Never `notion-create-pages` / `notion-update-page` the digest page by hand.** The script finds the month page by exact
+title (or creates it: Category Research, icon 🤝, no Opportunity), builds the block (bold date line + nbsp, body,
+divider; `#` labels and standalone bold lines kept as bold paragraphs so Notion can't promote them; literal `\n` and
+`\$` repaired), PREPENDS it with readback (rolled back if it doesn't land), then re-parses the cache and backfills
+Companies mentions (Final Step below is done for you).
+- **exit 0** → report `confirm` · **3** → fix what `failures` names (source decision, empty body, duplicate month pages)
+- **4** → nothing changed (rolled back) · **5** → manual repair (`leftover_ids`) · **6** → content is in, but re-run the
+  cache / backfill scripts (Final Step) · **2** → not written
+
+The sections below are the WHY and the formatting rules you apply to the body.
 
 ## Ingest Block Format
 

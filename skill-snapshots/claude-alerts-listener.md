@@ -119,6 +119,7 @@ Each branch fires on a specific parent-alert header (+ reply shape). Check them 
 8. **Contact enrichment retry** — parent header contains `👤 Created People DB entry` AND Tom's reply contains a `linkedin.com/in/…` URL (he's supplying the identity ContactOut couldn't resolve, or correcting a bad match). Procedure in `references/special-branches.md#special-branch-contact-enrichment-retry-linkedin-url-reply` — read it now.
 9. **Writeback review apply** — parent header starts with `🧹 Writeback Review Triage` AND Tom's reply is a bare confirm (👍 / "confirm" / "yes") OR contains overrides (`skip <name>`, `make <name> <category>`, a corrected `linkedin.com/in/…` URL after a name). Procedure in `references/special-branches.md#special-branch-writeback-review-apply` — read it now.
 10. **Code-First Sweep convert / skip** — parent header starts with `🧱` AND contains `Code-First Sweep:` AND Tom's reply is `convert <n>[, <n>…]` / `convert all` / `skip <n>`. Procedure in `references/special-branches.md#special-branch-code-first-sweep-convert--skip`; **read it now**.
+11. **Auto-heal fix apply** — parent header starts with `🛠️` AND contains `Auto-Heal Stuck:` AND the parent carries a `👍 to apply it` line, AND Tom's reply is a bare confirm (👍 / ✅ / "yes" / "do it" / "apply") or a confirm with a tweak ("do it but …"). Procedure in `references/special-branches.md#special-branch-auto-heal-fix-apply` — read it now.
 
 ---
 

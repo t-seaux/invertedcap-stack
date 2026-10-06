@@ -9,7 +9,7 @@ Accept an investor letter from an external firm — as a URL, pasted text, or up
 
 **Notes database data_source_id:** `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`
 
-**Dedup guard ([[shared-references/notes-dedup-guard]]):** if a URL is given, `notion-search` it FIRST; live Notes-DB match → STOP and reconfirm the existing page. Backstop before create: title `contains` check on `e8afa155-…`. Never create a second entry for the same source.
+**Dedup guard (before any fetch):** run `python3 ~/.claude/skills/shared-references/notes_dedup.py check --url <source url>` FIRST — exit 10 → STOP and reconfirm the existing page (skips the extraction). `notes_create.py` re-checks URL + title at write time.
 
 ---
 
@@ -53,9 +53,11 @@ If the URL is behind a paywall, returns a login wall, or is otherwise inaccessib
 
 ---
 
-## Step 1.5: Upload Source File to Drive (when a file is provided)
+## Step 1.5: Upload Source File to Drive (ALWAYS — file or link)
 
-**When the user provides a PDF or document file** (path in conversation, not a URL or pasted text), upload it to the **Non-Inverted Letters** Drive folder so the source link in Step 5 points at a real artifact.
+**Tom 2026-10-05: every logged letter gets a PDF Tom owns.** A URL source is first turned into a local PDF —
+`python3 ~/.claude/skills/shared-references/source_pdf.py fetch "<url>" --out <scratch>/<name>.pdf` (exit 5 →
+`docsend-to-pdf`; exit 3 → log with the original link only and tell Tom in one line). Then, file or link, upload it to the **Non-Inverted Letters** Drive folder so the source link in Step 5 points at a real artifact.
 
 - Target folder: `LP Letters / Non-Inverted Letters` — folder ID `1f4GM9uQRtH-hhQeLIPki92es_CvstcHn`
 - **As code (2026-10-04)** — upload with the shared CLI (spec: `shared-references/drive-upload.md`):
@@ -70,8 +72,8 @@ Exit **0** → use `url`. Exit **1/3** → retry once; still failing → fall th
 below and say so in the reply (never a self-referential Source). Exit **2** → the local path is wrong.
 
 **Source URL precedence for Step 5:**
-1. Uploaded Drive URL (Step 1.5 result) — preferred when a file was provided
-2. Original public URL provided by the user (when no file, only a URL)
+1. Uploaded Drive URL (Step 1.5 result) — always first; when the source was a link, append ` · [original](<url>)`
+2. Original public URL — only when Step 1.5 could not produce a PDF (exit 3)
 3. None — render Source as plain bold text, no hyperlink (see Step 5 guard)
 
 **If only pasted text was provided** (no file, no URL), skip this step — there is nothing to upload.
@@ -173,39 +175,27 @@ Use `**Letter**` as a bolded text label (not a Markdown header `##`). Render the
 
 ---
 
-## Step 6: Create the Notion Page
+## Step 6: Create, classify, confirm
 
-Use `notion-create-pages` with:
+**One command does the write — never `notion-create-pages` / `notion-update-page` for this page** (Costanoa 10/3: a
+hand-rolled MCP create passed `parent_id`, the page landed private at workspace root, and the full text, Category and
+icon were all skipped while "✅ Logged" went out anyway). Write the title and body from the steps above to a markdown
+file in your scratch dir, then:
 
-```json
-{
-  "parent": { "data_source_id": "e8afa155-b41a-4aa2-8e9d-3d4365a11dfb" },
-  "pages": [{
-    "properties": {
-      "Name": "<title from Step 3>",
-      "Opportunity": "<opportunity page URL if found, else omit>",
-      "⭐️": "__NO__"
-    },
-    "content": "<page body from Step 5>"
-  }]
-}
+```
+python3 ~/.claude/skills/shared-references/notes_create.py --kind investor-letter --title "<title>" --body <file.md> \
+    [--url <source url>]... [--opp <Opportunities page id>] [--title-verbatim]
 ```
 
----
+The script does dedup, the title and body shape checks, the create (parent hardcoded to the Notes DB), ⭐️ off,
+Opportunity, Category (note-classifier code when `--opp` is set), the Claude icon, and the readback. Pass `--opp` only on a
+confident single Opportunities match (`notion-search`); `--title-verbatim` when Tom dictated the title.
 
-## Step 7: Set Claude Icon
-
-Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/claude-note-icon.md` and follow its instructions to set the custom Claude logo emoji as the page icon on the newly created note. This is required for all Claude-generated notes — do not skip.
-
----
-
-## Step 8: Confirm to User
-
-**As code (2026-10-04) — post-write check, before confirming:** `python3 ~/.claude/skills/shared-references/notes_page_check.py check --page-id <new page id> --kind investor-letter` (add `--title-verbatim` when Tom dictated the title). It verifies the parent is the Notes DB (9/18 ICONIQ orphan), the title shape, no self-referential link (and no notion.so / notion.site 📄 Source). Exit **0** → confirm. Exit **1** → fix what `failures` names (move the page into the Notes data source, retitle, unlink, re-render the block), re-run, then confirm. Exit **2** → Notion unreachable: report the page as unverified, never `✓`. Pre-create: `notes_page_check.py title --kind investor-letter "<title>"`.
-
-After successful creation, respond with one line:
-
-> ✓ Letter logged to Notes: **[Note Title]** → [Notion page URL]
+- **exit 0** → send its `confirm` line VERBATIM. That is the only path to a ✓.
+- **exit 10** → already logged: `✓ Already logged: **<existing.title>** → <existing.url>`. Create nothing.
+- **exit 11** → a page with the SAME TITLE exists but was logged from a different link (`logged_urls`): open it and compare with this document. Same document → treat as exit 10. Different document → create it (make the title distinguishable if needed) – never report "already logged" for a different document.
+- **exit 3** → fix the CONTENT that `failures` names (missing section, title shape, fenced block) and re-run.
+- **exit 4 / 2** → it did NOT log (exit 4 means the page was archived again). Tell Tom it failed and why. Never ✓.
 
 ---
 
@@ -214,14 +204,5 @@ After successful creation, respond with one line:
 - **URL behind paywall or login wall:** Inform the user the letter could not be fetched. Ask them to paste the letter text directly.
 - **No author identified:** Use the firm name in the title and embed the letter type in the subtitle. Do not guess a name.
 - **Date unclear:** Use the most specific date inferable from the letter body (e.g. publication date at top of letter, or quarter/year if no specific date). If genuinely unresolvable, use `Undated`.
-- **Notion MCP unavailable:** Inform the user and suggest they log the letter manually.
+- **notes_create.py exit 2 (Notion unreachable):** tell Tom it did not log; never ✓.
 - **Title unclear:** Default to `Letter: [Firm] — [file/URL identifier]` rather than asking.
-
-
----
-
-## Final Step: Classify the Note
-
-After the Notion page has been created and the Opportunity relation (if any) has been set, run the `note-classifier` skill to assign the correct `Category` field.
-
-Read the skill at `/Users/tomseo/.claude/skills/note-classifier/SKILL.md` and follow its classification logic against the note just created. Do not skip this step — every note created by this skill must have a Category set.

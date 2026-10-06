@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026-10-06] (Week of 2026-10-05)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- inbound-deal-detect -- founders already tracked as live opportunities who write in with new company news now trigger a live-update path instead of being treated as a new pitch
+- intro-outreach-drafter -- a "yes" reply to the intro ask now counts as the second opt-in and drafts the connect email directly
+- log-document-to-notes, log-investor-letter-to-notion, log-transcript-to-notion -- every logged source now gets an owned PDF copy in Drive, including link sources; note creation runs as one verified command
+- add-to-crm, add-to-contacts, add-conversation-to-notion, log-thread-to-notes, deal-digest, deal-share-out, investor-update, feedback-outreach-scanner, materials-handler, intro-draft-agent -- record creation and drafting moved into single deterministic commands with readback verification
+- add-follow-on-round -- follow-on plans now require the writing fund to be specified explicitly
+- deal-text-scanner, log-deal-share, update-diligence-priors, soi-portfolio-event -- roster checks moved into code; DocSend email-gated links no longer fall back to the owner's browser session; priors updates handle ambiguous prior docs; date repair is scripted
+**Total skills:** 50
+**Functions:** No changes
+
 ## [2026-10-05] (Week of 2026-10-05)
 
 **Added:** None

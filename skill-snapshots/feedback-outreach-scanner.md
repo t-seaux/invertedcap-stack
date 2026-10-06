@@ -258,7 +258,7 @@ For each person still in the Step 0 contact list AFTER Steps 1–2 ran (i.e., no
    - Consolidate: rename the note carrying the substantive content to the winning stub's title/subject variant (drop `[PENDING]`), port the sibling stub's `## Outreach Note` (and any response history) in as a clearly-labeled section, archive the sibling via the Notion REST API pattern in Step 3b (`PATCH /v1/pages/{pageId}` with `{"archived": true}`), and remove the archived page's URL from the Opp's `✍️ Notes` relation.
    - If both outreach emails read the same way (a true duplicate rather than two distinct asks), or neither reads clearly as either, do NOT guess — keep both notes separate, log `feedback-merge-ambiguous-subject`, and let Tom's own later title correction be the signal, same as any other ambiguous case in this skill.
    - Canonical incident: Justin Budlow (GlossGenius) / Fair, 2026-08-06 — Tom sent both a reference-request email (`... : Avery Alchek Reference`) and a business-feedback email (`... : Fair Feedback`) to Justin on 2026-08-04; a single Zoom call on 2026-08-06 covered both, landing on the Feedback stub via Notion's meeting-notes widget. Tom corrected the title by hand to the Reference variant since the call was, in substance, a founder reference conversation — the Feedback framing undersold what the call actually was.
-5. If substantive (after any consolidation above): run Step 4b (drop `[PENDING]`) and Step 5 (remove from `📣 Pending Feedback`). Do NOT rewrite, reformat, or summarize the manual/call content — Tom's notes (or the meeting-notes widget) stay exactly as captured.
+5. If substantive (after any consolidation above): `python3 ~/.claude/skills/shared-references/feedback_write.py resolve --opp-id <opp> --person-id <P> --kind substantive` (drops `[PENDING]` + clears `📣 Pending Feedback`, read back; `--kind decline` for a typed-in decline). Do NOT rewrite, reformat, or summarize the manual/call content — Tom's notes (or the meeting-notes widget) stay exactly as captured.
 6. Count these in the Step 6 summary under **Manually-resolved (reconciled)**.
 
 Inverse-drift guard: if a note's title has NO `[PENDING]` prefix but the person is still in `📣 Pending Feedback` (e.g., Tom dropped the prefix by hand), treat the unprefixed title as the substantive signal — verify the body isn't empty placeholders, then run Step 5 to clear the relation.
@@ -269,7 +269,17 @@ Inverse-drift guard: if a note's title has NO `[PENDING]` prefix but the person 
 
 For each newly sent feedback outreach email (from Step 1) or unannotated thread (from Step 2), create a Notes DB page.
 
-Use `notion-create-pages` with `data_source_id: e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`.
+**ONE command (2026-10-05) — never `notion-create-pages` a feedback note:**
+```bash
+python3 ~/.claude/skills/shared-references/feedback_write.py create --opp-id <opp> --person-id <People page> --kind feedback|reference \
+    --subject "<Opp co | person referenced>" --outreach-file <verbatim sent body> --outreach-date <YYYY-MM-DD>
+```
+It runs the Status gate, the one-note-per-(person, Opp) merge (existing note → the ask becomes another dated `## Outreach
+Note`, Reference wins the title), creates the `[PENDING]` note with the Opportunity relation in the same call (parent
+hardcoded, Category by status, no icon, People-grounded header), adds the person to `📣 Pending Feedback`, runs the
+Step 3b race guard (`reconcile --apply`) and reads back parent + relation + roster. exit 0 → done (if a reply already
+exists, follow with `log-response`, Step 4) · 1 → gate skip, silent · 4 → `failures` (incl. `feedback-note-orphaned`)
+→ ⚠️ alert, never exit 0 · 2 → did NOT land. The subsections below are the WHY.
 
 ### Resolve person context
 
@@ -323,10 +333,13 @@ python3 ~/.claude/skills/shared-references/feedback_note.py reconcile --opp-id <
 python3 ~/.claude/skills/shared-references/feedback_note.py reconcile --opp-id <opp_id> --person-id <person_page_id> --name "<First Last>" --apply  # executes + verifies
 ```
 It gathers the person's notes from the Opp's `✍️ Notes` (mention or title) PLUS same-person, same-Opp-subject orphans
-from the Notes DB (empty `Opportunity`), keeps the earliest `Created`, archives the rest, drops them from `✍️ Notes`,
-links the keeper if it is the orphan, then re-reads to verify. Run the dry-run first; exit **0** = exactly one linked
-note → done · **3** = no note found (your own create didn't land — that is the Step 3 orphan failure: alert) ·
-**10** = plan has actions → re-run with `--apply`. With `--apply`: **0** = applied + verified → emit the step-7 run-log
+from the Notes DB (empty `Opportunity`), keeps the earliest `Created`, FOLDS every dated Response / Outreach Note section
+of the others into it verbatim (read back first – an unverified fold archives nothing), then archives the rest, drops
+them from `✍️ Notes`, links the keeper if it is the orphan, and re-reads to verify (2026-10-05). Run the dry-run first
+(`fold_preview` shows what moves); exit **0** = exactly one linked note → done · **3** = no note found (your own create
+didn't land — that is the Step 3 orphan failure: alert) · **6** = a note matches by NAME only (no mention of the person,
+not a twin of their note) → YOU judge from the `ambiguous` titles whether it is the same person; if yes re-run with
+`--confirm <id>` (repeatable), if no leave it alone · **10** = plan has actions → re-run with `--apply`. With `--apply`: **0** = applied + verified → emit the step-7 run-log
 line from the printed plan · **5** = verification failed → emit `feedback-note-orphaned: …` and a `⚠️` send-alert with
 the `problems` lines (never exit silently) · **2** = Notion error → same ⚠️ alert. Harness:
 `shared-references/tests/test_feedback_note.py` (Gilad Rom/Factir race, John Hor orphan, silent link drop).
@@ -355,6 +368,17 @@ If Tom hops on a Zoom with a feedback giver AFTER the `[PENDING]` stub has been 
 ---
 
 ## Step 4: Append Reply to Existing Note
+
+**Steps 4, 4b and 5 are ONE command — never `notion-update-page` the note, its title or the roster by hand:**
+```bash
+python3 ~/.claude/skills/shared-references/feedback_write.py log-response --opp-id <opp> --person-id <People page> --kind substantive|decline|deferral \
+    --channel email --date <YYYY-MM-DD> --body-file <complete verbatim reply> --surface slack
+```
+It inserts `## Response – <date>` above every prior Response (replacing `[No reply yet]`), flips the prefix (substantive
+→ none, decline → `[DECLINED]`, deferral → unchanged), clears `📣 Pending Feedback` on substantive / decline (never
+re-adds), reads everything back, and prints `alert` (Slack rendering). exit 0 → post `alert` via send-alert (deferral:
+no alert) · 1 → gate skip, silent · 3 → no note: run Step 3's `create` first · 5 → body breaks the contract ·
+4 / 2 → NOT logged, alert the failure. The prose below is the WHY.
 
 When a reply is detected (Step 2) and a note already exists:
 

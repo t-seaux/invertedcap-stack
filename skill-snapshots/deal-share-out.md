@@ -284,6 +284,23 @@ own section under Original Email (stylebook "Pass Note rules"):
 
 ## Step 5: Compose and create the draft
 
+**ONE command does Step 5 in every mode (2026-10-05) — never `create_draft`, never a hand-built `createDraft` POST,
+never hand-run the dedup, the mute or the alert:**
+```bash
+python3 ~/.claude/skills/deal-share-out/deal_share_draft.py --company "<Company>" --fields <fields.json> \
+    --bcc "<share_recipients.py addresses>" --firms "<Firm(s)>" --stage "<Stage, no emoji>" \
+    [--attach <DRIVE_ID>:"<Company> - <Deck|Overview|Memo>.pdf"]... [--qualifier ", on pass"] [--caveat "<⚠ line>"]... \
+    [--surface text]   # Mode B3: the alert comes back as `alert` for the text lane to send
+```
+You supply judgment only: `fields.json` = compose_body.py's input (values, sanitized fragments, Materials labels after
+OPENING each file), the recipients, and which company-provided files to attach (Drive-ensured / DocSend-ripped per 1/1b
+below). The script: exact-subject dedup over Drafts AND Sent (a `Re:` counts; search failure → stop), the scaffold via
+compose_body.py, the materials ⇄ attachment consistency check (no viewer links), the ONE creation path
+(gmail-create-draft.py: Bcc, To empty, server-side attachments, no signature, no generic ping), and the ✍️ alert sent only
+once the draft exists. **exit 0** → report `confirm` (Step 6) · **10** draft exists / **11** already sent → Mode C:
+surface it; webhook modes: exit silently (`--allow-reshare` only on Tom's fresh 👣 / explicit ask) · **3** → fix what
+`failures` names · **4 / 2** → nothing drafted; say so. Everything below in this step is the WHY.
+
 Read `~/.claude/skills/writing-style/deal-share-out/STYLE.md` and follow its subject line,
 scaffold, and rules exactly.
 
@@ -336,7 +353,7 @@ If it can't be attached (hard email gate, un-rippable), OMIT it — do not paste
 Materials line only ever names things the recipient can open from the email itself. If neither a
 deck nor a memo can be attached → `Materials: N/A`.
 
-**Dedup first** — `create_draft` is not idempotent and deleting drafts is unreliable
+**Dedup first (done by `deal_share_draft.py`)** — `create_draft` is not idempotent and deleting drafts is unreliable
 ([[feedback_founder_outreach_draft_dedup]]): ONE `searchMail` POST to the gmail-webhook
 `/exec` endpoint (same URL + secret as `createDraft`; works in EVERY mode including headless
 — added v246 after the Ardent run spent ~8 min improvising dedup via Mail.app):
@@ -362,7 +379,7 @@ same semantics as the -1 pipeline's deleted-draft-is-a-pass rule). Concretely:
 - A later 👣 reaction or explicit Mode C ask IS fresh authorization — Tom asking again overrides
   his earlier deletion.
 
-**Two creation paths — attachments decide which:**
+**Creation (done by `deal_share_draft.py` — one path, gmail-create-draft.py, for both cases below; kept as the WHY):**
 
 **(a) No materials → MCP `create_draft`:**
 - **Bcc:** the resolved registry address(es); **To: empty** (see Recipient Registry)
@@ -416,7 +433,7 @@ guard hook, 2026-09-30). Delete only drafts THIS flow created; Tom's own drafts 
 
 Do NOT send — draft only.
 
-**Fire a Slack alert on EVERY draft creation** (Tom, 2026-08-28). The two creation paths alert
+**Fire a Slack alert on EVERY draft creation** (Tom, 2026-08-28) — done by `deal_share_draft.py` (no mute needed: it creates with `--no-alert`). The two creation paths alert
 differently on their own: the MCP `create_draft` PostToolUse hook pings #claude-alerts only on
 path (a), while path (b) / the endpoint — which ALL webhook-mode drafts and every
 materials-present draft use — bypasses that hook and would otherwise land SILENTLY. So this skill

@@ -50,7 +50,12 @@ lane; classify each independently and never let one lane's silence suppress anot
 — "90 yard line starting ai lab / chem biz… We'll need like $8-10m" — which is a live
 `-1`/NewCo signal.)
 
-**Step 0 — MANDATORY roster checks, before any content judgment.** For EVERY
+**Step 0 — roster checks: ALREADY RUN IN CODE before the batch reached you (2026-10-05).** `sweep.sh` /
+`reconcile.sh` pipe every batch through `roster_precheck.py`, so each message carries `roster_checked: true` and, on a
+hit, a `roster` object: `pending_feedback` or `prior_feedback_note` → you MUST load `references/feedback-lane.md`;
+`intro_pending` → you MUST load `references/intro-lane.md` (§5b) — whatever the message text says; `portco_founder` → you MUST load `references/intro-lane.md` (§5c) and run its step 1 check. Do not re-query.
+**Only if a message lacks `roster_checked`** (the precheck failed open — Notion was unreachable at sweep time) do you
+run the three checks below by hand. The prose below is the WHY and that fallback. The original rule: for EVERY
 thread with an inbound peer, run THREE cheap deterministic checks: (1) query the Opportunities
 DB for rows with a non-empty `📣 Pending Feedback` and resolve whether this sender is on that
 roster (People row → phone vs. the thread handle); (2) query the Notes DB

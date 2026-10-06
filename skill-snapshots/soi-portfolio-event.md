@@ -79,7 +79,7 @@ python3 ~/.claude/skills/soi-portfolio-event/soi_preflight.py
 | exit | meaning | what you do |
 |---|---|---|
 | **0** | NO-OP — model matches the published snapshot | **Nothing.** No coinvestor check, no Notion writes, no Slack, no draft. Stop silently. |
-| **4** | DATE-REPAIR — values captured, but the flip's automation clobbered Close Date on in-SOI round(s) | Perform ONLY the printed Notion Close Date restores, then stop. No draft, no Slack. |
+| **4** | DATE-REPAIR — values captured, but the flip's automation clobbered Close Date on in-SOI round(s) | Run `python3 ~/.claude/skills/soi-portfolio-event/soi_preflight.py --apply-date-repair` — it restores ONLY the printed Close Dates (each must map to exactly one in-SOI page, else exit 3 and nothing is written), reads them back, and re-runs the gate (exit 0). Never PATCH a Close Date by hand. Then stop. No draft, no Slack. |
 | **3** | ENGAGE — tracked values changed, OR `TIER2-REQUIRED` lines printed (a priced round awaits its cap-table mark; the generator refuses to model it — see Guardrails) | Apply any printed `DATE-REPAIR first` restores; route each `TIER2-REQUIRED` company to Mode B1; otherwise proceed with Mode A. |
 | **1** | GATE-FAIL — generator/validation errors other than PENDING MARK | Alert the per-company errors and stop (same as run.sh). |
 
@@ -152,7 +152,8 @@ otherwise treat as SAFE. **Scope — any Notion write (including auto-correct) i
 (Active Portfolio / Portfolio: Follow-On / Exited). NEVER modify a Committed Opp.** Auto-correct is
 one-directional: SAFE docs but Round Details `post` → silently patch `post → cap` (cost-held, label-only, no
 confirm); priced docs / a pro-forma cap table but Round Details `cap` → do NOT silently flip (that changes
-valuation) → route to B1 and draft the mark for Tom's confirm. Full detail (both layers, doc signals, scope,
+valuation) → route to B1 and draft the mark for Tom's confirm; the `cap → post` relabel is applied only on
+his confirm (`soi_round_fix.py cap-to-post`, human-gated). Full detail (both layers, doc signals, scope,
 auto-correct) in `references/safe-vs-priced-detection.md` — read it now before proceeding.
 
 ## Mode B — Tier 2 draft (webhook): priced round or exit

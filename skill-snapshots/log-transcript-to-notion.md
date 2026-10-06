@@ -9,7 +9,7 @@ Rip a transcript from a video URL (or accept a pre-existing transcript from the 
 
 **Notes database data_source_id:** `e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`
 
-**Dedup guard ([[shared-references/notes-dedup-guard]]):** if a video URL is given, `notion-search` it FIRST; live Notes-DB match → STOP and reconfirm the existing page. Backstop before create: title `contains` check on `e8afa155-…`. Never create a second entry for the same source.
+**Dedup guard (before any fetch):** run `python3 ~/.claude/skills/shared-references/notes_dedup.py check --url <source url>` FIRST — exit 10 → STOP and reconfirm the existing page (skips the extraction). `notes_create.py` re-checks URL + title at write time.
 
 ---
 
@@ -199,39 +199,27 @@ If the transcript is very long and truncation is unavoidable, note at the bottom
 
 ---
 
-## Step 6: Create the Notion Page
+## Step 6: Create, classify, confirm
 
-Use `notion-create-pages` with:
+**One command does the write — never `notion-create-pages` / `notion-update-page` for this page** (Costanoa 10/3: a
+hand-rolled MCP create passed `parent_id`, the page landed private at workspace root, and the full text, Category and
+icon were all skipped while "✅ Logged" went out anyway). Write the title and body from the steps above to a markdown
+file in your scratch dir, then:
 
-```json
-{
-  "parent": { "data_source_id": "e8afa155-b41a-4aa2-8e9d-3d4365a11dfb" },
-  "pages": [{
-    "properties": {
-      "Name": "<title from Step 3>",
-      "Opportunity": "<opportunity page URL if found, else omit>",
-      "⭐️": "__NO__"
-    },
-    "content": "<page body from Step 5>"
-  }]
-}
+```
+python3 ~/.claude/skills/shared-references/notes_create.py --kind transcript --title "<title>" --body <file.md> \
+    [--url <source url>]... [--opp <Opportunities page id>] [--title-verbatim]
 ```
 
----
+The script does dedup, the title and body shape checks, the create (parent hardcoded to the Notes DB), ⭐️ off,
+Opportunity, Category (note-classifier code when `--opp` is set), the Claude icon, and the readback. Pass `--opp` only on a
+confident single Opportunities match (`notion-search`); `--title-verbatim` when Tom dictated the title.
 
-## Step 7: Set Claude Icon
-
-Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/claude-note-icon.md` and follow its instructions to set the custom Claude logo emoji as the page icon on the newly created note. This is required for all Claude-generated notes — do not skip.
-
----
-
-## Step 8: Confirm to User
-
-**As code (2026-10-04) — post-write check, before confirming:** `python3 ~/.claude/skills/shared-references/notes_page_check.py check --page-id <new page id> --kind transcript` (add `--title-verbatim` when Tom dictated the title). It verifies the parent is the Notes DB (9/18 ICONIQ orphan), the title shape, no self-referential link, no `>` blockquotes and no fenced code block. Exit **0** → confirm. Exit **1** → fix what `failures` names (move the page into the Notes data source, retitle, unlink, re-render the block), re-run, then confirm. Exit **2** → Notion unreachable: report the page as unverified, never `✓`. Pre-create: `notes_page_check.py title --kind transcript "<title>"`.
-
-After successful creation, respond with one line:
-
-> ✓ Transcript logged to Notes: **[Note Title]** → [Notion page URL]
+- **exit 0** → send its `confirm` line VERBATIM. That is the only path to a ✓.
+- **exit 10** → already logged: `✓ Already logged: **<existing.title>** → <existing.url>`. Create nothing.
+- **exit 11** → a page with the SAME TITLE exists but was logged from a different link (`logged_urls`): open it and compare with this document. Same document → treat as exit 10. Different document → create it (make the title distinguishable if needed) – never report "already logged" for a different document.
+- **exit 3** → fix the CONTENT that `failures` names (missing section, title shape, fenced block) and re-run.
+- **exit 4 / 2** → it did NOT log (exit 4 means the page was archived again). Tell Tom it failed and why. Never ✓.
 
 ---
 
@@ -239,14 +227,5 @@ After successful creation, respond with one line:
 
 - **yt-dlp SSL failure (persistent):** Inform the user. Suggest running `yt-dlp --no-check-certificate` manually and pasting the transcript text directly.
 - **No captions available:** Inform the user the video has no auto-generated captions. Suggest they provide a transcript manually.
-- **Notion MCP unavailable:** Inform the user and suggest they log the transcript manually.
+- **notes_create.py exit 2 (Notion unreachable):** tell Tom it did not log; never ✓.
 - **Title unclear:** Default to `Transcript: [video ID]` rather than asking.
-
-
----
-
-## Final Step: Classify the Note
-
-After the Notion page has been created and the Opportunity relation (if any) has been set, run the `note-classifier` skill to assign the correct `Category` field.
-
-Read the skill at `/Users/tomseo/.claude/skills/note-classifier/SKILL.md` and follow its classification logic against the note just created. Do not skip this step — every note created by this skill must have a Category set.

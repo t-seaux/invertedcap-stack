@@ -94,6 +94,8 @@ Headless mode maps the legacy steps as follows:
 
 ### Step 1: Enrich Each Profile
 
+> ContactOut calls follow `~/.claude/skills/shared-references/contactout-routing.md` (local `mcp__contactout`, cloud connector as fallback).
+
 For each LinkedIn URL, call `contactout_enrich_linkedin_profile` with `profile_only: false`. This returns the full profile payload — name, headline, location, seniority, company details, experience history, education, skills, languages, publications — along with email addresses (personal and work).
 
 **Cache the raw payload.** Immediately after the call returns, BEFORE any field extraction, write the full response to `~/.claude/plugins/data/contactout-enrichment-inline/people/{vanity}.linkedin_profile.json` using the Write tool. The vanity slug is the LinkedIn URL's last path segment, lowercased, with any trailing slash and query string stripped. Overwrite if the file exists. This is the network-intel index's data source — never skip. **If the Write tool errors or is denied, RETRY via Bash (`cat > file <<'EOF'` heredoc or `python3 -c` with the JSON) before giving up — do NOT "proceed without cache"** (2026-07-27: three job-mode runs hit a transient Write denial, skipped the retry, and the cache went missing for Nina Carriero / Michael Darmousseh / Xueyin Yu — the directory was writable the whole time; all three were backfilled by hand). If both paths genuinely fail, say so in the audit log line, not just the Slack notes.

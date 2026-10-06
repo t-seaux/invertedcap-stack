@@ -192,9 +192,9 @@ honor them, esp. the header/formatting rules.)
 Kid/family stuff goes to the **family group** (Assistant + Tom + Elsie) so both parents
 see it — NOT Tom's 1:1:
 ```bash
-GID="$(cat ~/.claude/skills/sms-listener/.family_group_id 2>/dev/null)"
-if [ -n "$GID" ]; then
-  ~/.claude/skills/sms-listener/send_imessage.sh --group "$GID" "<heads-up>"
+FAMILY_GROUP_ID="$(cat ~/.claude/skills/sms-listener/.family_group_id 2>/dev/null)"   # not GID: read-only in zsh
+if [ -n "$FAMILY_GROUP_ID" ]; then
+  ~/.claude/skills/sms-listener/send_imessage.sh --group "$FAMILY_GROUP_ID" "<heads-up>"
 else
   ~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<heads-up>"   # fallback: Tom 1:1
 fi

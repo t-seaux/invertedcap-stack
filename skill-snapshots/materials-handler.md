@@ -262,7 +262,9 @@ python3 ~/.claude/skills/materials-handler/material.py route --filename "<as rec
   [--first-page-text-file <txt of pages 1-2>] [--stated-type "<type Tom named, if any>"]
 ```
 Output gives `prop`, `drive_root`, `folder` (incl. the Deal Docs subfolder), `chip` (false = upload but never chip)
-and `slot`. **Exit 5 = e-sign completion certificate → skip entirely, no upload, no chip.** The script is
+and `slot`. **Exit 5 = e-sign completion certificate → skip entirely, no upload, no chip.** **Exit 6 = ambiguous**
+(only weak words like "shareholder", "cap", "VA" with no round label – e.g. "Shareholder Letter Q3"): open the file,
+decide what it is, and re-run with `--stated-type "<what it is>"` (2026-10-05: these used to land in Deal Docs). The script is
 authoritative and was fitted to a census of every real filename in Drive `Deal Docs/` and `Diligence/`
 (`tests/fixtures/drive_census_2026-10-04.json`); the lists below are its rationale. A misroute → fix the
 script + add the filename to the harness, never override it ad hoc.
@@ -403,7 +405,7 @@ Deterministic convention names + this list-and-trash step give 3A the same re-ru
 Follow the `docsend-to-pdf` skill at `/Users/tomseo/.claude/skills/docsend-to-pdf/SKILL.md` for the exact Python conversion approach:
 
 0. **Download button first** — if the viewer offers Download, save the native file (`.xlsx` / `.pdf` / `.pptx`) per docsend-to-pdf Step 0. A spreadsheet then follows the two-chip convention (native `(xlsx)` + landscape fit-to-width PDF). Never chip the DocSend viewer URL in place of a downloadable file.
-1. Otherwise, use the `requests` + `Pillow` method to convert the DocSend document to PDF.
+1. Otherwise run `docsend_pdf.py` per docsend-to-pdf Step 1, ALWAYS with `--opp-id <opp> --company "<Opp title>" --name "<convention filename>" --email-message-id <id>`. An email gate goes to docsend2pdf.com automatically. **Exit 8** = docsend2pdf failed too: the 🔐 card is texted to Tom by the script; file nothing for this item, don't label it failed (Tom's 👍 files it via `apply_docsend_email.py`), and never pass `--email` (Tom, 2026-10-05).
 2. Name the file using the DocSend `<meta>` title: `[Company Name] - [Document Title] MM.DD.YY.pdf` (date = when the link was sent, per principle 10). Strip redundant company name if present in the title. Fallback: `[Company Name] - Deck MM.DD.YY.pdf`.
 3. Save to `/Users/tomseo/Downloads/[filename].pdf`.
 4. Present to user via `present_files`.
@@ -618,6 +620,18 @@ Skip this step only if the batch call reports every item failed. In that case, n
 
 ## Step 4.4: Materials Hygiene — PDF Snapshot Supersedes Native / Link-Only Chip
 
+**ONE command does the swap (2026-10-05) — never `--remove` a chip, `moveFile`, or export by hand:**
+```bash
+python3 ~/.claude/skills/materials-handler/supersede.py --page-id <opportunity_page_id> --prop "Diligence Materials" \
+    --pair "<new chip url>=<superseded chip url>" [--pair …] [--archive-folder <Diligence/[Company] folder id>]
+```
+Your judgment: which new chip supersedes which old one (same underlying artifact / same agreement). The script checks
+every pair BEFORE any write (replacement already on the property; live Sheets never superseded; a Tom-owned native Doc
+stays; a founder-owned one needs `--archive-folder`, the company's Diligence folder), then per pair archives first
+(founder-owned Google Doc/Slides → exported .docx/.pptx uploaded to the company folder, founder's file untouched; hosted viewers have nothing to archive), removes the old chip, reads everything back. Exit **0** done (re-runs are no-ops) · **3** refused
+before any write (`failures`) · **4** readback disagreed · **2** error. The rules below are the WHY.
+
+
 **Trigger:** this run adds a PDF chip to Diligence Materials for an artifact that ALREADY has a chip on the same property pointing at one of:
 - a native Google Doc/Slides link (`docs.google.com/document/...`, `docs.google.com/presentation/...`), or
 - a hosted-viewer link (Papermark, DocSend, Brieflink, or similar — matches the Step 3E link-only patterns).
@@ -642,6 +656,18 @@ Skip this step only if the batch call reports every item failed. In that case, n
 Log the swap in the Step 5 summary (`[title] — native chip removed, archived as .docx/.pptx to Diligence/[Company]/, PDF chip is now canonical`).
 
 ## Step 4.4a: Materials Hygiene — Signed/Executed Version Replaces the Unsigned Draft
+
+**ONE command does the swap (2026-10-05) — never `--remove` a chip, `moveFile`, or export by hand:**
+```bash
+python3 ~/.claude/skills/materials-handler/supersede.py --page-id <opportunity_page_id> --prop "Deal Docs" \
+    --pair "<new chip url>=<superseded chip url>" [--pair …]
+```
+Your judgment: which new chip supersedes which old one (same underlying artifact / same agreement). The script checks
+every pair BEFORE any write (replacement already on the property; live Sheets never superseded; a Tom-owned native Doc
+stays; a founder-owned one needs `--archive-folder`, the company's Diligence folder), then per pair archives first
+(the draft's Drive file moved — not trashed — into the Opp folder's `Archive/`, created if missing), removes the old chip, reads everything back, and re-asserts the canonical Deal Docs order once. Exit **0** done (re-runs are no-ops) · **3** refused
+before any write (`failures`) · **4** readback disagreed · **2** error. The rules below are the WHY.
+
 
 **Trigger:** this run adds a chip for a **signed or executed** version of a Deal Doc that ALREADY has a chip on `Deal Docs` for the **unsigned draft of the same document** — same underlying agreement (same doc type + party/fund), differing only in execution state. A version is the executed one when its filename carries `[EXECUTED]` / `[FINAL]` / "signed" / "countersigned" / "fully executed", or it arrived as an e-sign "Completed:" export; the prior chip is the draft when it reads "draft" / "TS draft" / "unsigned" / "for review" / carries no execution marker.
 
@@ -675,20 +701,18 @@ After materials are saved/linked, mine them for better founder contact info than
 - **Gmail Attachment Saver PDFs** (Step 3A — written straight to Drive, no local copy): download the bytes via `curl -sL "https://drive.google.com/uc?export=download&id=<fileId>" -o /tmp/<fileId>.pdf` then `pdftotext -layout`. If Drive returns the "confirm download" interstitial for large files, skip this material — don't fight the virus-scan gate.
 - **Link-only materials** (Step 3E — Figma, Miro, Loom, Pitch, Canva, Notion.site): drive the active Chrome tab via osascript, navigate to the URL, wait ~6s for content to render, pull `document.body.innerText`, stash in `window._figmaText`, poll it. Reuse the exact osascript bridge pattern from `feedback_notion_internal_api.md`. Figma decks render their contact slide's email as plain text in the DOM; Miro/Loom behave similarly.
 
-### How to decide whether to update Notion Contact
+### How to write it — ONE command (the webhook's canonical Contact writer)
 
-Every write must also pass `~/.claude/skills/shared-references/opp-dedup-match.md` § "Writing Contact" (who may ever be in Contact). Within that, read the current Contact property from the opportunity page, then apply this rule:
-
-1. **Contact is empty** → write any extracted email whose local-part contains the founder's first or last name (from the `🏁 Founder(s)` relation). If multiple match, pick the one on a custom domain over a free provider.
-2. **Contact is set, currently on a free provider** (`@gmail.com`, `@live.com`, `@outlook.com`, `@yahoo.com`, `@hotmail.com`, `@icloud.com`, `@me.com`, `@aol.com`) **AND** an extracted email is on a custom domain AND matches the founder name → **upgrade**: replace the Contact property with the extracted email. Preserve the existing email as a comment in the Source Context section (`Earlier contact on file: <old>`) so the prior record isn't lost.
-3. **Contact is set and already on a custom domain** → do nothing, even if a different custom-domain email appears in the materials. Don't guess across two plausible work emails.
-4. **Extracted email doesn't match any founder name** (e.g. `hello@bloom.site`, `investors@bloom.site`) → do not write it to Contact. Generic inbound addresses belong in the page body, not the Contact property.
-
-### How to write the update
-
-Use `notion-update-page` with `command: "update_property"` on the `Contact` property. Single value — comma-separated if the property accepts multiples (it does) and you're adding a second.
-
-Log every decision (extracted / kept / upgraded / ignored + reason) in the Step 5 report summary so it's traceable.
+```bash
+python3 ~/.claude/skills/materials-handler/materials_contact.py --opp-id <opportunity_page_id> \
+    --text-file <the material text you extracted above> --label "<material filename>" [--founder "First Last"]...
+```
+Pass every founder name from `🏁 Founder(s)`. **Never `notion-update-page` Contact by hand and never pre-judge an
+address.** Each address goes through gmail-webhook `_upgradeOppContactFromMaterials` → `maybeUpgradeOppContact`, the same
+writer every mail path uses (opp-dedup-match.md § "Writing Contact"): a same-person personal address is swapped for the
+work one; a new person only on the company's own Website domain, never on a -1 / NewCo Opp, and only after co-founder
+vetting on the verbatim material text; generic inboxes (`hello@`, `investors@`…) never. Exit **0** → copy `written` /
+`skipped` (with reasons) into the Step 5 summary · **2** → the webhook was unreachable; say Contact was not evaluated.
 
 ### When to skip this step entirely
 
@@ -728,11 +752,18 @@ Per `~/.claude/skills/shared-references/round-details-format.md` (the ONE spec �
 
 If the deck states only stage + amount (e.g. `SEED · $2M`), reformat to `Raising $2m` — stage-amount cover slides almost always describe an open raise, not a closed one.
 
-### How to write the update
+### How to write the update — ONE command
 
-Use `notion-update-page` with `command: "update_properties"` to set `Round Details` on the Opp page. Single string value.
-
-If the deck also states a clearer **Stage** than what's currently on the Opp (e.g. Opp shows blank or `Pre-Seed` but the deck says `Seed`), override Stage as well. Conservative rule: only override if currently empty OR if the deck and current value disagree by exactly one stage AND the deck signal is a cover-slide title (not buried mid-deck).
+```bash
+python3 ~/.claude/skills/shared-references/round_details.py write --opp-id <opportunity_page_id> \
+    --value "<terms as extracted, e.g. 'SEED · $2M' → '$2M'>" [--stage "<deck stage>" [--stage-from-cover]]
+```
+Never `notion-update-page` Round Details or Stage by hand. The script normalizes (a bare amount becomes `Raising $X`),
+validates against round-details-format.md, writes ONLY if the field is blank, reads it back, and applies the Stage rule
+in code: set if empty; otherwise override only when the deck is exactly one stage away AND you pass
+`--stage-from-cover` (the signal is a cover-slide title, not buried mid-deck — your judgment). Exit **0** written ·
+**3** already populated → skipped (log it, never overwrite) · **1** the value isn't canonical → re-read the deck, or log
+no-match · **4** readback disagreed → report, never claim it landed.
 
 ### Logging
 

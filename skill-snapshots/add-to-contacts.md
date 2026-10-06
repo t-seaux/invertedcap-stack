@@ -85,7 +85,7 @@ For **each** identified person, run the standard person pipeline from this skill
 
 1. **Enrich** — start from the email address (and name from the header/signature). Call `contactout_email_to_linkedin` / `contactout_enrich_person` to resolve the LinkedIn URL, then follow Step 1's ContactOut → Sales Nav → **web-search fallback** ladder to fill Role, Company, City/State, and photo. Cache raw ContactOut payloads per Step 1.5. Honor "exhaust web search before leaving a field blank."
 2. **Signature/body as ground truth** — the email signature and body are Tom-adjacent context: a title, company, or direct-domain email in the signature overrides stale ContactOut per the "Tom-supplied fields override ContactOut" rule. Infer Company from a custom-domain email when it disagrees with ContactOut's current position.
-3. **Dedup** — run the `workspace_search` dedup (see "Dedupe before create"). 
+3. **Dedup + write = `python3 ~/.claude/skills/shared-references/people_upsert.py --spec <person.json> --approval "<Tom's ask | card:<handle>>"`** (Step 4) — exact resolution in code; the sub-bullets below are the WHY. 
    - **Match found → UPDATE in place** (`notion-update-page`): fill only blank/stale fields, add the newly-found email to the row if missing, set the icon if unset. Do not archive-and-recreate in unattended mode. Run `touch /tmp/.people-edit-bypass` right before the call: a PreToolUse hook (`~/.claude/hooks/gate-people-contact-fields.py`) refuses contact-field writes (Email/Name/Company/Role/LI/Phone/City/State) on People pages without it (People DB Guardrails Rule 2; this skill is an exempt maintenance path). 5-min TTL.
    - **No match → CREATE** a fresh row per Step 4 (including the `touch /tmp/.addcontacts-bypass` gate marker and the icon).
 4. Populate Category, City, State, and set the icon exactly as in the manual flow.
@@ -150,6 +150,8 @@ are either computed or populated by other workflows.
 ## Workflow
 
 ### Step 1: Determine Input Type and Extract Data
+
+> ContactOut calls follow `~/.claude/skills/shared-references/contactout-routing.md` (local `mcp__contactout`, cloud connector as fallback).
 
 **LinkedIn URL provided:**
 1. Use Claude in Chrome browser tools to navigate to the LinkedIn profile URL.
@@ -283,6 +285,21 @@ use it. If not, it's fine to create a new option — Notion will handle that aut
 
 ### Step 4: Create the Notion Page
 
+**ONE command creates OR updates the row (2026-10-05) — never `notion-create-pages` / `notion-update-page` a People row,
+never dedup with `notion-search`:**
+```bash
+python3 ~/.claude/skills/shared-references/people_upsert.py --spec <person.json> --approval "<Tom's ask | card:<handle>>"
+```
+`person.json` = `{name, emails[], li, company, role, category, city, state, photo_url}` from Steps 1–3 (your judgment:
+primary role, Category, which enrichment to trust). The script normalizes (Co-founder + C-level → C-level, metro City,
+State incl. London → UK, canonical LinkedIn URL, work email to Notion), refuses an incomplete row, resolves EXACTLY via
+`people_resolve` (email · name + company · LinkedIn), fills only blank fields on a match, creates only with
+`--approval`, reads back, and stages secondary emails for Apple Contacts (Step 4b is done for you).
+- **exit 0** → report its `confirm` line · **3** → `failures` (incomplete row / no approval) — keep enriching or stop
+- **4** ambiguous → surface the `candidates`, write nothing · **5** email mismatch → `⚠️ Email mismatch`, write nothing
+- **6** deny-listed bot → no row · **7** readback disagreed → report it, never ✓ · **2** → not written
+The rules below are the WHY.
+
 > **Completeness is enforced in code — you cannot ship a partial row.** The `gate-db-creation.sh` hook DENIES any People row whose `Company`, `Role`, `Category`, `City`, `State`, or `LI` is empty. There is no "fill it in later." Exhaust the enrichment ladder first — `contactout_enrich_person` → `contactout_enrich_linkedin_profile` → **`contactout_search_people` (job_title + company)** → WebSearch person + company → the company's team/bio page — and mine signals already in hand (phone area code, email domain, current-role locality). A 404 from one ContactOut endpoint is NOT the end of the ladder: `contactout_enrich_person` and `email_to_linkedin` both 404'd on `jhor@box.com`, yet `contactout_search_people` found the profile, photo, location and full history immediately. Only if a value is genuinely unobtainable after all of that, set the literal string `"N/A"` so the gap is explicit and visible rather than silently blank. Added 2026-08-04 after John Hor / Jake Hirschberg shipped with blank City/State/LI.
 
 **Before the `notion-create-pages` call, run `touch /tmp/.addcontacts-bypass`** to set the hook bypass marker. A PreToolUse hook at `~/.claude/hooks/gate-db-creation.sh` blocks all direct writes to the People data source unless this marker is fresh (≤5 min old). The marker auto-expires, so no cleanup is needed. If the hook denies a call with "Direct creation of Notion People-DB rows is gated", that's the signal you forgot this step.
@@ -370,6 +387,8 @@ When Tom explicitly provides an email, company, or role inline with the request 
 4. Photo / education / prior experience still come from ContactOut — only the current Company/Role/Email are affected by this override.
 
 ### Dedupe before create — always use `workspace_search`
+
+> **Superseded 2026-10-05 by `people_upsert.py` (Step 4)** — exact email / name + company / LinkedIn resolution in code, no search ranking at all. Kept as the WHY (Phelps / Brown incidents).
 
 Before creating a new entry in the People DB (data source `1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`), first search for the person's name. If an entry already exists, decide whether to update in place or (per Tom's preference) create fresh and archive the old one.
 

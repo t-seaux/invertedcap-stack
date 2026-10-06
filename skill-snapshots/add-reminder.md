@@ -50,8 +50,9 @@ the WHY. `eventkit` direct calls stay fine for reads and bulk edits (`list`, `mo
 
 Use the native EventKit CLI at `~/.claude/tools/eventkit/eventkit`. It talks to
 Reminders directly instead of through AppleScript's slow bridge (10-50x faster; it
-never marshals the whole 584-item list). Default list is **"Work"** (Tom's default
-Reminders list — `eventkit add` targets it automatically).
+never marshals the whole 584-item list). `reminder_add.py` has NO default list (2026-10-05): the
+[XX] prefix picks it, and an unprefixed title needs an explicit `--list` (e.g. `--list Work` for the "entity
+unclear" row below) – otherwise exit 2. Dedup keeps the prefix: `[EK] Pay daycare` never blocks `[TS] Pay daycare`.
 
 **ALWAYS set an all-day due date** — a reminder with no due date does NOT appear in the
 Calendar app's reminders row, which is where Tom looks for it. Default the due date to
@@ -67,7 +68,7 @@ mismatch (`[TS]` on Work, `[IC]` on Kenyon-Seo → error).
 |---|---|---|---|
 | Inverted Capital | Inverted fund/LPs/portcos, office, Lupe, Vector | `[IC]` | Work |
 | Dash Fund | Dash I / II / II-A, Dash LPs, MMF, fund admin | `[DF]` | Work |
-| Work, entity unclear | work but can't tell IC vs DF | none (don't guess) | Work |
+| Work, entity unclear | work but can't tell IC vs DF | none (don't guess) | Work (pass `--list Work`) |
 | Personal – Tom | family (Dad/Steve, Elsie, kids), home, errands, purchases for himself/family | `[TS]` | Kenyon-Seo |
 | Personal – Elsie | Elsie asked for herself, or Tom names Elsie | `[EK]` | Kenyon-Seo |
 | Household, either | shared chore, unassigned | none | `--list Kenyon-Seo` |

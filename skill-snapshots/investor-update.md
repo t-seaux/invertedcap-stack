@@ -457,7 +457,7 @@ The Company Updates DB (`collection://bf491fb9-214f-456e-921b-5194b8187f2a`) hol
 > You produce: the period label, the section body (`--section-file`, markdown), `--pdf-url/--pdf-label` (email-body PDF), `--link` = Gmail thread URL, `--summary/--traction`, and run the grounding check +
 > validators on Summary/Traction BEFORE the call. `--kind formal|board`. The steps below are the WHY.
 
-**Step 4b — Find or create the row.** Search the data source by exact title; disambiguate multiple hits by exact `Company` relation match. If no row exists, create it via `notion-create-pages` with the properties below and the Formal section as the initial body. If a row already exists (e.g., Live calls populated it earlier in the month), upsert into it.
+**Step 4b — Find or create the row.** Done by `company_updates_upsert.py upsert` (exact title + `Company` relation; creates the row with the properties below when absent, upserts into it when Live calls already populated it). **Never `notion-create-pages` / `notion-update-page` a Company Updates row by hand** (Costanoa 10/3 incident shape: a model-built create skips steps and still reports success).
 
 **Step 4c — Idempotency check (replaces the old page-exists dedup).** The row existing means nothing — the question is whether THIS message has already been incorporated. Skip processing (no PDF re-upload, no body write) when:
 - the row's body already contains this message's Gmail thread URL (`https://mail.google.com/mail/u/0/#inbox/{message_id}`), OR
@@ -592,65 +592,26 @@ Before any Notion write, run the two-layer grounding check (see `~/.claude/skill
 
 On failure: fix and re-check ONCE. If a clause still can't be grounded, drop it from the Summary and note the drop in the Slack alert (`⚠️ dropped ungrounded clause: "..."`). Never publish an ungrounded metric.
 
-### Writing the row
+### Writing the row — ONE command
 
-**Row doesn't exist (create):** use `notion-create-pages` with:
-
-```
-parent: { data_source_id: "bf491fb9-214f-456e-921b-5194b8187f2a" }
-pages: [{
-  properties: {
-    "Name": "[Company] – [Period label]",
-    "Update Type": "[\"Formal\"] — or [\"Formal\", \"Board\"] for board materials (multi-select JSON array)",
-    "Company": "https://www.notion.so/[matched_page_id]",
-    "date:Update Date:start": "[YYYY-MM-DD]",
-    "date:Update Date:is_datetime": 0,
-    "Source Email": "https://mail.google.com/mail/u/0/#inbox/[message_id] — or N/A if not from email",
-    "Period": "[\"Mmm YYYY\", ...] — JSON array of covered period(s). Single-month: [\"Feb 2026\"]. Multi-month: [\"Feb 2026\", \"Mar 2026\"]. Quarterly: [\"Q1 2026\"]. Annual: [\"2025\"]",
-    "Traction": "[extracted Traction or N/A or $0 — see Traction extraction rules]",
-    "Summary": "[1-2 sentence shorthand summary — see Summary rules]"
-  },
-  content: "### [Mon DD] – Formal Update ([Email](gmail-url))\n📄 [[Company] - [Mon] [YYYY] Update.pdf](https://drive.google.com/file/d/[EMAIL_BODY_PDF_FILE_ID]/view)\n[formatted email body]"
-}]
+```bash
+python3 ~/.claude/skills/shared-references/company_updates_upsert.py upsert --opp-id <INITIAL-investment Opp> \
+    --period "<Mmm YYYY | Qn YYYY | YYYY | YYYY (Plan)>" [--extra-period "<…>"]... --kind formal|board \
+    --date <YYYY-MM-DD> --link "https://mail.google.com/mail/u/0/#inbox/<message_id>" --section-file <body.md> \
+    --pdf-url <Drive URL> --pdf-label "<Company> - <Mon> <YYYY> Update.pdf" --summary "<…>" --traction "<…>"
 ```
 
-**Row exists (upsert):** (a) insert the Formal section at the top of the body via REST `PATCH /v1/blocks/{page_id}/children` with `"position": {"type":"start"}` (Notion-Version `2025-09-03`; never `after: ""`, which 400s) — hand-built block JSON, NOT `notion-update-page` `insert_content` — then verify placement, per "Positioned inserts – transport mechanics" in `~/.claude/skills/shared-references/company-updates-db.md` (ordering never requires internal API access; never report it blocked), (b) merge properties via `notion-update-page` — Update Type array-union, Period array-union, Update Date bump-if-newer, Source Email set-if-newest-formal, Summary/Traction regenerated per the rolling precedence rules (shared reference). Never drop existing Update Type values, Period values, or body sections.
+It owns create-vs-upsert, the property merges (Update Type / Period union, Update Date bump-if-newer, Source Email
+newest-formal, Summary / Traction precedence), the top-of-body insert, the zone-order readback, idempotency and the
+Artifacts chip. Run the Pre-write grounding gate above FIRST — the script lints format, not truth.
 
-The dual relation automatically links the row back to the Opportunity — the `🗄️ Investor Updates` field on the Opportunity page shows it.
+- **exit 0** → written; report it (Step 5).
+- **exit 3** → this email was already incorporated (thread URL / PDF already on the row) → skip: no PDF re-upload, no alert.
+- **exit 5** → Summary / Traction failed the lint → fix the VALUE named and re-run; nothing was written.
+- **exit 4** → zone order wrong after the insert → repair in this run (company-updates-db.md § Positioned inserts), then re-verify.
+- **exit 2** → error: report it as NOT logged; never claim success.
 
-### Fast-path idempotency query (supports Step 4c)
-
-The **Source Email exact match** is the cheap first check — the Gmail thread URL embeds the message ID. Remember its limit: the property tracks only each row's LATEST formal, so a hit proves duplicate but a miss proves nothing — the row-body check in Step 4c is authoritative.
-
-1. Query the Company Updates data source (`bf491fb9-214f-456e-921b-5194b8187f2a`) for any page whose `Source Email` equals the URL you're about to write (`https://mail.google.com/mail/u/0/#inbox/<message_id>`):
-   ```python
-   import json, os, subprocess, urllib.request
-   from pathlib import Path
-   env = os.environ.copy()
-   env["SOPS_AGE_KEY_FILE"] = str(Path.home() / ".config/sops/age/keys.txt")
-   tok = subprocess.run(
-       ["sops", "-d", "--input-type", "binary", "--output-type", "binary",
-        str(Path.home() / "code/notion-backup/.notion-token.enc.txt")],
-       capture_output=True, text=True, check=True, env=env).stdout.strip()
-   body = json.dumps({
-       "filter": {"property": "Source Email", "url": {"equals": source_email_url}},
-       "page_size": 5,
-   }).encode()
-   req = urllib.request.Request(
-       "https://api.notion.com/v1/data_sources/bf491fb9-214f-456e-921b-5194b8187f2a/query",
-       data=body, method="POST",
-       headers={"Authorization": f"Bearer {tok}", "Notion-Version": "2025-09-03",
-                "Content-Type": "application/json"})
-   with urllib.request.urlopen(req, timeout=30) as r:
-       hits = json.loads(r.read()).get("results", [])
-   if hits:
-       # already logged — skip creation, surface existing page ID for the alert
-       return hits[0]["id"]
-   ```
-2. If a hit exists, skip processing and report "Update already logged (Source Email match)" — do NOT re-upload the PDF, do NOT re-render anything.
-3. On a miss, fall through to Step 4c's authoritative check: fetch the target row (if it exists) and scan its body for this message's Gmail thread URL and its Artifacts for the body-PDF URL. Only a miss there too means the message is new.
-
-This applies uniformly to Mode A (sweep), Mode B (webhook), and Mode C (manual). Artifact-level idempotency (Step 4c) is the single canonical guard against double-incorporating an email.
+The dual relation links the row back to the Opportunity automatically (`🗄️ Investor Updates`).
 
 ## Step 4.5: Populate Artifacts field with the specific PDF Drive URL
 

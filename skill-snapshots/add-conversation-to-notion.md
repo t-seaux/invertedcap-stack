@@ -114,46 +114,33 @@ Include all turns from the beginning of the thread up to — but NOT including �
 
 If the conversation is very long and truncation is unavoidable due to context limits, note at the bottom: `[Note: transcript truncated — view full conversation at link above]`
 
-## Step 5: Create the Notion Page
+## Step 5: Create, classify, confirm
 
-Use `notion-create-pages` with:
+**One command does the write — never `notion-create-pages` / `notion-update-page` for this page** (Costanoa 10/3: a
+hand-rolled MCP create passed `parent_id`, the page landed private at workspace root, and the full text, Category and
+icon were all skipped while "✅ Logged" went out anyway). Write the title and body from the steps above to a markdown
+file in your scratch dir, then:
 
-```json
-{
-  "parent": { "data_source_id": "e8afa155-b41a-4aa2-8e9d-3d4365a11dfb" },
-  "pages": [{
-    "properties": {
-      "Name": "<title from Step 2>",
-      "Opportunity": "<opportunity page URL if found, else omit>",
-      "⭐️": "__NO__"
-    },
-    "content": "🔗 [Claude conversation](<url>)\n---\n**Frameworks**\n\n<frameworks>\n\n---\n\n**Letter**\n\n<transcript>"
-  }]
-}
+```
+python3 ~/.claude/skills/shared-references/notes_create.py --kind conversation --title "<title>" --body <file.md> \
+    [--url <source url>]... [--opp <Opportunities page id>] --category <C> [--title-verbatim]
 ```
 
-## Step 6: Set Claude Icon
+Body shape (unchanged): `🔗 [Claude conversation](<url>)` / `---` / `**Frameworks**` + frameworks / `---` / `**Letter**` + the transcript (Tom's turns keep their `{color="blue"}` prefixes).
 
-Read the shared reference at `/Users/tomseo/.claude/skills/shared-references/claude-note-icon.md` and follow its instructions to set the custom Claude logo emoji as the page icon on the newly created note. This is required for all Claude-generated notes — do not skip.
+The script does dedup, the title and body shape checks, the create (parent hardcoded to the Notes DB), ⭐️ off,
+Opportunity, Category (note-classifier code when `--opp` is set), the Claude icon, and the readback. Pass `--opp` only on a
+confident single Opportunities match (`notion-search`); `--title-verbatim` when Tom dictated the title.
 
-## Step 7: Confirm to User
-
-**As code (2026-10-04) — post-write check, before confirming:** `python3 ~/.claude/skills/shared-references/notes_page_check.py check --page-id <new page id> --kind conversation` (add `--title-verbatim` when Tom dictated the title). It verifies the parent is the Notes DB (9/18 ICONIQ orphan), the title shape, no self-referential link. Exit **0** → confirm. Exit **1** → fix what `failures` names (move the page into the Notes data source, retitle, unlink, re-render the block), re-run, then confirm. Exit **2** → Notion unreachable: report the page as unverified, never `✓`. Pre-create: `notes_page_check.py title --kind conversation "<title>"`.
-
-After successful creation, respond with one line:
-
-> ✓ Saved to Notes: **[Note Title]** → [Notion page URL]
-
-## Error Handling
-
-- **Notion MCP unavailable:** Inform the user and suggest they log the conversation manually.
-- **Title unclear:** Default to "Claude Thread: General" rather than asking.
-
+- **exit 0** → send its `confirm` line VERBATIM. That is the only path to a ✓.
+- **exit 10** → already logged: `✓ Already logged: **<existing.title>** → <existing.url>`. Create nothing.
+- **exit 3** → fix the CONTENT that `failures` names (missing section, title shape, fenced block) and re-run.
+- **exit 4 / 2** → it did NOT log (exit 4 means the page was archived again). Tell Tom it failed and why. Never ✓.
+- **`--category`** (required when there's no `--opp`): note-classifier Steps 4/5 judgment — Artifact / Research / Other.
 
 ---
 
-## Final Step: Classify the Note
+## Error Handling
 
-After the Notion page has been created and the Opportunity relation (if any) has been set, run the `note-classifier` skill to assign the correct `Category` field.
-
-Read the skill at `/Users/tomseo/.claude/skills/note-classifier/SKILL.md` and follow its classification logic against the note just created. Do not skip this step — every note created by this skill must have a Category set.
+- **notes_create.py exit 2 (Notion unreachable):** tell Tom it did not log; never ✓.
+- **Title unclear:** Default to "Claude Thread: General" rather than asking.

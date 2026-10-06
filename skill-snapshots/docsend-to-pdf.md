@@ -64,8 +64,9 @@ CloudFront URLs in the response are pre-signed and short-lived (~hours). Don't c
 **As code (2026-10-04)** — do not copy a recipe; run the script:
 
 ```bash
-/opt/homebrew/bin/python3 ~/.claude/scripts/docsend_pdf.py "<DOCSEND_URL>" --out "/Users/tomseo/Downloads/<FILENAME>.pdf" [--passcode P] [--email E]
-# → {"ok":true,"path":…,"pages":N,"title":"<doc title or null>","gate":"open"}
+/opt/homebrew/bin/python3 ~/.claude/scripts/docsend_pdf.py "<DOCSEND_URL>" --out "/Users/tomseo/Downloads/<FILENAME>.pdf" [--passcode P] \
+    [--opp-id <notion id> --company "<Co>" --name "<convention filename>" --email-message-id <gmail id>]
+# → {"ok":true,"path":…,"pages":N,"title":"<doc title or null>","gate":"open"|"email", "via":"docsend2pdf"?}
 ```
 
 It does what the old inline recipe did — session cookies, `page_data` scrape, the `link_auth_form` email-gate
@@ -74,11 +75,15 @@ compile (written atomically, so a failed run never leaves a partial PDF) — and
 DocSend's own marketing title discarded (`null` → use the Step 2 fallback name). The old `'docsend helps'`
 check missed the current marketing title, `DocSend - Simple, intelligent, modern content sending`.
 
-**Email gate → enter `tom@invertedcap.com` (Tom 2026-10-04: "the priority is to be able to read the decks").**
-DocSend is in the gate carve-out with Papermark (memory `feedback_never_enter_toms_email_in_gates`); the script
-defaults to that address. Other capture walls (BriefLink, data-room logins) still stop and ask.
+**Email gate → docsend2pdf.com first, then Tom's 👍 (Tom, 2026-10-05 — supersedes the 10/4 auto-enter).**
+The script has NO default email. On an email gate it POSTs the link to `docsend2pdf.com/api/convert` with a
+blank email (their server submits a random address, so the view doesn't trace to Tom). If that fails it exits
+**8** having entered nothing; with `--opp-id` it texts Tom the 🔐 `DocSend Gated` card itself
+(`sms-listener/propose_docsend_email.py`). Only Tom's 👍 on that card (`apply_docsend_email.py`) reruns it with
+`--email tom@invertedcap.com`. **Never pass `--email` yourself.** Trade-off Tom accepted: the deck passes through
+docsend2pdf.com's server. Other capture walls (BriefLink, data-room logins) still stop and ask.
 
-**Exit handling:** `0` ok → Step 2 · `3` + `status: "gated-ask-tom"` (only if `--email ""` was passed) → stop and ask Tom · `3` email-VERIFICATION gate → the cookie jar path is in the output;
+**Exit handling:** `0` ok → Step 2 · `8` needs Tom's 👍 → the 🔐 card is out (or pass `--opp-id` so it is); stop, file nothing, don't retry with an email · `3` email-VERIFICATION gate (only on the 👍 apply path) → the cookie jar path is in the output;
 do Step 1.5 (pull the verify link from Gmail) and rerun with `--verify-url <link> --cookies <that jar>` ·
 `4` still gated after auth (passcode needed / email rejected / captcha) → rerun with `--passcode` if one was
 given, otherwise stop and ask Tom · `5` no pages released (unknown layout, or a `/view/s/` data-room URL —

@@ -40,7 +40,10 @@ It finds the canonical doc (latest `Update —` H2; title date for Final docs), 
 Notion page id / Drive file id cited in ANY of the company's diligence docs ∪ the ledger ∪ everything that existed at
 the last run — a first-pass reads everything linked at the time) and diffs it against the Opp's ✍️ Notes and Diligence
 Materials. **Exit 3 = zero delta → skip** (post its `skip_alert` text headless, or say it interactively; no Notion
-writes, no PDF). **Exit 4 = no diligence doc** → tell Tom / suggest first-pass. **Exit 0** → read exactly `new_notes` +
+writes, no PDF). **Exit 4 = no diligence doc** → tell Tom / suggest first-pass. **Exit 5 = ask**: diligence doc(s) found
+by title but linked to no Opp (`candidates`) – decide from the title/body whether one is THIS company's (the two Fairs),
+then re-run with `--doc-id <id>`; a doc linked to another Opp is never used. A `new_notes` item with `updated: true` is a
+feedback/reference note that gained content after the last run – read its newer dated sections. **Exit 0** → read exactly `new_notes` +
 `new_materials`; for each `uncertain_materials` item (undated, uncited legacy chip) check the doc's Sources by title —
 cited → skip, else treat as new. Do not add or drop items by your own reading; a wrong delta is a script bug → fix +
 add a harness case. The prose below is the WHY and the reading instructions.

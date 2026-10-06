@@ -154,16 +154,16 @@ If none of the above apply:
 
 ## Step 6: Apply the Classification
 
-Once the category is determined, update the note's Category property:
+ONE command writes it — never `notion-update-page` Category by hand:
 
-```
-Tool: notion-update-page
-Command: update_properties
-Page ID: <note page ID>
-Properties: { "Category": "<Research|Diligence|Portfolio|Artifact|Other>" }
+```bash
+python3 ~/.claude/skills/note-classifier/classify_note.py apply --note-id <note page ID> [--category <Research|Artifact|Other|…>]
 ```
 
-In batch mode, apply all updates sequentially after resolving all classifications. Do not interleave fetches and updates.
+Opp-linked notes: omit `--category` — the code rule (Step 3) decides, and a disagreeing value is refused. Unlinked
+notes: `--category` is your Steps 1/2/4/5 judgment and is required. Archived / trashed pages are never written. Exit **0**
+written or already correct · **3** refused (`why`) · **4** readback disagreed → report it · **5** archived page, skipped.
+In batch mode, run it per note after resolving all classifications.
 
 ---
 

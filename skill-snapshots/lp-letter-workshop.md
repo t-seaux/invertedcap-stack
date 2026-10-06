@@ -1,7 +1,7 @@
 ---
 name: lp-letter-workshop
 description: |-
-  Quarterly LP letter pipeline in three gated phases: (1) Context Pack — assemble everything the letter draws on (prior letters, memos, CRM funnel + pass reasons, diligence dossiers, SOI diff + Company Updates evidence, research intake, people met, LPAC bridge, word-bank vocabulary — full inventory in the skill body) into one reviewable artifact; (2) Foundation — a comprehensive pre-drafting take Tom reacts to; (3) Drafting — a [WIP] Google Doc matching historical letter conventions exactly, iterated turn by turn. Supports mid-quarter starts and post-quarter "incorporate the latest" delta refreshes at every phase. Trigger on "start the [Q3] letter", "LP letter workshop", "let's work on the LP letter", "build the letter context pack", "letter foundation", "draft the Q[N] letter", "refresh the letter pack", "incorporate the latest into the letter", and the finalize triggers "finalize LP letter", "finalize the letter", "push final version", "letter is final", and the redacted-send triggers "redaction is complete", "redaction done", "redacted version is done", "redacted letter is final". NOT fund-update-drafter (one-off LP email replies) and NOT log-investor-letter-to-notion (external firms' letters). Manual-only.
+  Quarterly LP letter pipeline in three gated phases: (1) Context Pack — assemble everything the letter draws on (prior letters, memos, CRM funnel + pass reasons, diligence dossiers, SOI diff + Company Updates evidence, research intake, people met, LPAC bridge, word-bank vocabulary — full inventory in the skill body) into one reviewable artifact; (2) Foundation — a comprehensive pre-drafting take Tom reacts to; (3) Drafting — a [WIP] Google Doc matching historical letter conventions exactly, iterated turn by turn. Supports mid-quarter starts and post-quarter "incorporate the latest" delta refreshes at every phase. Trigger on "start the [Q3] letter", "LP letter workshop", "let's work on the LP letter", "build the letter context pack", "letter foundation", "draft the Q[N] letter", "refresh the letter pack", "incorporate the latest into the letter", and the finalize triggers "finalize LP letter", "finalize the letter", "push final version", "letter is final", and the redacted-send triggers "redaction is complete", "redaction done", "redacted version is done", "redacted letter is final" (drafts the ONE redacted version to every friends-of-the-firm list). NOT fund-update-drafter (one-off LP email replies) and NOT log-investor-letter-to-notion (external firms' letters). Manual-only.
 
 ---
 
@@ -81,13 +81,16 @@ plan + BCC list (LP (Active) Master Emails from the 🌥️ LP Directory, Tom ex
 for real. It is resumable (state in `<QUARTER>/finalize.json`) and does, in order: drop `[WIP] `
 from the Doc title → PDF to `[PARTNERS]` (no ~/Downloads copy) as `Inverted Capital I_ Q<N> <YYYY>
 Letter.pdf` → Doc copy into `[EXTERNAL] Inverted Capital LP Letters` as `[WIP] [EXTERNAL] …`
-(redaction flow starts there; the mechanical redaction — CONFIDENTIAL header cleared, Fund Updates → one `[REDACTED]` line, Disclaimers untouched — is applied automatically, `--redact-external` re-runs just that step; essay redactions are worked through live with Tom) → LP Directory: uncheck every box on the sent-letter checkbox,
+(the redacted version starts there; the mechanical redaction — CONFIDENTIAL header cleared, Fund
+Updates and every section under it → one `[REDACTED]` line, Disclaimers untouched — is applied
+automatically, `--redact-external` re-runs just that step; Tom then highlights essay passages to
+black out) → LP Directory: uncheck every box on the sent-letter checkbox,
 THEN rename it `Sent Q<N> Letter?` → Gmail DRAFT (BCC-only, PDF attached, signature via
-gmail-create-draft.py; never sent) → a second set of drafts to LP (Relationship) with the
-FULL letter (Tom 2026-10-02: non-redacted for relationships, going forward): subject `<title> -
-friends of the firm`, the "Friends," note with NO archive line (Tom 2026-10-02: "i dont
-want them to have access" — no portal, no letters-website link) → ONE summary text to Tom
-(LP draft, PDF, EXTERNAL copy ready for redaction, rename, checkbox reset). The existing
+gmail-create-draft.py; never sent) → ONE summary text to Tom (LP draft, PDF, EXTERNAL copy ready
+for highlights, rename, checkbox reset). No friends-of-the-firm drafts at finalize — they wait
+for the redacted send. ⛔ Friends of the firm NEVER see Fund Updates or any section under it
+except Disclaimers (Tom 2026-10-05): the full `[PARTNERS]` PDF is Active-LP-only, code-enforced
+in `make_draft` (tests/test_friends_guard.py). The existing
 ✍️ Email Draft alert fires on its own for the draft; don't suppress it.
 
 When Tom sends, gmail-webhook `lp-letter-sent.js` (live push + 30-min reconciler) ticks `Sent
@@ -97,30 +100,36 @@ handoff; the portal letter pin stays offer-only per `references/drafting.md` →
 
 ### Essay redaction (Tom highlights, I black out)
 
-After finalize, Tom sends screenshots of what to hide in the `[WIP] [EXTERNAL]` copy. Use
-`scripts/redact_blackout.py <QUARTER> <cmd>` — never a highlight laid over live text (it stays
-copyable in the PDF). It replaces the text with a width-matched x/i fill, black on black, so
-every line stays where it was in the unredacted letter; each command re-checks line positions
-against the pre-blackout baseline and says so if anything moved. Commands: `span "<first words>"
-"<last words>"` (passage; its footnotes are blacked too, the superscripts kept), `inline
-"<unique context>" "<target>"` (a phrase, body or footnote), `cells "<table caption>" <rows>
-<cols>` (also squares multi-line cells into rectangles), `extend` (Tom: blacked passages run to
-the end of the line — run after any span), `restore` (undo a phrase), `verify --terms "a|b"`
-(layout + leak scan + links + header/comments/suggestions — run before "redaction is
-complete"). Tom also edits text directly (e.g. deleting "PF"); that's fine. Do what he
-highlights; flag what can be back-solved but don't push (Tom 2026-10-02: "i dont mind people
-doing the division").
+After finalize, Tom sends screenshots of what to hide (he may highlight in the PARTNER Doc —
+apply to the `[EXTERNAL]` copy). Use `scripts/redact_blackout.py <QUARTER> <cmd>` — never a
+highlight laid over live text (it stays copyable in the PDF). It replaces the text with a
+width-matched x/i fill, black on black, so every line stays where it was; each command re-checks
+line positions against the pre-blackout baseline. Commands: `span "<first words>" "<last words>"`
+(passage; its footnotes are blacked too), `inline "<unique context>" "<target>"` (a phrase, body or
+footnote), `cells "<table caption>" <rows> <cols> [<lines>]` (rows 0-based with row 0 = header —
+COUNT the rows, tables differ; optional `<lines>` blacks only those lines inside each cell, e.g.
+the round label under a post-money), `extend` (run after any span), `refs` (fill footnote markers left inside blacked text; verify flags them), `restore` / `uncells` (undo), `verify --terms
+"a|b"` (layout + leak scan — run before "redaction is complete"; --terms is REQUIRED: every company name/figure blacked this quarter, no built-in list). `span`'s end phrase must be unique after the start (it stops and names the count otherwise) and the resolved span is printed — read it before applying. When Tom says "all other
+references to those fields", sweep every table, prose sentence and footnote carrying the same
+figure/label (verify --terms with each value). Q3 2026 precedent (archived first pass in
+`[EXTERNAL]/Archive`; final, Tom 2026-10-05): ONLY the portfolio traction passages + their
+footnotes (markers filled). KEPT after review: all Dash/Inverted returner figures — entry price
++ ownership (tables + footnote 4), post-money, round labels (Series F (PF), Series B), "PF
+post-money". Tom's "all other references" sweep was then walked back field by field. Undo with `uncells` (cells, from the
+partner Doc) / `restore` (body or footnote).
 
 ### Redacted send ("redaction is complete", "redacted version is done")
 
-Explicit trigger only, after the LP finalize. `scripts/finalize_letter.py <QUARTER> --redacted
---dry-run`, check, then run: drop `[WIP] ` from the `[EXTERNAL]` Doc → PDF into `[EXTERNAL]` as
-`Inverted Capital I_ Q<N> <YYYY> Letter_Redacted.pdf` → Gmail DRAFT `<title> - friends of the
-firm` (same "Friends," note, no archive line) BCC Tom's "Friends (Redacted)" list (Sheet
-`1DxQaO3z…`, Worksheet tab, column B under that column-A label; re-read every run; the
-"Close Friends (Full)" block below it gets the FULL letter at finalize step 5b instead) → ONE
-summary text. LP (Relationship) is NOT on this send (they got the full letter at finalize). The
-tracker is never reset here.
+Explicit trigger only, after the LP finalize + Tom's highlights. `scripts/finalize_letter.py
+<QUARTER> --redacted --dry-run`, check, then run: drop `[WIP] ` from the `[EXTERNAL]` Doc → PDF
+into `[EXTERNAL]` as `Inverted Capital I_ Q<N> <YYYY> Letter_Redacted.pdf` → Gmail DRAFT(s)
+`<title> - friends of the firm` ("Friends," note, NO archive line — Tom 2026-10-02: "i dont want
+them to have access") BCC EVERY friends list: LP (Relationship) + the sheet's "Close Friends
+(Full)" and "Friends (Redacted)" blocks (Sheet `1DxQaO3z…`, Worksheet tab, column B under each
+column-A label; re-read every run), Active LPs excluded → ONE summary text. ONE redacted version
+for everyone (Tom 2026-10-05: "i dont want to create confusion"). One-off adds later →
+`--close-friends` or a draft attaching `finalize_redacted.json` pdf_id. The tracker is never
+reset here.
 
 Send confirmations (gmail-webhook `lp-letter-sent.js`, Slack 📨): "Sent: Q<N> LP Letter – Active
 LPs" / "… LP Letter – Relationship LPs" (box-ticks) / "Sent: Q<N> Redacted Letter – Friends"

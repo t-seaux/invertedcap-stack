@@ -147,6 +147,8 @@ If the script exits non-zero or returns 0 candidates total, skip to Step 4 (Slac
 
 ## Step 1.5 — Verify cold candidates via ContactOut
 
+> ContactOut calls follow `~/.claude/skills/shared-references/contactout-routing.md` (local `mcp__contactout`, cloud connector as fallback).
+
 **Reconnect candidates are skipped** — they come from the LinkedIn network cache (real people Tom knows) and don't need verification.
 
 For each **cold candidate**, call `contactout_enrich_linkedin_profile` with `profile_only: true` before writing anything to Notion. This is a cheap probe (no email credit consumed) that confirms the LinkedIn URL resolves to a real person who currently works at the target company.

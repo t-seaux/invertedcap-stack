@@ -33,7 +33,9 @@ The company must already exist in the Opportunities DB — this skill adds a rou
 
 > **As code (2026-10-04).** Steps 1.2–2 are one READ-ONLY command — run it instead of assembling fields by hand:
 > ```bash
-> python3 ~/.claude/skills/add-follow-on-round/follow_on.py plan --base-opp <any card id in the cluster> --stage "Series B" [--round-details "<per round-details-format.md>"] > /tmp/fo-plan-<company>.json
+> python3 ~/.claude/skills/add-follow-on-round/follow_on.py plan --base-opp <any card id in the cluster> --stage "Series B" --fund "<which fund writes this check: Dash 2️⃣ | Inverted 1️⃣ …>" [--round-details "<per round-details-format.md>"] > /tmp/fo-plan-<company>.json
+>
+> `--fund` is required (2026-10-05): decide it from Tom's message / the round (a Dash portco's follow-on from Dash II's reserves vs a fresh Inverted check) – ask Tom if it isn't clear; never copy the base card's Fund by default.
 > ```
 > **exit 0** → pass `mcp_properties` verbatim to `notion-create-pages` (Step 3) and use `icon.mcp_icon` if set; a `file` icon has `mcp_icon: null` + `copy_steps` (the 4-step `ntn` copy below) — do those after create. Surface any `warnings` (Fund disagreement, missing icon) to Tom. **exit 1** → a card with that FO name already exists in the cluster: stop, tell Tom, link it. **exit 2** → unrecognized stage or Notion unreachable — fix / retry, never hand-assemble. The plan implements the inheritance, fixed defaults, name, and Stage mapping below (Series C and later → `Growth 🚀`, title keeps `Series C`); those bullets are the WHY. Lead/coinvestor linking stays judgment (below).
 
