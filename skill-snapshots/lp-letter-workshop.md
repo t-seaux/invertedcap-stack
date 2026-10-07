@@ -1,61 +1,29 @@
 ---
 name: lp-letter-workshop
 description: |-
-  Quarterly LP letter pipeline in three gated phases: (1) Context Pack — assemble everything the letter draws on (prior letters, memos, CRM funnel + pass reasons, diligence dossiers, SOI diff + Company Updates evidence, research intake, people met, LPAC bridge, word-bank vocabulary — full inventory in the skill body) into one reviewable artifact; (2) Foundation — a comprehensive pre-drafting take Tom reacts to; (3) Drafting — a [WIP] Google Doc matching historical letter conventions exactly, iterated turn by turn. Supports mid-quarter starts and post-quarter "incorporate the latest" delta refreshes at every phase. Trigger on "start the [Q3] letter", "LP letter workshop", "let's work on the LP letter", "build the letter context pack", "letter foundation", "draft the Q[N] letter", "refresh the letter pack", "incorporate the latest into the letter", and the finalize triggers "finalize LP letter", "finalize the letter", "push final version", "letter is final", and the redacted-send triggers "redaction is complete", "redaction done", "redacted version is done", "redacted letter is final" (drafts the ONE redacted version to every friends-of-the-firm list). NOT fund-update-drafter (one-off LP email replies) and NOT log-investor-letter-to-notion (external firms' letters). Manual-only.
+  Finalize + distribute the quarterly Inverted LP letter (Tom drafts the letter himself; the Context Pack / Foundation / Drafting phases were retired 2026-10-06). Finalize: rename the [WIP] Doc, PDF to [PARTNERS], [EXTERNAL] copy with mechanical redaction, LP Directory checkbox reset, BCC'd Gmail DRAFT to Active LPs (optional capital-call heads-up). Essay redaction: black out the passages Tom highlights in the [EXTERNAL] copy. Redacted send: drafts the ONE redacted version to every friends-of-the-firm list. Trigger on the finalize triggers "finalize LP letter", "finalize the letter", "push final version", "letter is final", and the redacted-send triggers "redaction is complete", "redaction done", "redacted version is done", "redacted letter is final". NOT fund-update-drafter (one-off LP email replies) and NOT log-investor-letter-to-notion (external firms' letters). Manual-only.
 
 ---
 
 # LP Letter Workshop
 
-Three phases, each gated on Tom. Workspace: `~/.claude/data/lp_letter_workshop/<QUARTER>/`
-(quarter format `2026-Q3`). Never advance a phase without Tom's reaction to the prior one;
-never send or share the letter — Tom does. Finalize runs only on Tom's explicit trigger (see
-**Finalize** below), and even then it only DRAFTS the LP email.
+Finalize and distribution only — Tom writes the letter himself in the `[WIP] Inverted Capital I:
+Q<N> <YYYY> Letter` Doc (the context-pack / foundation / drafting phases were retired 2026-10-06).
+Workspace: `~/.claude/data/lp_letter_workshop/<QUARTER>/` (quarter format `2026-Q3`). Never send
+or share the letter — Tom does. Every step runs only on Tom's explicit trigger and only DRAFTS emails.
 
-## Resolve the quarter
-
-From Tom's ask, else default: the letter covers the most recently *relevant* quarter — before
-quarter-end that's the current quarter (quarter-to-date pack, expect a later refresh); after
-quarter-end it's the just-closed quarter. Confirm the quarter in the first reply. If a prior
-quarter has no letter (e.g. Q2 2026 — LPAC deck only), the pack's LPAC-bridge section carries
-it and the foundation proposes how the letter handles the gap.
+Quarter: from Tom's ask, else the just-closed quarter. Confirm it in the first reply.
 
 ## Portfolio guard (gate, Tom 2026-10-04)
 
 `python3 ~/.claude/skills/soi-portfolio-event/portfolio_guard.py --quarter <YYYY-Qn>` compares real-world
 developments (Company Updates + Portfolio Notes: exits, winddowns, raises / cash jumps) against the portal SOI,
 the quarter pin, and the letter Doc (every company with a round / exit booked in the quarter must be named).
-It runs inside `gather_local.py` (the "portfolio guard" line in `preflight.md`) and must be re-run before
-Finalize. Exit 0 = clean; 1 = ⚠ flags → STOP and tell Tom (list each flag) before drafting or finalizing;
+Run it before Finalize. Exit 0 = clean; 1 = ⚠ flags → STOP and tell Tom (list each flag) before finalizing;
 2 = could not run → tell Tom, never treat as clean. Read-only: it never edits lp-portal, and a flag is fixed
 by Tom's normal path (Opp edit → soi-portfolio-event → his confirm). Letters already SENT are never edited
 without Tom's explicit permission and guidance. False positives → `soi-portfolio-event/references/guard_dismissed.json`
 (keyed by update title, with a reason). The same guard runs daily in the 17:50 digest (🛡️ section).
-
-## Phase 1 — Context Pack
-
-Read `references/context-pack.md` now and execute it in full:
-1. `scripts/gather_local.py <QUARTER>` (`--refresh` on re-runs) — local sources: SOI + pins,
-   decision ledger + pass notes, retro nuggets, word bank, corpus inventory, LPAC deck text,
-   preflight flags.
-2. API pulls (parallel subagents): Opportunities funnel, deep-dive dossiers, Company Updates,
-   Notes-DB research intake, People/meetings/calendar.
-3. Assemble `context-pack.md` (11 fixed sections, every claim cited), send the ONE completion
-   alert (shape in the reference), stop for Tom's review + annotations.
-
-## Phase 2 — Foundation
-
-Gate: Tom has reviewed the pack. Read `references/foundation.md` now and execute it in full:
-comprehensive, not curated — thinking-evolution ledger, every supportable through-line,
-callback inventory, evidence bank, open loops, fund-updates inputs, vocabulary. Write
-`foundation.md`, present, stop. Annotate Tom's reactions back into the file as `[TOM]` marks.
-
-## Phase 3 — Drafting
-
-Gate: Tom has reacted to the foundation. Read `references/drafting.md` now and execute it in
-full: `[WIP] Inverted Capital I: Q<N> <YYYY> Letter` in the Drive LP Letters folder, formatting
-mirrored from the most recent finalized letter, STYLE.md voice, memo-workshop editing harness,
-numbers only from the pinned/pack data. Iterate turn by turn.
 
 ## Finalize ("finalize LP letter", "push final version")
 
@@ -96,7 +64,7 @@ in `make_draft` (tests/test_friends_guard.py). The existing
 When Tom sends, gmail-webhook `lp-letter-sent.js` (live push + 30-min reconciler) ticks `Sent
 Q<N> Letter?` for every LP (Active) row on the send and confirms in Slack: all active LPs, or
 "X of Y" + who's missing (batched sends re-confirm the running total). Then update the
-handoff; the portal letter pin stays offer-only per `references/drafting.md` → Finalization.
+handoff; the portal letter pin stays offer-only per `references/finalize.md` → Finalization.
 
 ### Essay redaction (Tom highlights, I black out)
 
@@ -142,10 +110,3 @@ Reminder: once every LP (Active) and LP (Relationship) address is ticked, `scrip
 (rider on office-cleaning-expense/lupe_watch.sh, which holds the Reminders grant) completes "[IC]
 Send LP letters" (Work list, every 3 months on the 1st) and texts Tom. Publishing to
 invertedcap.com/letters is not part of these flows.
-
-## Delta refreshes ("incorporate the latest")
-
-Any phase, any time — typically after quarter-close on a mid-quarter start. Re-run Phase 1
-with `--refresh` per `references/context-pack.md` → "Refresh / delta runs": prior run is
-archived, a dated `## Delta since <as_of>` section leads the pack, and downstream artifacts
-(foundation, draft) are updated only where the delta touches them, with Tom told what moved.

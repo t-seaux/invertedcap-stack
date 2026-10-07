@@ -114,7 +114,7 @@ Two queries, both scoped to the Opportunity:
 
 **Query B — Past outreach emails Tom sent for this Opportunity.** Gmail search:
 ```
-in:sent (subject:"would love to intro" OR subject:"want to chat" OR subject:"want to connect" OR subject:"intro request" OR subject:"up for an intro") <opp_name>
+in:sent (subject:"would love to intro" OR subject:"intro to" OR subject:"want to chat" OR subject:"want to connect" OR subject:"intro request" OR subject:"up for an intro") <opp_name>
 ```
 Limit 10. Read subject + first 300 chars. Used in Step 6 as voice/structure templates for new drafts AND in Step 5 to dedup against intros already in flight.
 
@@ -195,7 +195,7 @@ Exit 0 = done (`result`: added / promoted / noop — noop means already at or pa
 
 ### Step 7: Draft an outreach email per new Qualified person
 
-Intent: for each newly-Qualified person, save ONE Gmail draft to the target only (recipient resolution 7a, universal `<opp_name> – would love to intro` subject 7b, voice templates 7c, body composition 7d, bucket-specific framing 7e, save 7f, and the 7g draft/sent idempotency check that skips duplicates). Full procedure in `references/step-7-outreach-draft.md` — read it now before proceeding.
+Intent: for each newly-Qualified person, save ONE Gmail draft to the target only (recipient resolution 7a, the one intro-request subject `Intro to <Company> (<descriptor>)?` 7b (intro offers merged into intro requests, Tom 2026-10-06), voice templates 7c, body composition 7d, bucket-specific framing 7e, save 7f, and the 7g draft/sent idempotency check that skips duplicates). Full procedure in `references/step-7-outreach-draft.md` — read it now before proceeding.
 
 ### Step 8: Slack alert
 
@@ -258,7 +258,7 @@ So re-running this skill against the same note (e.g. meeting-note-processor's re
 
 ## Edge cases
 
-Intent: per-branch handling for portfolio Opps, repeat mentions, company-less targets, same-person-across-Opps, the founder-of-the-Opp filter, and empty `opp_page_id`. Plus the rationale for the universal `– would love to intro` subject line. Full detail in `references/edge-cases-and-rationale.md` — read it now before proceeding when any of these branches applies.
+Intent: per-branch handling for portfolio Opps, repeat mentions, company-less targets, same-person-across-Opps, the founder-of-the-Opp filter, and empty `opp_page_id`. (The old `– would love to intro` subject is retired – 7b.) Full detail in `references/edge-cases-and-rationale.md` — read it now before proceeding when any of these branches applies.
 
 ---
 

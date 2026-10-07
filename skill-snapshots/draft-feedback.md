@@ -108,7 +108,7 @@ mirror it (update both together when adding an email type):
 
 - `Subject: Introducing Inverted Capital` → `skill = founder-outreach`
 - `Subject: ... - Inverted follow up` (not a Re: or Fwd:) → `skill = pass-note-drafter`
-- `Subject: ... – would love to intro` → `skill = intro-note-processor` (→ `intro-offer`)
+- `Subject: ... – would love to intro` → `skill = intro-note-processor` (→ `intro-outreach`; intro offers merged 2026-10-06, legacy subject only)
 - `Subject: Thoughts on ...` → `skill = feedback-outreach-drafter` (→ `feedback-outreach`)
 - `Subject: Intro to ... (descriptor)?` (ends with a parenthetical) → `skill = intro-outreach-drafter` (→ `intro-outreach`)
 - `Subject: Intro to [Founder] @ [Company]?` (no parenthetical, has `@`) → `skill = talent-scan` (→ `talent-outreach`)

@@ -61,7 +61,10 @@ A company can have variant blurbs tailored to a specific audience (e.g., card ne
 ## Headless mode (args `mode: headless`)
 
 Enqueued by the lane classifiers per `shared-references/blurb-capture.md`. Args: `oppId`, `oppName`,
-`messageId` (Gmail id; Dash lane sends `rowid`, text lane sends the message GUID), and `lane`.
+`messageId` (Gmail id; Dash lane sends `rowid`, text lane sends the message GUID – or, from portco-ask, the chat.db
+rowid plus `blurbText`, the blurb already extracted verbatim), `lane`, and optional `silent`.
+`silent: true` (portco-ask, when the blurb releases held intro drafts): do every write, skip Step 6's alert – the
+✍️ drafts-ready text that follows is the one ping (Tom 2026-10-06).
 
 1. **Fetch the source.** Gmail `get_thread` on the message. For Dash, read it via `dash_mail.py`. For
    text, read it from chat.db.
@@ -73,7 +76,7 @@ Enqueued by the lane classifiers per `shared-references/blurb-capture.md`. Args:
 4. **Dedup.** If the current callout (or that audience variant) already holds this exact text, log
    `blurb-unchanged` and exit 0 without alerting.
 5. Run Workflow steps 2–5 below with this text. Resolve the Opp by `oppId` directly.
-6. **Alert Tom** on the source surface, using that lane's render. Same content and emoji (🏢, every
+6. **Alert Tom** on the source surface, using that lane's render (skip when `silent: true`). Same content and emoji (🏢, every
    run) in both; only the markup differs.
 
    **Email lanes (invertedcap + Dash) → Slack** via `send-alert/send.sh`:

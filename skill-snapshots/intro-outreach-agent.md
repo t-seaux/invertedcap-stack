@@ -87,6 +87,7 @@ OUTREACH_SUBJECT_PHRASES = [
   "want an intro",
   "intro request",
   "would love to intro",
+  "intro to",
   "up for an intro",
   "want to chat"
 ]
@@ -95,7 +96,7 @@ OUTREACH_SUBJECT_PHRASES = [
 The Gmail query for a single-call subject scan is built by OR-ing these phrases:
 
 ```
-in:sent newer_than:1d (subject:"want an intro" OR subject:"intro request" OR subject:"would love to intro" OR subject:"up for an intro" OR subject:"want to chat")
+in:sent newer_than:1d (subject:"want an intro" OR subject:"intro request" OR subject:"would love to intro" OR subject:"intro to" OR subject:"up for an intro" OR subject:"want to chat")
 ```
 
 This is **one Gmail API call** regardless of the number of phrases or active portfolio companies.
@@ -255,7 +256,7 @@ This runs FIRST, before the Qualified roster scan. Its purpose is to catch outre
 
 **Execute as a single Gmail call:**
 ```
-in:sent newer_than:3d (subject:"want an intro" OR subject:"intro request" OR subject:"would love to intro" OR subject:"up for an intro" OR subject:"want to chat")
+in:sent newer_than:3d (subject:"want an intro" OR subject:"intro request" OR subject:"would love to intro" OR subject:"intro to" OR subject:"up for an intro" OR subject:"want to chat")
 ```
 Use `newer_than:3d` (not `newer_than:1d`) to buffer against scan timing gaps — same-day outreach sent after the prior scan run would otherwise be missed entirely.
 

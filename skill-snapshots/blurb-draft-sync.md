@@ -3,7 +3,7 @@ name: blurb-draft-sync
 description: >
   Propagate a freshly updated company blurb (Company Overview) into every ACTIVE
   Gmail draft that carries a blurb dependency for that company — typically the
-  `--` / *About [Company]* section of intro-outreach, intro-offer, and deal-share
+  `--` / *About [Company]* section of intro-outreach (incl. legacy intro-offer drafts) and deal-share
   drafts. (C) Manual / subroutine only — chained automatically by
   log-company-blurb Step 6 after any blurb version bump, or invoked directly:
   "sync the new blurb to drafts", "update the [company] drafts with the new
@@ -46,19 +46,17 @@ For each in-scope draft:
 
 ```bash
 python3 ~/.claude/skills/shared-references/blurb_block.py render --company "<Company>" --url <company site> \
-    --page-md /tmp/<opp>.md [--audience "<recipient audience>"] [--founder-first <First>] > /tmp/<slug>_block.json
+    --page-md /tmp/<opp>.md [--audience "<recipient audience>"] > /tmp/<slug>_block.json
 python3 ~/.claude/skills/shared-references/blurb_block.py splice --draft-html /tmp/<slug>_old.html \
     --block-html <(python3 -c "import json;print(json.load(open('/tmp/<slug>_block.json'))['html'])")
 ```
 
-`render` applies ONLY the EF6 edits (salutation / sign-off dropped, `I am …` → `<First> is …`, Notion escapes undone),
+`render` applies ONLY the EF6 edits (salutation / sign-off dropped, Notion escapes undone; the founder's `I'm …` stays verbatim),
 bolds the first sentence with the company link inside it (the Thermis 2026-09-24 miss), and self-checks against
 style_gate (exit **4** = render bug, stop). Exit **3** with `refuse` naming the versions on file = there's no general
 blurb and none for this `--audience`: a version tailored for another firm is never sent (2026-10-05) – pass the
-matching `--audience`, or write the blurb and use `--blurb-file`. Exit **3** on `render` = first-person opener and no `--founder-first` —
-look the founder up on the Opp, never guess. `splice` swaps only the `--` → About block and keeps every other byte and
-the signature (exit **3** = no About block: the draft is out of scope). Third-personizing a whole blurb ("Our AI" →
-"Their AI") is a judgment edit beyond EF6 — only on Tom's say-so.
+matching `--audience`, or write the blurb and use `--blurb-file`. `splice` swaps only the `--` → About block and keeps every other byte and
+the signature (exit **3** = no About block: the draft is out of scope). Re-voicing any of the blurb (`I'm` → `Charlie is`, "Our AI" → "Their AI") is never done (EF6, Tom 2026-10-06).
 
 ## Step 3: Write via recreate-and-supersede — NEVER update_draft
 

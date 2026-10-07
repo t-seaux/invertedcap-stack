@@ -423,3 +423,9 @@ So running this skill multiple times against the same page is safe. The note-cla
 - **note-classifier subroutine fails** → log the error; continue with Round Details step. Don't let a classifier hiccup block the more valuable Round Details write.
 - **Round Details extraction LLM ambiguous** → leave empty rather than guessing. False positives are far worse than false negatives.
 - **No matching Opportunity found** → fine; the note still gets classified (Mode C path) and the daily sweep can retry tomorrow.
+
+## Description drift (portfolio notes, after the Company Updates upsert)
+
+Same check as investor-update Step 4.8: if the call shows the company now sells something different from the Opp's
+`Description`, run `opp_description.py offer` with `--source "<note title>"`. Rules + card:
+`shared-references/opp-description-drift.md`. Webhook and sweep modes alike; never write the Description directly.

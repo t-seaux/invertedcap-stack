@@ -684,6 +684,28 @@ Founders frequently drop a hiring link into an investor update ("we're looking f
 
 One pass per distinct job link — the helper is idempotent on URL, so re-processing the same update (or a later update that repeats the same link) is a no-op. Skip silently if no hiring link is found — this step doesn't force a match.
 
+## Step 4.7: Asks → 🙋 Portco Ask card
+
+Rules: `shared-references/portco-asks.md` (what counts, types, keys, ≤3 per card). Portfolio updates only – every mode,
+after the row write. Read the update's asks (the "Asks:" / "How you can help" list, or an ask in the prose; the
+artifact text you already extracted counts too). None that fit spec § 1 → skip silently.
+
+1. `python3 ~/.claude/skills/portco-ask/portco_ask.py prior --opp <opportunity_page_id>` → reuse keys for standing asks
+   (a repeat still cards, flagged ⚠ Repeat – spec § 3). This update's own text is the company context.
+2. Pipe the payload to `python3 ~/.claude/skills/portco-ask/portco_ask.py propose`: `lane:"email-update"`, `company`
+   = the Opp title, `founder` = the sender (`role` if not a founder), `period` = this row's period label (`Oct 2026`),
+   `source_ref` + `gmail_id` = the Gmail message id (omit `gmail_id` for a non-Gmail source), `source_text` = the
+   normalized body (Step 2.5) plus any artifact text the asks came from.
+3. The card is a text to Tom, separate from this skill's Slack alert; add one `**Asks Carded**` line to the Step 5
+   alert only when a card was sent (`• **<Company>** – <n> asks → 🙋 card`). `skipped` (this same message already carded) → nothing.
+
+## Step 4.8: Description drift → 🏢 card
+
+Portfolio updates only, after the row write. Does this update show the company now sells something different from
+the Opp's `Description`? Judgment + card rules: `shared-references/opp-description-drift.md`. If yes:
+`python3 ~/.claude/skills/shared-references/opp_description.py offer --opp <opportunity_page_id> --proposed "<one
+sentence>" --why "<one line naming this update>" --source "<period label>"`. exit 2 → fix the inputs; `skipped` → fine.
+
 ## Step 5: Report Results
 
 **Notification channel:** All alerts (success, non-portfolio, misclassification review) MUST be delivered via the `send-alert` skill at `/Users/tomseo/.claude/skills/send-alert/SKILL.md` — pipe the GFM body through `~/.claude/skills/send-alert/send.sh`. This posts as the `claude` bot identity (the canonical channel for LLM-synthesized alerts; distinct from `tom` MCP and `alerts` Apps Script).
@@ -704,6 +726,10 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 **Jobs Linked**
 • **<Company>** — [<Role Title>](<drive_or_live_url>) → `Jobs` field
 • (omit section entirely if Step 4.6 found no hiring links this run)
+
+**Asks Carded**
+• **<Company>** – <n> asks → 🙋 card
+• (omit section entirely if Step 4.7 sent no card this run)
 
 **Portfolio — filtered (not an update)**
 • **<Company>** — "<subject>" — <reason filtered> (e.g., DocuSign completion notice — transaction doc, not an investor update; or referral — content does not match Opp)

@@ -185,6 +185,14 @@ as a reminder title rule, all with the first message in context.
   The Google Calendar MCP can't delete or edit recurrence — use the **calendar_write
   helper** (acts as Tom via the SA, real Google Calendar API):
   Commands: `references/calendar.md` § calendar_write helper.
+- **Recs and facts about the world come from a live search, never from memory (Tom 2026-10-06:
+  "NEVER rely on just memory when I'm asking you to do a search").** Places, restaurants,
+  stores, hours, prices, "is there a good X", "is Y still open", news → run `WebSearch` (and
+  `WebFetch` the best page if needed) BEFORE replying. Name only what a search confirmed, and
+  give each rec a link ([[feedback_itinerary_recs_embed_clickable_links]]). Real failure: two
+  Fort Greene answers in a row were sent from memory with a "going from memory, check
+  before you go" hedge. One store didn't exist. A hedge does NOT make a memory answer OK. If the
+  search fails, send `⚠️ couldn't search — <reason>`, never a guess.
 - Reply ONLY by text to `from`. Keep it SHORT — a text message, plain text, ≤3 lines typical.
 
 ## Time budget — NEVER die silent

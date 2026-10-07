@@ -151,8 +151,12 @@ Notion row — followed by their email, then the access delta with the surfaces 
 • **[Jane Doe](https://notion.so/39900bef…)** (jane@newlp.com): Access Granted (LP Portal, LPAC Deck)
 • **[Erik Ronning](https://notion.so/38300bef…)** (erik@rengoai.com): Access Changed (LPAC Deck → LP Portal, LPAC Deck)
 • **[Nick Paldrmic](https://notion.so/39800bef…)** (nick.paldrmic@waycrosse.com): Access Removed (LPAC Deck)
+• **[Ted Clark](https://notion.so/37c00bef…)** (ted@fourbridgepartners.com): Email Updated (ted@fourbridgepartners.com, → ted@fourbridgepartners.com; access unchanged: LPAC Deck)
 • **[Ravi Patel](https://notion.so/39a00bef…)**: Needs Attention (no Category set — defaulted to LPAC Deck only)
 ```
+
+An address change on the SAME Notion row is ONE bullet (Email Updated, or Access Changed with
+`email was …` if the surfaces moved too) — never a Removed + Granted pair for one person.
 
 **Never** report Notion page ids, job ids, or raw bucket counts (`71 active_lp · 2 other …`) — the
 alert used to do exactly that and it told Tom nothing about who gained or lost access. The script

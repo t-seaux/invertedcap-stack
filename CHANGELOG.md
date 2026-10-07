@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-10-07] (Week of 2026-10-05)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- deal-text-scanner -- text router now also recognizes portfolio founders' requests for people in a category; founder threads are no longer blanket-silenced and pass through every lane
+- investor-update -- portfolio updates now surface founder asks and flag shifts in what a company sells
+- draft-feedback, intro-note-processor, intro-outreach-agent -- intro offers merged into intro requests; one shared intro subject line, legacy subject retained for detection only
+**Total skills:** 50
+**Functions:** No changes
+
 ## [2026-10-06] (Week of 2026-10-05)
 
 **Added:** None

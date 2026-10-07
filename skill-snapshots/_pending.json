@@ -1,10 +1,11 @@
 {
   "skills": {
-    "alert-healer": "2026-10-06",
-    "carta-invoice": "2026-10-06"
+    "carta-wire-approval": "2026-10-07",
+    "linkedin-dm": "2026-10-07",
+    "portco-ask": "2026-10-07"
   },
   "launchAgents": {},
   "webhookHandlers": {
-    "carta-invoice-inbound": "2026-10-06"
+    "carta-wire-inbound": "2026-10-07"
   }
 }
