@@ -1,11 +1,9 @@
 {
   "skills": {
-    "carta-wire-approval": "2026-10-07",
-    "linkedin-dm": "2026-10-07",
-    "portco-ask": "2026-10-07"
+    "scheduler": "2026-10-08"
   },
   "launchAgents": {},
   "webhookHandlers": {
-    "carta-wire-inbound": "2026-10-07"
+    "scheduler-inbound": "2026-10-08"
   }
 }

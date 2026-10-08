@@ -29,13 +29,24 @@ Trigger gate values shared with the webhook producer live in `~/.claude/skills/s
 
 - **Resolve by `page_id`** directly — skip the name/LI search.
 - **The button press is an explicit Tom request.** Draft regardless of `Claude Rec` — including `Pass ❌`. Tom flipped the status while looking at the verdict; that IS the override. The Pass-refusal rule below applies only to bare manual trigger phrases.
-- **Unscored row** (missing Eval Summary, `Signals` (+ body Eval Rationale), or Email): cannot draft. Set Status back to `Pending Enrichment` (so pipeline-agent Task 6 enriches it on the next sweep), then post a Slack alert via `send-alert` telling Tom the row wasn't scored yet and will re-enter the enrichment queue — the button press must not be silently lost. Exit without drafting.
+- **No email but otherwise scored** (Eval Summary + Signals present, the enricher found no email): NOT unscored. Run the
+  lookup in `shared-references/intro-recipient-rules.md` R2 (Apple Contacts → past mail → ContactOut); still nothing →
+  R3: write the note as usual, convert it with `linkedin-dm/li_dm.py convert`, and draft it in the person's existing
+  LinkedIn chat via Beeper (never send, never start a chat). A cold -1 usually has no chat → the InMail goes to Gmail
+  Drafts exactly like an intro InMail (Tom 2026-10-07: "identical flow"): `li_dm.py inmail --text-file dm.txt
+  --subject "<the note's subject>" --profile-url <LI URL> --gmail-draft --name "<Full Name>" --li <LI URL>` →
+  `💬 InMail → <Name>: <subject>`, and its `draftUrl` is the row's `--gmail-draft-url`. `--li` is what lets the 5-min
+  sweep act: seen sent in Beeper → store `reached-out` + the -1 Opp Qualified → ☎️ Outreach + one `🧍 -1 Pipeline`
+  alert; deleted and never seen sent for 72h → the usual -1 pass ("Draft trashed") + card-thread ask for the why.
+  Report `💬 LinkedIn DM drafted / InMail ready: <Name> (no email found)` in the Slack alert.
+- **Unscored row** (missing Eval Summary or `Signals` (+ body Eval Rationale)): cannot draft. Set Status back to `Pending Enrichment` (so pipeline-agent Task 6 enriches it on the next sweep), then post a Slack alert via `send-alert` telling Tom the row wasn't scored yet and will re-enter the enrichment queue — the button press must not be silently lost. Exit without drafting.
 - **Terminal row** (`Status` already `Reached Out` or `Passed` at read time): exit without drafting, one-line Slack note.
 - **On success**: same Step 7–8 as manual (draft + snapshot + Notion writes, Status → `Draft Ready`), then post a Slack alert via `send-alert` (webhook runs are headless — the Step 9 chat report has no reader). Header per the shared alert convention (`send-alert/references/alert-convention.md`): `🧍 <u>**-1 Outreach: [Name]**</u>` (single-event → no date), then a line with the spike signal and the Gmail draft URL.
 
 
 **Store mode (v2, 2026-07-16)** — invoked inline by `neg1-sourcing-listener` on a `draft` reply, with a candidate-store row instead of a -1 Scanner row (`python3 ~/.claude/scripts/decision-ledger/candidates.py get --li <url>`). Differences from manual mode:
-- Precondition fields come from the store: `eval_summary`, `signals_line`, `email` must be populated; the personalization anchor is the spike evidence in `eval_summary` / `eval_rationale`.
+- Precondition fields come from the store: `eval_summary`, `signals_line` must be populated; no `email` → the LinkedIn
+  DM fallback above (R2–R3), not a refusal; the personalization anchor is the spike evidence in `eval_summary` / `eval_rationale`.
 - NO Notion reads or writes in this skill — the caller handles the Opportunity + eval note. Write the draft URL back with `set-state --gmail-draft-url` instead of a Notion property.
 - Drive snapshot write (Step 9) unchanged — draft-feedback voice learning must keep working.
 - Never sends, same as always.

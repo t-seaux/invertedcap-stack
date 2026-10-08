@@ -230,6 +230,9 @@ For each named person, in order:
    **never write it onto the People page** — report "⚠️ Email mismatch – [Name]'s People page has [X],
    draft uses [Y]; not updating the page." A blank page Email is reported the same way, not filled.
    Personal-email-only from ContactOut → flag it in the report so Tom can confirm.
+   **Lookup order + no-email fallback:** `shared-references/intro-recipient-rules.md` R2–R3 – a stale work address (they've left that company) doesn't
+   count; Apple Contacts before ContactOut; nothing usable → draft the LinkedIn DM in Beeper (never send) and report
+   `💬 LinkedIn DM drafted: <Name> (no email found)` in Step 5, like an email draft.
 4. **Sent-check before drafting (code).** `python3 ~/.claude/skills/shared-references/intro_sent_check.py --target-email <email> --opp-name "<Opp>" --opp-id <opp id>` — exit 20 `made` → skip the draft AND any Qualified write, surface `intro-already-sent`; exit 21 `outreach-in-flight` → skip the draft, surface `outreach-sent-but-untracked`; exit 2 → Gmail unreachable, do NOT draft; exit 0 → clear.
 5. **Self-relation guard (every recipient, every mode) — the Opp's own Contact/Founder is never a
    valid recipient for ITS OWN Opp.** Tom, 2026-09-21: "you can't add TJ's People DB entry to his -1

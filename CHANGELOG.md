@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026-10-08] (Week of 2026-10-05)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- founder-outreach, neg1-sourcing-listener, talent-scan, intro-outreach-drafter -- when no email address can be found, drafting falls back to a LinkedIn message or InMail draft (never sent automatically) instead of stopping
+- intro-draft-agent, intro-resolution-agent -- opt-in replies now produce a single consolidated alert from the drafting step rather than two
+- intro-outreach-agent -- added a lightweight alternate-email handling mode
+- pipeline-agent, add-to-crm -- the in-house scheduling assistant is treated like other scheduler bots for meeting confirmations; LinkedIn-only outreach rows are left to the LinkedIn send-detection sweep
+**Total skills:** 50
+**Functions:** No changes
+
 ## [2026-10-07] (Week of 2026-10-05)
 
 **Added:** None

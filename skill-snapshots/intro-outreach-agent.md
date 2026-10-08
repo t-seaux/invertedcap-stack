@@ -15,6 +15,9 @@ description: >
 ---
 
 > **`mode: resolve-unresolved` job?** Read `references/resolve-unresolved.md` and follow ONLY it.
+> **`mode: alt-email` job?** Normally finished by the processor's code pre-gate (no model). If you are running, the gate
+> failed: run `python3 ~/.claude/skills/sms-listener/propose_alt_email.py --page-id <page_id> --name "<name>" --email <email>
+> --main-email <main_email> --context "<context>"` (append `--auto` when `args.auto` is true) once, report its JSON, and stop.
 
 # Intro Agent — Outreach Scanner
 

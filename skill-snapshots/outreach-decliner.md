@@ -37,8 +37,8 @@ Typical scenarios:
 4. If matched Opp's Status ∉ `{Qualified, Track, Outreach}`, no-op (log `not-flippable`).
 5. Call `classifyOutboundIntent(body, msg.id)` (defined in `outbound-intent.js`):
    - Cache check by msg.id → if hit, return memoed verdict (e.g. detector or a prior re-route already classified this msg).
-   - Tier 1 Haiku 4.5 (~$0.0003/call) → `{verdict, confidence, reasoning, model}`.
-   - If Haiku confidence < 0.85, escalate to Sonnet 4.6 (~$0.001 extra).
+   - Tier 1 Haiku (~$0.0003/call) → `{verdict, confidence, reasoning, model}`.
+   - If Haiku confidence < 0.85, escalate to Sonnet (~$0.001 extra).
    - Cache the final verdict for 6h.
 6. If `verdict == "decline"` and `confidence ≥ 0.85`: PATCH `Status` to the Decline target (`shared-references/opp-status-sets.md`: `Pass (DNM)`, or `Pass (Met)` from `Track`) + Slack alert (via `claude` webhook).
 

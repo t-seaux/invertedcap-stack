@@ -179,14 +179,15 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
 6. **Route the verdict**:
    - **Made** → invoke the JS-backed write (Step 7).
    - **Declined** (explicit decline or hard deferral) → invoke the JS-backed write (Step 7).
-   - **Opt-in, no intro sent yet** (verdict = clear opt-in, the inline-intro check did NOT fire, and no standalone double-opt-in was found → the contact said yes but Tom has not made the intro): **first confirm Gate 3 (Step 2.9) did not trip — reference-check outreach must never reach this branch.** If clear, do NOT write a terminal state (person stays in ☎️ Outreach), but **enqueue `intro-draft-agent` to auto-draft the double-opt-in intro** (Step 6a). Then post the **Opt-in ping** (below), log `single-message resolution: <person> on <opp> — opt-in → kept in Outreach, draft queued`, and exit 0.
+   - **Opt-in, no intro sent yet** (verdict = clear opt-in, the inline-intro check did NOT fire, and no standalone double-opt-in was found → the contact said yes but Tom has not made the intro): **first confirm Gate 3 (Step 2.9) did not trip — reference-check outreach must never reach this branch.** If clear, do NOT write a terminal state (person stays where they are — ☎️ Outreach or 👓 Qualified), but **enqueue `intro-draft-agent` to auto-draft the double-opt-in intro** (Step 6a). Log `single-message resolution: <person> on <opp> — opt-in → kept in <stage>, draft queued` and exit 0.
 
-     **Opt-in ping (snappy — this is a high-frequency, templatized alert; headline + one body line, per alert-convention):**
+     **ONE alert per opt-in — the draft agent sends it (Tom 2026-10-07: *"collapse into a single notification as the action here is to send the note"*).** When the Step 6a enqueue returns `enqueued: true` or `dedup`, post **nothing** here: `intro-draft-agent` posts the single `🤝 Intro Opt-In` alert with To/Cc + the draft link once the draft exists (or the no-draft reason if it can't draft). Only when the enqueue **fails** (non-zero) post the opt-in ping yourself, since no draft is coming:
 
      > 🤝 <u>**Intro Opt-In: <person> → <founder> (<opp>)**</u>
-     > ✓ Kept in ☎️ Outreach · double-opt-in draft queued
+     >
+     > ✓ Still in <stage> · ⚠ draft not queued – connect by hand
 
-     Rules: exactly these two lines (the underlined-bold Title Case headline is the alert-convention contract — never a raw prose sentence, never 🔔). No job/UUID (it's internal noise). No code block. **Never paste the `single-message resolution: …` run-log string into Slack** — that string is for the run log only, and echoing it under the prose is the redundancy to avoid. If the Step 6a enqueue came back dedup/error, drop the "· double-opt-in draft queued" clause rather than adding a second line.
+     Rules: the underlined-bold Title Case headline is the alert-convention contract — never a raw prose sentence, never 🔔. No job/UUID. No code block. **Never paste the `single-message resolution: …` run-log string into Slack.**
    - **Soft-deferral / ambiguous** → no write, no draft, no alert. Log `single-message resolution: <person> on <opp> — <verdict> → kept in Outreach`. Exit 0.
 6a. **Auto-draft handoff (opt-in path only).** For the opt-in-without-intro case above, enqueue a follow-on `intro-draft-agent` job so a Gmail draft of the double-opt-in intro is created within ~a minute (event-driven, not waiting on the next scheduled scan). Target opp = the candidate Opp where this person currently sits in ☎️ Outreach (from `oppCandidateIds`; if multiple, enqueue one job per such Opp). Write a typed args JSON and call the canonical helper — do NOT read `intro-draft-agent/SKILL.md` or draft inline:
    ```bash

@@ -249,7 +249,7 @@ MANISH (founder + CTO of [Company], ex-Google, owns engineering architecture)' \
     --output $WORKSPACE/labeled_transcripts/<call_slug>.md
 ```
 
-Cost: ~$0.03–$0.05 per 75KB transcript at Haiku 4.5. Latency: ~20–30 seconds serialized
+Cost: ~$0.03–$0.05 per 75KB transcript at Haiku 4.5 rates (less on newer Haiku). Latency: ~20–30 seconds serialized
 per transcript. **Run each relabel call synchronously in the foreground with an explicit
 timeout — NEVER via `run_in_background: true`.** Inside a subagent, backgrounded children
 die silently when the subagent's turn yields (0-byte output, no process, no error) and

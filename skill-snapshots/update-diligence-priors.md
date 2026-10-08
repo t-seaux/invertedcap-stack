@@ -174,7 +174,7 @@ python3 ~/.claude/skills/first-pass-diligence/relabel_transcript.py \
 
 Only NEW transcripts (added since the prior update) need to be labeled — previously
 labeled transcripts in `/tmp/firstpass_labeled_transcripts/` are cached and reused.
-Cost per new transcript: ~$0.03–$0.05 at Haiku 4.5; latency ~20–30 sec serialized.
+Cost per new transcript: ~$0.03–$0.05 at Haiku 4.5 rates (less on newer Haiku); latency ~20–30 sec serialized.
 The labeled transcripts feed the deterministic attribution-mismatch check in Step 4
 lint and prevent the class of error where Tom's reframings end up attributed to the
 founder. See memory `feedback_transcript_speaker_attribution_to_tom`.

@@ -233,7 +233,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    `newer_than:2d -category:promotions -category:updates -category:social`
    Retrieve up to 50 messages (`maxResults: 50`). For each message, note the messageId, sender name, sender email, subject, and body snippet.
 
-3. **Classify each email** using the Anthropic API (`https://api.anthropic.com/v1/messages`, model: `claude-sonnet-5-5`, max_tokens: 300, `thinking: {"type": "between_tools"}` + `output_config: {"effort": "low"}` so a 300-token classification isn't eaten by thinking; check `stop_reason` — `refusal` → treat as not-scheduling and note it). (Was `claude-sonnet-4-20250514`, a stale dated id — replaced 2026-10-04.) Send each email's from/subject/body to the following classification prompt:
+3. **Classify each email** using the Anthropic API (`https://api.anthropic.com/v1/messages`, model: the newest Sonnet – resolve it once per run with `GET https://api.anthropic.com/v1/models` (newest first) and take the first `id` whose `line` is `sonnet`; never hardcode an ID, max_tokens: 300, `thinking: {"type": "between_tools"}` + `output_config: {"effort": "low"}` so a 300-token classification isn't eaten by thinking; check `stop_reason` — `refusal` → treat as not-scheduling and note it). Send each email's from/subject/body to the following classification prompt:
 
    > You are a venture capital assistant classifying incoming emails for an early-stage investor. Analyze the email and determine: (1) Does it contain a request or intent to schedule a meeting, call, or coffee? (2) If yes, extract the sender's full name and company name if mentioned. (3) One-sentence reasoning. Respond ONLY in JSON: {"is_scheduling_intent": true/false, "sender_name": "name or null", "company": "company name or null", "reasoning": "one sentence"}
 
@@ -251,7 +251,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
    - company (case-insensitive, if non-null) matches a Name (title) in the work list
    If no match is found in Connected or Tracking, skip — this email is not from a tracked founder.
 
-   **Scheduler-bot fallback (IMPORTANT)**: Meeting confirmations frequently arrive from scheduler bots (Blockit, Calendly, x.ai, Reclaim, SavvyCal, HubSpot meetings, Google Calendar notifications …) rather than the founder directly. The sender list is code — `sched_match.bot_reason()` over `people_denylist.json` + `SCHEDULER_EXTRA`; do not maintain a host list here.
+   **Scheduler-bot fallback (IMPORTANT)**: Meeting confirmations frequently arrive from scheduler bots (Blockit, Bot <bot@invertedcap.com> – Tom's own scheduler, same treatment as Blockit – Calendly, x.ai, Reclaim, SavvyCal, HubSpot meetings, Google Calendar notifications …) rather than the founder directly. The sender list is code — `sched_match.bot_reason()` over `people_denylist.json` + `SCHEDULER_EXTRA`; do not maintain a host list here.
 
    When the sender matches a scheduler-bot pattern, do NOT require sender_email/sender_name to match a founder. Instead:
    - Re-run matching against the email's **subject line** and the **quoted original thread** embedded in the body. The founder's email and name typically appear as "On [date] [Founder] <[email]> wrote:" blocks.
@@ -423,6 +423,8 @@ State flow (candidate store — the Notion Status vocabulary below is historical
 ## Task 7: -1 Reached Out Detection
 
 Spawn with `Task` tool.
+
+**LinkedIn-only rows (Tom 2026-10-07):** a `drafted` row with no email whose `gmail_draft_url` is a `💬 InMail →` draft (Opp Contact `N/A (LinkedIn DM)`) is owned by the linkedin-dm 5-min `inmail-sweep` (send = seen in Beeper → reached-out + Qualified → Outreach; deleted and never sent for 72h → pass). Skip it here — `verify-trashed` returns exit 3 "no email" for it, which is expected, not a run-summary item.
 
 **v2 HEADLESS (2026-07-16 — CURRENT):** query the candidate store for `state=drafted` rows (`python3 ~/.claude/scripts/decision-ledger/candidates.py list --state drafted`) instead of Draft Ready scanner rows. For each, run the same Gmail sent-mail scan (step 2 below). On a detected send:
 - `python3 ~/.claude/scripts/decision-ledger/candidates.py set-state --li <url> --state reached-out [--why "{row draft_why}"] --date {send date}` — writes the `reached-out` ledger row in the same transaction (scores / rubric fields from the store) and deletes any implicit-pass row for the person (supersede rule). Do NOT also run append_decision.py.
