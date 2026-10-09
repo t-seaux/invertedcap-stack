@@ -168,7 +168,11 @@ are either computed or populated by other workflows.
      `profile_only: true`. This endpoint returns the photo even when `contactout_enrich_person`
      has no record. Save the `profile_picture_url` from the response.
    - Run these in parallel with step 3 when practical to save time.
-   - If both ContactOut calls return no photo, leave the icon unset — no emoji fallback for People entries.
+   - If both ContactOut calls return no photo, leave `photo_url` OUT of the spec — `people_upsert.py` then fetches the person's
+     photo from their LinkedIn page itself (`shared-references/linkedin_photo.py`: background Chrome window, identity verified against
+     the page's own "View <Name>'s profile" alt — never a guess) and sets the icon. Never ship a row icon-less on your own
+     (Tom 2026-10-08, Dan Freuman: "that should be part of the skill"). Only if that also fails does the row go without an icon:
+     the confirm line then carries a `⚠ no photo` line — relay it to Tom. No emoji fallback for People entries.
 5. **Cache raw ContactOut payloads.** After each ContactOut MCP call in steps 3 and 4, write the
    raw response payload to `~/.claude/plugins/data/contactout-enrichment-inline/people/{vanity}.{endpoint}.json`
    using the Write tool, BEFORE extracting any fields. The vanity slug is the LinkedIn URL's last

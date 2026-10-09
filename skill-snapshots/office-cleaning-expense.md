@@ -81,7 +81,8 @@ must match.
 - **Live loop (primary, NOT this skill)** — the deterministic 5-minute
   `com.invertedcap.lupe-paid-watch` launchd job
   (`~/.claude/scheduled-tasks/office-cleaning-expense/lupe_watch.sh` +
-  `check_lupe_paid.py` in default mode) runs the state machine below with zero
+  `~/.claude/skills/office-cleaning-expense/scripts/check_lupe_paid.py` in default mode; the script moved
+  into this skill 2026-10-07, so edits go through skill_change) runs the state machine below with zero
   LLM: reminder + text on confirmation; sheet POST + reminder check-off + ONE
   combined text on payment. Any change to the state machine or notification
   contract is made in that CODE (and its harness), then summarized here.
@@ -126,7 +127,7 @@ expense, check off the reminder) are **code**, not prose — do not re-implement
 them by hand:
 
 ```bash
-S="$HOME/.claude/scheduled-tasks/office-cleaning-expense/check_lupe_paid.py"
+S="$HOME/.claude/skills/office-cleaning-expense/scripts/check_lupe_paid.py"
 # Reconcile/job mode — read the snapshot file sweep.sh made (headless = no Full Disk Access):
 python3 "$S" --window-hours "${window_hours:-168}" --thread-file "$thread_rows_file"
 # Manual mode — live read (your interactive session has FDA); add --dry-run to preview:
@@ -155,7 +156,7 @@ Output: one JSON line per cleaning whose confirmation is in the window —
 
 Default mode (`python3 "$S"`, no flags) is the live watcher's contract — one
 open reminder, no window, no sheet write (lupe_watch.sh POSTs). Harness:
-`~/.claude/scheduled-tasks/office-cleaning-expense/tests/test_check_lupe_paid.py`
+`~/.claude/skills/office-cleaning-expense/tests/test_check_lupe_paid.py`
 (real-thread fixture; run it after ANY change to the script).
 
 Why the reads go through bash, never the imessages MCP: `imessage-read.sh` reads
@@ -220,7 +221,7 @@ family group) — that is hardcoded there, NOT done by this skill.
 On send failure, log the error to the scheduled task's `audit-log/`.
 
 **One-off log for a date the thread doesn't show** (Tom: "log the cleaning for
-10/02"): `python3 -c 'import sys; sys.path.insert(0, "'"$HOME"'/.claude/scheduled-tasks/office-cleaning-expense"); import check_lupe_paid as m; print(m.post_expense("10/02/26"))'`
+10/02"): `python3 -c 'import sys; sys.path.insert(0, "'"$HOME"'/.claude/skills/office-cleaning-expense/scripts"); import check_lupe_paid as m; print(m.post_expense("10/02/26"))'`
 — `success` and `duplicate` both mean the row is on the sheet; anything else is
 a failure (do not retry blindly).
 

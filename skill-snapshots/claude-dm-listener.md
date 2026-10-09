@@ -1,21 +1,25 @@
 ---
 name: claude-dm-listener
-description: "Processes direct messages sent to the `claude` Slack bot. Tom DMs the bot with arbitrary commands (e.g. \"draft a pass note for Acme\", \"add this LinkedIn URL to -1 Sourcing\", \"what's on my pipeline today?\"); this skill reads the message, figures out what to do (often by invoking another skill), executes it, and posts a reply. Webhook-only — invoked by claude-job-queue dispatching jobs from the slack-retro-webhook Cloudflare Worker on `message.im` events."
+description: "Tom's conversation surface on Slack: DMs to the `claude` bot, top-level posts in #claude-alerts / #personal-alerts, and follow-ups in threads rooted on Tom's own posts. Every message is the next line of a conversation (the thread / recent DMs are read first, both sides) — a question gets an answer, a command gets executed (often by invoking another skill), a correction adjusts the last action; replies in-thread. Webhook-only — invoked by claude-job-queue dispatching jobs from the slack-retro-webhook Cloudflare Worker on `message.im` events."
 ---
 
 # Claude DM Listener
 
 > **Headless Gmail:** every Gmail read/write in this skill follows `shared-references/headless-gmail.md` — reads via `admin_run.py` when the Gmail MCP isn't attached (its absence ≠ Gmail down); a run that can't finish ends with a `JOB_FAILED:` line.
 
-When Tom sends a direct message to the `claude` Slack bot OR posts a top-level message in `#claude-alerts`, treat the message as a command and execute it. This is the headless equivalent of asking Claude Code to do something — full skill access, broad authority, do whatever Tom asked for, post a reply when done.
+When Tom sends a direct message to the `claude` Slack bot, posts a top-level message in `#claude-alerts` / `#personal-alerts`, or replies in a thread rooted on one of his own posts there, treat it as **the next line of a conversation** with you (Tom 2026-10-08: *"want to be able to have conversations with you over slack"*). This is the headless equivalent of talking to Claude Code — full skill access, broad authority. Sometimes that means executing a command; often it means answering a question, thinking something through with him, or adjusting what you just did.
 
 Claim the job with a 👀 reaction as your very first action (Step 0 below), so Tom sees that this skill — not just the Worker — has picked it up. Then do the work and post the result.
 
 **Webhook-only.** No sweep mode, no manual mode. Invoked by the claude-job-queue processor dispatching jobs from `slack-retro-webhook` on two paths:
-- `message.im` events (Tom DM'd the bot) — `channel_id` starts with `D`
-- Top-level posts in `#claude-alerts` (channel `C0B06385BP1`) — `channel_id == "C0B06385BP1"`, no `thread_ts` set
+- `message.im` events (Tom DM'd the bot) — `channel_id` starts with `D`; `thread_ts` set when he replied inside a DM thread
+- Top-level posts in `#claude-alerts` (`C0B06385BP1`) or `#personal-alerts` (`C0BKZ2L0BDK`) — no `thread_ts`
+- Thread replies in those channels whose thread root is **Tom's own post** — `thread_ts` = that root (replies under a *bot alert* go to `claude-alerts-listener` instead)
+- Any other **Claude space** — a channel whose only members are Tom and the bot, including channels created later (detected by membership in the Worker; no registration) — same rules as above
+- **`@claude` anywhere else** — shared channels, group DMs: Tom tagged the bot, `args.shared` is `true`, the tag is already stripped from `text`
+- Hand-offs from `decision-retro-listener` / `neg1-sourcing-listener` when a message there isn't a retro / card decision / channel command (`handoff.sh`)
 
-For both, post replies threaded under Tom's command using `reply_ts` as the `thread_ts`. The reply will appear as a threaded response in DMs OR as a thread under his top-level alert post.
+Always post replies in the thread: `thread_ts` when set (keep the conversation in its thread), else `reply_ts` (start a thread under Tom's message).
 
 ---
 
@@ -41,7 +45,9 @@ For both, post replies threaded under Tom's command using `reply_ts` as the `thr
 }
 ```
 
-`thread_ts` is `null` (no parent context). Reply by passing `reply_ts` as the `thread_ts` to `post_reply.sh` so your responses thread under Tom's command.
+`thread_ts` is the thread root when Tom wrote inside a thread, `null` for a top-level message. Reply thread = `thread_ts ?? reply_ts` (pass it as `post_reply.sh`'s third arg).
+
+`shared` is `true` when other people can read the reply (shared channel, group DM). **In a shared space:** answer what was asked and nothing more. Never put fund / LP / portfolio-confidential material (marks, SOI, LP names or commitments, deal terms, retros, pass reasons, pipeline status) in the reply; if the ask needs it, reply `I'll DM you this` and post it to Tom's DM with the bot instead (`post_reply.sh D0B0R3NPTV2 "<text>"` — Tom's DM channel with the bot). Absent/`false` = Tom-only space.
 
 `files` is `[]` when no attachment, populated when Tom drops a file. Download via:
 
@@ -88,9 +94,28 @@ Only the bot's reactions count — Tom's ✅ means "confirm", never "done". (Cod
 
 ---
 
-## Step 1. Read the command
+## Step 1. Read the conversation, then the message
 
-The args `text` field is Tom's command. It can be anything:
+**Conversation first** (same rule as the text lane — `feedback_text_agent_conversation_first`; one brain across surfaces). Before interpreting `args.text`, load what came before it:
+
+```bash
+# Tom wrote inside a thread (thread_ts set): the whole thread, both sides
+python3 /Users/tomseo/.claude/skills/claude-dm-listener/read_thread.py "<channel_id>" "<thread_ts>" --exclude "<reply_ts>"
+# top-level DM (channel_id starts with D, thread_ts null): the last few DMs from the past 6h + their threads
+python3 /Users/tomseo/.claude/skills/claude-dm-listener/read_thread.py "<channel_id>" --recent "<reply_ts>"
+```
+
+(Top-level channel post with no thread: there is no prior context — skip.) Lines are `tom:` / `claude:`. Exit 1 = Slack read failed → proceed on `args.text` alone and say so if it matters. Empty output = no recent conversation.
+
+Then ask what `args.text` IS relative to that transcript:
+- **an answer** to a question you asked → carry on with what you were doing
+- **a correction / tweak** of your last action ("no, the other Acme", "make it shorter", `word*` = typo fix) → adjust that action, don't start over
+- **a follow-up question or discussion** ("why that one?", "what do you think about X?") → answer it, grounded in the thread + live sources (Notion, Gmail, files, memory). Thinking out loud with Tom is a first-class outcome, not a fallback
+- **a new command** → execute it (table below)
+
+If a discussion surfaces a durable preference or rule, save it to its real home (skill / corpus / memory) and say where — a rule stated in Slack binds everywhere.
+
+Commands can be anything:
 
 | Example command | What to do |
 |---|---|
@@ -117,7 +142,7 @@ You have full tool access. Use whatever is needed:
 - Any other MCP attached to the session
 
 **Scope discipline:**
-- Do exactly what Tom asked. Don't expand scope.
+- Do exactly what Tom asked. Don't expand scope. A question is answered, not turned into an edit.
 - For long-running work (>2min), post an interim "still working on this..." reply so Tom knows you're alive.
 - For commands that invoke another skill, follow that skill's SKILL.md verbatim — don't shortcut its steps.
 
@@ -135,16 +160,17 @@ Use the helper:
 /Users/tomseo/.claude/skills/claude-dm-listener/post_reply.sh \
   "<channel_id from args>" \
   "<reply text>" \
-  "<reply_ts from args>" \
-  done
+  "<thread_ts from args, or reply_ts when thread_ts is null>" \
+  done "<reply_ts from args>"
 ```
 
-`done` adds 🏁 to Tom's message once the post lands (the completion half of `claim.sh`). Pass it on the FINAL reply only — never on an interim progress update.
+`done` adds 🏁 to Tom's message once the post lands (the completion half of `claim.sh`). Pass it on the FINAL reply only — never on an interim progress update. The 5th arg (`reply_ts`) puts 🏁 on Tom's message, not the thread root — always pass it.
 
-The third argument (`reply_ts`) makes the reply thread under Tom's command. Threading keeps each command's response self-contained.
+The third argument keeps the conversation in one thread: inside an existing thread, reply there; a top-level message starts a thread under itself.
 
 Format:
-- `✅ done — <one-line summary>` for successful actions, with file paths / Notion links / etc. so Tom can verify
+- **Conversation** (answers, discussion, pushback): plain prose, like a reply in a chat — no `✅ done` prefix. As long as the answer needs, no longer; Slack mrkdwn (`*bold*`, `<url|label>`).
+- `✅ done — <one-line summary>` for completed actions, with file paths / Notion links / etc. so Tom can verify
 - `❓ <question>` for clarifying questions
 - `⚠️ couldn't do this — <reason>` for failures
 
@@ -157,7 +183,7 @@ For multi-action commands, list as a tight bullet list. Reference paths so Tom c
 Append to `~/.claude/skills/claude-dm-listener/audit-log/YYYY-MM-DD.log`:
 
 ```
-[<ISO timestamp>] reply_ts=<ts> intent=<short tag> outcome=<applied|clarification|failed> notes=<what got done>
+[<ISO timestamp>] reply_ts=<ts> intent=<short tag> outcome=<applied|answered|clarification|failed> notes=<what got done>
 ```
 
 ---

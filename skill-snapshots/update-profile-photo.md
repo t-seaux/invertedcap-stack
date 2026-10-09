@@ -74,7 +74,9 @@ Work down this ladder, stop at the first hit:
      accepting the URL; never take the first `/in/` hit on name alone.
    If you find a LinkedIn URL this way, **write it back to the `LI` property** in the same PATCH as the
    icon and say so in the report — a People row with no LI is a gap worth closing.
-5. Everything missed → leave the existing icon untouched and report which steps were tried. **No emoji
+5. **LinkedIn page itself** (when the row has a real `LI`): `python3 ~/.claude/skills/shared-references/linkedin_photo.py <LI url> "<Full Name>"` →
+   `{ok, photo_url}` (background Chrome window, identity verified). The URL carries an `e=` expiry (~3 weeks); say so in the report.
+6. Everything missed → leave the existing icon untouched and report which steps were tried. **No emoji
    fallback** for People entries, ever.
 
 **Freshness caveat — state it, don't hide it.** The response carries `updated_at`, ContactOut's crawl

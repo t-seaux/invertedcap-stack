@@ -11,6 +11,10 @@ description: |-
 > the live state files all key off that name). It is no longer deal-only — it routes five
 > lanes. Rename only as a deliberate, separately-verified change.
 
+**The processor runs `fast.py` first; you only run when it exited 10** (2026-10-08). It ends the job with no session
+only when every row is a reaction / service row or a oneshot triage found no possible lane, and it hands every roster
+hit, attachment, email, profile/deck link, address shape and pending text-revive reply to you. Nothing below changes.
+
 ## Input
 
 Args: `{mode:"scan", messages:[{rowid, ts, sender, sender_name, chat, participants, from_me,

@@ -20,9 +20,22 @@ Handles new Notion AI meeting-note pages that land in the `✏️ Notes` databas
 
 ## Operating Modes
 
+> **The processor runs `fast.py` first; you only run when it exited 10** (webhook jobs, 2026-10-08). `fast.py` does the
+> whole B-link phase in code – pre-flight skip, `already-linked-skip`, `note_link.py resolve` → `write` with readback, the
+> same audit-log lines – and, for B-process, only the two pure-code pre-flights (trashed page, Claude artifact). It hands
+> you every B-process job, every regenerate / manual run, and any link it is not sure of (same-name rows to sanity-check,
+> `stem-match-unconfirmed`, a write that did not read back). The steps below stay the full procedure for those runs.
+> **Portfolio notes are linked + categorized at the link phase (2026-10-08).** When the resolver finds no subject,
+> `fast.py` links a calendar meeting note (date mention in the title) whose title names portfolio companies by their
+> exact plain name (`note_link.portfolio_in_title` – 'Recurring: Rengo / Primary / Inverted', 'Decisionly Monthly
+> Sync'), and after ANY link it sets `Category=Portfolio` through `classify_note.py apply` when the note-classifier
+> rule says Portfolio and Category is blank. B-process then finds both set: Step 3 and Step 4 skip (same values the
+> code rule gives), and Steps 4b–9 (summary, Company Updates, Round Details, alert, intros) run exactly as before.
+> Replay + unit harness: `tests/test_fast.py`.
+
 - **Mode A** — Scheduled reconciliation sweep, runs daily at 18:06 ET via launchd. Catches webhook drops (cf-queue retry exhaustion, Notion delivery misses, worker exceptions) by re-processing any portfolio meeting note from the last 48h that doesn't yet have a Company Updates Live entry.
 - **Mode B-link** — Webhook, phase=`link`, runs immediately on Notion `page.created`. Cheap, title-only opportunity match.
-- **Mode B-process** — Webhook, phase=`process`, runs ~45 min after page creation (gated on `not_before` in the queue payload). Heavy lift: opportunity match (if still empty), classify, Round Details.
+- **Mode B-process** — Webhook, phase=`process`, runs ~45 min after page creation (gated on `not_before` in the queue payload; Tom 2026-10-08 kept 45 – enough tape for categorizing; portfolio syncs are already linked + categorized at the link phase). Heavy lift: opportunity match (if still empty), classify, Round Details.
 - **Mode C** — Manual. Tom passes a Notes page URL or ID; runs the full B-process logic against that page. Used for retroactive runs and validation.
 
 The two webhook phases are dispatched as separate queued jobs by `notion-webhook/notion-meeting-note.js`. Each job is keyed by `meeting-note-link:<page_id>` and `meeting-note-process:<page_id>` respectively, so re-deliveries collapse and Phase B firing later does not skip Phase A.

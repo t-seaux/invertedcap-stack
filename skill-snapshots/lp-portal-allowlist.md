@@ -114,6 +114,15 @@ out to the locally-authed `wrangler` CLI (same auth `deploy.sh` uses) — no sep
 
 ## Mode B (webhook pull) — invoked by notion-webhook
 
+**The processor runs `fast.py` first; you only run when it exited 10.** fast.py (2026-10-08) runs this
+exact block in code – `pull`, then NO_CHANGE → silent, else stdout verbatim → send-alert – and exits 0. It
+exits 10 on any error (pull non-zero / timeout, empty stdout, send-alert failure) WITHOUT sending, and leaves
+`~/.claude/scheduled-tasks/lp-portal-allowlist/logs/fast-<job_id>.json` (`pull_rc`, `body`, `alert_sent`,
+`stderr_tail`). Read it first: if its `body` is non-empty and your own pull prints `NO_CHANGE` (the first pull
+already wrote the JSON before failing), that `body` is the real alert – pipe it to send-alert verbatim, unless
+the failure was the empty-portal refusal (nothing was written; don't post that body). Then handle the error as
+below. Harness: `tests/test_fast.py`.
+
 When the skill is invoked with `mode: webhook_pull` (from notion-webhook on any LP Directory row
 change), run:
 

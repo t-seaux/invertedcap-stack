@@ -1,9 +1,5 @@
 {
-  "skills": {
-    "scheduler": "2026-10-08"
-  },
+  "skills": {},
   "launchAgents": {},
-  "webhookHandlers": {
-    "scheduler-inbound": "2026-10-08"
-  }
+  "webhookHandlers": {}
 }

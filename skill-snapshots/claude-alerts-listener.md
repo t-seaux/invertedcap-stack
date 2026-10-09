@@ -1,6 +1,6 @@
 ---
 name: claude-alerts-listener
-description: "Processes thread replies in #claude-alerts and #personal-alerts as feedback on Claude's scheduled-skill output. Tom posts free-form replies (e.g. \"drop Pershing Square from Tier 2\", \"stop including Round details\"); this skill reads the (parent alert, reply) pair, figures out what change is being requested, applies it across skill files / memory / Notion, and posts a close-loop reply in-thread. Webhook-only — invoked by claude-job-queue dispatching jobs from the slack-retro-webhook Cloudflare Worker."
+description: "Processes thread replies under Claude's alerts in #claude-alerts and #personal-alerts — a conversation about the alert (questions, discussion, pushback get answered in-thread, multi-turn) AND feedback on the scheduled-skill output. Tom posts free-form replies (e.g. \"drop Pershing Square from Tier 2\", \"stop including Round details\"); this skill reads the (parent alert, reply) pair, figures out what change is being requested, applies it across skill files / memory / Notion, and posts a close-loop reply in-thread. Webhook-only — invoked by claude-job-queue dispatching jobs from the slack-retro-webhook Cloudflare Worker."
 ---
 
 # Claude Alerts Listener
@@ -86,15 +86,17 @@ Use `channel_id` from the args, not a hardcoded id — this skill serves both `#
 
 ## Step 1. Read the thread context
 
-Use the Slack MCP to fetch the full thread:
+Fetch the whole thread as a transcript — **both sides**: the alert, every earlier Tom reply, and every earlier bot reply (your own close-loops) — via the bot token (works headless, no Slack MCP needed):
 
-- Tool: `mcp__claude_ai_Slack__slack_read_thread`
-- Inputs: `channel_id` and `thread_ts` from the args
-- If the tool isn't attached in the current session, attach it via `ToolSearch` with `query: "select:mcp__claude_ai_Slack__slack_read_thread"`.
+```bash
+python3 /Users/tomseo/.claude/skills/claude-dm-listener/read_thread.py "<channel_id>" "<thread_ts>" --exclude "<reply_ts>"
+```
 
-Filter out bot messages (`bot_id` set or `subtype == "bot_message"`) — you only care about Tom's text. The first non-bot message in the thread should typically be the bot's original alert (the parent), and Tom's reply is in the args (also visible in the thread).
+The first `claude:` block is the parent alert; Tom's new message is `args.text`. Exit 1 → fall back to `mcp__claude_ai_Slack__slack_read_thread` (attach via ToolSearch) and keep bot messages.
 
-If the parent isn't a bot message — i.e. someone other than the `claude` Slack app posted the thread root — log `[<ts>] WARN: thread root not from bot, ignoring` to audit and exit 0. The listener is scoped to feedback on Claude alerts, not arbitrary channel chatter.
+**Read Tom's reply as the next line of this thread** (conversation first — same rule as the text lane). If you already replied earlier in the thread, his new message most likely responds to THAT: a correction of the edit you just made ("no, make it a new pillar") adjusts that edit; a question about it ("why P52?") gets an answer.
+
+If the thread root isn't a bot message, log `[<ts>] WARN: thread root not from bot, ignoring` and exit 0 — the Worker routes threads rooted on Tom's own posts to `claude-dm-listener`, so this is a mis-route.
 
 ---
 
@@ -123,6 +125,16 @@ Each branch fires on a specific parent-alert header (+ reply shape). Check them 
 
 ---
 
+### Conversation, not just feedback
+
+Not every reply is a change request (Tom 2026-10-08: *"want to be able to have conversations with you over slack"*). Decide which it is — often both:
+
+- **Question / discussion / thinking out loud** ("why did this land in Fit?", "is this the same as the Crosson pattern?", musing that adds texture) → answer it in-thread, grounded in the alert, the thread, and live sources (skill files, Notion, memory). Plain prose, no `✅ done` prefix, as long as the answer needs.
+- **Texture that refines what the alert recorded** (like adding nuance to a corpus pattern) → apply it per the taxonomy below AND reply in conversational terms: what you changed and how it reads now, inviting pushback.
+- **Change request** → generic taxonomy below.
+
+Tom can keep replying; each reply is a new turn of the same thread, handled with the full transcript.
+
 ### Generic taxonomy
 
 Decide what change is being requested. The taxonomy is open-ended — examples:
@@ -134,6 +146,7 @@ Decide what change is being requested. The taxonomy is open-ended — examples:
 | "this is wrong, mark Acme as pass" | Update the Acme Notion Opportunity to `Status = Pass (DNM)` via `notion-update-page` |
 | "remember that Sequoia uses 'partner' for everyone with VC in their LinkedIn title" | Save to memory (`feedback_*.md` or `reference_*.md`) |
 | "good catch on flagging Beta Co" | Reinforcement, no action needed beyond acknowledgement |
+| "why is this Fit and not Teams?" | Question — answer in-thread from the source skill / catalog; no edit unless the answer exposes a real bug |
 
 When picking the target file, anchor on the parent alert's source skill — that name in the header tells you which skill's behavior Tom is critiquing. If unclear, prefer the more specific location (per-skill SKILL.md over `send-alert/SKILL.md`).
 
@@ -174,11 +187,12 @@ Use the helper:
 The 4th arg adds 🏁 to Tom's message once the post lands (the completion half of `claim.sh`). Always pass it — the close-loop is the final reply.
 
 Format conventions:
+- plain prose for answers / discussion (no prefix) — the reply to a question is the answer itself
 - `✅ done — <summary>` for successful changes
 - `❓ need more info — <question>` for clarifying questions
 - `⚠️ couldn't apply this — <reason>` for failures
 
-Keep close-loop reply to **one line** when possible. If you made multiple edits, list them as a tight bullet list:
+Keep a change close-loop to **one line** when possible (answers can run longer). If you made multiple edits, list them as a tight bullet list:
 
 ```
 ✅ done:
@@ -197,7 +211,7 @@ Reference file paths (e.g. `research-agent/SKILL.md`) so Tom can verify the chan
 Append a one-line summary of the run to `~/.claude/skills/claude-alerts-listener/audit-log/YYYY-MM-DD.log`:
 
 ```
-[<ISO timestamp>] thread=<thread_ts> reply=<reply_ts> intent=<short tag> outcome=<applied|clarification|failed> files=<comma-separated paths edited>
+[<ISO timestamp>] thread=<thread_ts> reply=<reply_ts> intent=<short tag> outcome=<applied|answered|clarification|failed> files=<comma-separated paths edited>
 ```
 
 Tags should be short: `format-tweak`, `denylist-edit`, `notion-update`, `memory-write`, `ack-only`, etc.

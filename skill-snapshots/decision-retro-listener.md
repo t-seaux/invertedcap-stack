@@ -78,6 +78,10 @@ Invoked with args from `slack-retro-webhook` Worker:
 - `user` — Slack user ID of the replier
 - `text` — raw text of the reply
 
+### B−1. Retro, or talking to Claude? (check FIRST — before any read or reaction)
+
+Every reply in this channel reaches this skill, but not every reply is a retro (Tom 2026-10-08: a listener on every thread). If `args.text` is addressed to Claude rather than being retro content — a question ("what did I say about Acme last time?", "why was this prompted?"), a request unrelated to recording the retro ("pull the deck", "draft the pass note") — hand it off and exit: `bash /Users/tomseo/.claude/skills/claude-dm-listener/handoff.sh '<the job args JSON, unchanged>'`. claude-dm-listener reads the whole thread, so it sees the retro prompt too. Retro content, even when it's phrased loosely or as musing about the decision, stays here → B0. When unsure, it's a retro (the existing behavior).
+
 ### B0. Detect parent thread type — retro vs. weekly summary
 
 The `slack-retro-webhook` Worker dispatches every thread reply in `#decision-retros` to this skill, but the channel hosts two kinds of threads:

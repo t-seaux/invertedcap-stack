@@ -47,7 +47,9 @@ Trigger: "add to word bank [X]", "add [X] to word bank", "word bank: [X]", "word
    - Line 2: the example sentence **fully italicized**, with the target **word bold-italic** inside it (`**word**` nested in the `*…*`).
    - Line 3: `_Added YYYY-MM-DD_`, plus ` · _Seen in: …_` only if Tom gave context (drop the whole `Seen in` part otherwise).
 
-5. **Respond with the full entry** for each word added — the exact 3-line block from Step 4 (same content written to the file), so Tom learns it on the spot. No checkmarks or status glyphs. Do not collapse to a bare one-liner; the definition + example are the point. Keep any surrounding commentary to a minimum — no lecture.
+5. **Respond with the full entry** for each word added — the exact 3-line block from Step 4 (same content written to the file), so Tom learns it on the spot. **Over text (iMessage), render it with code, never by hand:** pipe the block(s) through
+   `python3 ~/.claude/skills/word-bank/scripts/render_text.py` and send the output verbatim – `word (pos)` in Unicode
+   bold, a blank line before the example and before `Added` (Tom 2026-10-07, on "abnegation"). No checkmarks or status glyphs. Do not collapse to a bare one-liner; the definition + example are the point. Keep any surrounding commentary to a minimum — no lecture.
 
 ---
 

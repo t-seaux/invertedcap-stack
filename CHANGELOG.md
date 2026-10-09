@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-10-09] (Week of 2026-10-05)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-contacts -- contacts without an enrichment-provider photo now get their photo fetched from the public profile page, with the identity verified, rather than being saved icon-less
+- add-to-crm -- opportunity pages now store the full source email verbatim, re-read from the mailbox at confirmation time
+- deal-text-scanner -- a fast pre-filter now ends sweeps early when no message could belong to any lane
+- inbound-deal-detect -- confident deals are always queued for confirmation rather than held back
+- neg1-sourcing-listener -- non-command channel posts are handed to the conversation listener
+**Total skills:** 50
+**Functions:** No changes
+
 ## [2026-10-08] (Week of 2026-10-05)
 
 **Added:** None

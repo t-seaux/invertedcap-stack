@@ -384,8 +384,12 @@ card each):
    `mail_source:"inverted-gmail"`, `messageId`, `threadId`, `gmailMessageUrl`,
    `status: "Qualified"` (a 🆕 card's 👍 always lands on Qualified; the confirm handler advances it if Tom already replied — `shared-references/opp-status-sets.md` § "New-deal card 👍 and the reply that advances it"),
    `materialUrls` (authoritative list for Step 6), `source_directive` (verbatim
-   `sourceDirective`), `batch_context`, `email_subject`, and `page_body` (the Step 5 page
-   content, ready to write). The confirm handler runs Steps 5–8 from this — no re-fetch.
+   `sourceDirective`), `batch_context`, `email_subject`, and `page_body` = the email text VERBATIM and WHOLE (every
+   quoted / forwarded message — never abridged), with NO page wrapper: no `<callout>` tags, no `**Original Email**`
+   label (opp_create writes both; Inviscid 2026-10-08 rendered them as literal text + a doubled label). Optional:
+   `email_from` / `email_date` (the top message's From + Date headers) and `blurb` (verbatim paragraphs the thread
+   offers as a reusable company description → the 📚 callout). On the 👍, opp_create re-reads the Gmail message
+   (`messageId`) and renders THAT; `page_body` is the fallback when Gmail can't be read.
    **Dash lane (`mail_source:"dash-local"` in args — the gmail-webhook now feeds Dash mail through
    this same path, 2026-10-01):** stage `mail_source:"dash-local"`, `rowid` (the Dash Gmail message
    id), `fund` INSTEAD of `messageId`/`threadId`/`gmailMessageUrl` — the shape sms-listener's Dash
@@ -479,7 +483,7 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 
 ### Page Content Structure
 
-See `references/schema.md` for the canonical body structure. The body has **exactly one section**: `**Original Email**` (verbatim source material). Do NOT add a `**Summary**` section — everything a summary would carry (what the company does, founders, round) already lives in the properties (Description, Round Details, Contact, HQ, Website) and the relation fields; surface any extra texture in the chat reply summary, not the page body. (Per Tom, 2026-07-15.)
+`opp_create.py` builds the body in code (📚 blurb callout when the thread offers one → 🏁 Founder callout → `**Original Email**` rendered per message by `email_thread.py`) — pass the raw source text, never pre-formatted Notion markdown. See `references/schema.md` for the canonical body structure. The body has **exactly one section**: `**Original Email**` (verbatim source material). Do NOT add a `**Summary**` section — everything a summary would carry (what the company does, founders, round) already lives in the properties (Description, Round Details, Contact, HQ, Website) and the relation fields; surface any extra texture in the chat reply summary, not the page body. (Per Tom, 2026-07-15.)
 
 ```
 **Original Email**

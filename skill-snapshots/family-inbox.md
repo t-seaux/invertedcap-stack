@@ -55,6 +55,12 @@ args: { messageId, from, subject, date, body }   # body = first ~2000 chars, pla
 ```
 Unattended. Never ask questions.
 
+**The processor runs `fast.py` first; you only run when it exited 10** (2026-10-08). It already dropped the
+step-0 gate DROPs, the §4b Katya invoices and plain marketing / company-announcement / review-request mail
+(logging their step-5 line itself), and it sends every household, personal, Re:/Fwd:, school, thin-body or
+DOC-link email straight to you. Everything below stays exactly as written – a job that reaches you is not
+pre-judged NOTABLE.
+
 **The judgment – what's worth a ping, what stays silent, act vs offer vs heads-up, alert shape –
 is the shared tend-to rulebook `~/.claude/skills/shared-references/tend-to.md` (one rulebook for
 every email account and texts, Tom 2026-10-02). READ IT FIRST. This lane binds only the

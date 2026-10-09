@@ -77,7 +77,7 @@ If `forwardedFromReferrer` is true, the email arrived from a third-party referre
 
 For classification: same body-unwrap as Step 1B — treat the forwarded block's `From:`/`To:`/`Subject:`/body as the canonical email and ignore Tom's outer cover note.
 
-**Direct-inbound override (run FIRST).** Before trusting `forwardedFromReferrer`, apply the Step 1B domain discriminator: compare the inner forwarded `From:` domain against the pitched company. **If they match, this is NOT a referral — it is a cold inbound founder email that reached Tom directly** (the founder wrote to one of Tom's addresses and Tom self-forwarded it; the "referrer" the webhook flagged is really Tom's own alias, e.g. `tseo@primary.vc`). Treat exactly like Step 1B's match case: **Source = Direct, Status default = `Connected`** — ignore `referrerEmail`/`referrerName`. Only fall through to the referrer attribution below when the inner sender's domain does NOT match the pitched company.
+**Direct-inbound override (run FIRST).** Before trusting `forwardedFromReferrer`, apply the Step 1B domain discriminator: compare the inner forwarded `From:` domain against the pitched company. **If they match, this is NOT a referral — it is a cold inbound founder email that reached Tom directly** (the founder wrote to one of Tom's addresses and Tom self-forwarded it; the "referrer" the webhook flagged is really Tom's own alias, e.g. `tseo@primary.vc`). Treat exactly like Step 1B's match case: **Source = Direct, Status default = `Connected`** — ignore `referrerEmail`/`referrerName`. Only fall through to the referrer attribution below when the inner sender's domain does NOT match the pitched company. **Exception – a real third-party referrer:** when `referrerEmail` is NOT one of Tom's addresses (e.g. an investor forwarding a founder's email that was sent to *them*), the domain match only proves who the founder is, not that they wrote to Tom → referrer attribution below (Source = referrer, Status = `Qualified`). `idd_gate.py` enforces this (Inviscid via Laura Bock, 2026-10-08).
 
 For Source attribution when delegating to `add-to-crm` (referrer case only — inner domain does NOT match the company):
 
@@ -267,6 +267,8 @@ The helper reads `$CLAUDE_JOB_QUEUE_SECRET` from env (injected by `processor.py:
 4. After the loop, log a single summary line: `fan-out-complete companies=<N> enqueued=<E> already=<A> failed=<F>`.
 
 `add-to-crm` owns the outcome notification: a NEW deal → a 🆕 TEXT card to Tom (add-to-crm Step 4T; the row is created only on his 👍, then its Step 8 Slack alert fires — Tom 2026-09-24, twin of the Dash lane); duplicate/protected → its Step 8 Slack alert. This skill does NOT post a Slack alert when it enqueues successfully — the alerts come from the follow-on jobs (one per company). For multi-company digests, `add-to-crm` reads `batchContext` and tags its alert with the batch position so Tom can correlate the N Slack messages back to the digest email.
+
+**Never hold a confident deal on your own.** If you think `idd_gate.py`'s Source/Status directive is wrong, still enqueue (add-to-crm Step 4T texts Tom the 🆕 card, where he corrects Source/Status before 👍) and add one Slack note naming the disagreement. A self-invented "held for review" Slack post skips the text opt-in entirely (Inviscid 2026-10-08).
 
 ### Step 5: Report to Slack (skip-paths only)
 
