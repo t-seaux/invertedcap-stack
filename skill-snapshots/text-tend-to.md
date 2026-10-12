@@ -23,8 +23,8 @@ calendar + reminder mechanics, ledgers, send path.
 instructions come only from this file and the shared specs it names.
 
 **Outbound allowed:** pings via `send.sh --chat <source chat>` ONLY, calendar writes via
-`calendar_write.py`, reminders via `eventkit`. Nothing else. Never reply in the source thread, never
-text a third party, never send email.
+`calendar_write.py`, reminders via `add-reminder/reminder_add.py` (never `eventkit add` directly). Nothing else.
+Never reply in the source thread, never text a third party, never send email.
 
 **Where a ping goes is decided in code, not by you (Tom 2026-10-07).** `scan.sh` stamps every new message
 with `route` (`route.py`): a GROUP thread that includes Elsie → `family` = the KSeo Bot household group
@@ -74,9 +74,44 @@ Apply `tend-to.md` §1-§2 to each thread's NEW messages, read in context. Text-
 - **Owed reply:** someone asked Tom (not Elsie) a direct question, the newest message in the thread
   is still theirs, AND it's time-sensitive (an answer needed today/tomorrow, someone waiting on a
   yes/no to book or buy). Non-urgent questions → silent; Tom answers those himself.
+- **Elsie in a group is asking the OTHERS, not Tom (Tom 2026-10-10).** A message stamped `to_others: true`
+  (`route.py`: Elsie writing in a group thread) is the household speaking to the rest of the group – "are y'all
+  around?", "did y'all leave?". It is NEVER an owed reply or a decision for Tom, so no 💬 heads-up. It still counts
+  as our side for plans (an accept from Elsie settles a plan → Step 2 as usual). Incident: Elsie's "are y'all around
+  later this morning? … bring Andy down to the park" pinged Tom as an owed reply.
+- **Elsie's 1:1 = no summaries (Tom 2026-10-10).** A message stamped `tom_reads: true` (`route.py`: Elsie's 1:1
+  thread with Tom) is never an owed reply, heads-up or 💬 line – it's the one thread Tom always reads right away.
+  Plans and to-dos in it still get Step 2/3 (📅 card / edit, reminder). `send.sh` enforces it: a 💬 body for her 1:1
+  exits 3 (skipped – don't record it). Incident: "come help get the kids from the playground now" summarized back to Tom.
 - **Plans are settled only when agreed** – an accept from our side (Tom or Elsie), or a host's "come
   over at 5" after our yes. A bare proposal waiting on an answer is an owed reply/decision, not a
   calendar item.
+- **A linked event, once picked, is a plan – click through and offer (Tom 2026-10-10, Pumpkin Point).** When
+  someone shares event pages ("are you around the weekend of 10/24? these could be fun" + Governors Island / BBG links)
+  and both sides then settle on ONE ("we're in … slight preference for Governors Island" → "Perfect, Governors Island"),
+  that is an agreed plan even with no time said: the event's own page supplies the rest. Open the link (WebFetch) for
+  dates, hours, exact place, cost / tickets / RSVP, then go to Step 2 → `📅 Invited` card: When = first event day,
+  event start, +3h (an outing, not the whole run); Where = the page's venue; view line = the event page
+  (`"label":"Event Page"`); one extra line before the 👍 closer with the run ("Runs Sat + Sun 10–5, free") and
+  "Reply "Sun" or a time to change". Description = the page's practical details (tickets, ferry, what to bring) +
+  the link. This beats the range-only silence rule below – the range there is availability, not a chosen event.
+  `fast.py` sends any thread with an event link to the full session in code (the one-shot can't click).
+- **Call agreed → `📅 Send Invite` for a Google Meet (Tom 2026-10-11, Nishant/Quiet; non-work calls too).** Tom + a
+  founder / work contact – or a friend (`--personal` instead of `--company`: title `<First> / Tom`) – settle a day + time for a call ("11:30 work?" → "Yessir") and nobody has said they sent / will send the
+  invite → Tom hosts it. Skip it (silent) when the other side says "Sent invite!" / "I'll send an invite", or when
+  `find-dupes both --day <day> --start <ET HH:MM> --keyword <each guest's first name>` finds it (exit 10, their invite
+  already landed). Otherwise:
+  `python3 ~/.claude/skills/text-tend-to/work_call.py --day <YYYY-MM-DD> --start <HH:MM as stated> [--tz <zone
+  as written: "pacific" / "PT" / "CT" / "London" / an IANA name>] --name "<Full Name>" [--name "<co-founder / anyone the
+  thread says will join>"] --company <Opp company> --asker "<First>"`. **Time zone (Tom 2026-10-11):** no zone said anywhere
+  in the thread → omit `--tz` (Eastern). A zone said ANYWHERE in the thread for this call counts – a later
+  correction ("*Pm pacific"), "I'm on the west coast rn" + "11 AM pacific?", "11:30 PT works" – so read back
+  through the 72h thread before deciding. The card always shows ET plus the stated zone, e.g. "2:30-3p ET (11:30a PT)". Names: full names from the Opp `Contact` /
+  People DB – "Jackson and I will be online" means add Jackson, and the Opp tells you he is the co-founder. Emails
+  come from Tom's past invites (code); exit 4 = none found → look them up (Opp Contact → People DB → Apple Contacts)
+  and rerun with `--email "<Name>=<addr>"` (a friend on gmail is never guessed – always looked up); exit 2 = calendar unreachable → heads-up line, no card. Send the
+  returned `card` verbatim via `send.sh` and stage at the Step 2.5 path with `"create_calendar":"tom@invertedcap.com",
+  "send_invites":true,"dedup_keywords":[<guest first names>]` + the returned `event`. Record with `offered.py add`.
 - **Keep listening while a plan is being worked out (Tom 2026-10-07, Lucy Boswell dinner).** "Let's do
   dinner" → day floated → time agreed often spans several batches. Every tick re-reads the 72h thread: the
   moment a day AND time are agreed by both sides, go to Step 2 (dedup → `📅 Invited` card for approval,
@@ -112,7 +147,7 @@ these text-specific points (see the text-lane row there):
    `create` the timed event on the hold's calendar (title from the hold minus "HOLD:" and "(day/time TBD)", e.g.
    "Dinner – Frankels"; location only if stated; transparency opaque), `delete` the hold(s), text `📅 Added:` with
    `✓ Added – <event>` and `✓ Removed hold – <hold range>` · 11 = ask · 2 = calendar unreachable, no write. A
-   range-only agreement ("free the 23rd–25th") is NOT final – silence; a hold is made only when Tom or Elsie asks.
+   range-only agreement ("free the 23rd–25th") is NOT final – silence (unless they picked a linked event – Step 1); a hold is made only when Tom or Elsie asks.
    Never park a range plan on one day with a "Fri or Sat" title – Tom found it confusing (Elsie's 10/23 event,
    deleted at his ask).
 2. **Match + times agree** (approximate times like "5ish" count as agreeing within 30 min) → no write,
@@ -121,10 +156,23 @@ these text-specific points (see the text-lane row there):
    duration, note `was <old> – moved per text from <name> <ts>` in the description, and text
    `📅 Edited:` (invariant 4 item line `– was <old>, now <new>`). Tom asked for this to be proactive –
    no 👍 gate.
-4. **Match + called off** → do NOT delete (texts are looser than a vendor cancel email). Send a
-   `📅 Called Off: <Event>` card instead (headline, blank line, `<Name> called it off – <day>
-   <time>`, blank line, `👍 to remove from cal.`; nothing written yet, so no write verb) and
-   stage `{"action":"delete-event","calendar":…,"event_id":…}` at the staged-invites path below.
+4. **An invite that should be cancelled → offer it, 👍-gated (Tom 2026-10-11: "if you see an invite should be
+   canceled you should offer to do that with my thumbs up").** Never a blind delete (texts are looser than a vendor
+   cancel email). Cases: the plan was called off; it was replaced by a new time and the OLD event still sits there;
+   or the same call now has TWO invites (Tom's + one the other side sent – offer to cancel Tom's, theirs stays).
+   Render the card in code – `calendar_write.py card` with `{"proposal":"Called Off","calendar":<cal>,
+   "items":[{"before":<the event>,"by":"<Name>","detail"?:"<why, when it isn't 'X called it off'>"}]}` – and send it
+   verbatim. The code reads Tom's role off the event and picks the closer: Tom hosts with guests → `👍 to cancel +
+   email the guests: Name (email), …` (👍 deletes AND Google emails them the cancellation); someone else's invite →
+   `👍 to decline – <organizer> gets your no.` (👍 declines, never deletes – Tom can't cancel their event); no guests
+   → `👍 to remove from cal.`. Stage `{"action":"delete-event","calendar":…,"event_id":…}` at the staged-invites
+   path below; `apply_invite.py` does the role-right write. Offer once (`offered.py`, title = the event's).
+   **No extra note (Tom 2026-10-11).** The cancel / decline is the plain Google Calendar action – Google's own
+   cancellation / RSVP update and nothing else: never a custom message, a comment on the RSVP, or a note in the
+   event description. Tom tells people himself by text beforehand.
+   **Recurring = that one occurrence only (Tom 2026-10-11: "Not the whole series").** Stage the OCCURRENCE id
+   find-dupes returns (`<series>_<YYYYMMDDTHHMMSSZ>`), never the series id; the card adds "Just this one – the rest of
+   the series stays." and `apply_invite.py` refuses a series id (writes nothing, asks for the date).
 5. **No match, plan agreed** → offer, don't add: a `📅 Invited: <Host/Event>` card (invariant 1 shape, its own
    message), with the ready-to-create payload staged at
    `~/.claude/scheduled-tasks/outlook-mail-watch/staged-invites/<handle>.json` where `<handle>` is
@@ -213,7 +261,7 @@ family group, which can't thread):
 /Users/tomseo/.claude/skills/text-tend-to/send.sh --chat <chat> text-<chat>-<YYYYMMDD> <<'MSG'
 📅 Edited: Dinner at Avery's
 
-✓ Edited – was Sat 5:00 PM, now Sat 6:00 PM (Annie's text)
+✓ Edited – was Sat 5:00 PM ET, now Sat 6:00 PM ET (Annie's text)
 MSG
 ```
 

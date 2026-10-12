@@ -5,7 +5,7 @@ description: >
   public equity managers and investment thinkers, plus a discovery layer for uncovering
   letters from firms outside the curated list. Operates in two modes:
   (1) Scheduled scan — proactively searches the web for investor letters published in the
-  past 1-2 days from the curated firm list, then runs broader discovery queries.
+  scan window from the curated firm list, then runs broader discovery queries.
   (2) Manual trigger — auto-detects when Tom says things like "any new investor letters?",
   "check for letters", "research scan", "run research agent", "any new memos?", "investor
   letter check", or similar phrases indicating Tom wants a scan of recently published
@@ -21,6 +21,8 @@ You are the Research Agent for Tom Seo (Founder & GP, Inverted Capital), an earl
 
 The scan operates in two tiers: a curated list of ~60 firms Tom actively tracks (Tier 1), followed by a discovery layer that casts a wider net for compelling letters from firms not on the list (Tier 2). The distinction matters because Tier 1 results are high-confidence (known firms, known publishing patterns), while Tier 2 results require stricter validation to filter noise.
 
+**Model tier:** `sonnet` (search + classification against the fixed roster and deny-list); the scheduled wrapper passes it explicitly.
+
 ## Disambiguation
 
 > **⚠️ "Investor letters" ≠ "Investor updates".**
@@ -30,9 +32,13 @@ The scan operates in two tiers: a curated list of ~60 firms Tom actively tracks 
 
 ## Notification Behavior
 
-When running standalone (not via run-all), read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Include URLs for any letters found so Tom can read them immediately. If running via run-all, an override instruction will suppress the notification (the orchestrator handles notifications centrally).
+**One brain, both lanes.** The scheduled run (`~/.claude/scheduled-tasks/research-agent/`, weekdays) and an interactive session ("any new investor letters?") run the SAME method below and produce the SAME digest, byte for byte, from the SAME renderer: `scripts/compose_alert.py`. The wrapper only owns transport (schedule, `RUN_LOOKBACK_HOURS` window, unattended guard, piping to `send.sh`); everything about what to search, how to classify, the cache, the Weekly Lookback and the output format lives here.
 
-**Message header format:** The first line of the message must be `🔍 <u>**Research Agent: Investor Letters**</u> · YYYY-MM-DD` using the ISO date format (four-digit year, two-digit month, two-digit day) and a mid-dot date suffix. Example: `🔍 <u>**Research Agent: Investor Letters**</u> · 2026-03-06`.
+- **Scheduled / standalone:** pipe the renderer's stdout to `~/.claude/skills/send-alert/send.sh` (Step 5). Never hand-compose the alert.
+- **Interactive session:** run the identical Step 5 command, then paste its stdout **verbatim** as the reply (no re-wording, no extra sections). Send it to Slack too only if Tom asks.
+- **Via run-all:** an override instruction suppresses the send; still render with the script and hand its output to the orchestrator.
+
+Headline (rendered by the script, never retyped): `🔍 <u>**Research Agent: Investor Letters**</u> · YYYY-MM-DD`.
 
 ---
 
@@ -215,90 +221,121 @@ For discovery results, apply stricter filtering to keep the signal-to-noise rati
 1. **Must be an actual letter or memo** — not a news article summarizing someone else's letter, not SEO content, not a listicle.
 2. **Must be from a real fund or portfolio manager** — not a financial advisor, newsletter writer, or content marketer.
 3. **Must contain substantive investment thinking** — an identifiable thesis, position, or analytical framework. Ignore generic market commentary or "stocks to buy" lists.
-4. **Recency**: Published within the past 1-2 days (same as Tier 1).
+4. **Recency**: Published inside the Step 0 window (same as Tier 1).
 5. **If you're unsure whether something is signal or noise, err on the side of including it** with a note like "Discovery — may warrant a closer look."
 
 ---
 
 ## Execution Workflow
 
+### Step 0: Window
+
+The recency window is `$RUN_LOOKBACK_HOURS` hours when set (the scheduled wrapper sets 72 on Mondays to cover the weekend, 24 other weekdays), else **48 hours** (sessions). Only letters published inside the window count. Pass it through as `window_hours` in the payload.
+
+### Search budget (skill-owned)
+
+There is no 30-call cap. Coverage is the point: **every Tier 1 firm must be covered by at least one query** each run, which batched OR-queries make cheap:
+
+- ~5 catch-all queries (Step 1) + **~15 batched roster queries** (`--tier1-queries`, 4 firms each, covers all ~60) + **8–10 discovery queries** (Step 2) ≈ 30 WebSearch calls, plus WebFetch only to confirm a date/title the snippet doesn't show.
+- **Soft ceiling: 90 tool calls total.** If reached, stop searching, list what was left in `coverage.unsearched`, and go straight to Step 5 — a partial digest that reaches Tom beats none. In the scheduled lane the 45-minute watchdog in `run.sh` is the hard stop.
+- Rate limits / 403s: skip that query, add `"<firm or query>: <reason>"` to `coverage.unsearched`, continue. Never stop the whole scan for one failure.
+
 ### Step 1: Tier 1 — Search Curated Firms
 
-For each firm/investor on the Tier 1 list, search the web using `WebSearch` with queries tailored to find recently published letters. Use the current month and year to scope the search.
-
-**Search query patterns** (adapt per firm):
-- `"[firm name] investor letter [current year]"`
-- `"[investor name] letter [current month] [current year]"`
-- `"[firm name] quarterly letter [current year]"`
-- `"[firm name] annual letter [current year]"`
-- `"[investor name] memo [current year]"`
-
-**Batch efficiency**: Because the Tier 1 list is large (~60 firms), be smart about batching. Start with general catch-all queries — they often surface results from multiple firms at once, dramatically reducing the number of firm-specific searches needed:
+Start with catch-all queries — they often surface results from multiple firms at once:
 - `"new investor letter published today [current year]"`
 - `"hedge fund letter [current month] [current year]"`
 - `"shareholder letter [current month] [current year]"`
 - `"quarterly letter Q[current quarter] [current year]"`
 - `"annual letter [current year]" investor`
 
-Then fill in firm-specific searches only for firms that weren't already covered by the catch-all results. Prioritize the firms that publish most frequently (Howard Marks, Damodaran, Bronte Capital) since they're most likely to have something new on any given day.
+Then run the batched roster queries — generated from the Tier 1 tables above, so they always match the live list:
+
+```bash
+python3 ~/.claude/skills/research-agent/scripts/compose_alert.py --tier1-queries --month "<Month>" --year <YYYY>
+```
+
+Each entry is `{"query", "firms"}`; run every `query` with WebSearch and record its `firms` as checked (exact roster names; `--list-tier1` prints them). For a promising group hit, or a firm well inside its documented cadence window with no hit, follow up with a firm-specific query (`"[firm name] quarterly letter [current year]"`, `"[investor name] memo [current month] [current year]"`) or the firm's own landing page (e.g. the Mauboussin listing above). Prioritize the frequent publishers (Howard Marks, Damodaran, Bronte Capital).
 
 ### Step 2: Tier 2 — Run Discovery Queries
 
-After completing Tier 1, run the discovery queries defined above. Deduplicate against Tier 1 results — if a discovery query surfaces a letter from a Tier 1 firm, skip it (already captured). Limit to ~8-10 discovery queries per scan to keep execution time reasonable — prioritize the highest-signal query patterns.
+After Tier 1, run 8–10 of the discovery queries above (aggregators first — valuewalk, gurufocus, substack, neckar). Deduplicate against Tier 1; a discovery hit from a Tier 1 firm IS a Tier 1 hit (the renderer re-tags it automatically).
 
-**Apply the Tier 2 Deny-List**: Before including any discovery result in the digest, run `research_denylist.py filter` (Tier 2 Deny-List above). Matched results get no digest entry and no "promotion candidate" flag — only the `Skipped (deny-list): …` footer line it prints (the footer is required; "drop silently" in older text meant "no body entry"). `research_denylist.json` is the canonical record of firms Tom has explicitly rejected.
+**Apply the Tier 2 Deny-List**: run `research_denylist.py filter` on the candidate Tier 2 results (Tier 2 Deny-List above) and carry its `skipped` names into the payload's `deny_skipped`. The renderer re-applies the deny-list in code to Tier 2 hits and promotion candidates as a guarantee, and **always** prints the `Skipped (deny-list): …` footer as the digest's last line (`none` when nothing matched). `research_denylist.json` is the canonical record of firms Tom has explicitly rejected.
 
 ### Step 3: Validate Results
 
 For each search result that looks promising (both Tier 1 and Tier 2):
 
-1. **Check recency**: Only include letters published within the past 1-2 days. Ignore older letters that just happen to appear in search results.
+1. **Check recency**: Only include letters published inside the Step 0 window. Ignore older letters that just happen to appear in search results.
 2. **Verify authenticity**: The result should link to the actual letter text, a reputable news source reporting on its publication, or the firm's official website. Ignore SEO spam, summaries-of-summaries, or clickbait.
 3. **Use WebFetch** to read the page if needed to confirm the letter's publication date and content.
 4. **For Tier 2 results**: Apply the stricter discovery validation criteria defined above.
 
-### Step 4: Compile Digest
+### Step 4: Build the payload
 
-For each confirmed new letter, record:
-- **Tier** (Tier 1: Curated / Tier 2: Discovery)
-- **Firm name**
-- **Author** (if attributable to a specific person)
-- **Title or topic** of the letter
-- **Date published**
-- **URL** (direct link to the letter or the most authoritative source)
-- **Key takeaway** (1-2 sentences summarizing the main thesis or notable point, in your own words — do NOT reproduce copyrighted content)
+Write ONE fresh JSON payload to `/tmp/research-agent-payload.json` (overwrite, never append). Every field is optional; the renderer fills placeholders for anything missing. `date` is today (local) — with `--cache`, a payload dated any other day is treated as a stale leftover: nothing cached, a `⚠ Status:` line instead of hits.
 
-### Step 5: Output
+```json
+{
+  "date": "YYYY-MM-DD",
+  "window_hours": 24,
+  "tier1": [{"firm": "Oaktree Capital", "title": "…", "url": "https://…", "author": "Howard Marks",
+             "published": "YYYY-MM-DD", "key_point": "1-2 sentences, own words", "paywalled": false}],
+  "tier2": [{"firm": "…", "title": "…", "url": "https://…", "published": "YYYY-MM-DD",
+             "key_point": "…", "note": "why it surfaced / why interesting"}],
+  "promotion_candidates": [{"firm": "…", "reason": "why it belongs on Tier 1"}],
+  "coverage": {"tier1_checked": ["<exact roster names covered>"], "discovery_queries": 9,
+               "unsearched": ["<firm or query>: <reason>"]},
+  "deny_skipped": ["<names from research_denylist.py filter>"],
+  "status": "one line, only when something unusual happened (soft ceiling hit, >50% searches errored)"
+}
+```
 
-Return results in this format:
+Key points are your own words — never reproduce copyrighted text. Multiple letters from one firm = separate entries. Paywalled = still include with the source URL and `"paywalled": true`.
+
+### Step 5: Render (+ cache + Weekly Lookback) and deliver
+
+```bash
+python3 ~/.claude/skills/research-agent/scripts/compose_alert.py --cache --input /tmp/research-agent-payload.json
+```
+
+Both lanes pass `--cache`. The script then, in code:
+1. Normalizes hits; re-tags Tier 2 hits from a roster firm as Tier 1; applies the deny-list; dedups by normalized URL (tracking params, `www.`, trailing slash, percent-encoding ignored).
+2. Appends the surviving hits to the shared cache `~/.claude/scheduled-tasks/research-agent/seen-letters.jsonl` (`scripts/research_cache.py`; denied hits are never cached). A URL first seen on an EARLIER day is not new today; one already first seen TODAY (a re-run, or a session after the scheduled run) re-renders as today's.
+3. Fills the **Weekly Lookback** — letters first seen in the 4 days before today, newest first — so a letter Tom skipped on its day stays visible for most of a week. Lookback never repeats a today hit and drops firms deny-listed since.
+4. Renders the digest below and prints it.
+
+Scheduled: pipe it to `~/.claude/skills/send-alert/send.sh`. Session: paste stdout verbatim. Spot checks: `scripts/research_cache.py read-window --days 4 --exclude-today`; housekeeping `research_cache.py prune --days 30`.
+
+**Output format** (the renderer's contract — tested in `tests/test_compose_alert.py`; change the format there and in the script, never by hand):
 
 ```
-## Research Agent Results
+🔍 <u>**Research Agent: Investor Letters**</u> · 2026-10-09
 
-### Tier 1 — Curated Firms
-[count] new letters found
-
-- **[Firm Name]** — "[Title/Topic]" by [Author] — Published [Date]
-  URL: [link]
-  Key point: [1-2 sentence summary]
-
-### Tier 2 — Discoveries
-[count] new letters found
-
-- **[Firm Name]** — "[Title/Topic]" by [Author] — Published [Date]
-  URL: [link]
-  Key point: [1-2 sentence summary]
-  Note: [Why this is interesting / why it surfaced]
-
-### No New Letters
-[State if none found from either tier]
-
-### Search Coverage
-- Tier 1 firms checked: [count]/[total]
-- Tier 2 discovery queries run: [count]
-- Any firms/queries that couldn't be searched (errors, rate limits): [list]
-- Tier 1 promotion candidates: [any Tier 2 firms worth adding to curated list]
+⚠ Status: <only when payload.status is set>
+_No new investor letters in the window._          ← only when Tier 1 and Tier 2 are both empty
+<u>Tier 1: Curated Firms (N)</u>
+• **Oaktree Capital**: [Title](url) · Howard Marks · 2026-10-08 · paywalled
+  Key point: …
+<u>Tier 2: Discoveries (N)</u>
+• **Firm**: [Title](url) · 2026-10-08
+  Key point: …
+  Note: …
+<u>Weekly Lookback (N)</u>
+• **Firm**: [Title](url) · Tier 2 · first seen 2026-10-06
+<u>Tier 1 Promotion Candidates (N)</u>
+• **Firm**: reason
+<u>Search Coverage</u>
+• Window: past 24h
+• Tier 1 firms checked: 58/58                      ← total = live roster in this file
+• Tier 1 not covered (N): …                        ← only when tier1_checked is a list with gaps
+• Tier 2 discovery queries run: 9
+• Couldn't search (errors, rate limits): …
+Skipped (deny-list): Firm, Firm | none             ← ALWAYS the last line
 ```
+
+Empty sections are omitted; Search Coverage and the deny-list footer are always present.
 
 ---
 
@@ -309,11 +346,11 @@ Return results in this format:
 - **Blog posts vs. formal letters**: For firms like Bronte Capital, Aswath Damodaran, and Union Square Ventures, the output is often blog posts rather than traditional investor letters. Include these if they are substantive thought pieces (not product announcements or event promotions).
 - **False positives**: Search results may surface old letters or articles *about* letters rather than the letters themselves. Always verify the publication date before including in the digest.
 - **Multiple letters from one firm**: If a firm published multiple letters in the same period, include all of them as separate entries.
-- **Discovery duplicates**: A Tier 2 discovery may surface a firm that should probably be on the Tier 1 list. Flag it as a "candidate for Tier 1 promotion" in the output so Tom can decide whether to add it to the curated list.
+- **Discovery duplicates**: A Tier 2 discovery may surface a firm that should probably be on the Tier 1 list. Flag it as a "candidate for Tier 1 promotion" (`promotion_candidates` in the payload; the renderer drops firms already on Tier 1 or deny-listed) so Tom can decide whether to add it to the curated list.
 
 ## Performance Considerations
 
-- The curated list is large. The most important efficiency lever is starting with broad catch-all queries that surface results from multiple firms at once. Most days, the majority of firms will have nothing new — the catch-all queries help you confirm this quickly without running 60+ individual searches.
+- Batched roster queries (`--tier1-queries`) are the main efficiency lever: full Tier 1 coverage in ~15 searches instead of 60. Catch-alls first confirm quiet days quickly.
 - Skip WebFetch for results where the publication date and title are clearly visible in the search snippet.
 - Run Tier 1 and Tier 2 in sequence (not interleaved) so that deduplication is straightforward.
 - For Tier 2, prioritize the aggregator site queries (valuewalk, gurufocus, substack) — these are the highest-signal discovery sources.

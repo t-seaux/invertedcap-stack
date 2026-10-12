@@ -45,7 +45,7 @@ The bottleneck in Tom's intro pipeline is the gap between "contact said yes" and
                                                                                     🚫 Declined / NR
 ```
 
-This sub-workflow sits between Outreach and Made. It does NOT move anyone between lifecycle stages — that's the Resolution Scanner's job. This agent only creates Gmail drafts.
+This sub-workflow sits between Outreach and Made. It never writes Made or Declined — that's the Resolution Scanner's job. Its only lifecycle writes are ☎️ Outreach adds through `intro-lifecycle-write.py`: a manual "X opted in" for someone still in 👓 Qualified (Pattern 2, per `shared-references/intro_reply_route.py`) and a colleague hand-off. Otherwise it only creates Gmail drafts.
 
 ## The Notion Data Model
 
@@ -120,7 +120,7 @@ When you detect a hand-off, **draft first, Notion bookkeeping after** — the dr
 1. **Identify the colleague** — name + email. Take the email from the reply's Cc line if present; else any address stated in the body; else look up an existing People DB row. **If none of those yield an email, the hand-off is simply not actionable** (Tom's call, 2026-08-27: a replier who hands off without Cc'ing or naming an address is the replier's problem, not ours) — draft to the original replier exactly as a normal opt-in (skip steps 2–5 entirely, including the contact-creation/relation steps), and note the unaddressable hand-off in the report so Tom sees it. Never chase an email via enrichment for the draft's sake.
 2. **Granter set = the colleague (primary) + the original replier, both Cc'd**, colleague first. Keep the person who made the connection on the thread as a courtesy — Tom cuts them if he wants. Drop the original replier only if the reply explicitly bows out (*"I'm not the right person, talk to X"* with no ongoing role).
 3. This makes the intro **3+ people**, so the body uses **"you all"** (Step 3.2) and the subject's granter side lists both, colleague first: `[Colleague] & [Replier] ([Company])`. **Create the draft now** (Step 3's compose flow) — do not hold it for steps 4–5.
-4. **Then resolve the colleague's existing People DB row — never create one.** (The 2026-08-27 auto-create authorization is revoked by People DB Guardrails, 2026-09-22.) Look up by exact email first, then exact full name + Company matching the replier's company, against `collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9` (scoped + `workspace_search`). **Identity match → use that row** (do not edit any of its fields; if its Email differs from the Cc'd address, report "⚠️ Email mismatch" and don't copy it over). **No match → do not create:** text Tom via `shared-references/people_db_ask.py` (name, Cc'd email, company, the Opp, `--relation "☎️ Intros (Outreach)"`) and skip step 5 — the draft already exists, so nothing is blocked. Tom's 👍 makes sms-listener §4b create the row and do the Outreach append.
+4. **Then resolve the colleague's existing People DB row — never create one.** (The 2026-08-27 auto-create authorization is revoked by People DB Guardrails, 2026-09-22.) Resolve with `people_resolve.py resolve --email <cc> --name "<Full Name>" --company <replier's company>` (Email exact → Contacts alias index → name + company; `via: ["alias"]` is a match, not a mismatch); for a name-only search fall back to `collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9` (scoped + `workspace_search`). **Identity match → use that row** (do not edit any of its fields; if its Email differs from the Cc'd address, report "⚠️ Email mismatch" and don't copy it over). **No match → do not create:** text Tom via `shared-references/people_db_ask.py` (name, Cc'd email, company, the Opp, `--relation "☎️ Intros (Outreach)"`) and skip step 5 — the draft already exists, so nothing is blocked. Tom's 👍 makes sms-listener §4b create the row and do the Outreach append.
 5. **Add the colleague to the Opp's `☎️ Intros (Outreach)` — strictly AFTER step 4, and only if step 4 resolved an existing row:** `python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp_id> --person-id <colleague_id> --target outreach --source intro-draft-agent`. The wrapper does the append (the original replier stays), the self-row / single-stage / closed-Opp checks and the self-heal; exit 5 = refused by a gate (report `blocked`), never hand-write the relation.
 6. **Lifecycle scope:** this drafter only ADDS the colleague to `☎️ Outreach` (steps 4–5). The move to `✉️ Made` when Tom sends — and any scrub of either person — stays owned by the resolution/endpoint layer (`intro-resolution-endpoint.js`), as usual.
 
@@ -170,7 +170,11 @@ Tom explicitly tells you to draft the intro:
 - "X is interested, draft it"
 - "Queue the intro for X"
 
-When detected: Draft the intro email using the information provided + Notion data.
+When detected: Draft the intro email using the information provided + Notion data. **Stage first, same as every
+other surface** (`shared-references/intro_reply_route.py --verdict opt-in --stage <current>`): Tom saying "X opted
+in" means his outreach happened, so a person still in 👓 Qualified moves to ☎️ Outreach via
+`python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp> --person-id <person> --target outreach --source intro-draft-agent`
+(noop if already there; never Made — Made is earned by the SENT connect). Already Made / Declined → no draft, say so.
 
 ### Pattern 3: Targeted Invocation (Enqueued by intro-resolution-agent)
 
@@ -229,7 +233,7 @@ The founder-email / target-email edge cases in the **Edge Cases** section apply 
 **Text-lane variant (`channel:"text"` in the args — enqueued by deal-text-scanner §5, opt-in arrived over iMessage, 2026-09-17).** Same targeted flow with three adjustments, because there is NO Gmail opt-in thread:
 - **Guards:** skip guard (1), the deleted-draft/`Intro Drafted` thread-label check, and skip the colleague hand-off scan (both are reads of a `threadId` that doesn't exist). Guards (2) already-sent and (3) already-present-draft still run and ARE the dedup — search on the person's email + the standard subject shape. A re-enqueue after Tom deletes the text-lane draft is therefore recreated on the next opt-in ONLY if the scanner's `.portco_optins` ledger missed it — the queue idempotency key (`intro-draft-text-<handle>-<oppid8>`) is the primary re-fire stop.
 - **Relation state:** the scanner moves the person Qualified → `☎️ Outreach` just before enqueueing, but don't hard-fail on eventual consistency — treat **Qualified-or-Outreach as a pass**; `✉️ Made` / `🚫 Declined` skip as usual (use the person's presence in Made with `--message-id "imsg-<ledger rowid>"` for the split-state heal if needed).
-- **Recipient email:** the opt-in carries no sender email. Use the People row's `Email`; if empty, do NOT draft — report `skipped (no email on People row)` so the scanner's alert tells Tom to grab it in-thread.
+- **Recipients (code, 2026-10-11 — was hand-assembled here):** `python3 ~/.claude/skills/intro-draft-agent/intro_recipients.py --channel text --person-id <personId> --opp-id <oppId> [--name …] [--requester-company …] [--granter-company …]` — same To (founders) / Cc (the People row) / subject / both-all output as the email path. Exit 3 with "no email on … People row" → do NOT draft — report `skipped (no email on People row)` so the scanner's alert tells Tom to grab it in-thread.
 - **Alert (Tom 2026-10-07: "combine text opt in to email drafts as well"):** pass the same `--optin-*` flags plus `--optin-channel text` — ONE plain-text 🤝 Intro Opt-In text to Tom's 1:1 (alerts follow surface) with To + the draft link; no Slack ✍️ ping. The scanner no longer texts its own opt-in alert when the draft job is queued. Missing-email skip → text the opt-in headline + `✓ Still in <stage> (over text) · ⚠ no draft – no email on People row; connect by hand` via `send_tendto_text.sh`.
 
 ### Step 1: Build Outreach Roster
@@ -298,8 +302,8 @@ Items 1–3 (subject, both/all, To/Cc) are ONE call to `intro_recipients.py` (se
    - Format: `[Requester(s)] ([Company]) / [Granter first name] ([Granter company])` — the party requesting the time (To-side, normally the founders) comes first, then ` / `, then the party granting their time (Cc-side, the opt-in target). Matches the To/Cc split. See `writing-style/intro-connect/STYLE.md`.
 
 2. **Determine the body** — "both" vs "all" is decided by the TOTAL number of people being connected (everyone on the intro besides Tom = founder(s) + target(s)). Tom's rule, verbatim: *"when I'm making an intro to one person it's **you both** have context; but if I'm introing someone to multiple it's **you all** have context."* "both" is grammatically valid only for exactly two people.
-   - **Exactly 2 people** (one person introduced to one person — the common case): `You both have context so [founder first name(s)] - will let you take it from here!\n\nTom`
-   - **3 or more people** (introduced to multiple, or 2+ founders): `You all have context so [founder first name(s)] - will let you take it from here!\n\nTom`
+   - **Exactly 2 people** (one person introduced to one person — the common case): `You both have context so [founder first name(s)] – will let you take it from here!\n\nTom`
+   - **3 or more people** (introduced to multiple, or 2+ founders): `You all have context so [founder first name(s)] – will let you take it from here!\n\nTom`
 
 3. **Determine recipients** (see the **Recipients** section above for the To/Cc split):
    - **To** = the ask-side party's email(s) — normally all founder emails. Join multiple with ", ".

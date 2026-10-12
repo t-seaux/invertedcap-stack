@@ -7,7 +7,9 @@ description: >
   X", "add X to a reminder", "reminder: X", "add a reminder for X", or hands over
   one or more to-do items with intent to reminder them. One reminder per item — if
   Tom lists several things ("remind me to do A and B"), create a separate reminder
-  for each. Defaults to today's date unless Tom names a day ("tomorrow", "Friday",
+  for each — EXCEPT things to buy ("get dish soap and paper towels"), which go on ONE
+  consolidated "[TS] Buy: dish soap, paper towels" reminder (appended to an open one).
+  Defaults to today's date unless Tom names a day ("tomorrow", "Friday",
   "on the 12th"). Always trigger inline — no confirmation needed before acting.
 ---
 
@@ -19,14 +21,19 @@ not a calendar event.
 
 ## As code (2026-10-04) — create/complete through `reminder_add.py`
 
-Every create — direct ask, sms-listener, text-tend-to, watchers — goes through:
+Every create — direct ask in a session, a text to sms-listener, a 👍 on a text-tend-to card (`apply_reminder.py`),
+watchers — goes through this one script (one brain, Tom 2026-10-11: "the outputs should be the same and the
+methodology should be the same"):
 
 ```bash
 python3 ~/.claude/skills/add-reminder/reminder_add.py add --title "<title>" [--list L] [--due today|tomorrow|YYYY-MM-DD] \
   [--url U] [--notes N] [--repeat weekly|monthly|quarterly] [--weekday NAME] \
   [--autonomous --channel group|tom --reason "<what triggered it>"]
+python3 ~/.claude/skills/add-reminder/reminder_add.py buy --for TS|EK|household --item "<item>" [--item "<item>" ...] [--due ...] [--url U] [--notes N]
 python3 ~/.claude/skills/add-reminder/reminder_add.py complete --id ID --title "<title>" [--autonomous --channel group|tom --reason "<why>"]
 ```
+
+**Reply = the JSON's `confirm`, verbatim** — the same text on every surface (session reply, text reply, card 👍).
 
 It owns the deterministic steps below: the default all-day due date (today; `none` refused), dedup against
 open reminders with the same title, the retry → AppleScript → Elsie-Tom FREE all-day event chain (fixed
@@ -36,14 +43,16 @@ prefix, and the script and eventkit refuse a prefix/list mismatch.
 
 | Exit | Meaning → what you do |
 |---|---|
-| 0 | created via eventkit (or completed) → confirm per Conventions |
-| 3 | an open reminder already has this title → nothing written; say "already on <list>" |
-| 4 | created via a FALLBACK → reply with ⚠ + the printed `eventkit_error` (and the calendar if `via: calendar`) |
+| 0 | created via eventkit, appended to the open `Buy:` reminder, or completed → send `confirm` |
+| 3 | an open reminder already has this title (or every item is already on the `Buy:` one) → nothing written; send `confirm` |
+| 4 | created via a FALLBACK → send `confirm` (its ⚠ line names the eventkit error and where it landed) |
 | 1 | every path failed → report the printed errors; nothing exists |
 | 2 | argument error (mismatch, bad date, autonomous without channel/reason) → fix and re-run; never fall back by hand |
 | 5 | written but the autonomous alert didn't send → log it loudly |
 
-Harness: `tests/test_reminder_add.py` (fakes; pins the 09-01 / 09-02 / 09-03 incidents). The sections below are
+Harness: `tests/test_reminder_add.py` (fakes; pins the 09-01 / 09-02 / 09-03 incidents) +
+`tests/test_reminder_parity.py` (same request → same writes + same `confirm` through the session CLI, the text
+direct path and the text card path). The sections below are
 the WHY. `eventkit` direct calls stay fine for reads and bulk edits (`list`, `move`, `rename`, `update`).
 
 ## Primary path — Apple Reminders (via the native `eventkit` helper)
@@ -69,12 +78,13 @@ mismatch (`[TS]` on Work, `[IC]` on Kenyon-Seo → error).
 | Inverted Capital | Inverted fund/LPs/portcos, office, Lupe, Vector | `[IC]` | Work |
 | Dash Fund | Dash I / II / II-A, Dash LPs, MMF, fund admin | `[DF]` | Work |
 | Work, entity unclear | work but can't tell IC vs DF | none (don't guess) | Work (pass `--list Work`) |
-| Personal – Tom | family (Dad/Steve, Elsie, kids), home, errands, purchases for himself/family | `[TS]` | Kenyon-Seo |
+| Personal – Tom | family (Dad/Steve, Elsie, kids), home, errands, purchases for himself/family, household logistics (pick-ups, bookings, kids' logistics – Elsie sees them) | `[TS]` | Kenyon-Seo |
 | Personal – Elsie | Elsie asked for herself, or Tom names Elsie | `[EK]` | Kenyon-Seo |
 | Household, either | shared chore, unassigned | none | `--list Kenyon-Seo` |
 
 **List + prefix convention (Tom 2026-09-03, corrected same day):**
-- **`Work`** = Tom's own work list (renamed from "Tasks" 2026-09-03). **No `[TS]`/`[EK]` prefix here** — everything in
+- **`Work`** = Tom's own private work list — every work/fund reminder goes here and never crosses to the shared list
+  (the list was renamed from "Tasks" 2026-09-03; nothing is called "Tasks" any more). **No `[TS]`/`[EK]` prefix here** — everything in
   it is implicitly his, and the prefix is redundant noise (Tom: "these work tasks
   shouldn't have [TS] in front"). Entity prefix `[IC]` / `[DF]` DOES apply (Step 0).
 - **`Kenyon-Seo`** = shared personal/household list (groceries, kids/school, home,
@@ -92,44 +102,43 @@ mismatch (`[TS]` on Work, `[IC]` on Kenyon-Seo → error).
   an existing iCloud reminder's list via a plain save, error -3002; the CLI handles
   this transparently, just know a moved reminder gets a new id).
 
-Today (default):
+Today (default), or a named future day — build `YYYY-MM-DD` from `currentDate` in context:
 
 ```bash
-~/.claude/tools/eventkit/eventkit add --title "[TS] Send Shivan \$15" --due today
+python3 ~/.claude/skills/add-reminder/reminder_add.py add --title "[TS] Send Shivan \$15"
+python3 ~/.claude/skills/add-reminder/reminder_add.py add --title "[TS] Text Sidney" --due 2026-08-08
 ```
 
-A named future day — build `YYYY-MM-DD` from `currentDate` in context:
-
-```bash
-~/.claude/tools/eventkit/eventkit add --title "[TS] Text Sidney" --due 2026-08-08
-```
-
-Returns JSON (`{"ok":true,"reminder":{...}}`); on failure `{"ok":false,"error":...}`
+`eventkit` itself returns JSON (`{"ok":true,"reminder":{...}}`); on failure `{"ok":false,"error":...}`
 and exit 1. Other verbs: `list [--all]`, `count`, `complete/uncomplete --id`,
 `delete --id`, `move --to LIST --id`, `clear-completed` (see `eventkit help`). The
 `--id` verbs accept multiple `--id` flags and commit as one batch — that's the fast
 path for bulk moves/edits/clears.
 
-**Link → URL field (Tom 2026-10-04).** When the to-do comes with a link (a product to buy,
-a form to fill, a page to check), put it in the reminder's **URL field** via `--url`, not in the
-title or notes – it's tappable there. Fix an existing one with `eventkit update --id ID --url U`.
+**Links → NOTES (Tom 2026-10-09; supersedes the 2026-10-04 URL-field rule).** Any link the source carries – Luma,
+Paperless Post, Partiful, Eventbrite, a portal login, a form, a product – goes in the reminder's notes, where it's
+tappable. The Reminders app's visible URL field is a private attachment no API can write (EventKit's `url` lands in a
+hidden iCalendar field the app never shows – verified in the Reminders store 2026-10-09). Still pass `--url`
+(order_close_out reads it); `reminder_add.py` mirrors it into the notes and moves a link out of the title.
+
+**Shopping = ONE `Buy:` reminder per errand (Tom 2026-10-11; replaces the 2026-10-04 "Order for <Who> – <item>",
+one per item).** "Get / buy / pick up / we're out of / need X and Y" → `reminder_add.py buy --for TS --item X --item Y`
+→ `[TS] Buy: X, Y`. Code appends to an OPEN non-recurring `Buy` reminder with the same prefix on the same list
+(legacy `[EK] Buy coasters` counts; recurring `[TS] Grocery Order` never does), pulls its due earlier if this ask is
+sooner, and skips items already on it — so "remind me to get dish soap and paper towels" never mints two reminders,
+and a second ask later in the day lands on the same one. Who it's for rides on the item: `--item "table protector
+(40x72 clear) for Dad"`; the vendor stays out (the link carries it).
 
 **Purchase link → stamp the category in notes (Tom 2026-10-04)** so the order email can close it later
 (`order_close_out.py`). Before the add, run
-`python3 ~/.claude/skills/shared-references/purchase_category.py <url>` and pass its `notes` as `--notes`.
-`source:"none"` (blocked page) → write `--notes "category: <best-guess Amazon top-level category> (guessed)"`
-yourself – no separate model call.
+`python3 ~/.claude/skills/shared-references/purchase_category.py <url>` and pass its `notes` as `--notes` with the
+`--url`. `source:"none"` (blocked page) → `--notes "category: <best-guess Amazon top-level category> (guessed)"`
+yourself – no separate model call. A multi-item `Buy:` reminder is never auto-checked-off by an order email
+(the order may cover one item) – close-out puts it on its ⚠ line for Tom.
 
-```bash
-~/.claude/tools/eventkit/eventkit add --title "[TS] Order for Dad – table protector (40x72 clear)" --list "Kenyon-Seo" --due today --url "https://a.co/d/01m1y8u2" \
-  --notes "category: Home & Kitchen > Kitchen & Dining > Kitchen & Table Linens > Accessories > Table Pads"
-```
-
-**Purchase title shape (Tom 2026-10-04):** `Order for <Who> – <item (spec)>` – who it's for up
-front, en dash, then the item; the vendor stays out of the title (the URL carries it). Drop
-"for <Who>" when it's for the household.
-
-**One reminder per item.** Batch the `eventkit add` calls in one turn for multiple items.
+**Done → check it off (graduated from the text prefs 2026-10-11).** When a reminder's task is confirmed done (Tom /
+Elsie says so, or the agent completes the underlying action, e.g. a booking confirms), complete the matching open
+reminder with `reminder_add.py complete` instead of leaving it open.
 
 ### Fallback — AppleScript (`osascript`)
 
@@ -206,7 +215,8 @@ a reminder is never the "real harm" case that carve-out exists for.
 - **"re" → "re:"** — when a title contains the word "re" meaning "regarding" (e.g.
   "ping X re Y"), format it as "re:" with a colon ("Ping X re: Y"), never bare "re"
   (Tom, 2026-09-10).
-- **One reminder per item**: split conjoined asks ("A and B") into separate reminders.
+- **One reminder per item**: split conjoined asks ("A and B") into separate reminders — except shopping,
+  which is ONE `Buy:` reminder (above).
 - **Assignee prefix** — see the **List + prefix convention** above: applies on
   `Kenyon-Seo`, not on `Work` (Tom's own list, no prefix). Where it applies, bracketed
   with a space before the title (Tom, 2026-09-01 — was bare `TS `/`EK ` before):
@@ -217,14 +227,13 @@ a reminder is never the "real harm" case that carve-out exists for.
     other than the sender is given ("remind Elsie to..."), prefix for THAT person.
   Example: Elsie texts "remind me tonight 8:30 to book a rental car" →
   title `[EK] Book a rental car for Pittsburgh` on `Kenyon-Seo`.
-- Confirm back as a compact ✅ checklist, noting the date if not today and noting if
-  the fallback path was used. Shape (Tom 2026-09-22): headline, **blank line**, then one
-  `• <title>` bullet per reminder — never bullets directly under the headline.
+- Confirm back with `reminder_add.py`'s `confirm` text — it renders the shape (Tom 2026-09-22): headline,
+  **blank line**, then one `• <title>` bullet per reminder, never bullets directly under the headline; the date
+  when not today; a ⚠ line when a fallback wrote it. Several creates in one turn → one headline, all the bullets.
   ```
   ✅ Added to Kenyon-Seo, due today:
 
-  • Buy baby shampoo
-  • Buy dishwasher tablets
+  • [TS] Buy: dish soap, paper towels
   ```
 
 ## Autonomous creation AND completion — always alert (Tom 2026-09-02, broadened 2026-09-03)

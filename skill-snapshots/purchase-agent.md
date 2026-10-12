@@ -210,7 +210,8 @@ rather than omitting the line. Never show a bare total with no shipping/tax brea
 **Pull these from the CART/checkout, not from a product page.** Search and PDP prices can
 disagree with what's actually charged (Target: same item $4.29 on search vs $5.29 in the
 cart, because the store id differs). The cart is the only authoritative price.
-No bold (iMessage renders Unicode bold weirdly). For gifts/travel with options, list up to
+Text format per `sms-listener/SKILL.md` § Formatting (plain header; Unicode bold OK in the body since
+2026-10-11). For gifts/travel with options, list up to
 3, lead with the recommendation, each with its link.
 
 **Payment + address (code: `~/.claude/skills/purchase-agent/purchase_quote.py resolve`, Tom 2026-10-04):**

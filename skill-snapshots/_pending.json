@@ -1,5 +1,10 @@
 {
-  "skills": {},
-  "launchAgents": {},
+  "skills": {
+    "code-first": "2026-10-12",
+    "retro-weekly-summary": "2026-10-12"
+  },
+  "launchAgents": {
+    "contacts-alias-index": "2026-10-12"
+  },
   "webhookHandlers": {}
 }

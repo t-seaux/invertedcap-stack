@@ -55,8 +55,8 @@ and sent same day).
 > stays empty); quote `excluded[].reason` in the Mode C confirmation. **Exit handling:** `0` draft with that
 > Bcc · `4` every member excluded → nothing to send: exit SILENTLY in webhook / text modes, tell Tom in
 > Mode C · `3` Tom named a firm that is not on the roster → ask him for the address (never guess or look one
-> up); recurring → add a member to the JSON · `2` Notion read / input error → stop and report; NEVER fall
-> back to the full list. Read-only (GETs).
+> up); recurring → add a member to the JSON · `2` Notion read / mail search / input error → stop and report;
+> NEVER fall back to the full list. Read-only (Notion GETs + gmail-webhook `searchMail` / `getMessage`).
 > **Adding / changing a member:** edit the JSON, then mirror `DEAL_SHARE_MEMBER_PAGES` in
 > `~/code/gmail-webhook/deal-share-sent.js` and run `node ~/code/gmail-webhook/tests/run.js` — the
 > `deal_share_roster` parity gate fails on any drift. `neg1_sourcing.py` card Source labels read the JSON
@@ -106,6 +106,14 @@ webhook modes, tell Tom in Mode C.
 - Tom giving a one-off address ("also send to a@b.com") → append to that draft's Bcc.
 - Tom names an unregistered firm with no address → ask; do not guess or look one up. Recurring →
   add a row (with its entity roster).
+
+**Prior-contact exclusion — firm-wide, in code** (Tom, 2026-10-09: "if it's anyone at the firm then
+that means it shouldn't be in deal shares"). `share_recipients.py` searches Tom's Inverted mail and drops
+a member when any non-draft message from/to/cc ANYONE at that firm (its domains or inboxes — never Tom's
+own `tseo@primary.vc`) mentions the deal: company name, a founder's full name or email, or the
+founder / website domain. Reason: "already discussed with Emily Man (emily@primary.vc) 2026-10-09".
+Search unreachable → exit 2. Incident: Inviscid — Tom intro'd Pax to Emily at Primary that morning,
+yet the pass-time share still Bcc'd Primary's deal agent.
 
 **Source exclusion — never share a deal back to its own source, matched at the ENTITY level.**
 Before setting Bcc, resolve the Opp's `Source(s)` relation (and the source-email author, and
@@ -203,7 +211,7 @@ If the company has multiple round cards, share from the card Tom means — defau
   rather than the draft shipping with a blank LI. If at least one founder resolved, the field still
   ships with the resolved slug(s) — only the missing founder is flagged, the field is not blanked.
 - `🕰️ Funding History` relation (list of sibling Opp cards, one per round)
-- Page body → the **Original Email** section (bold label or heading; written by `add-to-crm`)
+- Page body → the **Original Email** section (bold label, heading, or – since 2026-10-09 – a collapsed toggle with the thread inside; read the toggle's children; written by `add-to-crm`)
 - `Source Thread ID` (fallback for Step 4 if the body has no Original Email section)
 
 ---
@@ -299,7 +307,7 @@ compose_body.py, the materials ⇄ attachment consistency check (no viewer links
 (gmail-create-draft.py: Bcc, To empty, server-side attachments, no signature, no generic ping), and the ✍️ alert sent only
 once the draft exists. **exit 0** → report `confirm` (Step 6) · **10** draft exists / **11** already sent → Mode C:
 surface it; webhook modes: exit silently (`--allow-reshare` only on Tom's fresh 👣 / explicit ask) · **3** → fix what
-`failures` names · **4 / 2** → nothing drafted; say so. Everything below in this step is the WHY.
+`failures` names · **4 / 2** (or a 3 you can't fix) → nothing drafted: Mode C says so; webhook / text modes END their final output with the JSON's `job_failed` line VERBATIM (`JOB_FAILED: DEAL_SHARE_…`) – the queue processor's sentinel turns it into the failure alert. An audit `REVIEW:` line alone is SILENT (Inviscid 2026-10-09). Everything below in this step is the WHY.
 
 Read `~/.claude/skills/writing-style/deal-share-out/STYLE.md` and follow its subject line,
 scaffold, and rules exactly.
@@ -518,7 +526,7 @@ reversed within the debounce window) → exit without drafting. **Read the `Shar
 FRESH from that same fetch and honor every entry regardless of who wrote it** — Tom hand-adds
 entries in Notion (often right before flipping the status), so the already-shared exclusion must
 run off the live relation, never off assumptions about which shares went through the email flow.
-On failure exit non-zero (lands in the queue's failed state).
+On failure (no draft) end the final output with `deal_share_draft.py`'s `job_failed` line verbatim – `claude --print` always exits 0, so the `JOB_FAILED:` sentinel is the only way the job lands in failed/ and alerts Tom.
 
 **B3 (text command)** — `args: {mode: "text", company, firms, from}`, enqueued by
 `sms-listener` when Tom texts a trigger phrase (see the description's trigger list). `company`
@@ -553,12 +561,12 @@ On failure exit non-zero (lands in the queue's failed state).
 5. **Dedup exits also text** (never silent — Tom asked for this share seconds ago): existing
    draft → `Deal Share: <Company> — already in Drafts`; already sent → `already sent <date>,
    Shared has <firm>` so Tom knows the dedup was the reason.
-6. On any failure text `✗ Deal share <company> failed: <one-line reason>` and exit non-zero
+6. On any failure text `✗ Deal share <company> failed: <one-line reason>` and end with the `job_failed` line (not an exit code)
    (lands in the queue's failed state).
 
 **B1 (👣 reaction)** — `args: {mode: "webhook", channel_id, thread_ts, reply_ts, user, text:
 "👣"}` when Tom reacts 👣 `:foot:` to a card in `#decision-retros`. Still useful for re-runs and
-for cards that pre-date B2. On failure post the ⚠️ close-loop reply and exit non-zero.
+for cards that pre-date B2. On failure post the ⚠️ close-loop reply and end with the `job_failed` line (not an exit code).
 
 B1 deltas from the canonical steps (all other logic identical):
 

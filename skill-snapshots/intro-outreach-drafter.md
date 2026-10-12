@@ -264,10 +264,12 @@ back to a snapshot-less MCP draft). Draft rules:
 - Use Tom's per-person context line if supplied; otherwise the default relevance line.
 
 ### Step 4 — Reflect on Notion (log to Qualified) — only when an Opp exists
-If the intro subject resolved to an Opportunity, add every recipient's People page ID to that Opp's
-`👓 Intros (Qualified)` relation via `notion-update-page` (`update_properties`). **Union with the existing
-relation** — fetch current value first and append; never overwrite. Recipients already in `☎️ Outreach`,
-`✉️ Made`, or `🚫 Declined / NR` for this Opp are past this stage → don't re-add; note as skipped.
+If the intro subject resolved to an Opportunity, write every recipient with the lifecycle wrapper — never
+`notion-update-page` on an intro relation (contract: writes are code):
+`python3 ~/.claude/scripts/intro-lifecycle-write.py --opp-id <opp_id> --person-id <person_id> --target qualified --source intro-outreach-drafter`.
+It appends (never overwrites), refuses Tom's own row / an intro-closed Opp / a 📣 Pending Feedback person (exit 5 →
+note `blocked`), and is a no-op for anyone already in `☎️ Outreach`, `✉️ Made`, or `🚫 Declined / NR` (exit 0,
+`result: noop` + their `stage` → note as skipped, past this stage).
 If there is **no Opp** (person subject, or company not in the pipeline), skip the relation write and say so
 in the report. No People page is ever written by this skill (no creates without Tom's approval, no
 field edits ever).

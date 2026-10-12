@@ -168,17 +168,15 @@ Tom sends an email directly to someone who is currently in `👓 Intros (Qualifi
 
 **Important**: Only match on Tom's SENT mail. Receiving an email from the person does NOT constitute outreach — Tom needs to have initiated contact.
 
-### Pattern 2: Text Message to a Qualified Person (Scheduled Scan)
+### Pattern 2: Text Message to a Qualified Person — owned by the TEXT lane
 
-Tom sends a text/iMessage to someone in the Qualified list.
-
-**Detection logic:**
-1. For each person in Qualified, check if Tom has their phone number or can be found via contacts
-2. Use `read_imessages` to check recent messages to that contact
-3. Look for messages FROM Tom (not to Tom) in the past 24 hours
-4. If Tom sent a message, that constitutes outreach
-
-**Important**: Only outgoing messages from Tom count. Inbound messages do NOT constitute outreach.
+Tom's sent text/iMessage offering the intro IS outreach (contract § Stages, Qualified → Outreach: "Tom's OUTBOUND in
+sent mail (or sent iMessage)"). This skill does NOT scan iMessage for it — not in scheduled mode, not in manual mode
+(2026-10-11: this section said "scan iMessage" while the Performance section said "skip it"; the two halves
+contradicted each other). The text surface owns it, in code: `deal-text-scanner` intro-lane §5a →
+`deal-text-scanner/intro_text.py offer` → `intro-lifecycle-write.py --target outreach` — the same write this skill makes
+for a sent email (Pattern 1), on any Opp that isn't intro-closed. Only outgoing messages from Tom count; inbound
+messages never constitute outreach. If Tom says "I texted X" in a session, that's Pattern 3 (manual).
 
 ### Pattern 3: Manual Trigger — Named Person
 
@@ -273,7 +271,7 @@ Use `newer_than:3d` (not `newer_than:1d`) to buffer against scan timing gaps —
 4. For each recipient, check whether they already appear in ANY intro lifecycle field on that Opportunity (`👓 Qualified`, `☎️ Outreach`, `✉️ Made`, `🚫 Declined`).
    - Already in **Outreach, Made, or Declined** → skip, already tracked.
    - In **Qualified** → they will be handled by Sub-routine 2B (move to Outreach).
-   - **Not present anywhere** → this is an untracked outreach. Look them up in the People DB by email, then add to `☎️ Intros (Outreach)` in Step 3.
+   - **Not present anywhere** → this is an untracked outreach. Resolve them with `people_resolve.py resolve --email <addr>` (Email exact → Contacts alias index; `people-db-guardrails.md`), then add to `☎️ Intros (Outreach)` in Step 3.
 5. Flag any recipients not found in the People DB for review rather than auto-creating entries.
 
 **Cost: 1 Gmail search call + N body reads (N = number of subject-matching emails, typically 0–3 per day). Zero cost on days with no matching sent mail.**
@@ -314,7 +312,7 @@ For each forwarded email where a portfolio company is confirmed AND intro intent
 1. Extract the `To:` recipients (Tom's outreach targets).
 2. Check whether each recipient already appears in ANY intro lifecycle field on that Opportunity.
    - Already tracked → skip.
-   - Not present → untracked outreach. Look them up in the People DB by email, add to `☎️ Intros (Outreach)` in Step 3.
+   - Not present → untracked outreach. Resolve them with `people_resolve.py resolve --email <addr>`, add to `☎️ Intros (Outreach)` in Step 3.
 3. Flag recipients not found in the People DB for review rather than auto-creating.
 
 **Cost: 1 Gmail search call + N body reads (N = total forwarded sent emails in 3d window, typically 0–10). Skip body reads for any forward where the subject clearly has no relation to business (e.g., "Fwd: family dinner").**
@@ -342,7 +340,7 @@ The Qualified roster can have 20+ people (Tuor alone has 21). Searching individu
 
 **iMessage (scheduled mode):**
 
-Skip iMessage scanning entirely in scheduled mode. Email-based detection is more reliable, and iMessage scanning adds N additional API calls per person that quickly exhaust the turn budget. Only use iMessage as a fallback for manual-mode scans where the user explicitly references a text message.
+Never scan iMessage here — the text lane owns Tom's sent texts (Pattern 2: `deal-text-scanner` intro-lane §5a, in code). When Tom says "I texted X", that's Pattern 3 (manual), no iMessage read needed.
 
 **After detecting outreach — check for resolution signals too:**
 
@@ -465,8 +463,25 @@ The Qualified roster can be very large (Tuor alone has 21 people in Qualified). 
 
 2. **Filter then drill (REQUIRED)**: Only run individual follow-up queries (reply checks, double-opt-in checks) for people where the batch query found a match. On most days, the batch query returns 0-3 matches out of 20+ people — the individual follow-ups are cheap because the set is small.
 
-3. **Skip iMessage in scheduled mode (REQUIRED)**: iMessage scanning adds N additional API calls per person. Skip it entirely in scheduled mode. Email detection is more reliable.
+3. **No iMessage scanning (REQUIRED)**: the text lane owns Tom's sent texts (Pattern 2). Email detection only.
 
 4. **Cache Opportunity fetches**: Fetch all relevant Opportunities once and reuse the data rather than re-fetching per person.
 
 5. **Use both sources**: Always fetch from the Agent View AND Active Portfolio, then deduplicate.
+
+## Retry queue drain (scheduled sweep, runs before the scan)
+
+The gmail-webhook parks sent outreach it couldn't resolve to a People row as JSON records in the Drive folder
+`intro-outreach-retry-queue`. The scheduled sweep (and a session asked to "drain the intro retry queue") drains it
+with the SAME method as the per-record webhook job — no second matching ladder:
+
+1. `python3 ~/.claude/skills/intro-outreach-agent/scripts/retry_queue.py list` → one JSON line per record
+   (`file_id`, `record_file`, plus the Mode 3 args). Exit 2 = no queue folder (nothing to drain); exit 1 = Drive
+   error (log it, continue to the scan). A line with `error` = malformed record: leave it, report it.
+2. For each record run `references/resolve-unresolved.md` Steps 1–3 with the record as args (Contacts alternates →
+   identity resolution → Opp roster → destination incl. the `founder_present` → `✉️ Made` rule → Step 2.9 gates →
+   Step 3 write). Skip its Step 5 alert in the sweep — the sweep's manifest records each move with
+   `detail: "drained intro-outreach-retry-queue"`.
+3. Every recipient resolved (moved or already in state) → `retry_queue.py archive <file_id>` (moves the record into
+   `intro-outreach-retry-queue/Archive/` — records are archived, never deleted). Any recipient still unresolved →
+   leave the record; a later sweep retries.

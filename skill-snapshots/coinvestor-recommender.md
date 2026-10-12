@@ -1,7 +1,7 @@
 ---
 name: coinvestor-recommender
 description: |-
-  Produce ranked investor candidates to fill out a round Tom is leading — friendly follower checks + likely next-round leads who might write a smaller check now (plus angels when the deal warrants); evidence sources, ranking, and persistence live in the skill body. Trigger: "recommend coinvestors for [company]", "who should I bring into [company]", "who could co-invest in [deal]", "who should come into the cap table", "build out the syndicate for [company]", "find coinvestors for [deal]", "who could fill out the round", "help [founder] fill the rest of the round", "suggest investors to bring in", or Tom describes a round structure (check size, round size, stage) and asks who in his network fits. ALSO Mode B — Next-Round Leads: who should LEAD a portfolio company's NEXT round (seed / Series A); trigger on "who should lead [company]'s next round", "next-round investors for [company]", "who leads [company]'s seed / Series A", "who do we take [company] to for their raise", "recommend next-round leads for [company]".
+  Produce investor candidates to fill out a round Tom is leading — friendly follower checks + likely next-round leads who might write a smaller check now (plus angels when the deal warrants) — as an Investor Scan: the network-scan judge over every person card (blind fit) and the shared scan layout, identical on the text lane and in a session; evidence sources and persistence live in the skill body. Trigger: "recommend coinvestors for [company]", "who should I bring into [company]", "who could co-invest in [deal]", "who should come into the cap table", "build out the syndicate for [company]", "find coinvestors for [deal]", "who could fill out the round", "help [founder] fill the rest of the round", "suggest investors to bring in", or Tom describes a round structure (check size, round size, stage) and asks who in his network fits. ALSO Mode B — Next-Round Leads: who should LEAD a portfolio company's NEXT round (seed / Series A); trigger on "who should lead [company]'s next round", "next-round investors for [company]", "who leads [company]'s seed / Series A", "who do we take [company] to for their raise", "recommend next-round leads for [company]".
 
 ---
 
@@ -19,49 +19,49 @@ This skill runs in **two modes.** Detect which from Tom's ask; **default to Mode
   "next-round investors for X", "who leads X's seed / Series A", "who do we take X to for their raise".
   See **## Mode B — Next-Round Leads** near the bottom for its deltas.
 
-**Almost everything is shared.** The fit model, Step 0 loop, the comprehensive sweep (Step 5), the
-People DB freshness sweep (Step 5.5), identity/relationship gating (Step 6), cache-reachability, and
-the persist-on-finalize loop (Step 8) are **identical across modes.** Steps 0–9 below are written for
-Mode A; **Mode B changes only the deliverable, the Step 1 framing, the primary sources, the category
-buckets, and the corpus files — all specified in ## Mode B.** Read that section first when in Mode B,
+**Almost everything is shared.** The output (an Investor Scan – below), the judge (Step 4.5), the fit model, Step 0
+loop, the comprehensive sweep (Step 5), the People DB freshness sweep (Step 5.5), identity / current-firm checks
+(Step 6), cache-reachability, and the persist-on-finalize loop (Step 8) are **identical across modes.** Steps 0–9
+below are written for Mode A; **Mode B changes only the judge's ask (who LEADS the next round), the Step 1 framing,
+the primary sources, the category buckets, and the corpus files — all specified in ## Mode B.** Read that section first when in Mode B,
 then run the shared steps with its overrides in mind.
 
 ---
 
-## Mode A — Coinvestors (default): the deliverable
+## The deliverable (both modes): an Investor Scan
 
-Find investors to fill out a round Tom is leading. **The output is a list across two categories. These
-headers are canonical — use them verbatim, in the research output and in the founder-facing email:**
+An investor scan is a network scan (Tom 2026-10-11: "every kind of network scan regardless of what we're scanning for
+should be in same structure / format" · "text and Claude sessions should refer to the same brain"; he chose
+"Network-scan layout for all"). ONE method and ONE output for Mode A and Mode B, in a session and on the portco-ask
+text lane (`investor` ask → `portco_ask.py judge --kind investor` / `results`):
 
-1. **Follower Checks**
-2. **Next-Round Investors – who may opportunistically invest at Pre-Seed**
+1. **Judge** – `scan.py judge --kind investor` reads EVERY person card blind against the round profile (Step 4.5).
+2. **Recall backstop** – the curated sources (Steps 0–5.5) and the cache sweep add anyone the judge missed, only on a
+   real fit read from their card.
+3. **Verify** every ≥8 keeper's CURRENT firm (Step 6).
+4. **Render** – `scan.py render --kind investor` → "✅ <Co>: Investor Scan Completed", numbered
+   `N. Name (Role @ Firm). Why. link ↗` rows, one row per VC firm ("+N more at <Fund>"), 🔁 Intro'd Before /
+   🆕 Never Intro'd only when someone has intro history, every ≥8 fit sent (past 40 → "more"), 6–7s held, 🔎 footer,
+   💬 CTA. Paste it verbatim (`network-scan/SKILL.md` Step 4).
 
-(Plus **Angels** as a third section when the deal warrants it — see Step 7.)
+No category headers, tiers, or flat/alphabetical by-firm lists in the scan output. The categories (Mode A: **Follower
+Checks** / **Next-Round Investors – who may opportunistically invest at Pre-Seed** / **Angels**) are Tom's calls AFTER
+the scan – he assigns them when he locks the list (Step 8), and they head the founder email (Step 9).
 
-Everything below exists to produce that list. Tom then reassigns names between categories, and those
-calls get persisted.
+## The core principle — fit is judged blind; behavior is evidence, never a score
 
-## The core principle — rank on behavior, not on similarity
+Fit is scored without relationship or intro history (Tom 2026-10-11: past intros validate the relationship, but
+doubling down on them "makes it hard for us to discover new intros to make"). The judge never sees who Tom intro'd;
+`intro_history` is attached after scoring and only sections, folds and tie-breaks the rows. So every source below lands
+in exactly one of two places:
 
-The instinct is to semantic-search the network for thesis fit. **That is the wrong primary signal.**
-A friendly follower writes the check because they trust Tom and the round is easy — not because the
-deal matches their thesis. The sources below are ordered by *evidence quality*, and the top of that
-list is always behavioral: who has actually written a check, taken an intro, or shared a cap table.
-
-The network cache is for **discovery and breadth**. It is not for ranking.
-
-**Signal hierarchy, strongest to weakest:**
-
-| Rank | Signal | Where it lives |
+| Evidence | Examples | Where it goes |
 |---|---|---|
-| 0 | **Tom's locked roster + what came back on a prior round** — Qualified / Made / Declined-NR relations, read with the ledger's category & cut context | Notion Opp relations + `references/finalization-log.md` (Step 0) |
-| 1 | **Outcome on a comparable round** — committed / passed / ghosted | Drive investor CRMs (Step 2) |
-| 2 | **Intros Tom actually made** — revealed preference | Notion `Intros (Made)` (Step 3) |
-| 3 | **Co-investment** — shares a cap table or portfolio sync | Opportunity `Coinvestors`, portfolio syncs (Step 4) |
-| 4 | **Tom's own hand-graded relationship strength** | Asset CRM `RELATIONSHIP STRENGTH (Tom Seo)` column |
-| 5 | **Curated warm lists** — "friends of the firm" letter Bcc | Gmail sent mail (Step 4) |
-| 6 | **Recurring 1:1 cadence / reciprocal dealflow** | Gmail + Calendar (Step 6) |
-| 7 | **Thesis fit** | Network cache (Step 5) |
+| **Fit** – would this investor write THIS check? | stage they write at, sector / sub-problem thesis, geo, check size, leads vs follows, led or joined a comparable round, vertical-fund mandates | the judge's `--ask` / `--context` (the round profile), the cards, and the verified `why` ("Led Oun's pre-seed; $250-500k checks") |
+| **Relationship / outcome** – how Tom knows them, what happened before | Qualified / Made / Declined-NR relations, Drive-CRM outcomes, `RELATIONSHIP STRENGTH`, friends-of-the-firm Bcc, Gmail cadence, co-investment graph | **never a score**: intro history is attached by code; a prior-round outcome is stated as a fact at the end of the `why` ("Passed on Fair's pre-seed, Aug 2026: pre-seed non-core") or is the reason in `dropped` |
+
+The curated sources are still the best RECALL – they find names the cache can't (Steps 0–5.5) – and Tom reads the
+relationship evidence when he locks the list (Step 8).
 
 ---
 
@@ -79,8 +79,8 @@ its own.
   of sector or thesis. On AgentBay this axis returned the tightest cache matches and prior history
   surfaced none of them.
 
-Relationship is **orthogonal** to all three: it *promotes* a name within Follower-Check ranking, but
-its absence never *demotes*, and cache membership already means reachable (Step 5). The comprehensive
+Relationship is **orthogonal** to all three and never moves a score (above); cache membership already means
+reachable (Step 5). The comprehensive
 sweep (Step 5) runs a query per axis precisely so no single-axis fit is missed.
 
 ---
@@ -98,8 +98,8 @@ maintains these relations automatically as outreach lands, so they're always cur
 - `✉️ Intros (Made)` = who got **connected to the founder** (a yes / engaged).
 - `🚫 Intros (Declined / NR)` = who **passed or didn't respond**.
 
-Query these on the current company's Opp and on the closest comparable companies' Opps. This is
-signal-hierarchy rank 0 — it beats every inference from sector or warmth.
+Query these on the current company's Opp and on the closest comparable companies' Opps – as RECALL (every name must be
+judged) and as history for Tom; never as a score.
 
 **2. `references/finalization-log.md` is the interpretation layer** — the things a flat relation can't
 hold: which **category** each name went in, **why** Tom cut someone, hard **mandate lines** ("Rapha —
@@ -109,10 +109,10 @@ whose deal shape best matches the current one (stage + sector + sub-problems, no
 
 **Pair them to seed this run:**
 - **Same company, new round** → the `Qualified` roster is your working draft; only search the delta.
-- **Comparable shape** → lead with those names, each carrying its live Notion outcome inline. A name in
-  `Made` on a comparable shape is the best reason to lead with someone; a name in `Declined / NR` is
-  surfaced with that fact, never re-pitched as fresh; a name the ledger records as cut or
-  mandate-excluded starts below the line with the reason shown.
+- **Comparable shape** → those names are recall: make sure each is judged (on the list or in `dropped` with the
+  reason). Their live Notion outcome is history, attached after scoring – a `Declined / NR` name is stated as such in
+  its `why`, never re-pitched as fresh; a name the ledger records as cut or mandate-excluded goes in `dropped` with the
+  reason (a mandate line is fit – put standing mandates in the `--context` too).
 
 **Not every logged round is equal-signal — weight by posture, which the ledger records:**
 - **Tom-led rounds with a genuine gap** (Fair, Oun, Rengo, AgentBay) are the highest-signal training
@@ -188,7 +188,7 @@ outcome inline.
 
 ---
 
-## Step 3 — Intros Tom actually made (best behavioral signal)
+## Step 3 — Intros Tom actually made (history – attached after scoring, never a score)
 
 The People DB has an `Intros (Made)` relation, mirrored on Opportunities as `✉️ Intros (Made)` with
 `🚫 Intros (Declined / NR)` as the negative. Count = how often Tom has spent social capital putting
@@ -202,9 +202,9 @@ WHERE Category = 'Investor' AND "Intros (Made)" IS NOT NULL
 
 The `Intro'd Count` rollup is **not** SQL-queryable — count the returned relation array.
 
-**Relationship strength and intro count diverge, and both matter.** Some names grade Very Strong with
-one intro; others have 10. Strength measures how well Tom knows someone; intro count measures whether
-he'll spend capital on them. For filling a round, the second is closer to what's being asked.
+The scan attaches this automatically (`intro_history.py`, synced from these relations): 🔁 Intro'd Before vs
+🆕 Never Intro'd, and a tie-break inside a score. Use the query here only as RECALL – an investor Tom has intro'd who
+isn't on the list must be judged (the judge already reads intro'd people with no card from their People row).
 
 Also pull `🚫 Intros (Declined / NR)` when you need the negative — who has turned down Tom's intros.
 
@@ -229,24 +229,35 @@ possible "will do a deal together" evidence.
 
 ---
 
-## Step 5 — Network cache (discovery and breadth)
+## Step 4.5 — Judge every person card against the round (the primary pass)
 
-Now, and only now, search for names the curated sources missed.
+```bash
+S=~/.claude/skills/network-scan/scripts/scan.py
+python3 $S judge --kind investor --ask "<the round profile, e.g. 'pre-seed follower checks of $50-500k, or seed funds
+    that might come in early, for a $2M pre-seed in consumer property-tax appeals'  |  Mode B: 'seed leads for a $4M
+    seed in vendor-risk software for banks'>" --context "<what the company does now + stage, sector sub-problems, geo,
+    the named binary risk, standing mandate lines>" --exclude-firm "<the company itself>"
+```
 
-**This step is BROAD RECALL, and its output goes to Tom for escalation — do NOT pre-curate it.**
-Surface the **full deduped investor surface** (every investor-category hit out to the noise threshold
-~1.12), presented flat. The division of labor is fixed: **the sweep casts the wide net; Tom gives
-feedback and escalates which names to actually reach out to.** Narrowing to the handful you judge
-best-fit steals his call and buries candidates he wanted — this is the single most common failure of
-this skill (it recurred on AgentBay and Factir). Cut a name only if it's the wrong **type** — not a
-check-writer / can't lead at the target stage (operators, CEOs, bankers, growth-PE) — **never on your
-own judgment of fit.** State how many you cut and why. Err massively long; Tom curates by subtraction.
+Never `--exclude-firm-types VC` here. The investor hint (`portco_ask.KIND_HINTS["investor"]`) tells the judge what a
+10 is (writes at this stage / sector / geo / check size, led comparable rounds); the judge runs at its configured tiers.
+Every ≥8 keeper must be in `people` or `dropped` (`network-scan/SKILL.md` Step 4).
+
+## Step 5 — Network cache sweep (recall backstop)
+
+Search for names the judge and the curated sources missed.
+
+**This step is BROAD RECALL.** The judge already sends every ≥8 fit and holds the 6–7s for "more", so the list is long
+by construction – Tom curates by subtraction (narrowing to a handful was *the* failure on AgentBay and Factir). Anyone
+the sweep surfaces that the judge did NOT keep: read their card (`person_cards.py card <url>`) and add them only on a
+real fit. Cut a name only for the wrong **type** — not a check-writer / can't lead at the target stage (operators,
+CEOs, bankers, growth-PE) — **never on your own taste**; a cut ≥8 goes in `dropped` with the reason.
 
 **Every name in the cache is reachable — it is Tom's own network, and he has a path in to anyone in
 it.** "Cold" (no Gmail / relationship trace) means *no warm relationship yet* — never *unreachable*,
 never *risky*, never *verify-before-use*. It does not demote a name, drop it below the line, or earn a
-hedging caveat. A warm relationship **promotes** within Follower-Check ranking; its absence never
-**demotes**. Present cold cache candidates as first-class names, not as a lesser tier. (The one real
+hedging caveat. Relationship never moves a score either way; cold cache candidates are first-class names, not a
+lesser tier. (The one real
 caveat is firm *freshness* — the cache can be months stale, so confirm current firm before a name goes
 in front of a founder. That's an accuracy check, not a coldness demerit.)
 
@@ -301,7 +312,7 @@ tells you who already converted, the sweep tells you who you're missing. At mini
   pedigree (corpus shows these convert on fintech-infra deals)
 - **generalist-at-stage** (Step 5.5's principle — generalists who write at this stage, no sector fit)
 
-**As code (2026-10-04) — the pool assembly is `coinvestor_pool.py`; the queries and the ranking stay yours.**
+**As code (2026-10-04) — the pool assembly is `coinvestor_pool.py`; the queries stay yours, the scoring is the judge's.**
 Write the 10–14 queries to a file (one per line; `c: <query>` = csearch `--no-vc` lineage/operator lane), then
 `python3 coinvestor_pool.py --queries q.txt --opp-id <Opp id> --company "<Co>"` → `~/.claude/data/coinvestor_pool/<co>/pool.json`
 + `pool.json.queries.log` (the exact commands — paste the query list into the output from it). It runs every query
@@ -310,12 +321,12 @@ tagged), cuts ONLY wrong-type People-DB `Category` Services/Startup (csearch ope
 exempt; every cut listed with its reason), diffs People DB `Category='Investor'` (live read-only query) vs the KB
 with the "recently added — not yet behavior-tested" flag (Step 5.5), overlays Tom's Category Calibration +
 founder-scoped exclusions + firm-dedup notes (Step 7), and groups by firm with every contact nested (Step 8).
-It never ranks or fit-cuts — firms are ordered by distance only. Exit 0 = pool written (a `⚠ 0 hits` line names
+It never ranks or fit-cuts — firms are ordered by distance only; its pool is recall for the judge's list, never an output. Exit 0 = pool written (a `⚠ 0 hits` line names
 dead queries — rephrase or say why); **1 = refused: fewer than 10 queries without `--narrow-reason "<why>"`
 (an under-sweep must be visible), or a query failed — fix and re-run, never proceed on a partial pool**; 2 = bad
 input. Harness: `tests/test_coinvestor_pool.py` (real AgentBay sweep captured 2026-10-04 + the real KB).
 
-That's **~10–14 queries, not 3–4.** Merge results deduped by best distance per name before ranking.
+That's **~10–14 queries, not 3–4.** Merge results deduped by best distance per name before reading cards.
 **List the exact queries you ran in the output** so coverage is auditable — an under-sweep must be
 visible, never silent. If you genuinely narrow the sweep, say why.
 
@@ -348,9 +359,8 @@ Two passes over the result:
    candidate. Screen on **any fit axis — sector, stage, or geo (see the fit model above) — not sector
    alone.** The gate is: *does this investor match the deal on stage, geo, or sector — and are they a
    check-writer?* Matching **one axis is enough**: a generalist who writes at this stage, or a UK/EU
-   fund on a London deal, both qualify even with zero sector fit. (This mirrors Step 7: Follower Checks
-   rank on relationship × check capability, and letting a sector screen thin the list toward
-   specialists is *the* failure mode of this skill.) Sector fit is a **bonus that earns the Next-Round
+   fund on a London deal, both qualify even with zero sector fit. (Letting a sector screen thin the list
+   toward specialists is *the* failure mode of this skill.) Sector fit is a **bonus that earns the Next-Round
    slot** — it sorts between categories, never gates inclusion. Newly-saved contacts land here first —
    this is how a contact Tom added last week shows up in this week's recommendation.
 2. **Recency highlight.** Reading top-of-list (newest `Created`), explicitly flag investors added
@@ -365,7 +375,7 @@ full KB entry and becomes annotated for next time: **People DB in → KB annotat
 
 ---
 
-## Step 6 — Resolve identity, then gate on relationship
+## Step 6 — Resolve identity + current firm, then read the relationship
 
 **People DB is the system of record** for Name / Company / Role / Email / LI / City / Category
 (`collection://1715ce8f-7e54-43e2-bbcd-17a5e50cb8c9`).
@@ -385,14 +395,15 @@ full KB entry and becomes annotated for next time: **People DB in → KB annotat
   Mark it "no warm relationship yet," never demote, deprioritize, or caveat it as risky on that basis
   (see the Step 5 rule). Reachability is assumed for anyone in the cache.
 
-**Then gate on relationship — Gmail promotes, it never demotes.**
+**Then read the relationship — Gmail is evidence for Tom, never a score.**
 
 ```
 Gmail search_threads: {email1 OR email2 OR ...} newer_than:500d
 ```
 
 Use exact addresses; loose name queries return the wrong Lucas and the wrong Patrick. Read for tone:
-recurring invites, two-way dealflow, and banter are strong signals.
+recurring invites, two-way dealflow, and banter are strong signals – a fact for Tom when he locks the list (Step 8),
+never a reason to add, drop or reorder a scored row.
 
 ⚠️ **Silence is not coldness.** Plenty of Tom's real relationships run over text, Signal, in person,
 or conference circuits and leave no Gmail trace. On 2026-08-25 Lindsay Fitzgerald and Jordan Wan both
@@ -401,7 +412,7 @@ on email silence alone — surface it with the gap noted and let Tom calibrate.
 
 ---
 
-## Step 7 — Overlay the KB, dedupe, and categorize
+## Step 7 — Overlay the KB (fit facts → ask / why; constraints → dropped)
 
 Read `references/coinvestor-kb.md` last. It supplies what nothing else does: **check size range,
 stage focus, co-lead appetite, Tom's category calibration, and his explicit notes.**
@@ -410,11 +421,12 @@ The KB **annotates a subset** of the People-DB investor universe (Step 5.5), not
 A name's absence from the KB means *un-annotated* — never *disqualified*. Pull its check size and
 stage from fund profile and mark it an estimate.
 
-Honor its hard constraints:
-- **Tom's Category Calibration block overrides everything** — his assignments beat any inference.
-- **Firm dedup** — one contact per firm unless asked otherwise. The KB lists the known multi-contact
-  firms (QED has three, Fika four, Torch three…). The cache will happily return all of them.
-- **Explicit exclusions** and anyone Tom has passed on.
+Check size, stage focus and co-lead appetite are FIT – they belong in the verified `why` (and, for standing
+patterns, in the judge `--context`). Honor its hard constraints:
+- **Tom's Category Calibration block** — his assignments drive the categories when he locks the list (Step 8).
+- **Firm dedup** — the scan already shows one row per VC firm, colleagues folded as "+N more at <Firm>" (the KB's
+  multi-contact firms: QED three, Fika four, Torch three…).
+- **Explicit exclusions** and anyone Tom has passed on → `dropped` with the reason.
 - **Vertical-fund mandates are hard constraints**, unlike thesis preferences. Keith Bender is a
   generalist despite "Vocation Capital"; Owen Willis at Opal genuinely cannot do a non-healthcare
   deal. Different things — don't collapse them.
@@ -422,12 +434,12 @@ Honor its hard constraints:
 For names not in the KB, estimate check size from fund stage and role and **say it's an estimate**.
 Don't invent co-lead appetite — "Unknown" is honest.
 
-**The two categories, in Tom's own words. This is the deliverable.**
+**The two categories, in Tom's own words – assigned when Tom locks the list (Step 8), never in the scan output.**
 
 - **Follower Checks** — "friendly follower checks who can write low to mid-6 figure checks at
-  pre-seed." Rank on **relationship × check capability. Sector fit is close to irrelevant here.** A
-  warm generalist beats a cold thesis-match. Letting a sector-driven cache scan pull this list toward
-  thesis-matching funds is *the* failure mode of this skill.
+  pre-seed." **Check capability at the stage is the fit; sector fit is close to irrelevant here** – put "a generalist
+  who writes pre-seed checks counts" in the Mode-A ask so the judge doesn't pull the list toward thesis-matching funds
+  (*the* failure mode of this skill). Relationship is Tom's call at Step 8.
 - **Next-Round Investors – who may opportunistically invest at Pre-Seed** — "likely lead candidates
   for the next round (seed), but might opportunistically be able to come in at pre-seed." Thesis fit
   earns the slot here.
@@ -452,30 +464,25 @@ add an angel section by default.
 
 ---
 
-## Step 8 — Propose, get Tom's calls, persist them
+## Step 8 — Render, get Tom's calls, persist them
 
-**The deliverable is a list of investors across the two categories. Everything in Steps 1–7 exists
-to produce that list — it is not the output.**
+**The deliverable is the rendered Investor Scan (Step 4.5 → `scan.py render --kind investor`), pasted verbatim.**
+Everything in Steps 0–7 feeds it: fit facts into the ask and the `why`s, recall into `people`, constraints and stale
+names into `dropped`.
 
-**Present a generous list Tom can trim from.** He curates by subtraction: he'll cut names, add ones
-the search missed, and move people between categories. That means **err long, not short** — surface
-every plausible candidate with its evidence and let him cut. A name you withheld because you judged
-it a weak fit is a name he never got to consider; a name he doesn't want costs him one keystroke.
-This overrides any instinct to pre-filter down to the gap size.
+```bash
+python3 $S render --scan <id> --target "<short plural target, e.g. coinvestors for Fair's pre-seed | seed leads>" \
+    --for "<company>" [--founder "<founder>"] <<'J'
+{"people": [{"name": "...", "role": "...", "company": "...", "linkedin": "https://www.linkedin.com/in/...",
+             "why": "<fit fact: stage / check size / comparable round>. <optional history fact: Passed on Fair, Aug 2026>"}],
+ "dropped": [{"linkedin": "...", "why": "..."}]}
+J
+```
 
-Lead with the ranked names under their category headers. Keep supporting detail to one compact line
-per name: `Name / Role @ Firm` · `[LinkedIn](url)` · email · check-size expectation · **the specific
-relationship evidence** ("recurring biweekly Oun Homes call" beats "Working") · any prior-round
-outcome. Don't write a research report — Tom wants the list and the reasoning available, in that order.
-
-**Group the output by FIRM, and nest the people.** One bullet per **firm**; within it, list every
-person Tom knows there (`Lightspeed — Faraz Fatemi · Bucky Moore · Katherine Zhang · Mercedes Bent`),
-so Tom picks the contact. This complements firm-dedup: show Tom **all** known contacts per firm here;
-the founder-facing final artifact still lands one contact per firm (Step 9). Applies to the **broad
-cache surface (Step 5)** too — group those hits by firm as well. (Tom, 2026-08-31)
-
-Mark anything you're unsure about rather than dropping it: firm conflicts, prior-round passes, thin
-relationships, mandate constraints. Flagged-and-included beats silently-excluded.
+The list is long by construction (every ≥8 sent, 6–7s on "more") – Tom curates by subtraction; never pre-filter to
+the gap size. Keep each `why` to one line: the fit fact first, then any prior-round outcome as a fact. Mark doubt in the
+`why` (firm conflict, mandate, a straddle between categories) rather than dropping it. After the pasted text, a short
+note is fine: the stated gap (Step 1), the exact sweep queries (Step 5), and the composition advice below.
 
 Then be opinionated about composition, not just the list:
 - Seed funds taking small pre-seed positions buy cheap options and create negative signal if they
@@ -486,7 +493,7 @@ Then be opinionated about composition, not just the list:
   padding the list.
 - Direct competitors the search surfaces are a competitive-intel side note, never a recommendation.
 
-**Then Tom reassigns categories, and you persist his calls — this is the write side of the feedback
+**Then Tom assigns categories, and you persist his calls — this is the write side of the feedback
 loop, and it is not optional.** He will move names between buckets, add people the search missed, and
 keep names the data argued against. The moment he locks a list, do all of the following in the same step:
 
@@ -519,21 +526,18 @@ Display the draft and save via `Gmail create_draft` in the same step — don't a
 
 ## Mode B — Next-Round Leads (deltas from Mode A)
 
-Everything in Steps 0–9 applies **except** the overrides below. Same loop, same three-axis fit model,
-same comprehensive sweep, same cache-reachability, same persist-on-finalize discipline — **different
-deliverable and different corpus.**
+Everything in Steps 0–9 applies **except** the overrides below. Same loop, same judge and Investor Scan output, same
+three-axis fit model, same comprehensive sweep, same cache-reachability, same persist-on-finalize discipline —
+**different ask and different corpus.**
 
-**The deliverable.** A ranked list of investors who could **LEAD the company's next round** (seed or
+**The deliverable.** An Investor Scan of who could **LEAD the company's next round** (seed or
 Series A), to put in front of the founder. Not "who fills Tom's round" — "who leads the *next* one."
-The organizing axis is **who leads at the target stage**, tiered by priority.
+The organizing axis is **who leads at the target stage** – the judge's ask.
 
-**Output shape — a single FLAT, UNRANKED bullet list. No tiers, no hierarchy, no implied ordering
-(Tom, 2026-08-31).** The candidates are **peers** — a set of qualified options for Tom to judge, not a
-ranking. Any ordering reads as a priority call, and that call is Tom's, not the skill's. Present **grouped by firm (alphabetical), with the people Tom knows nested inside each firm's bullet**
-(per Step 8) — `Firm — Person A · Person B` — the stage they lead (Seed vs Series A) · one-line fit
-rationale · provenance · any prior-round flag (already passed / already engaged) inline. The Dash TIER
-and relationship grades feed the *rationale text*, never a rank or a section header. Give Tom the full
-option set; he decides priority.
+**Output shape — the same Investor Scan as Mode A** (`scan.py render --kind investor`, verbatim; Tom 2026-10-11
+"Network-scan layout for all" – this replaced the flat, alphabetical by-firm list). Rows are in blind fit order, one row
+per VC firm; the Dash TIER and relationship grades are history – never a rank, a section header, or a score; the stage
+they lead (Seed vs Series A) and the fit rationale go in the `why`.
 
 **Fit model, Mode-B reading of the stage axis.** Same three axes (sector / stage / geo), but here
 **stage = "leads at the target next-round stage"** — a Seed-lead fund for a company raising seed, a
@@ -551,10 +555,10 @@ the KB even when their row reads "Series A."
 
 **Step 1 changes — size the *need*, not the gap.** Instead of remaining capacity in Tom's round,
 establish what the company needs in a next-round *lead*: target stage (seed vs A), round/check size,
-board-seat expectation, and the sector/geo the lead must be comfortable with. That framing sets the
-tier and the stage tags.
+board-seat expectation, and the sector/geo the lead must be comfortable with. That framing is the
+judge's `--ask` / `--context`.
 
-**Sources — the priority order shifts (behavior still ranks first):**
+**Sources (recall + facts for the `why`; none of them scores):**
 - **Next-round KB** (`references/next-round-kb.md`) — the master tiered lead list, the Mode-B analog of
   the coinvestor KB: who leads at what stage, Tom's relationship-strength grade, tier, and LP /
   relationship notes. ⚠️ **Seeded from 2023–24 Dash Seed/Series-A CRMs — every FUND and TITLE is
@@ -566,7 +570,7 @@ tier and the stage tags.
   every Dash "X is a Dash LP" note purely as relationship *history* (Tom knows them), never as an
   Inverted warm-lead flag. For an Inverted company the warm signal comes from **Tom's own
   relationship-strength grades, intros actually made (Step 3), and the co-investment graph (Step 4)** —
-  exactly the behavioral hierarchy Mode A already ranks on.
+  history for Tom, attached after scoring as in Mode A.
 - **Next-round ledger** (`references/next-round-log.md`) — per-company finalized lead lists +
   reconciled outcomes (took the intro / led / passed), read at Step 0, appended on finalize.
   **Inverted starts empty and builds through the loop.** The 10 Dash CRMs are the seed/method
@@ -579,10 +583,8 @@ tier and the stage tags.
 (Qualified)` relation; interpretation block → `references/next-round-log.md` (**not** the coinvestor
 ledger); standing tier/stage calibration → `references/next-round-kb.md`.
 
-**Output / email (Step 9), Mode B.** Same bare-artifact discipline, but a **single flat, UNRANKED
-bullet list** — no tier headers, no implied priority ordering (Tom's preference); neutral order
-(alphabetical by firm); name→LinkedIn, firm→site. **Verify every current firm first** — the seed data
-is stale.
+**Email (Step 9), Mode B.** Same bare-artifact discipline: the names Tom locked, no tier headers;
+name→LinkedIn, firm→site. **Verify every current firm first** — the seed data is stale.
 
 ---
 

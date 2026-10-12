@@ -54,17 +54,24 @@ When Vector publishes the notices, Mode A picks them up from Tom's personal inbo
 ## Mode A – notice lands → 👍 card → LP portal update (Tom, 2026-10-03)
 
 Tom is an LP in Inverted Capital I, so Vector's notice ("Inverted Capital I, LP Capital Call due …", from
-`no-reply@valence.vectorais.com`) reaches `thomas.seo@outlook.com`.
+`no-reply@valence.vectorais.com`, and since Oct 2026 `notifications@vectorais.com` – any exact `vectorais.com` domain passes) reaches `thomas.seo@outlook.com`.
 
 1. **Detect:** `scripts/capcall_detect.py` rides outlook-mail-watch's `watch.sh` on every tick (no model, no new
    launchd job). It skips "additional commitment" catch-up notices, reads the % and due date from the notice
    body, and takes the next open row of `capital_call_schedule`. If the notice states a call number ("Capital Call #4",
    "fourth capital call") that isn't that row, it texts a ⚠ mismatch and stages nothing; an unnumbered notice (Vector's
-   2026 template) stages with "Call # inferred from the portal schedule" on the card. One card per notice and per call #
+   2026 template) stages with "#N is inferred: Vector's notice gives the % but not the call number" on the card. One card per notice and per call #
    (`runs/capcall-seen.json` + staged-file check). If it can't read the notice, it texts Tom and stages nothing.
 2. **Ask:** it texts Tom `💸 Capital Call #N Issued` with the change: the call's month goes from the planned
    estimate to the month the notice went out, the status to Completed, and capital called from before → after
    (if the % differs from plan, it also lists how the future estimates rebalance to keep the schedule at 100%, so the portal's call bar redraws in proportion to what was actually called). The card ends `👍 to update the LP portal`.
+2b. **Wire reminder (Tom, 2026-10-09):** whenever the notice's % and due date parse for a fund in `funds.json`, the
+   detector also adds a native reminder `[IC] <reminder_name> Cap Call (<x>%)` (e.g. `[IC] Fund 1 Cap Call (15%)`),
+   Work list, all-day on the due date, link in the notes = the notice's Valence link (SendGrid wrapper resolved; only a
+   `vectorais.com` destination, else `https://valence.vectorais.com/`), via add-reminder's `reminder_add.py`.
+   `reminder_name` is `Fund <n>` – Fund 1, and Fund 2 if Tom raises another ([IC] already says Inverted Capital). It doesn't wait for the 👍 (Tom owes the
+   wire either way) and fires on the mismatch / engine-refused paths too. No separate ⏰ text: the card carries one
+   line (added / already there / ⚠ failed). Dash, unknown funds and unreadable notices add none.
 3. **Apply only on 👍:** sms-listener `references/capital-call-confirm.md` runs `refresh_inputs.py call-complete`
    (dry-run, then apply), then `run.sh` to publish, then replies ✅. This is the one sanctioned write to the
    LP portal from this skill ([[lp-portal-read-only]]: Tom-gated, per change).

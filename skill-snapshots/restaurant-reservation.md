@@ -226,8 +226,9 @@ Then:
    Link: https://resy.com/cities/new-york-ny/venues/lilia?date=2026-09-12&seats=2
    ```
 
-   No bold (iMessage renders Unicode bold in a fallback font — Tom rejected it; see
-   [[project_sms_command_path]]). Plain text, emoji header, blank line, then fields.
+   Plain header (emoji-led Title Case, no bold, no underline), blank line, then fields. Unicode bold
+   is allowed in the BODY (Tom 2026-10-11, lifting the 2026-08-31 ban) – the text-format rule lives in
+   `sms-listener/SKILL.md` § Formatting; follow it there.
    Same shape for SevenRooms and for **`verified:true`** OpenTable slots — just the link goes
    to their page. An OT slot with `verified:false` goes in as `Open: 7:00 PM (OpenTable,
    unverified – tap to confirm)`; `name_mismatch`/`synthetic` slots never appear (see "As

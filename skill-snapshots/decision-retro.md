@@ -28,6 +28,8 @@ The four trigger statuses act as a priority cascade: the queue dedups by Opp ID,
 
 Manual trigger works the same way, independent of Status.
 
+**Model tier:** `sonnet` for the scan (Step 1) and listener (Step 2: extraction against a fixed schema); callers pass it explicitly (the wrappers' `--model sonnet`).
+
 ## Architecture (as of 2026-04-23)
 
 **State is headless** — lives in `~/.claude/skills/decision-retro/queue.json`, not in Notion. No `Retro Captured` property or similar on the Opportunity page. This keeps the Opp schema clean and makes the retro flow easy to rip out or rewire.
@@ -71,32 +73,24 @@ Queue grows over time (acceptable — small file). No pruning required.
 
 ### Step 1 — Scan + prompt (9am ET)
 
-1. Load `queue.json` (create if absent).
-2. Query Notion Opportunities DB for rows where Status ∈ {`Committed`, `Pass Note Pending`, `Pass (Met)`, `Pass (DNM)`}. Include follow-on rows (titles with `(FO)` / `(Series X FO)`) — they are NOT skipped; each FO is a separate Opp ID treated as a separate retro entry. For each row capture `Close Date`, `Website`, `Description`, and `🏁 Founder(s)` alongside `id/name/url/status`. Resolve each Founder relation → People page for name + `LI` URL.
-2a. **Freshness gate (code-enforced).** All new queue entries — sweep AND webhook — MUST be appended via `queue_append.py`, never by hand-editing `queue.json`. The script enforces the gate at write time:
-   - Sweep callers (no `--trigger-source`): reject any Opp with `Close Date` empty/null OR more than 60 days before today (the sweep is a reconciliation backstop for recent transitions the notion-webhook missed, NOT a back-catalog mining tool — stale historical passes must not surface as retro prompts).
-   - Webhook callers (`--trigger-source webhook:status-change` or similar): bypass the gate — they fire on actual transition events and are by definition fresh.
-   - Manual `retro on X` invocations: bypass via `--trigger-source manual`.
-   - Duplicates (opp_id already in queue with non-terminal status): rejected.
-   - Usage: `python3 ~/.claude/skills/decision-retro/queue_append.py --opp-id <id> --opp-name <name> --opp-url <url> --decision <status> --close-date <YYYY-MM-DD> [--trigger-source <src>] [--thread-ts <ts>]`. Exit 0 = appended (proceed); exit 1 = skipped (don't post to Slack); stdout JSON explains the action.
-   - Background: Scout (`30c00bef`, Close Date 2026-03-10, 93d old) leaked through on 2026-06-11 because the gate was prose-only. The script makes the bypass impossible.
-3. For each Opp whose `id` is NOT in the queue (the dedup + gate run inside `queue_append.py` at Step 3d below — don't second-guess them here):
-   - Compose GFM markdown prompt (`[text](url)` for links, `**text**` for bold). `md_to_blocks.py` converts to Slack Block Kit — do NOT hand-write Slack mrkdwn (`<url|text>` / `*text*`), it ships as literal text / renders italic. Per memory `feedback_scheduled_alert_structure.md`:
-     ```
-     🏢 <u>**{Opp Name} | [Notion]({Notion url})**</u>
-     **Status:** {Status}
-     `[opp:<short-opp-id>]`
-     ```
-     Rules:
-     - Compact format (no bullets, locked in 2026-04-27): entity line + status line + fingerprint, no Description / Founders / Website fetch. Tom clicks through to the Notion page when he needs context.
-     - Both lines are bare paragraphs (no `- ` prefix). The first character is the emoji (OUTSIDE the wrappers — Tom does not want the emoji underlined); the rest of the entity is wrapped in `<u>**...**</u>` so it renders bold AND underlined with the Notion link live.
-     - `md_to_blocks.py` treats `<u>` and `**` as recursive wrappers, so bold + underline + inner link compose correctly.
-     - The fingerprint sits immediately under the Status line (no blank line), wrapped in backticks for inline-code-styled rendering. **No blank lines anywhere in the body** — blank lines emit a `\n\n` spacer.
-     - **Never include a "Reply in this thread…" line** — the channel description already says this
-   3a. POST via `send-alert/md_to_blocks.py` with `WEBHOOK_URL=$(cat ~/.claude/skills/decision-retro/.webhook_url)`.
-   3b. Immediately call `mcp__claude_ai_Slack__slack_read_channel` on `#decision-retros` (limit 10) and find the message by grepping for the `[opp:<short-opp-id>]` fingerprint. Capture `ts`.
-   3c. **DO NOT hand-edit `queue.json`.** Call `queue_append.py` with the fields above. The script enforces the freshness gate + dedup at write time; the gate is the only thing standing between sweep runs and back-catalog leakage like the Scout 2026-06-11 incident.
-   3d. If `queue_append.py` exits 1 (skipped / duplicate), the prompt should NOT have been posted in the first place — abort, log the skip reason, and **do NOT post to Slack**. Reorder if needed so the gate runs before the Slack post on subsequent runs.
+The ONE spec for the scan — the scheduled wrapper (`decision-retro-scan`) only sets the schedule and mode flags and says "run Step 1"; a session asked to "run the retro scan" runs the same steps.
+
+**Mode flags (env):** `DRY_RUN=1` → steps 1–3 only, print `[DRY_RUN] would prompt: <Opp> (<Status>) — <opp_id>` per Opp to the session log; no queue write, no post, no Slack summary. `SEED_AS_NO_RETRO=1` → for each Opp that would be prompted, `queue_append.py` it then `queue_append.py set-status --opp-id <id> --status no_retro --nugget-count 0`; no post (rollout seeding — only NEW transitions prompt afterwards). Neither → normal. `LOOKBACK_DAYS` (default 30) bounds the Notion scan to recently edited Opps.
+
+1. Query the Opportunities data source (`collection://fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`) for Status ∈ {`Committed`, `Pass Note Pending`, `Pass (Met)`, `Pass (DNM)`}, last edited within `LOOKBACK_DAYS`. Follow-on rows (`(FO)` / `(Series X FO)`) are included — each is its own Opp ID and its own retro. Capture ONLY `{id, name, url, status, Close Date}` — no Description / Website / Founder fetch (compact prompt, below). `Close Date` is required: it drives the freshness gate.
+2. **Gate first — `queue_append.py` BEFORE any post (code-enforced freshness + dedup; never hand-edit `queue.json`):**
+   `python3 ~/.claude/skills/decision-retro/queue_append.py --opp-id <id> --opp-name <name> --opp-url <url> --decision <Status> --close-date <YYYY-MM-DD or empty> --short-id <first 8 of the UUID>` (sweep = no `--trigger-source`; webhook callers pass `webhook:*`, manual `retro on X` passes `manual` — both bypass the freshness gate). Exit 1 (duplicate / stale / no Close Date) → skip this Opp, no post. Exit 0 (`appended`, or `rearmed` = a prior failed post) → continue. Background: Scout (Close Date 93d old) leaked on 2026-06-11 while the gate was prose-only.
+3. Compose the prompt — GFM, compact, bare paragraphs (locked 2026-04-27; `md_to_blocks.py` converts — never Slack mrkdwn):
+   ```
+   🏢 <u>**{Opp Name} | [Notion]({Notion url})**</u>
+   **Status:** {Status}
+   `[opp:<short-opp-id>]`
+   ```
+   The emoji sits OUTSIDE the `<u>**…**</u>` wrappers (Tom doesn't want it underlined); no `- ` bullets; the fingerprint goes directly under the Status line; **no blank lines anywhere** (a blank line becomes a spacer); no Description / Founders / domain; never a "Reply in this thread…" line (the channel description says it).
+4. Post: body to `/tmp/retro-prompt-<short>.md`, then `WEBHOOK_URL="$(cat ~/.claude/skills/decision-retro/.webhook_url)" BODY_FILE=/tmp/retro-prompt-<short>.md python3 ~/.claude/skills/send-alert/md_to_blocks.py`. Non-zero exit → `queue_append.py set-status --opp-id <id> --status post_failed` (kept, not a duplicate — tomorrow's step 2 re-arms the same entry and re-posts), log to the audit log, next Opp.
+5. Capture the ts (best effort): `mcp__claude_ai_Slack__slack_read_channel` on `#decision-retros` (limit 10), find the `[opp:<short>]` fingerprint, then `queue_append.py set-ts --opp-id <id> --thread-ts <ts>`. If the Slack MCP is unavailable (headless), skip — the listener resolves threads by fingerprint (Mode A) and by ts lookup (Mode B), so a missing `thread_ts` is not an error.
+
+**No summary message anywhere.** All retro chatter stays in `#decision-retros` as the per-Opp prompts; never a "scan completed" DM. On a non-recoverable error, write one line to the wrapper's `audit-log/YYYY-MM-DD.log` and exit 0 — a missed Opp is picked up by the next day's scan.
 
 ### Step 2 — Listen + extract + log (6pm ET)
 

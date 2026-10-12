@@ -22,6 +22,18 @@ proceed to deeper diligence. The analysis is deliberately opinionated — it sho
 flags, contradictions between founder claims and independent findings, and gaps in the evidence
 base, rather than presenting a sanitized summary.
 
+**Model tier — this skill owns it: drafting runs on Opus.** Every caller passes the model explicitly — the
+diligence-agent scheduled workers and the claude-job-queue job spec for this skill MUST launch it with `opus` (a
+worker that inherits a non-Opus parent degrades silently). Audit/lint stay on their own tiers (Step 3 / Step 4b).
+
+**Alert surface — decided once per run, passed to every ping (F13, 2026-10-11).** `SURFACE=text` when Tom triggered
+the run by text (sms-listener inline, or a job it enqueued — args carry `from`); `SURFACE=slack` for everything else
+(notion-webhook, diligence-agent worker, scheduled, interactive session) per the alerts-follow-the-surface rule.
+Every progress ping goes through `progress_alert.py --surface "$SURFACE"`: slack posts to #claude-alerts; text posts
+NOTHING and returns `alert`, which you text VERBATIM (`~/.claude/skills/sms-listener/send_imessage.sh "<from>" --stdin`,
+body on stdin). In an interactive session the ping still posts to Slack and you paste the same `alert` in chat —
+never hand-format it. The 6b completion follows the same surface (see 6b).
+
 ---
 
 ## Preflight: follow-on skip + existing-artifact gate
@@ -61,12 +73,8 @@ The script owns the rules — don't re-derive them by hand. WHY each exists:
 start alert, and it should say first pass was skipped in favor of update priors):
 
 ```bash
-COMPANY="<company from the preflight JSON>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔍 <u>**Update Priors Starting: ${COMPANY}**</u>
-
-✓ First pass skipped – Master Diligence Doc exists · updating priors on new material
-EOF
+python3 ~/.claude/skills/first-pass-diligence/progress_alert.py --phase routed \
+    --company "<company from the preflight JSON>" --surface "$SURFACE"
 ```
 
 Then read `~/.claude/skills/update-diligence-priors/SKILL.md` in full and run THAT skill for this Opp in the same
@@ -180,18 +188,15 @@ before gathering context. This is the first of the run's three early alerts
 collapses to a single alert at Step 6b.
 
 ```bash
-COMPANY="<subject company name>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔍 <u>**First Pass: ${COMPANY}**</u>
-Started — gathering context.
-EOF
+python3 ~/.claude/skills/first-pass-diligence/progress_alert.py --phase start \
+    --company "<subject company name>" --surface "$SURFACE"      # add --resumed on a resumed run
 ```
 
 This is the series **open** (per alert-convention's progress-ping sequencing: open →
 hinge → close). No prior phase to close, so it's start-only. Single line, no feedback
 prompt, no links. Do NOT include `💬 Reply in thread`
 (that string is reserved for the Step 6b completion alert — the listener routes
-thread replies based on it). On a resumed run, append ` (resumed)`.
+thread replies based on it). On a resumed run, pass `--resumed`.
 
 Before writing anything, assemble the full evidence base. Completeness matters — the analysis
 quality is directly proportional to how much source material you have.
@@ -589,12 +594,9 @@ count of research lanes about to launch. Omit any element that genuinely doesn't
 rather than writing "N/A".
 
 ```bash
-ELAPSED_MIN=$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 ))
-COMPANY="<subject company name>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔍 <u>**First Pass: ${COMPANY}**</u>
-Context Gathered — <deck OCR'd / update ingested>, founder LinkedIn (<Name via path>; <gap noted>), <N> portfolio memos read → launching <N> parallel research lanes. T+${ELAPSED_MIN} min.
-EOF
+python3 ~/.claude/skills/first-pass-diligence/progress_alert.py --phase context \
+    --company "<subject company name>" --surface "$SURFACE" --start-ts "$WORKSPACE/start_ts.txt" \
+    --detail "<deck OCR'd / update ingested>, founder LinkedIn (<Name via path>; <gap noted>), <N> portfolio memos read → launching <N> parallel research lanes"
 ```
 
 This is a **hinge** (per alert-convention's progress-ping sequencing): it closes the
@@ -689,7 +691,7 @@ research — they will populate the Sources section.
 
 ### MANDATORY — drafting runs on Opus tier
 
-Per memory `feedback_model_tier_framework`: Opus = no-rubric + final-artifact tasks.
+(Owner statement at the top: callers pass `opus` explicitly.) Per memory `feedback_model_tier_framework`: Opus = no-rubric + final-artifact tasks.
 The first-pass analysis is a long-form synthesis artifact with no scoring rubric —
 Opus territory. The Layer-2 audit gate in Step 4b is Sonnet (rubric-based review); the
 drafting itself must be Opus.
@@ -1834,13 +1836,13 @@ headline in the series form (`First Pass: ${COMPANY}`, matching the run-start an
 context-gathered pings); the body says it's the audit phase.
 
 ```bash
-ELAPSED_MIN=$(( ($(date +%s) - $(cat $WORKSPACE/start_ts.txt)) / 60 ))
-COMPANY="<subject company name>"
-cat <<EOF | /Users/tomseo/.claude/skills/send-alert/send.sh
-🔍 <u>**First Pass: ${COMPANY}**</u>
-Research Complete — <N> lanes back<, key flags if any> → auditing draft. T+${ELAPSED_MIN} min.
-EOF
+python3 ~/.claude/skills/first-pass-diligence/progress_alert.py --phase audit \
+    --company "<subject company name>" --surface "$SURFACE" --start-ts "$WORKSPACE/start_ts.txt" \
+    --detail "<N> lanes back<, key flags if any> → auditing draft"
 ```
+
+The script owns the shape (headline, blank line, Title Case phase label, `T+N min`, exactly one `→` in a hinge,
+no markup, never a 6b routing key) — exit 2 = fix `--detail`, never fall back to a hand-written heredoc.
 
 Single line of body, no feedback prompt, no links. Do NOT include `💬 Reply in thread`
 (that's reserved for Step 6b — the listener routes thread replies based on that
@@ -2266,6 +2268,10 @@ python3 ~/.claude/skills/shared-references/diligence_alert.py --kind first-pass 
 | 0 | rendered + sent | done |
 | 2 | refused (bad URL, multi-line summary, mrkdwn link, audit jargon in caveat, missing start ts) | fix the input and re-run — never hand-write the alert |
 | 3 | `send.sh` failed | retry once with the same args |
+
+**Surface.** `SURFACE=slack` → the command above (`--send`). `SURFACE=text` → run it WITHOUT `--send` and text its
+stdout VERBATIM via `send_imessage.sh "<from>" --stdin` (the outbound normalizer strips the GFM markup; content is
+identical). Never both.
 
 Rendered shape (shared with teardown 7b): `🔍 <u>**First Pass Diligence: [Co](opp) ([PDF](pdf))**</u>`, the
 convention's blank line, an optional `⚠ <caveat>` (action-needed leads, per alert-convention.md), `<summary> · T+N min`,

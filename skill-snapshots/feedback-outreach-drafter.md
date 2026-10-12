@@ -44,9 +44,9 @@ Triggered by the Diligence Agent on a recurring schedule. No names are provided 
 
 **Step 0: Scan for new Feedback entries**
 
-Query the Opportunities DB for all opportunities whose `📣 Pending Feedback` relation field was updated in the past 30 hours. For each opportunity:
+Query the Opportunities DB for all opportunities whose `📣 Pending Feedback` relation field was updated in the past **`LOOKBACK = max(${RUN_LOOKBACK_HOURS:-30}, 30)` hours**. For each opportunity:
 
-> **Why 30 hours:** The agent runs on a ~10-hour cadence (8am and 6pm ET). A 30-hour lookback creates a 20-hour overlap between consecutive runs, so any contact added near a run boundary — or during a run's own execution window — is always caught by the next run. The draft-once dedup check below prevents double-drafting regardless of overlap.
+> **The window is owned HERE, not by the wrapper.** The scheduled run (`diligence-agent` `run.sh`, once each weekday ~5:50pm ET) exports `RUN_LOOKBACK_HOURS` — 72 on Mondays (covers the skipped weekend), 24 otherwise; an interactive session has it unset → 30. The 30-hour floor keeps a 6-hour overlap on a daily cadence, so a contact added near a run boundary — or during a run's own execution window — is always caught by the next run. The draft-once gates below make the overlap harmless (no double-drafting).
 
 1. Fetch the opportunity page and read the current `📣 Pending Feedback` array.
 2. For each person in the array, run a **draft-once dedup check**. Three gates deciding **two separate things** — conflating them is what strands people in the relation with nowhere to put their feedback:
@@ -235,39 +235,36 @@ Key formatting rules:
   ContactOut lookup is needed for this skill at all — the blurb ends at the product.
 - The two blurb lead sentences are bold (`<strong>`). The paragraph must OPEN with the bold first sentence — `style_gate.py` rule `ef6-bold-first-sentence` is an error, so a blurb that starts in plain text fails the draft gate
 
-### Step 7: Update `📣 Pending Feedback` relation on the opportunity
+### Steps 7–8: One command per recipient — the `[PENDING]` note + `📣 Pending Feedback` (AT DRAFT TIME)
 
-After creating all drafts, update the opportunity page's **`📣 Pending Feedback`** relation field.
+Create the note now, when the outreach is drafted — NOT deferred until a reply. (The older "note only on response" rule was wrong and caused the two flows to drift; corrected 2026-08-04, Avery Alchek / Fair reference batch.)
 
-The `📣 Pending Feedback` relation field must be updated by passing a **JSON array string** of ALL page URLs — existing entries plus new ones — in a single `notion-update-page` call. Writing a single URL or making sequential calls will overwrite all prior entries.
+**ONE command does both writes — never `notion-create-pages` / `notion-update-page` a feedback note or the roster by hand** (the same writer the scanner and the text lane use, so every surface produces the same note). Save the draft's complete body exactly as drafted (opener, about block, questions — plain text/markdown) to a scratch file, then per recipient:
 
-**Procedure:**
-1. Fetch the current Opportunity page and read the existing `📣 Pending Feedback` array (may be empty or already contain entries).
-2. Collect the People DB page URLs for all recipients in this batch (from Step 1).
-3. Merge existing entries + new entries into a single deduplicated list.
-4. Write the full list back in one call using a JSON array string format:
+```bash
+python3 ~/.claude/skills/shared-references/feedback_write.py create --opp-id <opp_id> --person-id <People page id> \
+    --kind feedback|reference --subject "<Opp company | person referenced>" \
+    --outreach-file <draft body file> --outreach-date <YYYY-MM-DD drafted>
+```
 
+It runs the Status gate, the one-note-per-(person, Opp) merge (an existing note gets this ask as another dated `## Outreach Note`; Reference wins the title), creates the `[PENDING]` note (Notes DB parent, `Opportunity` relation in the create call — Notion's dual relation fills `✍️ Notes` — Category by note-classifier's rule, no icon, People-grounded header), read-merge-writes the person onto `📣 Pending Feedback` (new notes only — never re-adds after a first response), runs the race guard, and reads it all back. Re-running with the same ask is a no-op (`already_present`).
 
+- **exit 0** → record `url` / `merged` for Step 9.
+- **exit 1** → Opp not Feedback-eligible: skip silently (no note, no roster write) and drop that recipient's draft from the Step 9 count.
+- **exit 4** → `failures` (incl. `feedback-note-orphaned`): it did NOT fully land — report it in Step 9, never as done.
+- **exit 5** → fix the input `failures` names (empty outreach text, People row without a Name) and re-run · **2** → Notion error: report.
 
-This is the same pattern used by the intro-agent skill for `👓 Intros (Qualified)`.
+The note format itself (title, `[PENDING]` prefix, `## Response` before `## Outreach Note`, grounding) is the contract in `~/.claude/skills/shared-references/feedback-note-format.md`; the code implements it — do not restate it here. `feedback-outreach-scanner` owns the runtime lifecycle (Steps 3–5).
 
-### Step 8: Create the per-person `[PENDING]` feedback note in Notion (AT DRAFT TIME)
+**Dedup / no double-notes:** when Tom later sends the draft, the scanner's outbound handler (`feedback-outreach-sent-detect`) runs the same `create`, which finds this note by the person mention and merges instead of duplicating (an identical ask is a no-op).
 
-Create the placeholder note now, when the outreach is drafted — NOT deferred until a reply. (The older "note only on response" rule was wrong and caused the two flows to drift; corrected 2026-08-04, Avery Alchek / Fair reference batch.)
+**Removal is automated — do not strip `[PENDING]` by hand** unless Tom asks. `feedback_write.py log-response` (scanner / text lane) strips it on *substantive* feedback, sets `[DECLINED]` on a decline, and clears `📣 Pending Feedback` on either; deferrals stay pending.
 
-**Read `~/.claude/skills/shared-references/feedback-note-format.md` before creating the note — it is the canonical contract** (title format, the required `[PENDING]` prefix, section order — **`## Response` comes BEFORE `## Outreach Note`** — the People-mention header, grounding rules, dedup, and the `[PENDING]`-removal lifecycle). Do NOT restate the format here; follow that file exactly so the paths cannot diverge again. `feedback-outreach-scanner` owns the runtime lifecycle (Steps 3–5).
-
-Create the note with `notion-create-pages` (`data_source_id: e8afa155-b41a-4aa2-8e9d-3d4365a11dfb`), Category per `shared-references/feedback-note-format.md` (`Portfolio` if Opp is `Active Portfolio`, else `Diligence`, including Committed), `Opportunity` relation → the Opp, then link it on the Opp's `✍️ Notes` relation (fetch current array, append, write back in one call).
-
-**Dedup / no double-notes:** the scanner's own outbound handler (`feedback-outreach-sent-detect`) runs when Tom later sends the draft; its dedup reads the Opp's `✍️ Notes` and matches the title with-or-without the `[PENDING]` prefix, so it recognizes the note this step created and exits without duplicating. That mutual dedup is what keeps the manual-draft path and the webhook path consistent — never add a second, differently-shaped note.
-
-**Removal is automated — do not strip `[PENDING]` by hand** unless Tom asks. The scanner removes it (and clears `📣 Pending Feedback`) only on *substantive* feedback; deferrals stay pending.
-
-Also update the respondent's email in the People DB if a later reply uses a different address than what was on file.
+If a later reply uses a different address than the People row, flag the mismatch (People DB Guardrails rule 2) — never copy the email over.
 
 ### Step 8b: Parallel-track variant — seed the note from the intro thread (Gate C)
 
-When Gate C routed a person here there is no drafted email to paste, so the `## Outreach Note` section is seeded from the intro thread instead. Everything else is unchanged: same format contract, same `[PENDING]` prefix, same atomic `Opportunity` relation write, same Step 3b race guard borrowed from `feedback-outreach-scanner`.
+When Gate C routed a person here there is no drafted email to paste, so the `## Outreach Note` section is seeded from the intro thread instead. The write is the same `feedback_write.py create` as Steps 7–8, with `--outreach-tag "intro thread"`, the items below as `--outreach-file`, and `--debrief-expected "<channel>"` when item 5 applies. Gate B's trashed-only case uses the same command with the single line `_Ask made outside email; draft discarded._` as the outreach file.
 
 1. **Find the thread.** `in:anywhere (to:<person email> OR from:<person email>)`, narrowed by the Opp's `Website` domain stem, a `🏁 Founder(s)` name, or the Opp name. Read it in full with `get_thread` — `search_threads` truncates to ~5 messages per thread and will hide the exchange you need.
 
@@ -277,11 +274,11 @@ When Gate C routed a person here there is no drafted email to paste, so the `## 
 
 3. **Extract only the on-topic exchange.** Intro threads are mixed-topic in a way purpose-built feedback emails never are — the same thread commonly runs through the recipient's own fundraise, unrelated market chatter, and scheduling logistics. Quote the ask and the agreement, drop the rest. The verbatim rule still binds on what you DO include: never summarize or rewrite into third person.
 
-4. **Head the section with its provenance** — `## Outreach Note — [Date] (intro thread)` — and put the Gmail thread permalink on its first line so the full context stays one click away. `## Response — [No reply yet]` still comes first, per the format contract.
+4. **Provenance** — `--outreach-tag "intro thread"` heads the section `## Outreach Note – [Date] (intro thread)`; put the Gmail thread permalink on the first line of the outreach file so the full context stays one click away.
 
-5. **Record the promised response channel.** If Tom named one ("call / text / voice note — your call"), add it as an italic line directly under the Response heading: `_Debrief expected by call / text / voice note._` The scanner depends on this — see below.
+5. **Record the promised response channel.** If Tom named one ("call / text / voice note — your call"), pass `--debrief-expected "call / text / voice note"`; the code writes the italic `_Debrief expected by call / text / voice note._` line under the Response placeholder. The scanner depends on this — see below.
 
-6. **Title:** Feedback variant (`[PENDING] [Name] ([Their Company]): [Opp] Feedback`) when the ask is about the company, Reference variant when it is about a person. Gate C's ordinary case is a company read, so Feedback is the default here.
+6. **Kind:** `--kind feedback --subject "<Opp>"` when the ask is about the company, `--kind reference --subject "<person>"` when it is about a person (the code builds the title). Gate C's ordinary case is a company read, so Feedback is the default here.
 
 **Downstream — the debrief will often never touch email.** A parallel-track ask is usually answered on a call, a text, or a voice note, because that is what Tom offers when the ask rides along inside a friendly intro thread. `feedback-outreach-scanner`'s inbound reply scan (Step 2) will therefore never fire for most of these, and the note legitimately sits `[PENDING]` until the Step 2c manual-reconciliation sweep finds content Tom entered by hand. That is the designed path, not a failure — and the `_Debrief expected by…_` line from item 5 is what tells a later run why an outreach with no email reply is still correctly open.
 
@@ -303,7 +300,7 @@ Then lift the per-draft mute set in Step 6 (also run this if you bail out early 
 
 ## Edge Cases
 
-- **Multiple recipients, same company**: Run Steps 1–5 per recipient, Steps 6–7 together. The blurb and questions can be identical; personalization in the opener varies.
-- **No memo or transcript available**: Draft questions from the opportunity page Summary and Description alone. Note this in the Step 8 summary so Tom knows the questions are less thesis-informed.
+- **Multiple recipients, same company**: Run Steps 1–5 per recipient, Step 6 together, Steps 7–8 once per recipient. The blurb and questions can be identical; personalization in the opener varies.
+- **No memo or transcript available**: Draft questions from the opportunity page Summary and Description alone. Note this in the Step 9 summary so Tom knows the questions are less thesis-informed.
 - **Company not found in Notion**: Alert Tom before proceeding. Do not draft without a source of truth on the company.
 - **Recipient not in People DB**: Ask Tom per People DB Guardrails (never auto-create). If ContactOut also returns nothing, say so — do not guess emails.

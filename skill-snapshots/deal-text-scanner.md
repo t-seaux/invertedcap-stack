@@ -57,7 +57,7 @@ lane; classify each independently and never let one lane's silence suppress anot
 **Step 0 — roster checks: ALREADY RUN IN CODE before the batch reached you (2026-10-05).** `sweep.sh` /
 `reconcile.sh` pipe every batch through `roster_precheck.py`, so each message carries `roster_checked: true` and, on a
 hit, a `roster` object: `pending_feedback` or `prior_feedback_note` → you MUST load `references/feedback-lane.md`;
-`intro_pending` → you MUST load `references/intro-lane.md` (§5b) — whatever the message text says; `portco_founder` → you MUST load `references/intro-lane.md` (§5c) and run its step 1 check, AND load `references/portco-ask-lane.md` (2026-10-06). Do not re-query.
+`intro_pending` → you MUST load `references/intro-lane.md` (§5b) — whatever the message text says; `portco_founder` → you MUST load `references/intro-lane.md` (§5c) and run its step 1 check, AND load `references/portco-ask-lane.md` (2026-10-06); `opp_founder` (founder of a non-portfolio Opp that isn't intro-closed) → you MUST load `references/intro-lane.md` (§5c) AND `references/portco-ask-lane.md` – named-person asks only (2026-10-11). Do not re-query.
 **Only if a message lacks `roster_checked`** (the precheck failed open — Notion was unreachable at sweep time) do you
 run the three checks below by hand. The prose below is the WHY and that fallback. The original rule: for EVERY
 thread with an inbound peer, run THREE cheap deterministic checks: (1) query the Opportunities
@@ -69,8 +69,9 @@ sender's name (`Name LIKE '<Sender Full Name>%'`, giver-first title convention) 
 feedback only, never re-added), so a follow-up debrief (the second call, a later text) is
 invisible to the roster and is caught ONLY by the prior-note check; it appends a new dated
 Response block to that same note. And (3) resolve the sender to a People
-row (via `sender_name` / handle) and check whether it sits in ANY Active-Portfolio Opp's
-`👓 Intros (Qualified)` or `☎️ Intros (Outreach)` relations — a hit FORCES loading
+row (via `sender_name` / handle) and check whether it sits in the `👓 Intros (Qualified)` or `☎️ Intros (Outreach)`
+relations of ANY Opp whose Status isn't intro-closed (`opp_status.py` set `intro_closed`; contract § Terminal-Status
+Write Prohibition — portfolio-only until 2026-10-11) — a hit FORCES loading
 `references/intro-lane.md` (§5b): their text may be the yes/no to Tom's own intro offer, and
 content alone can't tell you (the canonical miss was a bare "Of course!" — Zack Parker/Tuor,
 2026-09-17). **A hit on check (1) or (2) FORCES loading
@@ -87,9 +88,9 @@ correctly. Content can't tell you someone owes Tom a read — only the roster ca
 |---|---|---|
 | Intro offer to a founder; a company + round details; a deck/LinkedIn with a pitch | **Deal** | `references/deal-lane.md` |
 | Tom replying opt-in/pass on a deal; an unknown number that may be an intro'd founder; a REFERRER announcing an intro is live ("meet / re-meet X", "you two connect", "I'll let you find time"); an email or scheduling exchange on a known deal | **Intro** | `references/intro-lane.md` |
-| Tom OFFERING one of his portfolio founders to the peer ("can I intro you to…" + portco/founder link); or ANY inbound that could be a yes/no to such an offer — `.portco_intro_asks` hit, OR the sender resolves to a People row on any Active-Portfolio Opp's `👓 Qualified`/`☎️ Outreach` roster (the reply may be a bare "Of course!") | **Intro** | `references/intro-lane.md` |
+| Tom OFFERING one of his founders (portfolio or pipeline) to the peer ("can I intro you to…" + company/founder link); or ANY inbound that could be a yes/no to such an offer — `.portco_intro_asks` hit, OR `roster.intro_pending` (the sender is on a non-intro-closed Opp's `👓 Qualified`/`☎️ Outreach` roster; the reply may be a bare "Of course!") | **Intro** | `references/intro-lane.md` |
 | **Step 0 roster hit (mandatory check above)**; or Tom asks someone for a read | **Feedback** | `references/feedback-lane.md` |
-| A portfolio founder (`roster.portco_founder`) asks Tom for people in a category – "do you know any lenders…", "anyone in your network who…" | **Portco Ask** | `references/portco-ask-lane.md` |
+| A portfolio founder (`roster.portco_founder`) asks Tom for people in a category – "do you know any lenders…", "anyone in your network who…" – or ANY open-Opp founder (`portco_founder` / `opp_founder`) asks for intros to specific named people, or opts into a list Tom proposed | **Portco Ask** | `references/portco-ask-lane.md` |
 | The peer texts a street address that is their (or someone's) HOME, e.g. answering Tom's "what's your address?" | **Address** | `references/address-lane.md` |
 | Anything else | none | — exit silently |
 

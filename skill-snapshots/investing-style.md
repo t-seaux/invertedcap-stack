@@ -55,7 +55,7 @@ python3 ~/.claude/skills/draft-feedback/processor.py --sweep
 
 This matters most here: a quarterly refresh that skips it will silently miss the quarter's LP letter, which is the single most likely thing to have changed since the last run.
 
-Then follow `founder-taste/SKILL.md` **Query Mode** — its source table, two-axis weighting, output format, and publication-safety rules all apply. Do not re-derive those rules here; read them there.
+Then use `founder-taste/SKILL.md` **Query Mode**'s source table and two-axis weighting to decide WHICH pillars moved (added, promoted, contradicted, retired). Its output format and publication-safety rules do NOT apply while this doc is private (see Gates). **Never redraft bullet prose** — every bullet is its pillar's `name`, verbatim (`draft_style_bullet()`); a wording change is a proposed change to the pillar's `name` in `founder-taste/pillars.json`, listed in the summary, not new bullet text.
 
 Refresh the counts for the provenance line:
 
@@ -75,18 +75,26 @@ Then check each source for movement since `last_refreshed`:
 
 ### Step 3: Propose the diff — HARD GATE
 
-Write the proposed content to a temp JSON in the same shape as `content.json`, then:
+Same paths and shape for a session and the quarterly run. Write the proposed content to `~/.claude/skills/investing-style/proposed.json` (same shape as `content.json`, bullets verbatim from pillars), then:
 
 ```bash
-python3 ~/.claude/skills/investing-style/build_doc.py --content /tmp/proposed.json --dry-run
+python3 ~/.claude/skills/investing-style/build_doc.py --content ~/.claude/skills/investing-style/proposed.json --dry-run
 ```
 
-**Surface the diff to Tom and stop.** Show added, removed, and changed bullets with the evidence behind each, and say which source drove it. This artifact is public-facing and opinionated in his name — it does not update unattended. Wait for his call.
+Then write `~/.claude/skills/investing-style/proposed-summary.md`:
+- current version and what the next version would be
+- each added / removed / changed bullet (= pillar added / retired / renamed), with the evidence and the source that drove it (a new Pillar, a new investment retro, a new memo or LP letter)
+- anything deliberately NOT changed and why
+- any content-rule concern (Gates) you hit
+
+If nothing has moved since `last_refreshed`, say so plainly in the summary and write no `proposed.json` — a quarter with no change is a valid outcome; never pad it.
+
+**Surface the diff to Tom and stop** (session: paste `proposed-summary.md`; quarterly: `run.sh` posts it to Slack). A hand-curated change to this opinionated doc in his name waits for his call; the only unattended publish is `draft-feedback`'s pillar sync (description), which re-renders pillars verbatim and never curates.
 
 ### Step 4: Build
 
 ```bash
-python3 ~/.claude/skills/investing-style/build_doc.py --content /tmp/proposed.json
+python3 ~/.claude/skills/investing-style/build_doc.py --content ~/.claude/skills/investing-style/proposed.json
 ```
 
 This renders the Doc, writes `content.json`, bumps the minor version, and stamps `last_refreshed`. A no-op rebuild does not inflate the version. Use `--no-bump` for a formatting-only fix.
@@ -103,9 +111,12 @@ letter, typically written in the weeks after quarter end, is in the corpus by
 the time we read it.
 
 Runner: `~/.claude/scheduled-tasks/investing-style-quarterly/run.sh`, prompt at
-`prompt.md` in the same directory. It runs Steps 1-3 only, writes
-`proposed.json` + `proposed-summary.md` into the skill directory, and posts the
-summary to Slack. **It never publishes.**
+`prompt.md` in the same directory. The prompt only says "run Steps 1–3" — the
+method and the proposal/summary shape live in Step 3 above (one spec for the
+quarterly run and a session). `run.sh` posts the summary to Slack. **It never
+publishes.**
+
+**Model tier:** `opus` (curation judgment over the corpus). The runner passes it explicitly.
 
 That is enforced in code, not by the prompt: the runner exports
 `INVESTING_STYLE_PROPOSE_ONLY=1`, and `build_doc.py` refuses any non-dry-run

@@ -63,7 +63,15 @@ The skill is bound to a specific message + Opp; do not search Gmail freshly (Ste
 - Run Step 2.5 (idempotency gate) to filter to the unlabeled subset.
 - Run Steps 3 + 4 normally on the delta set, scoped to the thread.
 - Apply the outcome label (`claude/materials-processed` on full success, `claude/materials-failed` on any fatal per-item failure) per Step 2.5 after processing.
-- The Slack alert is emitted automatically by the Step 4 `--batch-json` call — do NOT send it yourself.
+- The Slack alert is emitted automatically by the Step 4 `chip_write.py --surface slack` call — do NOT send it yourself.
+
+**Alert surface — decided once per run (F13, 2026-10-11, alerts-follow-the-surface).** `--surface text` when Tom
+triggered the save by text (sms-listener inline, or a job it enqueued — args carry `from`; a subroutine call inherits
+its caller's surface); `--surface slack` for everything else (Mode B webhook, Dash variant, pipeline-agent, an
+interactive session). text → NO Slack post; `chip_write.py` returns the plain rendering of the SAME alert as `alert`,
+which you text VERBATIM (`~/.claude/skills/sms-listener/send_imessage.sh "<from>" --stdin`) — it already carries the
+Opp link (principle 12). In an interactive session the Slack ping fires and you paste its content in chat; never
+hand-format a materials alert on any surface.
 
 **Slack alert — code-enforced by the write, NOT model-executed:**
 
@@ -596,7 +604,7 @@ python3 ~/.claude/scripts/notion_files_property.py \
 **Write all real materials in ONE batch call** — this fires the single consolidated `#claude-alerts` ping automatically (see Step 5). After the folder-pin, collect every material saved in the preceding steps into a `--batch-json` array of `{prop, url, label}` items (mix Diligence Materials and Deal Docs freely — the helper groups them in the alert) and make one call:
 
 ```bash
-python3 ~/.claude/scripts/notion_files_property.py \
+python3 ~/.claude/skills/materials-handler/chip_write.py --surface <slack|text> \
     --page-id <opportunity_page_id> \
     --batch-json '[
       {"prop":"Diligence Materials","url":"<file_url>","label":"<display_label>"},
@@ -605,6 +613,9 @@ python3 ~/.claude/scripts/notion_files_property.py \
     --email-message-id "<gmail_message_id>"
 ```
 
+- `chip_write.py` wraps `notion_files_property.py`'s batch write (same idempotency + preservation) with the label
+  convention gate ON (= `--require-convention`) and the surface routing above; `--surface slack` keeps the helper's
+  own code-enforced ping, `--surface text` returns `alert` instead. Pass `--opp-name "<Opp title>"` when you have it.
 - `--email-message-id` adds the `(Email)` deep-link to the ping header — pass the trigger message's Gmail ID whenever available (Mode B always has it).
 - The helper adds each item (idempotent on URL, preservation-safe), then fires ONE consolidated ping listing only the chips that **newly landed** on Diligence Materials / Deal Docs. Items that skip (already present) are silently excluded — a re-run that adds nothing new sends nothing. **Do not compose or send a materials alert yourself** — the batch call owns it (this is why Step 5's alert is code-enforced, not model-executed).
 - Exit 0 = success (including idempotent skips); a per-item hard failure is reported in the `results` array with exit still 0 unless *every* item failed. See `/Users/tomseo/.claude/skills/shared-references/add-link-to-files-property.md` for the full interface.
@@ -781,6 +792,25 @@ python3 ~/.claude/scripts/notion_files_property.py add-link    --page-id <opp> -
 ```
 
 A plain `"skipped": true` **without** `stale_chip` is the genuine no-op (identical URL already present) — leave it alone. Note this corrects an earlier claim in this file that canonical-filename dedup "catches the chip duplication": it prevents a *duplicate* chip, but in the replace case it does so by leaving the *stale* one in place, which is worse because it looks fine until Tom clicks it.
+
+## Step 4.8: Intro-Landed Material → `Connected` (the ONE owner of this rule, 2026-10-11)
+
+When the material being logged to an EXISTING Opp itself shows the intro actually landing — a group text where the
+referrer says "please meet X" with both parties in it, a three-way intro email, the founder texting/emailing Tom
+directly — flip Status in the SAME run, don't log the material and leave Status stale for Tom to correct. (Tom,
+2026-09-10, on the Avy Faingezicht Opp — Avery's group-text intro was appended but Status stayed at Qualified:
+*"if we are connected status should be connected."*) Code, never a free-form edit:
+
+```bash
+python3 ~/.claude/skills/shared-references/opp_status.py next --event intro_landed --status "<current Status>" [--fo]
+# exit 0 → {"to": "Connected"} → python3 ~/.claude/skills/shared-references/opp_status.py set --opp-id <opp> --status Connected
+# exit 3 → no move (already ≥ Connected, portfolio, follow-on, terminal) → leave it
+```
+
+Skip when the material is ambiguous about whether a live thread exists (a forwarded LinkedIn profile, a referrer
+saying they'll intro "at some point") — those stay where they are. Same event the text lane uses for a referrer's
+announced intro (`deal-text-scanner/references/intro-lane.md` §4b²) and log-thread-to-notes uses for a logged thread
+(Step 5 there) — one rule, three entry points. Report it in Step 5 (`Status: <from> → Connected (intro landed)`).
 
 ## Step 5: Report Summary
 

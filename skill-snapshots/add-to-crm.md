@@ -207,8 +207,8 @@ python3 ~/.claude/skills/shared-references/opp_dedup.py check [--thread-id <gmai
 
 1. Determine input type and extract data
 2. **Enrich from attachments or hyperlinked decks if email body is thin (Step 1B)**
-3. Enrich from founder LinkedIn via ContactOut (HQ, Contact, Website, Description)
-4. Present extracted fields to user for confirmation
+3. Identity + source hints for HQ / Contact / Website (Steps 2–3) — the LOOKUPS themselves run in code (`opp_enrich`, inside `opp_create.py`), the same ladders as the text 👍
+4. (no pre-create summary — the create's code-rendered ✅ reply IS the summary, identical to the text lane)
 5. Create the Notion opportunity page (with a thematic emoji as icon)
 6. Handle any deck/material uploads
 7. **Verification gate — re-scan source for deck URLs and confirm they landed in the Diligence Materials property; re-invoke materials-handler if not (Step 7)**
@@ -231,9 +231,9 @@ Determine the input type and extract all available data points:
 
 **ALWAYS read the full email thread** via `gmail_read_thread`, not just the single message. A forwarded pitch is often only the opening move — subsequent messages in the thread (and in any related threads) frequently contain: Tom's reply expressing interest, a second thread where the referrer makes the actual intro, the founder's acknowledgment, scheduling coordination via Blockit/Calendly, and the call confirmation. All of this changes how the opportunity should be classified (see Step 4). Also run a broad Gmail search on the company name to surface related threads (the initial forward and the follow-up intro are often separate threads with different subject lines — e.g. "Fwd: Company.ai" followed by "Connecting Tom <> Founder (Company)").
 
-**LinkedIn profile URL:** `WebFetch` always 401s on LinkedIn — skip it and go straight to Chrome osascript per `/Users/tomseo/.claude/skills/shared-references/chrome-read-page.md` (read `main.innerText`, never `outerHTML` — full-DOM dumps blow up context). Extract: name, headline, location, current company, about section. **When the input is a bare LI profile URL (no other context), apply these defaults: Stage → `Pre-Seed 💡`, Source → "Direct", Description → `TBD`.**
+**LinkedIn profile URL:** `WebFetch` always 401s on LinkedIn — skip it and go straight to Chrome osascript per `/Users/tomseo/.claude/skills/shared-references/chrome-read-page.md` (read `main.innerText`, never `outerHTML` — full-DOM dumps blow up context). Extract: name, headline, current company, about section (the profile's location is read by the HQ ladder itself — don't pass it as `hq_hint`, so both surfaces see the same rung). **When the input is a bare LI profile URL (no other context), apply these defaults: Stage → `Pre-Seed 💡`, Source → "Direct", Description → `TBD`.**
 
-**`-1` shorthand:** When the user writes `-1` followed by a LinkedIn URL or name, this is equivalent to "add to CRM" with a pre-company `-1` title format. Treat it identically to a bare LinkedIn profile URL input. For `-1` entries, when looking up email via ContactOut MCP (`contactout_enrich_person`) or browser sidebar: **prioritize personal email** (e.g. Gmail) over work email for the People DB `Email` field, since the person is not yet attached to a specific company from Tom's pipeline perspective. Always try the ContactOut MCP first before falling back to the browser sidebar.
+**`-1` shorthand:** When the user writes `-1` followed by a LinkedIn URL or name, this is equivalent to "add to CRM" with a pre-company `-1` title format. Treat it identically to a bare LinkedIn profile URL input. For `-1` entries the Contact ladder (`opp_enrich`, Step 2) keeps the **personal email** over a work one, since the person is not yet attached to a specific company from Tom's pipeline perspective.
 
 **Pasted text:** Parse directly for all relevant data points.
 
@@ -303,75 +303,64 @@ The only thing that does NOT count is a generic company-website link (`unicornsn
 - The source is not an email (screenshot, LinkedIn URL, pasted text) — attachments and deck URLs are not relevant.
 - The email has no attachments AND no hyperlinked deck URL.
 
-## Step 2: Enrich from Founder LinkedIn + Web (ContactOut as fallback)
+## Step 2: Identity + source hints (the lookups are code — `opp_enrich`)
 
-Always enrich `HQ`, `Contact`, `Website`, `Description` **before creating the page** — whether or not the source includes a founder LinkedIn URL. (Icon comes from Notion's logo picker pattern in Step 5 — no enrichment needed.)
+HQ, Contact and Website are resolved by ONE owner, `shared-references/opp_enrich.py`, which `opp_create.py` runs on
+any of them you leave unknown (`hq: null`, `contact: "N/A"`, `website: "N/A"`). The text lane's 👍/👎 create runs the
+very same call (`--from-staged`), and the text 🆕 card calls its `hq-resolve` — so a deal gets the same HQ / Contact /
+Website on every surface (Tom 2026-10-11: "the outputs should be the same and the methodology should be the same").
+Never hand-run a ContactOut, Chrome or WebSearch lookup for these three fields. The ladders (docstring of
+`opp_enrich.py` is the spec; `deal-card-provenance.md` the field rules):
 
-**Priority order — ContactOut is a paid API, only hit it if the cheaper sources can't answer:**
+- **HQ:** source hint → founder LinkedIn via the network cache (free) → ContactOut profile (paid) → `??? 🌀` (the ONE
+  empty value). **No WebSearch rung** — WebSearch / aggregator snippets are banned for HQ (Bluefyn 2026-10-01).
+- **Contact:** source emails (per founder, custom domain beats free mail; `-1` keeps personal) → ContactOut email on the LinkedIn →
+  ContactOut by name + company → bare company domain (opp_fields rule, Tom 2026-10-04) → `N/A`. Never an invented address.
+- **Website:** source → the custom-domain Contact's domain → ContactOut's company site (same company only) → `N/A`.
 
-1. **Source material** — email signatures, forwarded threads, pasted context often contain the founder's email, company website, and HQ verbatim. Check first.
-2. **Public LinkedIn page** — for the founder's LI URL, use Chrome osascript per `/Users/tomseo/.claude/skills/shared-references/chrome-read-page.md` (`main.innerText`, capped). WebFetch on LinkedIn always 401s, so don't bother trying it first. Pulls headline, location, current-company name, and bio without burning ContactOut credits. **If no LI URL was provided in the source, web-search `"<founder name>" "<company>" linkedin` (or `"<founder name>" <distinctive context> linkedin` if the company is generic) to find it before falling back to ContactOut.** Disambiguate by description signals (role, ex-employers, school) when multiple matches exist.
-3. **Company website** — WebFetch for HQ (footer/contact page) and description (hero/meta).
-4. **ContactOut fallback** — only if 1–3 can't resolve a needed field, call `contactout_enrich_linkedin_profile` with `profile_only=false`. It returns `email`/`personal_email`, `company.headquarter`, `company.website`, and full experience. Use `profile_only=true` if you only need profile data (no email credits).
+What stays YOURS (judgment — pass it in the spec):
 
-**Case-by-case source: YC company page.** If (and only if) the founder's LI headline, the source material, or the company website mentions YC (e.g. "CEO @ Pluto (YC W25)", "YC S24"), slot in a fetch of `https://www.ycombinator.com/companies/{slug}` — it gives authoritative HQ, website, and one-liner for YC-backed companies. Skip for everything else (the vast majority of deals are not YC).
+1. **Founder identity.** `founders` / `founder_links` with the LinkedIn URL from the source or a tool result. No LI
+   in the source → WebSearch `"<founder>" "<company>" site:linkedin.com/in` and accept only a profile whose current
+   role names the company (disambiguate by role / ex-employers / school). That search finds WHO, never an HQ.
+   **No founder named** (an incubator / studio / fund presenting the company): pass `presenter_linkedin` = the
+   presenting person's LinkedIn (Sorted 2026-10-05 → Priscilla Guevara, Science, San Diego).
+2. **`hq_hint`** — a location the source ties to the FOUNDER or the COMPANY itself: a signature block, an "HQ:" /
+   "based in" line, the deck, the company's own website footer / contact page. A city that names a customer, investor
+   or market is not an HQ (Collar 2026-08-26: "piloting with Temasek, Singapore's sovereign wealth fund" ≠ HQ).
+   Nothing qualifies → omit it; the code ladder takes over.
+3. **`website_hint`** — the company site named in the source (email body links, signature, deck). LinkedIn URLs never.
+4. **Description** — source / deck / the company's own site (hero, meta), or the YC company page when the LI
+   headline / source says YC. Not `TBD` unless nothing exists.
 
-If `company.headquarter` from any source isn't conclusive (e.g. LI lists "Stealth YC Startup"), the company website (or YC page if YC-backed) wins over a stealth-placeholder LinkedIn company.
+The stealth trap still applies to your hints: a LinkedIn "Stealth YC Startup" company is not the company's identity.
 
-If after all lookups HQ is still unresolvable, use `??? 🌀` — but treat that as a failure to investigate, not an acceptable end-state. Same for `Contact=N/A`, `Website=N/A`, `Description=TBD`.
+## Step 3: Founder contact emails from the source
 
-## Step 3: Resolve Founder Contact Email
+Harvest every founder email the source shows (From / To / Cc, signatures, the forwarded chain, the deck's last slide,
+a screenshot) and pass them as `source_emails` with `contact: "N/A"` — one list PER FOUNDER when a founder shows more
+than one address (`[["jd4life217@gmail.com", "john@highroad.capital"], ["eric@solidcredit.com"]]`), or pass `contact`
+directly when you already know the one to write. Who may be in Contact: `shared-references/opp-dedup-match.md` § "Writing Contact" (co-founders
+only; an incubator's people for an incubated company). The source `From:` beats anything ContactOut returns, a custom
+domain beats a free-mail address (`gmail.com`, `yahoo.com`, `outlook.com`, `icloud.com`, … — `people_denylist.json`),
+and `-1` entries keep the personal address — all enforced in `opp_enrich.contact_resolve`. The `;`-separated
+alias-merge pattern is reserved for the resolution/webhook layer when a custom-domain email surfaces AFTER creation.
 
-Look for the founder's contact email using the following priority order. Stop as soon as a valid email is found:
+## Step 4: No pre-create summary
 
-1. **Source material first (always check before anything else):**
-   - Parse the email thread for founder email addresses (From, To, CC fields, email body, signature blocks).
-   - Check any attached or linked deck, memo, or pitch document for contact info (often on the last slide or in a cover page).
-   - Check the forwarded message chain — the founder's email may appear in an earlier reply or in the original sender field.
-   - If the source is a screenshot, look for email addresses visible in the image.
-
-   **Custom-domain wins over personal/free providers.** If the source yields BOTH a custom-domain email (`john@highroad.capital`) AND a personal/free email (`jd4life217@gmail.com`) for the same founder, set Contact to the custom-domain email **alone** — do not alias-merge them. The custom-domain `From:` line in a forwarded thread is the authoritative signal: it's how the founder represents themselves to the world, and it survives gmail-account churn. Free-provider domains include `gmail.com`, `googlemail.com`, `yahoo.com`, `hotmail.com`, `outlook.com`, `live.com`, `icloud.com`, `me.com`, `protonmail.com`, `proton.me`, `aol.com`. The `;`-separated alias-merge pattern (per `feedback_upgrade_opp_contact_to_custom_domain_asap`) is reserved for the resolution/webhook layer when a custom-domain email is discovered AFTER initial creation — at creation time we already know the best one, so write it cleanly.
-
-2. **ContactOut lookup (only if source material yields nothing):**
-   - **LinkedIn URL lookup** (preferred): Use `contactout_enrich_person` with the founder's LinkedIn URL. Set `include_work_email=true` and `include_personal_email=true`.
-   - **Name + company fallback**: If the LinkedIn lookup returns no email, try `contactout_enrich_person` with `full_name` + `company` array.
-
-3. **Domain inference fallback (last resort):** If ContactOut also returns nothing, infer email from the company domain if known (e.g., `vincent@pantainsure.com`). **Any inferred/unconfirmed email MUST be flagged** (Tom endorsed this on the Ripper entry, 2026-09-16 – "make it a thing"). Placement depends on whether the page has a 🏁 Founder callout:
-
-   - **Founder callout exists** (the usual case — an inferred email implies a known company/founder): the flag lives INSIDE the callout, appended to the founder's line after the LI parens — semicolon, then lowercase `c` (Tom, 2026-09-16):
-
-     ```
-     **Founder:** Full Name ([vanity](https://www.linkedin.com/in/vanity/)); ⚠️ contact email inferred from domain – unverified.
-     ```
-
-   - **No Founder callout** (no LI found anywhere): standalone line at the top of the page body, verbatim: `⚠️ Contact email inferred from domain – unverified.` (capital C when standalone). Same slot as the `⚠️ Incomplete` deck flag in schema.md's Special flags; sanctioned exception to the single-section body.
-
-   En dash, not em dash, in both forms. Remove the flag (just the clause, when inside the callout) if the email is later confirmed (founder replies from it, or a verified source surfaces it).
-
-For `-1` opportunities (pre-company / bare LinkedIn profiles), **prioritize personal email** (e.g. Gmail) over work email, since the person is not yet attached to a specific company from Tom's pipeline perspective.
-
-If ContactOut returns multiple emails, prefer the work email for named-company opportunities and personal email for `-1` entries. **If ContactOut returns a different email than what the source material's `From:` header showed, the source material wins** — the founder's authoritative `From:` is the strongest signal of how they want to be contacted, regardless of what ContactOut surfaces.
-
-Set the `Contact` property on the Notion page to the best email found. If no email is found after all attempts, set `Contact` to `N/A`.
-
-## Step 4: Present Summary (no confirmation gate)
-
-Present extracted data as a concise summary in the response, then proceed directly to Step 5. **Do not ask Tom to confirm before creating the page** — the summary is for after-the-fact course correction, not a yes/no gate. Include:
-- Proposed page title (company name or `-1 (Founder Name)` format)
-- Description (one-liner)
-- Status (inferred from thread state — `Qualified`, `Outreach`, `Connected`, or `Scheduled` — per rules in Step 5), Stage, HQ
-- Website, Contact, Founder name(s)
-- Round Details (if any)
-- Source person (if identified)
-- Close Date (if Status is `Scheduled`)
-- Any materials/decks to upload
+Proceed straight to Step 5; do not ask Tom to confirm. The summary is the create's `reply` — the ✅ card rendered by
+`staged_payload.render_added`, the SAME text the text lane sends on a 👍 (Source / Stage / HQ / Description + the
+People-DB offer). Print it VERBATIM. Extra context that has no field (a dropped same-name dedup hit, a `⚠️ Manual
+upload needed` from Step 7) goes on lines AFTER it, never as a rewritten summary. **👍 / "yes" to the People-DB line**
+→ run `add-to-contacts` for each entry in the create's `people_stage.people` (the text lane's branch 4b does the same).
 
 **Exception — DO ask** if something mid-flow is genuinely ambiguous (multiple equally-plausible LinkedIn matches for a founder, two People-DB rows that could be the source, conflicting round details across email + deck). Confirmation isn't banned; the rote post-summary "Ship it?" gate is.
 
 ## Step 4T: Text-Card Gate (webhook mode, new deal only)
 
 Runs INSTEAD of Steps 5–8 when webhook mode reaches *create*. Steps 1–3 (extraction, deck
-reading, enrichment, contact) have already run, so the card is fully enriched. Card + staging
+reading, identity, source emails) have already run. Card HQ = `opp_enrich.py hq-resolve` (its `staged_hq`); Contact /
+Website stay what the source gave (else `N/A`) — the 👍 create's `opp_enrich` fills them, the same as Step 5 here. Card + staging
 contract = `~/.claude/skills/deal-text-scanner/references/deal-lane.md` §3 — one text per company (a multi-company digest sends one
 card each):
 
@@ -420,7 +409,8 @@ python3 ~/.claude/skills/shared-references/opp_create.py --spec <spec.json> [--d
 ```
 
 Spec keys (full schema in the script docstring): `title`, `status`, `stage`, `description`, `round_details`, `hq`
-(city or null), `website`, `contact`, `icon`, `fund` (omit → Inverted 1️⃣), `source` (`"direct"` / `{"id"}` /
+(city, or null → resolved by `opp_enrich`), `hq_hint`, `website`, `website_hint`, `contact` (`"N/A"` → resolved),
+`source_emails`, `presenter_linkedin`, `icon`, `fund` (omit → Inverted 1️⃣), `source` (`"direct"` / `{"id"}` /
 `{"name","email","company"}`), `founders` (`[{"id"}]` or `[{"name","email","li","company"}]`), `founder_links`
 (`[{"name","li"}]` → the 🏁 callout), `original` (`{"kind": "Email|DM|Text|Post|LI Profile", "text": <verbatim>}`),
 `source_thread_id`, `close_date` (Scheduled), `funding_history`, `deck` (`{"url","label"}`), and `signals` — EVERY
@@ -432,7 +422,8 @@ the exact Stage option, Fund (Dash → Inverted 1️⃣ for new rows), Shared = 
 resolution (Jordan Fox → Primary alias; unresolved → blank + ⚠️, never a new People row), the full `opp_dedup`
 battery, the create with the parent hardcoded, a property-by-property readback, and the deck chip.
 
-- **exit 0** → reply with its `reply` (`✓ Added – <title> (<Status>)` + link, plus any ⚠️ line) VERBATIM.
+- **exit 0** → reply with its `reply` VERBATIM — the ✅ card (Step 4), identical to the text lane's; `hq` / `contact` /
+  `website` / `enriched.via` in stdout say what the ladders resolved.
 - **exit 10** → duplicate: send `reply` (the two-line 🚫 Dupe). Check `dedup.route` for revive / protected (Protected Status Guard).
 - **exit 11** → possible duplicate: send `reply`; nothing created.
 - **exit 3** → fix the INPUT named in `failures` (HQ guess, unlinked founder title, bad Status…) and re-run. Never write past it.
@@ -483,7 +474,7 @@ Always hyperlink founder name(s) to their LinkedIn URL(s) in the title using Not
 
 ### Page Content Structure
 
-`opp_create.py` builds the body in code (📚 blurb callout when the thread offers one → 🏁 Founder callout → `**Original Email**` rendered per message by `email_thread.py`) — pass the raw source text, never pre-formatted Notion markdown. See `references/schema.md` for the canonical body structure. The body has **exactly one section**: `**Original Email**` (verbatim source material). Do NOT add a `**Summary**` section — everything a summary would carry (what the company does, founders, round) already lives in the properties (Description, Round Details, Contact, HQ, Website) and the relation fields; surface any extra texture in the chat reply summary, not the page body. (Per Tom, 2026-07-15.)
+`opp_create.py` builds the body in code (📚 blurb callout when the thread offers one → 🏁 Founder callout → `**Original Email**` as a collapsed toggle, the thread rendered inside it per message by `email_thread.py`) — pass the raw source text, never pre-formatted Notion markdown. See `references/schema.md` for the canonical body structure. The body has **exactly one section**: `**Original Email**` (verbatim source material). Do NOT add a `**Summary**` section — everything a summary would carry (what the company does, founders, round) already lives in the properties (Description, Round Details, Contact, HQ, Website) and the relation fields; surface any extra texture in the chat reply summary, not the page body. (Per Tom, 2026-07-15.)
 
 ```
 **Original Email**
@@ -676,9 +667,10 @@ When running add-to-crm, if the email body doesn't name the founders, round, or 
 Every new entry in the Opportunities DB must ship enriched, not as a stub:
 
 - **Icon** — always set. Pick a thematic emoji from Notion's standard emoji set. Never create with a blank/default icon.
-- **HQ — MANDATORY, deterministic. Run the full cascade on every row before it is considered complete; never ship `??? 🌀` as a first resort.** Order: source material (email sig, forwarded thread) → LinkedIn via WebFetch → company website footer → **`WebSearch` for `"{company}" headquarters` / `"{company}" {founder} San Francisco|New York|…`** (this is what surfaces HQ for stealth/early companies with a bare marketing site — do NOT skip it) → ContactOut `company.headquarter` as the paid fallback. **No founder named** (an incubator / studio / fund presenting the company): the presenting person's signature city / LinkedIn location stands in for the founder's (Sorted 2026-10-05 → Priscilla Guevara, Science, San Diego — Tom: "look up priscilla and see where she is based"). YC company page is case-by-case (only when clearly YC-backed per LI headline). Map the result to the nearest existing `HQ` select option (per the mapping rule in `references/schema.md`). `??? 🌀` is permitted ONLY after every step above has actually been run and genuinely returned nothing — it is never an acceptable resting state for a row that simply wasn't investigated. **This applies identically in webhook/unattended mode** (the `inbound-deal-detect` / `add-to-crm-detect` paths): the thin `classifierHints` (or the raw forwarded text) are a starting point, not a substitute for the cascade — Step 2 enrichment still runs in full, and HQ is resolved deterministically before exit. Do NOT ask whether to enrich HQ; enrichment is automatic, not prompted.
-  > **Location-mention trap (Collar 2026-08-26 incident):** a location name appearing in the pitch body is not automatically the company's HQ — it may name a *customer, investor, or market* instead (e.g. "we're piloting with Temasek, Singapore's sovereign wealth fund" names an institutional customer, not where the company is based; similarly "backed by Sequoia" or "used by clients across Southeast Asia" are not HQ signals). That run set HQ to Singapore from exactly this misread, found Singapore wasn't a valid schema option, and shipped `??? 🌀` — while the founder's own LinkedIn (which the cascade never actually reached) said San Francisco. Before accepting any location string as HQ, confirm it's attached to the FOUNDER or the COMPANY ENTITY itself (a signature block, an "HQ:"/"based in" line, LinkedIn's location field, a company-website address) — not to a named customer, investor, or market the pitch is name-dropping for credibility.
-- **Contact** — founder email. Source material first (signatures, forwarded threads, deck last slide), then public LinkedIn, then company website contact page. ContactOut (`profile_only=false` for `email`/`personal_email`) is the fallback.
+- **HQ / Contact** — resolved by `opp_create.py` through `opp_enrich` (Steps 2–3): pass the founder's LinkedIn (or
+  `presenter_linkedin`), any `hq_hint` / `source_emails` the source gives, and leave the rest unknown. `??? 🌀` is the
+  ONE empty HQ and only ever comes out of the ladder; never type it yourself, never WebSearch for HQ. This applies
+  identically in webhook / unattended mode — the ladders run inside the create, so they can't be skipped.
 - **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none. **Format: bare domain** (`solidcredit.com`) — never `https://` or `www.` (`opp_fields.py normalize` enforces this and the Contact format below). **Contact format:** every founder/co-founder email, `; `-separated (`bernardomenezes@gmail.com; eric@solidcredit.com; rodrigo@solidcredit.com`). Contact holds **co-founders only** — except for an incubated company (a studio / incubator building it, e.g. Science): the incubator people working the deal are Contacts alongside any co-founders (Sorted 2026-10-05, Tom: "keep both in contacts – they're both a part of the firm incubating the biz" — Priscilla Guevara + Talia Rosenthal, Science). Otherwise — never assistants, EAs, employees, advisors or investors, even on the company domain; founder status needs an explicit statement ("my co-founder X"), a title alone doesn't count. When a later email or calendar invite surfaces co-founder emails or the company domain on an existing Opp, append them / fill Website in this format and alert Tom (Slack) naming what changed and who was skipped. Enforced in gmail-webhook `cofounder-detect.js` (both lanes).
 - **Description** — one-line what-they-do: YC one-liner, company site hero/meta, LI headline, or deck. Not `TBD`.
 - **🏁 Founder(s)** — if the founder already exists in People DB (dedupe via `workspace_search` on "{first} {last}"), link the relation. If they DON'T exist, **leave the relation blank** — do not auto-create a People row. Note the gap in the response so Tom can decide whether to add them. The page body Team section is where founder names + LinkedIn URLs live; there is no separate scalar property for first names anymore.
@@ -686,9 +678,8 @@ Every new entry in the Opportunities DB must ship enriched, not as a stub:
 **Why:** When a tip arrives with a founder LinkedIn URL, Tom expects the full enrichment cascade (LinkedIn URL → ContactOut → People DB dedupe → Opportunities fields) — not "name + source reference" stubs that create downstream work.
 
 **How to apply:**
-1. Whenever a founder LinkedIn URL exists in the source, run the enrichment cascade *before* writing the page (or immediately after, same turn): **source material → WebFetch on LI → YC page (if YC) → company website → ContactOut as fallback**. Don't burn ContactOut credits when the answer is free to find on LI or an email signature.
+1. Give the create its identity inputs (founder LinkedIn, `presenter_linkedin`, `hq_hint`, `website_hint`, `source_emails`); `opp_enrich` runs the free rungs before the paid ones, so ContactOut credits are spent only when the cache and the source come up empty.
 2. Always pass a thematic `icon` emoji in the `opp_create.py` spec (it refuses a blank one).
-3. If the LinkedIn URL isn't in the source, try a quick WebSearch for `{founder name} {company} founder` and grab the LI URL from the first LinkedIn result before giving up.
-4. Treat `??? 🌀`, `TBD`, `N/A`, and blank Contact as failures to investigate — not acceptable end-states — unless the source genuinely offers no way to resolve them.
-5. Applies equally to scheduled pipeline-agent runs AND `inbound-deal-detect` webhook runs — the unattended-execution guard is NOT an excuse to skip enrichment. HQ specifically runs the full cascade including a company `WebSearch` on every path.
-6. **Deterministic pre-exit gate (run before the reply summary / webhook exit-0): if HQ is `??? 🌀`, you MUST have already run the full HQ cascade including a `WebSearch` this turn.** If it's `??? 🌀` and the cascade wasn't run, run it now and update the row before finishing — do not exit with an un-investigated HQ. This is a hard, deterministic requirement, not a judgment call, and it is NEVER satisfied by asking Tom whether to look it up — resolve it yourself.
+3. If the LinkedIn URL isn't in the source, WebSearch `"<founder>" "<company>" site:linkedin.com/in` and accept only a profile whose current role names the company (Step 2) — a found URL is what lets the HQ / Contact ladders run.
+4. `TBD` Description is a failure to investigate unless the source genuinely offers nothing. `??? 🌀` / `N/A` coming OUT of the ladders is an answer, not a gap to re-run by hand.
+5. Applies equally to scheduled pipeline-agent runs AND `inbound-deal-detect` webhook runs — the ladders live in the create, so no path can skip them.

@@ -4,7 +4,7 @@ description: >-
   Scan Tom's Gmail inbox and iMessages for new deal opportunities, then triage existing pipeline Opps across 4
   stages: Deal Scanner, Qualified, Outreach, Connected. Also scans Gmail for materials (decks, memos, term
   sheets) tied to active pipeline companies and links them via deep links. Two modes: (1) Scheduled sweep —
-  reconciliation pass (past 24h Gmail inbox + sent, iMessages, Calendar) catching what the per-event webhooks
+  reconciliation pass (lookback window — 24h, 72h on Mondays — over Gmail inbox + sent, iMessages, Calendar) catching what the per-event webhooks
   (deal-scanner-inbound, pipeline-sent-detect, calendar-scheduled-detect) missed. (2) Manual — "scan my
   pipeline", "check for new deals", "triage my deals", "pipeline scan", "run pipeline", "any new deals?".
   Trigger phrases: "pipeline", "deal scan", "triage", "new deals", "check my deals", "run pipeline agent", "deal
@@ -35,7 +35,7 @@ The orchestrator (you) should:
 1. Spawn Tasks 1–7 as `Task` sub-agents **in parallel in a single message**, passing ALL necessary context (Notion IDs, field schemas, view URLs, instructions) directly in each prompt
 2. Wait for all seven to complete (they run concurrently)
 3. Compile a final combined report
-4. Send Slack summary via send-alert (unless suppressed by run-all override)
+4. Build + render + send the Daily Alert (one renderer — see "Daily Alert"; unless suppressed by run-all override)
 
 ### Orchestration Flow
 
@@ -49,8 +49,16 @@ The orchestrator (you) should:
   ├─→ Task 6: -1 Enrich New (sub-agent)        ─┤
   ├─→ Task 7: -1 Auto-Draft (sub-agent)        ─┘
   │   ... wait for all 7 to complete ...
-  └─→ Compile final report + Slack alert via send-alert
+  └─→ Daily Alert: payload → compose_pipeline_alert.py → send-alert
 ```
+
+## Lookback window (owned here — wrappers never restate it)
+
+Every "recent signal" Gmail / iMessage / Calendar scan in Tasks 1 and 5 uses `W = ${RUN_LOOKBACK_HOURS:-24}` hours. The scheduled run's `run.sh` exports `RUN_LOOKBACK_HOURS` (72 on Mondays to cover the skipped weekend, 24 other weekdays — `~/.claude/scheduled-tasks/SHARED_SAFETY.md` "Weekend skip + Monday lookback bump"); an interactive session uses the 24h default unless Tom names a window. Tasks 2–4 keep their own fixed signal windows (3d / 2d) because those look for a reply to a known Opp, not net-new mail; when `RUN_LOOKBACK_HOURS` is larger, use the larger. State-based Notion filters ignore the window.
+
+## Model tier (owned here)
+
+Orchestrator + Tasks 1–7: `sonnet` (scan-and-write against fixed rules). Callers (the scheduled wrapper's `--model`, Task fanout `model:`) pass this tier explicitly; never rely on inheritance.
 
 ## CRITICAL: Protected Status Guard
 
@@ -65,18 +73,9 @@ Before any `notion-update-page` call that writes to the `Status` field, the agen
 
 ## Notification Behavior
 
-When running standalone (not via run-all), the alert is composed by a Haiku sub-agent and sent via send-alert. Two-step flow:
+ONE alert, ONE renderer, every lane: scheduled run, manual session, run-all. Build the payload in "Daily Alert" below and render it with `compose_pipeline_alert.py`; send its stdout verbatim via `send-alert/send.sh` (Slack). In an interactive session, also paste the same rendered text into the reply — never hand-format, never a Haiku/Sonnet re-render (the old model-rendered 📬/🔄 formats are retired; they drifted from the scheduled alert).
 
-**Step 1 — Compose (Haiku sub-agent)**: After all 4 pipeline stages complete and you have your structured summary, spawn a sub-agent using the Task tool with `subagent_type: "general-purpose"`, `model: "haiku"`, `max_turns: 3`. Pass it:
-- Your full structured summary from the run (the per-stage data described in the Internal Sub-Agent Summary Format section).
-- The full format spec from the "Notification Summary Format" section of this SKILL.md (inline the section text into the sub-agent prompt — do NOT ask the sub-agent to re-read the file).
-- Instruction: "Render the Slack message body per the format spec. Return ONLY the rendered markdown — no preamble, no commentary, no tool calls."
-
-**Escalate to `model: "sonnet"`** if your structured summary contains a non-empty "Flagged for manual review" section or any "Errors" entries — those signals warrant stronger reasoning over format edge cases.
-
-**Step 2 — Send**: Read the `send-alert` skill (discover via Glob pattern `**/send-alert/SKILL.md`) for the delivery channel, tool, chatID, and guardrails. Pass the Haiku-rendered body to the send mechanism specified there.
-
-If running via run-all, an override instruction will suppress the notification (the orchestrator handles notifications centrally).
+If running via run-all, an override instruction will suppress the send (the orchestrator handles notifications centrally) — the rendered text is still the summary.
 
 ## Shared Notion Context Block
 
@@ -135,7 +134,7 @@ Spawn with `Task` tool. Include the shared Notion context block above in the pro
 **Goal**: Scan Gmail inbox and iMessages for new deal/investment opportunities received today that the real-time lanes missed, and route each genuinely new deal to Tom's 🆕 text card. **This task NEVER creates an Opportunity** (Tom, 2026-09-26: *"the evening sweep should still require my explicit approval"*) — every new deal needs his 👍, same as the webhook lane.
 
 **Steps**:
-1. Search Gmail for today's emails that look like deals. Queries: `"intro" newer_than:1d`, `"deal" newer_than:1d`, `"raising" newer_than:1d`, `"pitch" newer_than:1d`, `"invest" newer_than:1d`, `"pre-seed OR seed" newer_than:1d`
+1. Search Gmail for emails in the lookback window that look like deals. Window `W = ${RUN_LOOKBACK_HOURS:-24}h` (see "Lookback window"). Queries: `"intro" newer_than:W`, `"deal" newer_than:W`, `"raising" newer_than:W`, `"pitch" newer_than:W`, `"invest" newer_than:W`, `"pre-seed OR seed" newer_than:W`
 2. Scan iMessages via `get_unread_imessages`. May fail (Full Disk Access) — skip gracefully if so.
    **CONFIRM-GATE GUARD (hard block — added 2026-09-21 after the MPOWR incident):** Only messages written by a *human* count as signal. NEVER treat a message authored by our own alert bot (KSeo Bot / Sendblue, e.g. "🆕 Opportunity: <Name> … 👍 to Add to CRM") as a deal signal — that bubble is a proposal *awaiting Tom's approval*, and consuming it as inbound creates the Opp without his 👍. Concretely, before creating anything: (a) skip any iMessage whose author is the bot / whose text contains "👍 to Add to CRM"; (b) list `~/.claude/skills/deal-text-scanner/staged/*.json` and skip any candidate whose `company` / `opp_title` / `contact` matches a staged payload — those are confirm-gated by design and only add-to-crm may create them on Tom's 👍. Note each as "skipped — pending Tom's 👍 (staged): [name]". A deal found ONLY via the bot's proposal and not in a primary source you read yourself is never created here.
 3. **Deal Classification Gate (CRITICAL — run BEFORE dedup)**:
@@ -315,7 +314,7 @@ Still follow the scanning and efficiency rules below (Steps 1–2) to identify w
 1. Query the Agent View to get the current company list. Call `notion-query-database-view` with `view_url: "https://www.notion.so/5fa871c765d74251b8f96b63f248ef25?v=31400beff4aa80fdb2e0000c1b6ae673"`. Extract each company name, founder name(s), contact email(s), page ID, **and Status**. **Drop any row whose Status is in the Portfolio set** (`shared-references/opp-status-sets.md`) — those companies' inbound emails are `investor-update`'s territory, not diligence materials. Note the count of dropped rows in the Step 5 summary.
 
    **`Committed` — conditional keep (tightened 2026-09-09).** By default treat `Committed` as pipeline, because Tom often runs final diligence while a NEW position sits at `Committed` before flipping to `Active Portfolio`. BUT **drop a `Committed` row if it is a follow-on into a company already invested in** — its inbound email is an investor update, not first-check diligence. Signals that a `Committed` row is an existing position (any one is sufficient): a set `Close Date`, non-zero `Total Invested` / `FO Invested` rollup, an executed SAFE/term sheet already in `Deal Docs`, or existing `🗄️ Investor Updates` history. If the Agent View doesn't expose these, `notion-fetch` the single candidate to check before keeping it. Only keep `Committed` rows that are brand-new positions with NO prior close. (2026-09-09 incident: Outmarket, a Dash 2 follow-on transiently at `Committed`, was scanned as pipeline — it has a 2023 executed SAFE and years of investor updates, so it should have dropped.)
-2. For each company, run **one** targeted Gmail search combining the company name or founder name with `has:attachment newer_than:1d`. Example: `"LEDGR" has:attachment newer_than:1d`. Use `maxResults: 5` per search. **Cap at 15 companies** — if the view contains more, process the 15 with the most recent Notion activity and note the remainder were skipped.
+2. For each company, run **one** targeted Gmail search combining the company name or founder name with `has:attachment newer_than:W` (`W = ${RUN_LOOKBACK_HOURS:-24}h`, see "Lookback window"). Example: `"LEDGR" has:attachment newer_than:24h`. Use `maxResults: 5` per search. **Cap at 15 companies** — if the view contains more, process the 15 with the most recent Notion activity and note the remainder were skipped.
 3. For each Gmail search hit, call `gmail_read_message` on the messageId to confirm the email contains relevant materials (deck, memo, model, term sheet, side letter, one-pager, blurb — not SaaS marketing or newsletters). Note the messageId, subject, sender, date, and attachment filenames. Also note any DocSend links, Google Drive share links, or other material URLs in the email body.
 
 4. **Path A (default)**: For each company with confirmed materials, invoke the `materials-handler` skill with: company name, Notion page ID, list of confirmed Gmail message IDs, and any material URLs found in email bodies. The skill handles the rest.
@@ -484,7 +483,7 @@ Spawn with `Task` tool.
    |---|---|
    | **Name** (title) | `-1 ([{Founder First Name} {Founder Last Name}]({LI URL}))` — **parens around the linked name** (Tom, 2026-07-27); the name is clickable to LinkedIn. Example: `-1 ([Greg Reiner](https://linkedin.com/in/gregreiner))`. Build it with `python3 ~/.claude/skills/shared-references/opp_fields.py title --kind -1 --founder "First Last|<li url>"` (multiple founders → repeat `--founder`, joined ` & `), then run the whole property dict through `opp_fields.py normalize --json '<props>'` (exit 1 = fix input, don't write) before `notion-create-pages`. Validate: `validate_eval_note.py --opp-title "<Name md>"` |
    | **Stage** | `Pre-Seed 💡` |
-   | **Source(s)** | **Provenance-aware — check the store row's `source` field first** (Tom, 2026-08-29, Charles Wong). TWO shapes, no registry: `source` is an **email address** → resolve the **People DB by Email** (Primary = `deal-agent@primary-os.com`, Fika = `investments@fika.vc`; same lookup as any human referrer) → that row; **Named engine-operator alias (Tom, 2026-09-24):** `liam@levelvc.com` → **Level Ventures** (`3e500bef-f4aa-81a6-9d79-f076a83c1174`), NOT Liam's own row. That row deliberately has no email, so apply this override BEFORE the People-DB email lookup. Liam counts as the Source only if he explicitly introduced Tom to the founder. email not found → Claude + flag the gap, never auto-create. Anything else = engine-internal → `["https://www.notion.so/07500beff4aa8213a8f801cfa3cb9a12"]` — the **Claude** source page (Tom, 2026-07-27: every candidate sourced through the engine gets Source = Claude). ⚠️ NOT `0fb9a640…` — that is **Direct**'s page, the exact 2026-08-03 copy-paste bug documented in neg1-sourcing-listener/SKILL.md; it survived here until the 2026-08-11 review |
+   | **Source(s)** | **Provenance-aware — check the store row's `source` field first** (Tom, 2026-08-29, Charles Wong). TWO shapes, no registry: `source` is an **email address** → resolve it with `people_resolve.py resolve --email <source>` (Email exact → Contacts alias index; never a direct People-by-Email query – `people-db-guardrails.md`) (Primary = `deal-agent@primary-os.com`, Fika = `investments@fika.vc`; same lookup as any human referrer) → that row; **Named engine-operator alias (Tom, 2026-09-24):** `liam@levelvc.com` → **Level Ventures** (`3e500bef-f4aa-81a6-9d79-f076a83c1174`), NOT Liam's own row. That row deliberately has no email, so apply this override BEFORE the People-DB email lookup. Liam counts as the Source only if he explicitly introduced Tom to the founder. email not found → Claude + flag the gap, never auto-create. Anything else = engine-internal → `["https://www.notion.so/07500beff4aa8213a8f801cfa3cb9a12"]` — the **Claude** source page (Tom, 2026-07-27: every candidate sourced through the engine gets Source = Claude). ⚠️ NOT `0fb9a640…` — that is **Direct**'s page, the exact 2026-08-03 copy-paste bug documented in neg1-sourcing-listener/SKILL.md; it survived here until the 2026-08-11 review |
 
    | **Shared** | leave unset (Tom's "N/A" — no relation populated; the default Shared relation is intentionally blank for -1 promotions) |
    | **Fund** | `Inverted 1️⃣` |
@@ -580,56 +579,58 @@ After all seven sub-agents complete, compile summaries:
 - **Skipped**: [count] — [reasons: no score yet, no email, etc.]
 ```
 
-## Notification Summary Format
+## Daily Alert (one spec — scheduled wrapper and sessions both follow it)
 
-Send using the delivery config from the `send-alert` skill (see Notification Behavior section above).
-
-Organize the alert by **opportunity**, grouped by movement type. Bold opportunity names using **standard markdown double asterisks** (e.g. `**Refix**`). The `mcp__claude_ai_Slack__slack_send_message` tool renders standard markdown — single asterisks produce italic, not bold. Never list out the full Tracking view — only opportunities where something moved or flagged for manual review.
+**Renderer:** `python3 ~/.claude/scheduled-tasks/lib/compose_pipeline_alert.py --input <payload.json>` — the ONLY renderer for this alert. Output shape (header + sections; empty sections dropped):
 
 ```
-📬 <u>**Pipeline: Daily Sweep**</u> · YYYY-MM-DD
-
-**New deals this run**
-• **<Opportunity>** — <source/detection>, logged as <Status> (<stage>)
-• _none_ (if empty)
-
-**Status changes**
-• **<Opportunity>** — ✨ moved <From Status> → <To Status> (<trigger/evidence>)
-• _none_ (if empty)
-
-**Renamed**
-• **<Old Name>** → **<New Name>** (<reason>)
-• (omit section if empty)
-
-**Materials linked**
-• **<Opportunity>** — <brief description> (<mode: full/lightweight>)
-• (omit section if empty)
-
-**-1 Engine** (always present)
-_Awaiting your call_ (cumulative — every carded candidate regardless of verdict, since 2026-07-20 every candidate gets carded)
-• **<Name>** — <N>d ([card](<slack thread permalink>))<; implicit pass in <14−N>d when N ≥ 10>
-• _queue clear_ (when nothing awaits)
-_Today_ (point-in-time — omit lines with no activity today)
-• ✨ carded: **<Name>** (spike: <Signal>, verdict: <✅|🤔|❌>)
-• ✅ drafted: **<Name>** ([draft](<gmail_draft_url>))
-• ❌ passed: **<Name>** — <one-clause reason>
-• ⏳ tracked: **<Name>** — re-surfaces <date>
-• 📤 sent: **<Name>** → Reached Out
-• <P> pending enrichment >2h _(only when non-zero)_
-
-**Flagged for manual review**
-• **<Opportunity>** — <what's ambiguous or needs a decision>
-• (omit section if empty)
+🚀 <u>**Pipeline Agent**</u> · YYYY-MM-DD
+<u>Action Required (N)</u>          ← decision-pending buckets, names-only links, one line per bucket
+<u>Webhook Activity (M)</u>         ← per-Opp status trajectory the webhooks already wrote (A → B → C)
+<u>Daily Sweep / Webhook Missed (K)</u> ← writes this sweep made (webhook missed them)
+<u>Maintenance</u>                  ← cleanup records
 ```
 
 Rules:
-- **Bold the opportunity name** with double asterisks (standard markdown). Never use Slack mrkdwn single-asterisks — they render as italic, not bold.
-- Use `✨ moved <From> → <To>` for status transitions. Never write an entry for an opportunity that didn't move — silent success is the default.
-- If every section is empty, send a single-line body: `Steady state — 0 writes across all 4 pipeline stages.`
-- The header uses the 🔄 emoji, an em dash (—), and ISO date format. Example: `🔄 PIPELINE — 2026-03-06`.
-- Do NOT dump the full Tracking roster or full Qualified roster into the alert. Roster totals are for the internal sub-agent summary only.
-- **Tracking is a resolved-until-something-changes state.** Do NOT flag an opp for "manual review" simply because it sat in Track for N days. Track IS the decision. But Track is NOT terminal — it can transition back out when Tom catches up with someone (`Tracking → Scheduled`) or starts digging in (`Tracking → Connected` / `Tracking → Active Portfolio`). Both the move INTO Track and the move OUT OF Track surface once under "Status changes" with `✨ moved` markers. Sitting in Track between those events is silent — no daily reminders.
-- "Flagged for manual review" is reserved for genuinely ambiguous signals (duplicate suspicion, calendar-source-only meetings, placeholder names, protected-status blocks). Day-N-in-Track sit is NOT ambiguous.
+- **One header** — the renderer's `🚀 Pipeline Agent · YYYY-MM-DD`. No other header exists.
+- **Action Required is the only standing list, and it is the short form:** names-only links for the decision-pending buckets below, one line per bucket. Never list Tracking, never add per-Opp detail lines there, never paste a roster anywhere else in the alert. Activity sections list only Opps that moved — silent success is the default.
+- **Tracking is resolved-until-something-changes.** Moves into / out of Track surface once (Activity / Missed); sitting in Track is silent.
+- Every pipeline/system error goes in the payload, never hand-appended under the composer output.
+
+**Payload** (`judgment_required` key kept for backwards compatibility; renders as "Action Required"):
+
+```json
+{
+  "date_label": "<Month D, YYYY, America/New_York>",
+  "judgment_required": {
+    "active_diligence": [{"name": "...", "url": "..."}],
+    "to_pursue":        [...],
+    "to_dig_into":      [...],
+    "to_pass":          [...],
+    "neg1_draft_ready": [...]
+  },
+  "manifests": [<reconciliation records, schema below>]
+}
+```
+
+**Action Required buckets** (Opportunities data source `fab5ada3-5ea1-44b0-8eb7-3f1120aadda6`; `{name: page title, url: page URL}`, sorted by name; a failed query = empty list + a logged error, never a blocked alert):
+1. `active_diligence` — Status = `Active` (NOT `Active Portfolio`).
+2. `to_pursue` — Status = `Qualified`.
+3. `to_dig_into` — Status = `Scheduled` AND `Next Meeting` before today (America/New_York); exclude `Next Meeting` ≥ today.
+4. `to_pass` — Status = `Pass Note Pending`.
+5. `neg1_draft_ready` — candidate store, NOT Notion: `python3 ~/.claude/scripts/decision-ledger/candidates.py list --state drafted`; `url` = `gmail_draft_url`, else `notion_opp_url`, else no link (never drop the person). ⛔ The `-1 Scanner` Notion DB is deleted (2026-07-16) — never query it.
+
+**Manifests.** Scheduled run: the sub-tasks write JSONL to `~/.claude/scheduled-tasks/reconciliation/inbox/pipeline-<task>-YYYY-MM-DD-HHMMSS.jsonl`; read today's (`cat "$INBOX"/pipeline-*-"$TODAY"-*.jsonl`), falling back to `reconciliation/archive/$TODAY/pipeline-*.jsonl`. Interactive session: build the same records from the Task summaries — one per write this run. Record schema:
+
+```json
+{"ts": "<iso8601>", "source_task": "<task>", "entity_id": "<page id>", "entity_name": "<Opp>",
+ "entity_url": "<Notion URL — always>", "db": "OPPORTUNITIES", "transition": "Status: <From> → <To>",
+ "outcome": "wrote | observed_already_in_state | cleanup", "detail": "<short>"}
+```
+
+Plus the -1 transitions from the candidate store, rows with `updated_at` = today: `candidates.py list --state reached-out` → `"transition": "-1: → Reached Out"`, `--state passed` → `"-1: → Passed"`; `source_task: "pipeline-agent"`, `entity_id: li_url`, `entity_url: notion_opp_url or gmail_draft_url or li_url`, `db: "CANDIDATE_STORE"`, `outcome: "observed_already_in_state"`.
+
+**Send:** `compose_pipeline_alert.py --input /tmp/pipeline-alert-payload.json | ~/.claude/skills/send-alert/send.sh`. If either fails, send a one-line plain-text failure via `send.sh` — never silent.
 
 ## Edge Cases
 

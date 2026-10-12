@@ -6,7 +6,7 @@ description: >
 
 # Feedback Outreach Scanner
 
-Scans Gmail for feedback outreach activity over the past 12 hours, using the Notion `📣 Pending Feedback` relation as the source of truth for who to look for — NOT a hardcoded subject line pattern.
+Scans Gmail for feedback outreach activity over the lookback window (Step 1), using the Notion `📣 Pending Feedback` relation as the source of truth for who to look for — NOT a hardcoded subject line pattern.
 
 1. **Sent scan** — detects newly sent feedback outreach emails and creates per-person Notion feedback notes
 2. **Reply scan** — detects replies from feedback contacts, appends feedback to existing notes, and removes the person from `📣 Pending Feedback` only when substantive feedback has been received
@@ -56,17 +56,8 @@ In both sub-modes the queue payload includes `personId` and `oppCandidateIds` (�
   1. If `oppCandidateIds.length > 1`, disambiguate by reading the thread's earliest sent message and haystack-matching its subject + body-head against the candidate opp names. If still ambiguous, log `webhook-mode-ambiguous-opp` and exit 0.
   2. Apply Step 2's "Processing matches" sub-steps (read full thread, sanity-check it's a feedback outreach thread, classify the reply) exactly as written. The classification rubric (substantive vs acknowledgment/deferral) lives in Step 2 — do not restate it here.
 - Run Steps 3-5 (note creation OR append + remove from Pending Feedback if substantive) exactly as in scheduled mode.
-- **Skip Step 6's scheduled-scan summary.** Emit the single-line run-log entry: `single-message feedback-reply: <person> on <opp> — <classification> → <action>`. Then, **only if the reply classified as substantive**, post the **Reply-logged confirmation** (below) via `send-alert` to `#claude-alerts`. This is the standing behavior Tom asked for 2026-08-01 — substantive inbound feedback written to Notion is confirmed immediately, not just rolled up in the next Diligence Agent daily digest (the digest still lists it too). Fire the confirmation only AFTER the Notion write succeeds, so it is a genuine "it's logged" signal; if the write failed, alert the failure instead.
-- **Deferrals get NO Slack alert** (Tom confirmed 2026-08-01 — substantive only). A "will revert EOW / traveling / circle back" reply is logged to the note as usual but stays silent on Slack; it still surfaces in the daily digest. Only the substantive classification pings.
-
-**Reply-logged confirmation.** Header follows the shared alert convention (`~/.claude/skills/send-alert/references/alert-convention.md`): the `📝` note/feedback-logged domain emoji (FYI-only — `📝` is NOT a `claude-alerts-listener` reserved routing key, so no listener action fires). Send via `send-alert`:
-
-> 📝 <u>**Feedback Logged: [Opp Company]**</u>
-> **[Person Name]** ([Person Company]) on [subject — founder name or company gut-take]
-> [1–2 sentence excerpt of the substantive reply verbatim]
-> [note]([Notion feedback-note URL]) · [opp]([Notion Opp URL])
-
-Substantive replies only — the note URL points at the feedback note the reply was written into (created-from-scratch or appended), so Tom is one click from the logged record.
+- **Skip Step 6's scheduled-scan summary.** Emit the single-line run-log entry: `single-message feedback-reply: <person> on <opp> — <classification> → <action>`.
+- **Alert = the code's `alert` field, sent VERBATIM via `send-alert` to `#claude-alerts`.** Step 4's `feedback_write.py log-response --surface slack` prints it only on exit 0 and only when one is due: substantive and decline get one (`📝 Feedback Logged` / `Reference Logged`, decline state line `✗ Declined to give a read` — declines are surfaced, never buried), a deferral or an already-logged reply gets none. Never compose, trim or extend it; the template lives in `feedback_write.render_alert` (same grammar the text lane texts). Exit 4 / 2 → alert the FAILURE instead — never a "logged" line for a write that did not land. (Tom 2026-08-01: logged feedback is confirmed immediately, not just rolled up in the Diligence Agent digest; 2026-09-10: logging always alerts.)
 
 Idempotency at queue layer (key = `feedback-reply-{messageId}`); skill does not re-check.
 
@@ -159,20 +150,22 @@ This list drives both the sent scan and the reply scan. Because the field tracks
 
 ## Step 1: Scan Sent Mail for Newly Sent Feedback Outreach Emails
 
-For each person in the contact list from Step 0, search Gmail sent mail for outreach sent in the past 12 hours.
+For each person in the contact list from Step 0, search Gmail sent mail for outreach sent in the lookback window **`H = max(${RUN_LOOKBACK_HOURS:-30}, 30)` hours** (Steps 1 and 2 share it).
+
+> **The window is owned HERE, not by the wrapper.** The scheduled sweep (`diligence-agent` `run.sh`, once each weekday ~5:50pm ET) exports `RUN_LOOKBACK_HOURS` — 72 on Mondays (covers the skipped weekend), 24 otherwise; an interactive run has it unset → 30. The 30-hour floor overlaps consecutive daily runs by 6 hours, so nothing sent or received near a run boundary falls between sweeps (the old 12-hour window left 17:50 → 05:50 unscanned on a daily cadence). Overlap is safe because the writes are idempotent in code: `feedback_write.py create` does not re-add an Outreach Note already present verbatim, and `log-response` does not re-insert a Response already on the note (a re-seen deferral is logged once, alerts once).
 
 ### Email-first search
 
 If the person has an email on file in the People DB, try:
 ```
-q: "in:sent to:<email> newer_than:12h"
+q: "in:sent to:<email> newer_than:${H}h"
 ```
 
 ### Name-based fallback
 
 If the email search returns no results — OR if the person has no email on file — fall back to a name-based search:
 ```
-q: "in:sent to:\"<First Name> <Last Name>\" newer_than:12h"
+q: "in:sent to:\"<First Name> <Last Name>\" newer_than:${H}h"
 ```
 
 This catches cases where Tom emailed a personal address that differs from the one in the People DB, or where the People DB email field is blank.
@@ -199,20 +192,20 @@ For each sent email found:
 
 ## Step 2: Scan Inbox for Replies from Feedback Contacts
 
-For each person in the contact list from Step 0, search Gmail inbox for replies received in the past 12 hours.
+For each person in the contact list from Step 0, search Gmail inbox for replies received in the Step 1 lookback window (`H` hours).
 
 ### Email-first search
 
 If the person has an email on file in the People DB, try:
 ```
-q: "is:inbox from:<email> newer_than:12h"
+q: "is:inbox from:<email> newer_than:${H}h"
 ```
 
 ### Name-based fallback
 
 If the email search returns no results — OR if the person has no email on file — fall back to:
 ```
-q: "is:inbox from:\"<First Name> <Last Name>\" newer_than:12h"
+q: "is:inbox from:\"<First Name> <Last Name>\" newer_than:${H}h"
 ```
 
 ### Processing matches
@@ -295,19 +288,13 @@ Use only the People DB data fetched in Step 0 — do not look up or infer inform
 
 This skill owns the runtime **lifecycle** around that format: creation timing (Step 3), the race guard (Step 3b), reply append + `[PENDING]` removal (Step 4/4b), and `📣 Pending Feedback` clearing (Step 5).
 
-If a reply already exists at note-creation time (Step 2 case), populate the Response section immediately with the **complete verbatim reply text** (same raw-text rule as the outreach note — do not summarize or rewrite) and apply the classification logic to determine whether to keep `[PENDING]` in the title.
+If a reply already exists at note-creation time (Step 2 case), run `create` and then Step 4's `log-response` with the **complete verbatim reply text** — the classification drives the prefix there.
 
 ### Link to opportunity — set the relation ATOMICALLY in the create call
 
-**Set the `Opportunity` relation inside the `notion-create-pages` properties object, in the SAME call that creates the page.** It is a synced relation pair: writing `Opportunity` on the note automatically populates the Opp's `✍️ Notes`. One call, no window in which an unlinked note can exist.
-
-```
-properties: {
-  "Name": "[PENDING] ...",
-  "Category": "Diligence",   // or "Portfolio" if Opp is Active Portfolio — rule in shared-references/feedback-note-format.md
-  "Opportunity": ["https://app.notion.com/p/<opp-page-id>"]
-}
-```
+`feedback_write.py create` sets the `Opportunity` relation in the SAME call that creates the page (Category by
+note-classifier's rule). It is a synced relation pair: writing `Opportunity` on the note automatically populates the
+Opp's `✍️ Notes`. One call, no window in which an unlinked note can exist.
 
 Resolve the Opp page id BEFORE creating: in webhook modes use the `oppCandidateIds` arg (the gate guarantees ≥ 1 — never re-search); in sweep/manual mode resolve it in Step 0 alongside the contact list. **If the Opp id cannot be resolved, do NOT create the note** — abort and alert. A note with no Opp is worse than no note (see the orphan trap below).
 
@@ -315,17 +302,14 @@ Resolve the Opp page id BEFORE creating: in webhook modes use the `oppCandidateI
 
 ### Verify the link before exiting (fail loud, never silent)
 
-Immediately after the create call:
-1. Re-fetch the new note page and read its `Opportunity` relation.
-2. If it is non-empty → proceed to Step 3b.
-3. If it is **empty**, the atomic write silently dropped the relation. Retry once with `notion-update-page` (`command: update_properties`, `Opportunity: ["<opp-url>"]`), then re-fetch again.
-4. If it is STILL empty after the retry, **do not exit 0**. Emit run-log `feedback-note-orphaned: <person> on <opp> — note <url> has no Opportunity relation` and post a `⚠️` alert via `send-alert` naming the note URL, so the orphan is surfaced to Tom the same run rather than discovered weeks later. An unlinked note must never be left silently in the DB.
+`create` re-fetches the note and checks parent, `Opportunity` relation, icon and roster. An empty relation → exit 4 with
+`feedback-note-orphaned` in `failures`; then **do not exit 0**. Emit run-log `feedback-note-orphaned: <person> on <opp> — note <url> has no Opportunity relation` and post a `⚠️` alert via `send-alert` naming the note URL, so the orphan is surfaced to Tom the same run rather than discovered weeks later. An unlinked note must never be left silently in the DB.
 
 ---
 
 ## Step 3b: Post-create reconciliation (race-condition guard)
 
-**Always run this immediately after Step 3's link-to-opportunity write, regardless of mode (sweep, webhook B-outbound, manual).**
+**`feedback_write.py create` already runs this (`reconcile --apply`) after every create, in every mode.** Run it standalone only to clean up a race found outside a create (e.g. Step 2c's sibling stubs, or an `ambiguous` list `create` reported).
 
 **As code (2026-10-04) — steps 1–7 below are ONE command:**
 ```bash
@@ -376,21 +360,19 @@ python3 ~/.claude/skills/shared-references/feedback_write.py log-response --opp-
 ```
 It inserts `## Response – <date>` above every prior Response (replacing `[No reply yet]`), flips the prefix (substantive
 → none, decline → `[DECLINED]`, deferral → unchanged), clears `📣 Pending Feedback` on substantive / decline (never
-re-adds), reads everything back, and prints `alert` (Slack rendering). exit 0 → post `alert` via send-alert (deferral:
-no alert) · 1 → gate skip, silent · 3 → no note: run Step 3's `create` first · 5 → body breaks the contract ·
-4 / 2 → NOT logged, alert the failure. The prose below is the WHY.
+re-adds), reads everything back, and prints `alert` (Slack rendering). exit 0 → send `alert` VERBATIM via send-alert
+when present (none for a deferral or an already-logged reply; in the scheduled sweep the wrapper suppresses sends — list
+it in the Step 6 summary instead) · 1 → gate skip, silent · 3 → no note: run Step 3's `create` first · 5 → body breaks
+the contract · 4 / 2 → NOT logged, alert the failure. The prose below is the WHY.
 
-When a reply is detected (Step 2) and a note already exists:
-
-1. Fetch the existing note page to confirm current content.
-2. Use `notion-update-page` with `command: update_content` to insert the response.
-3. If the `## Response — [No reply yet]` section is blank, replace it with the **complete verbatim reply text** under `## Response — [Date]`. Do not summarize, paraphrase, or rewrite the reply into third person — paste the raw email text exactly as received (stripping only quoted prior messages).
-4. If a response already exists (prior reply), insert a new `## Response — [Date]` block **ABOVE** the existing one — do not overwrite, and do not append below. The page is **reverse-chronological: newest input on top**, so the oldest event (`## Outreach Note`) always sits last (Tom, 2026-08-04). Same verbatim rule applies. If the new block shares a date with an existing one, disambiguate both with a parenthetical channel tag — `## Response — August 4, 2026 (reference call)` above `## Response — August 4, 2026 (email)`.
-5. Also update the respondent's email in the People DB if the reply came from a different address than what is on file.
+Your part is the body file: the **complete verbatim reply text** (strip only quoted prior messages; never summarize,
+paraphrase, or rewrite into third person). Newest-on-top order, the same-date channel tag, and the placeholder swap are
+the code's (contract: `feedback-note-format.md` → Body). If the reply came from a different address than the People
+row, flag the mismatch (People DB Guardrails rule 2) — never copy the email over.
 
 ### Step 4b: Resolve the status prefix
 
-Update the note title with `notion-update-page` (`command: update_properties`) per the Step 2.3 classification. Contract: `shared-references/feedback-note-format.md`.
+Done by Step 4's command per the Step 2.3 classification (contract: `shared-references/feedback-note-format.md`):
 
 - **Substantive feedback** → strip the prefix:
   `[PENDING] Jeff Green (Hatch Bank): Clusia Feedback` → `Jeff Green (Hatch Bank): Clusia Feedback`
@@ -408,10 +390,8 @@ Remove the person from the opportunity's `📣 Pending Feedback` relation once t
 
 Do NOT remove the person if the reply was an acknowledgment or deferral — they stay in `📣 Pending Feedback` so the scanner picks them up again on the next run.
 
-**Procedure:**
-1. Fetch the current `📣 Pending Feedback` array from the opportunity page.
-2. Remove the person's People DB page URL from the array.
-3. Write the updated array back using `notion-update-page` as a JSON array string in a single call.
+Done by Step 4's command (read-merge-write of the full array, read back). Tom-typed reads with no reply to log go
+through `feedback_write.py resolve` (Step 2c item 5).
 
 ---
 

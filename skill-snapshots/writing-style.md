@@ -1,7 +1,7 @@
 ---
 name: writing-style
 description: |-
-  Central router for Tom's writing-style corpus — canonical voice + structural rules live in writing-style/<type>/STYLE.md; this entry point picks the right sub-stylebook. SHORT-FORM EMAIL types: neg1-cold-outreach, newco-cold-outreach, intro-outreach (incl. the after-call offer – intro-offer merged in 2026-10-06), intro-connect, feedback-outreach, talent-outreach, pass-note, deal-decline, lp-raise-outreach, reference-request, portco-ask-forward, deal-share-out, portco-investor-list (full registry with each type's owning drafter in the skill body). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose, investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish", or "refine" any prose or email — infer the type from context and route to the matching stylebook. Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right VOICE_EXAMPLES.md), and on "log a new email form" / "add this to the email corpus" / "capture this as a new email type" (scaffold a brand-new email stylebook from a sample and register it here).
+  Central router for Tom's writing-style corpus — canonical voice + structural rules live in writing-style/<type>/STYLE.md; this entry point picks the right sub-stylebook. SHORT-FORM EMAIL types: neg1-cold-outreach, newco-cold-outreach, intro-outreach (incl. the after-call offer – intro-offer merged in 2026-10-06), intro-connect, intro-scheduling, feedback-outreach, talent-outreach, pass-note, deal-decline, lp-raise-outreach, reference-request, portco-ask-forward, deal-share-out, portco-investor-list (full registry with each type's owning drafter in the skill body). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose, investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish", or "refine" any prose or email — infer the type from context and route to the matching stylebook. Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right VOICE_EXAMPLES.md), and on "log a new email form" / "add this to the email corpus" / "capture this as a new email type" (scaffold a brand-new email stylebook from a sample and register it here).
 
 ---
 
@@ -23,6 +23,7 @@ writing-style/
   intro-outreach/    STYLE (+ EDIT_PATTERNS/VOICE as they accrue) ← first-touch "open to connecting?"
   intro-offer/       RETIRED → merged into intro-outreach (after-call permutation), corpus history only
   intro-connect/     STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← double-opt-in connect email
+  intro-scheduling/  STYLE                                    ← post-text-intro scheduling thread (Bot cc'd)
   feedback-outreach/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← diligence backchannel request
   talent-outreach/   STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← candidate / hire outreach
   pass-note/         STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← founder pass notes
@@ -59,6 +60,7 @@ the end-to-end flow; the stylebook is its voice source.
 | **First-touch intro-interest** | "Would you be open to connecting with [X]?" — formal note with an About-blurb appendix, gauging interest before a formal intro (customer / design partner / investor / advisor / hire variants), incl. the after-call permutation (the former intro-offer, merged 2026-10-06); a founder's note-to-forward → `portco-ask-forward` | `intro-outreach/` | `intro-outreach-drafter`, `intro-note-processor` |
 | **LinkedIn DM (adapter)** | Any short note when there's no usable email – `li_dm.py` converts the email draft (links as `Text (url)`, no signature, last line "Feel free to email me directly at …") and saves it as a Beeper draft | — (converts the source type's draft) | `linkedin-dm` |
 | **Double-opt-in connect** | Both sides said yes — the actual intro that wires them together | `intro-connect/` | `intro-draft-agent` |
+| **Intro scheduling thread** | A founder was just introduced to Tom over text and their email landed – open the email thread with Bot cc'd to book the call | `intro-scheduling/` | `deal-text-scanner` (intro-lane §4c) |
 | **Backchannel / feedback request** | Asking an expert in Tom's network for a diligence gut-take on a company | `feedback-outreach/` | `feedback-outreach-drafter` |
 | **Candidate / hire outreach** | Reaching a potential hire for a portfolio company ("interest in connecting with [Founder]?") | `talent-outreach/` | `talent-scan` |
 | **Founder pass note** | Declining a founder warmly | `pass-note/` | `pass-note-drafter` |

@@ -72,11 +72,13 @@ Tom receives investor updates at multiple email addresses — not just `tom@inve
 
 During scanning, treat any email **forwarded by Tom to himself** as a legitimate investor update if the forwarded content matches the investor-update pattern (founder/CEO sender, company metrics, addressed to investors/stakeholders). To catch these:
 
-- In scheduled scans, add `from:me "Fwd:" newer_than:1d` and `from:me "Forwarded" newer_than:1d` alongside the standard search queries, then inspect the forwarded body for investor-update signals.
+- In scheduled scans, add `from:me "Fwd:" newer_than:{W}` and `from:me "Forwarded" newer_than:{W}` alongside the standard search queries, then inspect the forwarded body for investor-update signals.
 - The **original sender** of the forwarded email (the founder/CEO) is the relevant sender for company identification (Step 2) and page metadata (Step 4). The **From** field in the Notion page body should reflect the original sender, not Tom's forwarding address.
 - The **To** field in the Notion page body should read `Tom <tom@invertedcap.com>` regardless of which address originally received the update.
 
 ### Mode A: Scheduled Daily Sweep (primary mode)
+
+**Lookback window (owned here — the scheduled wrapper never restates it).** `{W}` below = `${RUN_LOOKBACK_HOURS:-24}h`: the scheduled run's `run.sh` exports `RUN_LOOKBACK_HOURS` (24 Tue–Fri, 72 on Mondays — the sweep skips the weekend); a session uses 24h unless Tom names a window. The alert's freshness rule ("Already-present" only for in-window emails) uses the same window.
 
 **Step A1: Pull the Active Portfolio company list from Notion.**
 
@@ -94,11 +96,11 @@ For each active portfolio company, run a targeted Gmail search using the company
 
 **Company name resolution:** When an opportunity has a DBA or alias name (e.g., "Argo (dba Runner)"), run all subject/name-based queries below for **each** name variant — both the legal name and the DBA name. Extract DBA names from parenthetical suffixes like "(dba X)", "(fka X)", or "(now X)". For "Argo (dba Runner)", run queries for both "Argo" and "Runner".
 
-- `q: "from:{company_domain} newer_than:1d"` — if the company's email domain is known. **Also run this query for each alias domain** listed in the domain alias table above.
-- `q: "subject:{company_name} update newer_than:1d"` — search by company name in subject with "update"
-- `q: "subject:{company_name} newer_than:1d"` — search by company name in subject (no keyword restriction). This catches non-standard subject lines like "Runner's log #2", "Signal7 Feb Recap", "Clerq Quarterly Digest", etc.
-- `q: "{company_name} update newer_than:1d"` — broad fallback search by company name
-- `q: "{company_name} board newer_than:1d"` — board materials catch-all (board meeting / board deck / board update). Hits subject and body. Also catches Google Slides share notifications (subject typically `Presentation shared with you: "{Company} Board Meeting {Date}"`).
+- `q: "from:{company_domain} newer_than:{W}"` — if the company's email domain is known. **Also run this query for each alias domain** listed in the domain alias table above.
+- `q: "subject:{company_name} update newer_than:{W}"` — search by company name in subject with "update"
+- `q: "subject:{company_name} newer_than:{W}"` — search by company name in subject (no keyword restriction). This catches non-standard subject lines like "Runner's log #2", "Signal7 Feb Recap", "Clerq Quarterly Digest", etc.
+- `q: "{company_name} update newer_than:{W}"` — broad fallback search by company name
+- `q: "{company_name} board newer_than:{W}"` — board materials catch-all (board meeting / board deck / board update). Hits subject and body. Also catches Google Slides share notifications (subject typically `Presentation shared with you: "{Company} Board Meeting {Date}"`).
 
 Founders use a wide variety of subject line formats beyond "update" — including "log", "newsletter", "recap", "report", "digest", "news", "check-in", and numbered series like "#2" or "vol. 3". Board materials surface as "Board Meeting", "Board Deck", "Board Update", "Board Materials", or Google Slides share notifications (`Presentation shared with you: ...`). The subject-only and board queries are intentionally broad; false positives are filtered out in Step A4.
 
@@ -108,8 +110,8 @@ This portfolio-driven approach ensures updates are caught regardless of whether 
 
 In addition to the per-company searches, run these catch-all queries to find updates Tom forwarded to himself from alternate addresses:
 
-- `q: from:me "Fwd:" newer_than:1d`
-- `q: from:me "Forwarded" newer_than:1d`
+- `q: from:me "Fwd:" newer_than:{W}`
+- `q: from:me "Forwarded" newer_than:{W}`
 
 Inspect forwarded email bodies for investor-update signals (founder/CEO sender, company metrics, addressed to investors/stakeholders). Match the forwarded content's original sender to the Active Portfolio list from Step A1.
 
@@ -122,7 +124,7 @@ Two valid kinds pass validation. The kind determines the Update Type value(s) ad
 - **Investor update** — comes from a founder or CEO, references metrics like revenue/ARR/burn/runway, addressed to investors or stakeholders. Adds Update Type `Formal`. PDF: `[Company] - [Mon] [YYYY] Update.pdf`.
 - **Board material** — references a board meeting, shares a board deck, or is a Google Slides share notification for a board presentation. Sender is typically a founder, CEO, or COO; recipients are typically board directors. Subject often contains "Board Meeting", "Board Deck", "Board Update", "Board Materials", or `Presentation shared with you:` (Slides share template). Body length can be short (Slides share notifications carry minimal email body — the substance is in the deck, which MUST be read for Summary/Traction extraction). Adds Update Type `Formal` + `Board`. PDF: `[Company] - [Mon] [YYYY] Board Meeting.pdf`.
 
-If neither kind fits, discard. If no emails pass validation across all searches, report "No new investor updates or board materials found in the past 24 hours" and stop.
+If neither kind fits, discard. If no emails pass validation across all searches, report "No new investor updates or board materials found in the past {W}" and stop.
 
 ### Mode B: Webhook (single message)
 
@@ -147,7 +149,7 @@ On this variant: **do not use the Gmail MCP.** Fetch the body via `~/.claude/scr
 - Run the same artifact-level idempotency check (Step 4 — has this message already been incorporated into its period row?). If yes, log and exit without re-uploading the PDF.
 - Skip Step 1's portfolio-list query and per-company searches entirely — those exist for the scheduled mode.
 - Otherwise proceed through Steps 2–5 unchanged. The Slack alert in Step 5 is the single notification for this update — the webhook does not post its own alert in this path.
-- Single-message alert format (override Step 5's batch format): headline + one body line (the runtime lint wraps the ENTIRE first line, so nothing may trail the headline): `📬 <u>**<Company>: "<subject or period>"**</u>`, blank line, then `<PDF source>. [<Company> update](<update_pdf_drive_url>) · [Notion row](https://www.notion.so/{page_id_no_dashes})`. The primary `<Company> update` link opens THE UPDATE ITSELF — the archived PDF's Drive view URL (the original attachment/deck PDF when one exists, else this email's body-PDF) — never the Company Updates period row, which is the month's rolled-up summary (Tom, 2026-10-01, Factir Sep 2026). The period row rides as the secondary `Notion row` link. Both MUST be GFM markdown links `[label](url)` — never a bare URL (a bare URL ships as plain, un-tappable text through the Block Kit converter). Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
+- Single-message alert format (override Step 5's batch format; rendered by `update_alert.py` — Step 5 "Alert surface"): headline + one body line (the runtime lint wraps the ENTIRE first line, so nothing may trail the headline): `📬 <u>**<Company>: "<subject or period>"**</u>`, blank line, then `<PDF source>. [<Company> update](<update_pdf_drive_url>) · [Notion row](https://www.notion.so/{page_id_no_dashes})`. The primary `<Company> update` link opens THE UPDATE ITSELF — the archived PDF's Drive view URL (the original attachment/deck PDF when one exists, else this email's body-PDF) — never the Company Updates period row, which is the month's rolled-up summary (Tom, 2026-10-01, Factir Sep 2026). The period row rides as the secondary `Notion row` link. Both MUST be GFM markdown links `[label](url)` — never a bare URL (a bare URL ships as plain, un-tappable text through the Block Kit converter). Skip the "Portfolio / Non-Portfolio / Needs review" section headers since there's only ever one entry.
 
 ### Mode C: Manual / Forwarded Email
 
@@ -693,7 +695,8 @@ artifact text you already extracted counts too). None that fit spec § 1 → ski
 1. `python3 ~/.claude/skills/portco-ask/portco_ask.py prior --opp <opportunity_page_id>` → reuse keys for standing asks
    (a repeat still cards, flagged ⚠ Repeat – spec § 3). This update's own text is the company context.
 2. Pipe the payload to `python3 ~/.claude/skills/portco-ask/portco_ask.py propose`: `lane:"email-update"`, `company`
-   = the Opp title, `founder` = the sender (`role` if not a founder), `period` = this row's period label (`Oct 2026`),
+   = the Opp title, `opp_status` = the Opp's Status (required – portco_ask.py refuses without it), `founder` = the
+   sender (`role` if not a founder), `period` = this row's period label (`Oct 2026`),
    `source_ref` + `gmail_id` = the Gmail message id (omit `gmail_id` for a non-Gmail source), `source_text` = the
    normalized body (Step 2.5) plus any artifact text the asks came from.
 3. The card is a text to Tom, separate from this skill's Slack alert; add one `**Asks Carded**` line to the Step 5
@@ -708,9 +711,26 @@ sentence>" --why "<one line naming this update>" --source "<period label>"`. exi
 
 ## Step 5: Report Results
 
-**Notification channel:** All alerts (success, non-portfolio, misclassification review) MUST be delivered via the `send-alert` skill at `/Users/tomseo/.claude/skills/send-alert/SKILL.md` — pipe the GFM body through `~/.claude/skills/send-alert/send.sh`. This posts as the `claude` bot identity (the canonical channel for LLM-synthesized alerts; distinct from `tom` MCP and `alerts` Apps Script).
+**Alert surface — decided once per run (F13, 2026-10-11, alerts-follow-the-surface).** `SURFACE=text` when Tom
+triggered the run by text (Mode C via sms-listener inline, or a job it enqueued — args carry `from`); `SURFACE=slack`
+for everything else: Mode A sweep, Mode B webhook (incl. Dash variant), and a Mode C run in an interactive session.
+The single-update alert (Mode B + C) is rendered by code — never hand-compose it:
 
-**HARD RULE — every DB write alerts, ALL modes including Mode C (Tom, 2026-08-28).** Any run that creates or upserts a Company Updates row sends the Slack alert — sweep, webhook, AND manual/in-conversation runs. Mode C uses the Mode B single-line format. Do NOT skip the alert because Tom is present in the conversation (precedent: the AgentBay Aug 2026 manual capture initially skipped it and the alert had to be backfilled) — #claude-alerts is the durable audit trail of DB writes, not just a notification channel; an in-chat summary does not replace it. The only alertless exits are no-op exits (idempotency skip, or a filtered non-write — those follow their own alert sections above).
+```bash
+python3 ~/.claude/skills/investor-update/update_alert.py --surface "$SURFACE" --company "<Company>" \
+    --subject "<subject or period>" --pdf-source "<Original PDF | Email body PDF | DocSend PDF …>" \
+    --row-url "https://www.notion.so/<row id no dashes>" --pdf-url "<Drive view URL of THIS update's PDF>" \
+    [--caveat "<e.g. dropped ungrounded clause: \"…\">"]... [--asks <n, only when Step 4.7 sent a card>]
+```
+
+slack → posts to #claude-alerts. text → posts NOTHING; text its `alert` VERBATIM
+(`~/.claude/skills/sms-listener/send_imessage.sh "<from>" --stdin`). Interactive session → slack, and paste the
+same `alert` in chat (never a hand-formatted summary). exit 2 → fix the input; exit 3 → retry once. The one-line
+fallback alerts above (stripped attachment, inaccessible deck) follow the same surface: text-triggered → texted plain.
+
+**Notification channel:** All Slack-surface alerts (success, non-portfolio, misclassification review) MUST be delivered via the `send-alert` skill at `/Users/tomseo/.claude/skills/send-alert/SKILL.md` — pipe the GFM body through `~/.claude/skills/send-alert/send.sh`. This posts as the `claude` bot identity (the canonical channel for LLM-synthesized alerts; distinct from `tom` MCP and `alerts` Apps Script).
+
+**HARD RULE — every DB write alerts, ALL modes including Mode C (Tom, 2026-08-28).** Any run that creates or upserts a Company Updates row sends the alert on its surface — sweep, webhook, AND manual/in-conversation runs post to Slack; a text-triggered run texts it instead (never both, never neither). Mode C uses the Mode B single-line format. Do NOT skip the alert because Tom is present in the conversation (precedent: the AgentBay Aug 2026 manual capture initially skipped it and the alert had to be backfilled) — #claude-alerts is the durable audit trail of DB writes, not just a notification channel; an in-chat summary does not replace it. The only alertless exits are no-op exits (idempotency skip, or a filtered non-write — those follow their own alert sections above).
 
 **Do NOT use `mcp__claude_ai_Slack__slack_send_message`** — that posts as `tom` (your user identity) and conflates with messages you actually sent. Mode B misclassification alerts and Mode A summaries both go via send-alert.
 

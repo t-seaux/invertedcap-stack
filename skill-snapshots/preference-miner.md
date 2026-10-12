@@ -58,7 +58,7 @@ propose. Aim for 0–4 high-signal candidates per run, never a pile of speculati
 
 ## 4. Digest to Tom (1:1, not the group — agent-tuning is his call)
 If ≥1 new candidate, text Tom via `~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<digest>"`.
-Honor the formatting prefs (`prefs.py load core`): Title Case header, blank line, no bold.
+Honor the formatting prefs (`prefs.py load core`) and `sms-listener/SKILL.md` § Formatting.
 Show each candidate's destination so Tom knows where a "confirm" sends it — `→ <skill>` for
 skill-core prefs, `(corpus)` for narrow overrides:
 ```

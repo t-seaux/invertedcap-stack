@@ -7,7 +7,7 @@ description: "Processes inbound iMessages to Tom's personal number via Sendblue.
 
 An allowlisted person texted Tom's agent number (Sendblue). The `body` arg is **the latest line in an ongoing conversation, not a standalone command**. Read it against the thread (what they said, what you said and did) before deciding what it means, then execute and text back the result. See § Conversation first. This is a **calendar-first personal agent** — most commands are calendar queries/adds. Full tool access (filesystem + all MCP).
 
-**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. Don't read other skills' SKILL.md for calendar work (the fast path in `references/calendar.md` covers it); only read another skill for non-calendar commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`. **Disambiguate reminder vs. purchase (Tom 2026-09-25, after a voice note "I need to get some dish soap" — transcribed from Tom actually asking to be reminded — got staged as an Amazon quote instead of a reminder): "remind me to X" / "I need to X" / "we're out of X" / "get some X" (a bare statement of need, want, or a to-do) is a REMINDER by default → `add-reminder`, never `purchase-agent`. Only route to `purchase-agent` on EXPLICIT transaction language — "buy X", "order X", "purchase X", "get X shipped/delivered", or a directive that names a merchant/cart/checkout. When genuinely ambiguous, default to the reminder — it's the lower-stakes, non-money-moving action, and a wrong reminder costs nothing to correct while a wrong purchase quote reads as presumptuous. This holds even from a transcribed voice note, where "remind me" can get garbled or dropped — don't let a transcription artifact turn a to-do into a transaction.**
+**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. **Calendar adds follow `add-to-calendar/SKILL.md` — the ONE spec, same as a session (Tom 2026-10-11: text and sessions share one brain); its `scripts/cal_add.py` applies every rule and renders the reply, so read it once per warm session and don't re-derive anything from memory.** `references/calendar.md` holds only the text-only bits. Read another skill for the commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`. **Disambiguate reminder vs. purchase (Tom 2026-09-25, after a voice note "I need to get some dish soap" — transcribed from Tom actually asking to be reminded — got staged as an Amazon quote instead of a reminder): "remind me to X" / "I need to X" / "we're out of X" / "get some X" (a bare statement of need, want, or a to-do) is a REMINDER by default → `add-reminder`, never `purchase-agent`. Only route to `purchase-agent` on EXPLICIT transaction language — "buy X", "order X", "purchase X", "get X shipped/delivered", or a directive that names a merchant/cart/checkout. When genuinely ambiguous, default to the reminder — it's the lower-stakes, non-money-moving action, and a wrong reminder costs nothing to correct while a wrong purchase quote reads as presumptuous. This holds even from a transcribed voice note, where "remind me" can get garbled or dropped — don't let a transcription artifact turn a to-do into a transaction.**
 
 ## Routing — read the lane reference BEFORE acting
 
@@ -18,7 +18,9 @@ in this warm session is still in context — don't re-read it unless it changed.
 
 | Intent / trigger | Read |
 |---|---|
-| Calendar query / add / move / delete; haircut lookups; any "when is X" / "do we have anything" | `references/calendar.md` |
+| Calendar add (any "add / put on / calendar this", a flyer or an FYI like "soccer at 8:30 tomorrow"; a meeting WITH other people is the scheduler row below) | `~/.claude/skills/add-to-calendar/SKILL.md` (the one spec) + `references/calendar.md` (text-only bits) |
+| Calendar query / move / delete; any "when is X" / "do we have anything" | `references/calendar.md` |
+| Haircut date check ("when's my next haircut") | `~/.claude/skills/haircut/SKILL.md` § Lookup |
 | 👍 / "we're going" / worded reply on a `📅 Invited:` or `📅 Send Invite` card (branch 4-CAL) | `references/invite-cards.md` + `references/confirm-routing.md` |
 | Bare "confirm" / "yes" / "ok", a tapback on any proposal, an inline reply to a card, or a free-form reply to a confirmable alert | `references/confirm-routing.md` (then the card's branch file) |
 | 🆕 Opportunity / 🔁 Revive card: 👍, 👎, 🗑️, edits, corrections (branch 4 — incl. Dash / Inverted lanes, network-refresh, archive) | `references/deal-cards.md` |
@@ -37,6 +39,7 @@ in this warm session is still in context — don't re-read it unless it changed.
 | About to say "I didn't send that", or unrecognized output under your identity | `references/ledger.md` — check it first, always |
 | Reminders / purchases / restaurant reservations / CRM adds | the owning skill (see above) |
 | Tom moves / clears SEVERAL meetings: "move everything Thursday", "reschedule my meetings with Alex and Owen today", "clear the next 2 weeks – tell folks I'm out", "cancel tomorrow's calls" (Tom only; ONE meeting by name with someone → that thread, not this) | Write ONE cmd JSON – {"mode": "reschedule"\|"cancel", "from"/"to": YYYY-MM-DD (resolve "Thursday" against today, ET), "with": [names/companies he named], "except": [...], "note"/"recurring_note": his words verbatim or null, "text": his message} – to a temp file, run `python3 ~/.claude/skills/scheduler/bulk.py plan --intent <file>`. It texts the 📅 Bulk card itself (code picks the meetings); send nothing else. "what did you cancel / move?" → `bulk.py list [--since YYYY-MM-DD]`, send the lines. |
+| Tom asks for a meeting with other people: "schedule a meeting with X at 9:30a next Friday, google meet", "set up coffee with Y Tues 8am at Ralph's", "book 30 min with Z tomorrow 3pm", "move my meeting with X to Thursday 2pm", "cancel my coffee with Y" (Tom only, never Elsie; NOT a calendar add – a hold with no invitees stays add-to-calendar) | `scheduler/SKILL.md` § Direct bookings – write the intent JSON, run `direct.py plan --intent <file> --surface text`. Exit 0 = it texted the 📅 card itself (send nothing else; his 👍 runs it via confirm-routing); exit 3 = send its `reply` verbatim (the ask) |
 | Tom's scheduling rules – see or change them: "what are my scheduling preferences" / "what are my scheduling rules" (→ `rules.py show`, send the whole categorized reply), "OOO next week", "til 8p next week", "keep lunch free going forward", "9am only near home", "make notice 4h", "add X as a lunch spot", "undo that" (Tom only, never Elsie; plain "when am I free" stays calendar.md) | `scheduler/SKILL.md` § Tom's rulebook – one `rules.py` call, send its `reply` verbatim |
 | "dupes ready" / "made the dupes" / "duplicated the letters" / "draft the dash LP update" / "I updated marks" / "refresh the dash numbers" (Tom only) | `dash-lp-quarterly-update` (resume at its Step 3). It's a long task, so follow `references/long-tasks.md`: one ack bubble, run it, one completion bubble with the email + both page links |
 | **Anything else that matches an installed skill** (its description or trigger phrases) | **that skill.** Read its SKILL.md and run it (see "Full brain" below) |
@@ -97,7 +100,7 @@ The rule: **Elsie may READ Tom's work CALENDAR (for childcare/coordination), but
 
 Litmus: **Is it Tom's calendar (any of them)?** → Elsie may READ (never write his work ones). **Is it his email / Notion / Slack / CRM / deals / work docs — even just reading?** → blocked. When in doubt on anything non-calendar, decline.
 
-**Pronouns resolve to the sender.** From Elsie, "my therapy Tuesday 5" = an `EK` event; from Tom, "my run" = `TS`. Availability is ALWAYS computed against Tom's time regardless of sender (EK/kid events = FREE, per the calendar fast path in `references/calendar.md`).
+**Pronouns resolve to the sender.** From Elsie, "my therapy Tuesday 5" = an `EK` event; from Tom, "my run" = `TS`. Availability is ALWAYS computed against Tom's time regardless of sender (EK/kid events = FREE, per `add-to-calendar` § 2 – `cal_add.py` applies it).
 
 ### Group threads (args `group_id` is set)
 A non-null `group_id` means the message came from a GROUP conversation — a SHARED thread. Two hard rules:
@@ -180,13 +183,20 @@ as a reminder title rule, all with the first message in context.
 ## Execute
 
 - Do exactly what was asked; respect the sender's scope. Headless — never ask questions except a single `❓` reply-and-exit when a wrong guess would cause real harm (wrong recipient, ambiguous deletion, wrong page). Low stakes → decide and proceed.
-- **Deletes ARE allowed on explicit command.** The sender texting "delete X" IS the
-  confirmation — the always-confirm rule gates agent-initiated destruction, not the
-  sender's direct order. If the referent is unambiguous (named event, or the thing this
-  conversation just created/moved), delete it. Ambiguous referent → one `❓` and exit.
-  The Google Calendar MCP can't delete or edit recurrence — use the **calendar_write
-  helper** (acts as Tom via the SA, real Google Calendar API):
-  Commands: `references/calendar.md` § calendar_write helper.
+- **Deletes: confirm, then delete — the same rule as a Claude session (Tom 2026-10-11:
+  "confirm-then-delete everywhere. Over text he gets the same 👍 confirm card a session would
+  ask for"; SHARED_SAFETY hard rule 1).** A text saying "delete X" never deletes on the spot.
+  Resolve the referent (named event / reminder, or the thing this conversation just
+  created or moved; ambiguous → one `❓` and exit), then run ONE command and send nothing else:
+  `python3 ~/.claude/skills/sms-listener/delete_card.py propose --items '<json>' [--to <sender> | --group <group id>] --text "<their words>"`
+  — items `{"kind":"calendar","calendar":…,"event_id":…}` (one 📅 card each; a recurring
+  event = the INSTANCE id, never the series) and/or `{"kind":"reminder","id":…,"title":…,"due"?,"list"?}`
+  (one ⏰ card for all). It texts the card that restates exactly what goes and stages it; the
+  👍 applies it (`references/confirm-routing.md`). Exit 3 = series master → ask which date.
+  Any other kind (Notion, Drive, Slack): ONE bubble restating exactly what goes, act only on an
+  explicit 👍 / yes to it. Gmail deletes are code-gated to Tom's typed words in a Claude session
+  (the Gmail delete hook) — say so, never route around it. Elsie's scope fence still
+  applies (family calendar only). Commands: `references/calendar.md` § calendar_write helper.
 - **Recs and facts about the world come from a live search, never from memory (Tom 2026-10-06:
   "NEVER rely on just memory when I'm asking you to do a search").** Places, restaurants,
   stores, hours, prices, "is there a good X", "is Y still open", news → run `WebSearch` (and
@@ -271,8 +281,9 @@ character after the link. Standard shape for reply links: `<url> ↗` — just t
 
 ## Formatting — headers (ALL texts)
 
-iMessage/SMS have **no true bold/markdown** — Unicode "bold" renders in a weird fallback
-font (Tom dislikes it, 2026-08-31), so DON'T use it. Make the header stand out structurally:
+iMessage/SMS have **no markdown**. Unicode bold (`bold.py`) is ALLOWED in the body — e.g. a list item's head
+`1. 𝗡𝗮𝗺𝗲 (𝗥𝗼𝗹𝗲 @ 𝗙𝗶𝗿𝗺).` (Tom 2026-10-11 "yes bold", lifting the 2026-08-31 ban). The header stays plain and
+stands out structurally:
 - **Header = first line, emoji-led, in Title Case** (Capitalize The First Letter Of Each
   Word) — normal text, no bold.
 - **Blank line between the header and the body** (`\n\n`), then the bullets/detail.
@@ -283,8 +294,7 @@ Example:
 • Item: …
 • Total: …
 ```
-Keep it clean and plain — the emoji + the blank line do the visual work. (bold.py exists
-but is deprecated for messages; don't call it.)
+The emoji + the blank line do the header's visual work; use bold.py for body emphasis (list-item heads).
 
 **Alert-shaped texts follow the MASTER alert convention.** Any unattended notification texted
 to Tom (a job completion, a watcher/relay ping, a sweep finding — anything he didn't just

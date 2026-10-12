@@ -1,9 +1,10 @@
 ---
 name: intro-agent
 description: >-
-  Detect and log investor intro requests from Gmail and iMessage into Notion. Two modes: (1) Scheduled sweep —
-  reconciliation pass (past 24h Gmail + iMessage) catching what the per-event webhooks (intro-agent-inbound,
-  intro-outreach, intro-made) missed. (2) Manual — auto-detects a forwarded/pasted intro request or an explicit
+  Detect and log investor intro requests from Gmail into Notion (texts are the deal-text-scanner's – never scanned
+  here). Two modes: (1) Scheduled sweep — reconciliation pass (past 24h Gmail) catching what the per-event webhooks
+  (intro-agent-inbound, intro-outreach, intro-made) missed; a founder's named-person ask goes to the portco-ask card
+  (👍 → draft) and a founder approving Tom's proposed list goes to offer-drafts – same as over text. (2) Manual — auto-detects a forwarded/pasted intro request or an explicit
   ask ("intro Dan Li to Nishant Karandikar", "log these intros", "add these intros to qualified"); also triggers
   on screenshots of texts/emails with intro requests. Trigger phrases: "intro", "intros", "qualified intros",
   "log intro", "facilitate intro", "make an intro", "connect X to Y", or any message about connecting a person
@@ -127,7 +128,7 @@ A founder sends a clean email listing multiple people they want intros to. This 
 **Extraction:** Pull each person's name, company, and role. The Opportunity is identified by the sender (match the sender's email or name to a founder in the Opportunities database).
 
 ### Pattern 2: In-Thread Offer (Targeted Intro)
-Tom offers to make a specific intro within an ongoing email or text conversation. The commitment is embedded in the flow of conversation rather than a standalone request.
+Tom offers to make a specific intro within an ongoing email conversation (texts: deal-text-scanner). The commitment is embedded in the flow of conversation rather than a standalone request.
 
 **Characteristics:**
 - Tom (or the founder) mentions a specific person and company
@@ -151,10 +152,10 @@ Tom explicitly tells you to log an intro. This is the most straightforward patte
 
 ### Pattern 4: Founder Greenlight on Tom-Proposed Candidates
 
-Tom proposes a list of intro candidates to a portfolio founder in an outbound email; the founder replies approving a subset (or all) of them. The greenlit names → `👓 Intros (Qualified)`. This is the inverse of Pattern 1: Tom is initiating the batch, founder is approving rather than requesting.
+Tom proposes a list of intro candidates to a portfolio founder in an outbound email; the founder replies approving a subset (or all) of them. The greenlit names → `portco-ask` Mode email-offer (Step 1.6: drafted now, or held for a pending blurb; the drafter writes `👓 Intros (Qualified)` when it drafts) – never a direct Qualified write here (2026-10-11). This is the inverse of Pattern 1: Tom is initiating the batch, founder is approving rather than requesting.
 
 **Characteristics of Tom's outbound proposal:**
-- Outbound from `tom@invertedcap.com` to a known portfolio founder (resolvable to an Opportunity via `Contact` email or `🏁 Founder(s)` relation)
+- Outbound from `tom@invertedcap.com` to a founder of any open Opp – portfolio or pipeline (resolvable to an Opportunity via `Contact` email or `🏁 Founder(s)` relation)
 - Contains a structured list of candidates — typically ≥2 names, each with company/role and a `linkedin.com/in/…` URL
 - Framing language: "Some I had in mind", "cool if I reach out to", "candidates for your round", "people I think would be a fit", or a bare list of names with LinkedIn URLs
 - May omit the "intro" keyword entirely — selection by structural shape (list + LinkedIn URLs), not vocabulary
@@ -164,13 +165,13 @@ Tom proposes a list of intro candidates to a portfolio founder in an outbound em
 - Per-name verdicts: "yes please on all three", "Early Light and Luge look like strong fits", "and yes on Long Run", "skip Phil, but the others look great", or a bulleted yes/no list
 - Soft pass / "ask for more context" replies (e.g. "let me know if you have additional context on fit") are NOT greenlights — flag for Tom, do not write to Qualified
 
-**Example:** Tom emails Jess (Uprise) on 2026-06-02 with 4 investor candidates: Dave Ambrose, Scott Garber, Wilson Patton, Karim Gillani. Jess replies 2026-06-03: "Early Light and Luge look like strong fits…and yes on Long Run" + asks for more context on Bungalow. → Write Scott, Karim, Wilson to Uprise's Qualified; flag Dave for Tom (no write).
+**Example:** Tom emails Jess (Uprise) on 2026-06-02 with 4 investor candidates: Dave Ambrose, Scott Garber, Wilson Patton, Karim Gillani. Jess replies 2026-06-03: "Early Light and Luge look like strong fits…and yes on Long Run" + asks for more context on Bungalow. → Mode email-offer: Scott, Karim, Wilson are drafted (Tom offered them – no 👍); Dave isn't picked ("more context" is not a yes).
 
 **Extraction:**
 1. Parse Tom's outbound for the candidate list — name + LinkedIn URL per row.
 2. Parse founder's reply for per-name verdicts. Map verdict tokens: explicit "yes" / "strong fit" / "go ahead" / "looks great" → greenlight. Explicit "no" / "skip" / "not a fit" → decline (no write). "Need more context" / "tell me more" / "not sure" → flag for Tom, no write.
 3. The Opportunity is identified by the founder's email/name (Pattern 1 resolution logic). Same Step 3–5 workflow as other patterns.
-4. If the founder's reply mentions names NOT in Tom's prior outbound list, those are founder-initiated additions — treat as Pattern 1 (still write to Qualified, but flag as "founder-added, not on Tom's list").
+4. If the founder's reply mentions names NOT in Tom's prior outbound list, those are founder-initiated additions — they are not offered – Mode email-offer appends them (`register-list --append`) and they get the 🙋 Draft Intro Asks 👍 card.
 
 ## Anti-Pattern: Inbound Offer to Intro TOM (NOT an Intro Event)
 
@@ -198,7 +199,9 @@ When someone in Tom's network offers to introduce **Tom himself** to a company, 
    - **Sent (structural)**: `newer_than:1d "linkedin.com/in" in:sent` — catches Pattern 4 outbound proposals where Tom lists candidates with LinkedIn URLs but doesn't use any "intro" keyword (e.g., "Some I had in mind" + a list of names with `linkedin.com/in/…` URLs). Filter results to threads where ≥2 distinct `linkedin.com/in/` URLs appear in the body AND the recipient resolves to a portfolio founder via Opp `Contact` / `🏁 Founder(s)`.
    - Also scan emails from known portfolio company founder email addresses/domains
 
-2. **iMessage**: Check recent messages using `get_unread_imessages` and `read_imessages` for known founder contacts. Look for the same intro-related language.
+2. **iMessage: never scanned here (2026-10-11).** Text intro asks have ONE owner — the deal-text-scanner sweep
+   (portco-ask lane for a portfolio founder's ask, intro lane for Tom's offers and the replies). Scanning texts here
+   too gave the same ask two different outcomes (a Qualified write here vs. a 👍 card there).
 
 **Manual mode** — parse the user's message, forwarded email, screenshot, or pasted text for intro requests.
 
@@ -214,6 +217,28 @@ If both legs are present, route the thread through Pattern 4 extraction (above) 
 This step exists because the original 2026-06-02/03 Uprise miss had Tom's outbound proposal lacking any "intro" token, so the keyword-only sweep failed to pair the legs. Always look at the thread, not the message in isolation.
 
 **Single-thread provenance — applies to ALL detection patterns (1–4), not just Pattern 4.** Every candidate (person, Opp) pair must be evidenced within a single coherent thread/message before any extraction or write. Cross-thread or same-day co-occurrence is NEVER sufficient — do not stitch a person from one email with an Opp/founder from a different email merely because both surfaced in the same 24h scan window. Walking backward/forward within one thread (as above) is fine; combining separate threads is not. Canonical miss (2026-05): Erik Ronning (Rengo, unrelated 15:45 thread) and Chris Freeberg (Altis, 23:04 intro to Chris Oh) were stitched into a fabricated Rengo→Chris intro from same-day co-occurrence. See `shared-references/intro-lifecycle-contract.md` (Single-Thread Provenance).
+
+### Step 1.6: A founder's named-person ask, or approval of Tom's list → portco-ask, never a Qualified write (2026-10-11)
+
+Same outcome as the text lane and the gmail-webhook (`intro-agent.js`); spec `shared-references/portco-asks.md`.
+
+- **Patterns 1 and 2 from ANY open-Opp founder** (portfolio, or a pipeline Opp not intro-closed – Tom 2026-10-11 "yes
+  re your rec on pipeline founders named asks") asking Tom for intros to specific named people: do NOT write 👓 Qualified
+  here. Enqueue `portco-ask` Mode email —
+  ```bash
+  ~/.claude/scripts/enqueue-job.sh portco-ask '{"mode":"email","messageId":"<id>","threadId":"<id>","from":"<sender>",
+    "subject":"<subject>","date":"<date>","body":"<the founder NEW text, quoted history cut, ≤4000 chars>",
+    "opp_id":"<opp>","opp_name":"<Opp title>","opp_status":"<Status>","categories":["named"]}' "portco-ask-<messageId>" 900 intro-agent named-ask
+  ```
+  → ❓ card (a pipeline Opp's card shows its Status) → Tom's 👍 → `intro-outreach-drafter` Mode C drafts the asks AND
+  writes 👓 Qualified via the lifecycle wrapper.
+- **Pattern 4 – the founder approves a list Tom proposed** (Step 1.5's thread pair): do NOT write 👓 Qualified. Enqueue
+  `portco-ask` Mode email-offer (`{"mode":"email-offer", messageId, threadId, from, subject, date, body, "offer_message_id":
+  <Tom's proposal id>, "offer_text": <Tom's proposal text>, opp_id, opp_name, opp_status}`, key `portco-offer-<messageId>`)
+  → `register-list` + `offer-drafts`: approved people draft now (or HOLD while the founder's blurb is pending); names the
+  founder adds that Tom never proposed get the 🙋 Draft Intro Asks card. Identical to the text opt-in (Tom 2026-10-11 "yes
+  re founder approving proposed list by email").
+- Tom's own explicit instruction (Pattern 3) still goes through Steps 2–5 below.
 
 ### Step 2: Extract Structured Data
 
@@ -255,7 +280,7 @@ Before writing to ANY intro lifecycle field, every candidate (person, opportunit
 
 **Gate 1 — Directionality (Tom must be the introducer).** Confirm the source signal has Tom (or a portfolio founder) as the offerer/sender, not the recipient. See the "Anti-Pattern: Inbound Offer" section above. If the signal is someone offering to intro Tom to a company, skip — that's `add-to-crm` territory, not intro management.
 
-**Gate 2 — Terminal-status skip (no writes to closed Opps).** After resolving the Opportunity in Step 3, read its `Status` property. If `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set closed` exits 0 (Status is in the `closed` set), skip this person entirely. Log: `[Person Name] skipped — opp [Company] has terminal status [status], not a live deal`. Closed Opps should never receive new intro relations regardless of how the signal was detected.
+**Gate 2 — Terminal-status skip (no writes to intro-closed Opps).** After resolving the Opportunity in Step 3, read its `Status` property. If `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set intro_closed` exits 0 (Pass (DNM) / Exited — contract § Terminal-Status Write Prohibition; Pass (Met), Lost and NR stay OPEN for intros, Inviscid 2026-10-09), skip this person entirely. Log: `[Person Name] skipped — opp [Company] is [status] (intro-closed)`. (Was the broader `closed` set until 2026-10-11 — stricter than the contract and than every other surface.) The lifecycle wrapper enforces the same gate in code (exit 5 `terminal-status`).
 
 **Gate 3 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** **As code (2026-10-04):** `python3 ~/.claude/skills/shared-references/opp_corroborate.py check --opp-id <opp_id> --haystack-file <subject+body file> [--recipient <email> ...]` — exit 0 corroborated → proceed · 1 no-match (name absent, or only in a common phrase like "let's connect") → not about this Opp, skip silently · 3 uncorroborated → skip and log its `alert` line verbatim · 2 read error → skip the write (fail closed). Rules + WHY: `shared-references/intro-lifecycle-contract.md` § Word-Boundary Corroboration (summary kept here): any haystack-matched Opp Name requires at least one corroboration signal before writing. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7 chars), `Compass` (7 chars), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4), `Core` (4), `Arc` (3) all require the same corroboration. Acceptable corroboration (one is sufficient):
 - The Opp's `Website` domain stem OR any `Contact` email domain appears in the haystack OR among recipient email domains

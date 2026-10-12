@@ -172,7 +172,7 @@ format), Known event sources (kids' classes), Lane-specific (family bullet).
   first pass and text alert us with what you added, let us audit/ask for edits"). No
   more propose-and-wait: once the dedup check above comes back clean, create the event
   on the Elsie-Tom calendar right away (BUSY unless it's clearly a FREE-type marker per
-  the calendar fast-path rules) and put it in the heads-up as an **already-done** `Added` line
+  `add-to-calendar` § 2) and put it in the heads-up as an **already-done** `Added` line
   (contract invariant 4), not a 🆕 ask. Dedup-before-add is still absolute — never skip that check just because
   adding is now automatic. If a date is genuinely ambiguous (ex: ambiguous group/time
   assignment, conflicting info in the email) hold it as a 🆕 ask instead of guessing.
@@ -231,7 +231,7 @@ Lane-specific). Non-calendar notable mail keeps a `📬 <Topic>:` headline. Exam
   is *not* the photo carrier; the album lives in the teacher's classroom recap.
 - `Added` lines are first-pass, not a proposal — Tom/Elsie audit after the fact; a reply
   like "move picture day to 9am" / "remove that" / "wrong calendar" is an edit request,
-  handled via the normal sms-listener calendar fast path against the event you just
+  handled via `add-to-calendar` (`cal_add.py` / `calendar_write.py patch`) against the event you just
   created (you know its id from this same turn). Only fall back to a 🆕 **ask** (ends with
   a question) for a date that's genuinely ambiguous and you don't want to guess wrong.
 - **Draft-offer CTAs are RETIRED on this lane (Tom 2026-09-21: "i dont think we need a

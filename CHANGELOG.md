@@ -1,5 +1,29 @@
 # Changelog
 
+## [2026-10-12] (Week of 2026-10-12)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-crm -- identity lookups (HQ, contact, website) now run in shared code, so chat and text paths create the same opportunity
+- coinvestor-recommender -- output unified into a single investor-scan layout with a blind-fit judge and next-round-lead mode
+- network-scan -- fit scored blind to past-intro history, which only labels results; fit-list queries go through the shared judge first
+- talent-scan -- now a network scan variant sharing the same judge, verify step, and layout
+- deal-share-out -- firm-wide prior-contact exclusion applied to recipients in code
+- deal-text-scanner -- broader intro and portfolio-ask routing rules
+- decision-retro -- scan spec consolidated in one place with code-enforced dedup before any post
+- first-pass-diligence -- drafting pinned to the top model tier; progress alerts follow the surface that triggered the run
+- materials-handler -- alerts follow the triggering surface (chat vs. other)
+- research-agent, pipeline-agent, investor-update, feedback-outreach-scanner -- lookback window and model tier now owned by the skill; scheduled and interactive runs produce identical digests
+- intro-agent -- founder-approved intro lists and named-person asks route to the shared ask flow
+- intro-outreach-drafter -- intro relation writes go through the lifecycle writer
+- log-thread-to-notes -- opinion threads on a deal route through the shared feedback writer
+- investing-style -- quarterly refresh proposal flow written out step by step
+- add-to-contacts -- shared role inboxes no longer saved as contacts
+- add-follow-on-round, pro-forma-round, soi-portfolio-event -- check-size field left alone once a round is in the portfolio record
+**Total skills:** 50
+**Functions:** No changes
+
 ## [2026-10-09] (Week of 2026-10-05)
 
 **Added:** None

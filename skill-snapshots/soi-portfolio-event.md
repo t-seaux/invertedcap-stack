@@ -228,7 +228,7 @@ read it now before proceeding.
   every time so Tom can sanity-check the read.
 - Every draft follows the before→after conveying convention (portal sections, `old → new` arrows).
 - Never write portfolio facts to Notion; only `fund_inputs.json` (priced_round_marks / distributions).
-- **`Inv @ Round` is FROZEN once a round is in the SOI** (SHARED_SAFETY #7, Tom 2026-07-13). Never write
+- **`Inv @ Round` is FROZEN once a round is in the SOI** (`shared-references/inv-at-round-frozen.md`, Tom 2026-07-13). Never write
   it on an in-SOI Opp — not to fix a tie-out, not to reconcile a cap table. The preflight prints a
   `COST-EDIT` line whenever an in-SOI round's cost differs from the last published archive; every draft
   alert must surface that line FIRST so an unintended overwrite can't hide in a routine diff.

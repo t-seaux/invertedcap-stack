@@ -5,8 +5,9 @@ description: >
   Operates in three modes:
   (A) Scheduled sweep — reconciliation pass that catches what the per-event webhook handlers
   (intro-resolution-reply, intro-connected-detect) missed. Scans Tom's Gmail inbox and sent mail
-  from the past 24 hours for replies in outreach threads. Moves opted-in intros to ✉️ Made, and
-  clear declines to 🚫 Declined / NR. Soft deferrals that express future interest are kept in
+  from the past 24 hours for replies in outreach threads. Moves intros Tom has actually made (his dual-recipient
+  connect send) to ✉️ Made, and clear declines to 🚫 Declined / NR; an opt-in alone is never Made – it stays in /
+  moves to ☎️ Outreach and queues the connect draft (intro-draft-agent). Soft deferrals that express future interest are kept in
   ☎️ Outreach — NOT cleared from the pipeline.
   (B) Webhook — invoked per inbound reply via the claude-job-queue primitive; processes
   one specific message instead of the full roster.
@@ -40,7 +41,7 @@ The intro lifecycle stalls if outreach responses aren't tracked. Tom may have se
 
 Critically, Tom often moves faster than the scan cycle. By the time this agent runs, someone sitting in Qualified may have already been reached out to, replied positively, AND received the double-opt-in intro email — all between scans. If you only look at the Outreach roster, you'll miss these people entirely. That's why this agent scans BOTH Qualified and Outreach rosters.
 
-**Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth.
+**Canonical lifecycle rules:** `shared-references/intro-lifecycle-contract.md` — on any conflict, the contract wins. The inline gates/rules in this file remain in force as defense-in-depth. **What a reply DOES (write + draft decision) is `shared-references/intro_reply_route.py`** — the same table the text lane (`deal-text-scanner/intro_text.py`) runs, so a reply ends at the same stage on every surface; this file decides only the verdict.
 
 ## The Intro Lifecycle
 
@@ -142,7 +143,9 @@ When detected from Qualified: Move from `👓 Intros (Qualified)` directly to `�
 
 Tom explicitly tells you the resolution in conversation:
 
-**Made signals**: "I made the intro for X to Y", "intro is done for X", "connected X and Y", "sent the intro email", "X opted in", "X is interested, made the intro", "double opt in complete"
+**Made signals** (the intro was SENT): "I made the intro for X to Y", "intro is done for X", "connected X and Y", "sent the intro email", "X is interested, made the intro", "double opt in complete"
+
+**Opt-in signals — NOT Made** (contract § Stages: "Opt-in reply alone is NOT Made"): "X opted in", "X is interested", "X said yes", "X is up for it". Route exactly like the text lane and Mode B: `intro_reply_route.py --verdict opt-in --stage <current>` → `☎️ Outreach` (via `intro-lifecycle-write.py --target outreach` when they sit in Qualified; Tom's statement confirms his outreach) + hand the connect draft to `intro-draft-agent` (Pattern 2, manual — it owns the phrase "X opted in, draft the email"). Never `--target made` on an opt-in.
 
 **Declined signals**: "X declined", "X isn't interested", "no response from X", "X passed", "move X to declined", "NR on X", "X deferred", "X said not now", "X wants to revisit later"
 
@@ -179,7 +182,7 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
 6. **Route the verdict**:
    - **Made** → invoke the JS-backed write (Step 7).
    - **Declined** (explicit decline or hard deferral) → invoke the JS-backed write (Step 7).
-   - **Opt-in, no intro sent yet** (verdict = clear opt-in, the inline-intro check did NOT fire, and no standalone double-opt-in was found → the contact said yes but Tom has not made the intro): **first confirm Gate 3 (Step 2.9) did not trip — reference-check outreach must never reach this branch.** If clear, do NOT write a terminal state (person stays where they are — ☎️ Outreach or 👓 Qualified), but **enqueue `intro-draft-agent` to auto-draft the double-opt-in intro** (Step 6a). Log `single-message resolution: <person> on <opp> — opt-in → kept in <stage>, draft queued` and exit 0.
+   - **Opt-in, no intro sent yet** (verdict = clear opt-in, the inline-intro check did NOT fire, and no standalone double-opt-in was found → the contact said yes but Tom has not made the intro): **first confirm Gate 3 (Step 2.9) did not trip — reference-check outreach must never reach this branch.** If clear, route it through the ONE table every surface uses — `python3 ~/.claude/skills/shared-references/intro_reply_route.py --verdict opt-in --stage <qualified|outreach>` (the text lane runs the same function in `deal-text-scanner/intro_text.py`): never a terminal write; a person still in 👓 Qualified moves to ☎️ Outreach (`intro-lifecycle-write.py --target outreach --message-id <messageId>` — this reply answers Tom's outbound in the same thread, contract § Stages), one already in ☎️ Outreach stays; then **enqueue `intro-draft-agent` to auto-draft the double-opt-in intro** (Step 6a). Log `single-message resolution: <person> on <opp> — opt-in → ☎️ Outreach, draft queued` and exit 0.
 
      **ONE alert per opt-in — the draft agent sends it (Tom 2026-10-07: *"collapse into a single notification as the action here is to send the note"*).** When the Step 6a enqueue returns `enqueued: true` or `dedup`, post **nothing** here: `intro-draft-agent` posts the single `🤝 Intro Opt-In` alert with To/Cc + the draft link once the draft exists (or the no-draft reason if it can't draft). Only when the enqueue **fails** (non-zero) post the opt-in ping yourself, since no draft is coming:
 
@@ -189,7 +192,7 @@ In Mode B, the skill is a CLASSIFIER. It does NOT issue `notion-update-page` cal
 
      Rules: the underlined-bold Title Case headline is the alert-convention contract — never a raw prose sentence, never 🔔. No job/UUID. No code block. **Never paste the `single-message resolution: …` run-log string into Slack.**
    - **Soft-deferral / ambiguous** → no write, no draft, no alert. Log `single-message resolution: <person> on <opp> — <verdict> → kept in Outreach`. Exit 0.
-6a. **Auto-draft handoff (opt-in path only).** For the opt-in-without-intro case above, enqueue a follow-on `intro-draft-agent` job so a Gmail draft of the double-opt-in intro is created within ~a minute (event-driven, not waiting on the next scheduled scan). Target opp = the candidate Opp where this person currently sits in ☎️ Outreach (from `oppCandidateIds`; if multiple, enqueue one job per such Opp). Write a typed args JSON and call the canonical helper — do NOT read `intro-draft-agent/SKILL.md` or draft inline:
+6a. **Auto-draft handoff (opt-in path only).** For the opt-in-without-intro case above, enqueue a follow-on `intro-draft-agent` job so a Gmail draft of the double-opt-in intro is created within ~a minute (event-driven, not waiting on the next scheduled scan). Target opp = the candidate Opp where this person now sits in ☎️ Outreach (incl. one just promoted from 👓 Qualified above; from `oppCandidateIds`; if multiple, enqueue one job per such Opp). Write a typed args JSON and call the canonical helper — do NOT read `intro-draft-agent/SKILL.md` or draft inline:
    ```bash
    cat > /tmp/intro-draft-args-<messageId>-<personId>.json <<'JSON'
    { "messageId": "<messageId>", "personId": "<personId>", "oppId": "<oppId>",
@@ -372,7 +375,7 @@ People in Qualified may have progressed through the entire lifecycle between sca
    - Outreach + opt-in + double-opt-in sent (standalone or inline) → Qualified → **Made**
    - Outreach + clear decline → Qualified → **Declined / NR**
    - Outreach + soft deferral with near-term future interest → Leave in Qualified (Outreach Scanner will handle the move to Outreach)
-   - Outreach + opt-in but no double-opt-in yet → Leave in Qualified (Outreach Scanner/Draft Agent will handle)
+   - Outreach + opt-in but no double-opt-in yet → ☎️ Outreach (`--target outreach`; Tom's outbound + the opt-in are both visible in the thread) and leave the draft to intro-draft-agent's Outreach scan — same outcome as Mode B and the text lane (`intro_reply_route.py`)
    - Outreach + no reply yet → Leave in Qualified (Outreach Scanner will handle)
 
 **For people in `👓 Intros (Qualified)` with NO matches in Phase A**: Skip entirely. No outreach and no reply means they're still genuinely waiting in the queue. This short-circuit eliminates the vast majority of the roster.
@@ -387,7 +390,7 @@ Before executing any move in Step 3, every (person, opportunity) candidate must 
 
 This skill trusts that entries sitting in `☎️ Intros (Outreach)` were placed there legitimately by intro-outreach-agent (which enforces directionality at write time). Resolution does NOT retroactively re-validate the original outreach — it has no access to the original signal. If you suspect an Outreach entry is poisoned (e.g., obvious mismatch between Opp and person), surface it in Needs Review for Tom to clean manually rather than silently progressing it to Made/Declined.
 
-**Gate 1 — Terminal-status skip.** Read the Opp's `Status`. If Status ∈ `{Pass (DNM), Pass (Met), Pass Note Pending, Lost, NR / Missed, Exited}`, do NOT add the person to Made or Declined — closed Opps should not accumulate fresh intro lifecycle entries. Log: `[Person Name] — opp [Company] is terminal status [status], skipping resolution write`. Surface in Needs Review so Tom can decide whether to scrub the stale Outreach entry manually.
+**Gate 1 — Terminal-status skip.** Read the Opp's `Status`. If Status ∈ `{Pass (DNM), Exited}` (Pass (Met) / Pass Note Pending / Lost / NR / Missed stay open – see `intro-lifecycle-contract.md`), do NOT add the person to Made or Declined — closed Opps should not accumulate fresh intro lifecycle entries. Log: `[Person Name] — opp [Company] is terminal status [status], skipping resolution write`. Surface in Needs Review so Tom can decide whether to scrub the stale Outreach entry manually.
 
 **Gate 2 — Word-boundary corroboration (mandatory for ALL Opp matches, length-agnostic).** **As code (2026-10-04):** `python3 ~/.claude/skills/shared-references/opp_corroborate.py check --opp-id <opp_id> --haystack-file <subject+body file> [--recipient <email> ...]` (on exit 3 log `⚠️ ambiguous match on Opp name "[Name]" — no corroboration, skipping resolution`) — exit 0 corroborated → proceed · 1 no-match (name absent, or only in a common phrase like "let's connect") → not about this Opp, skip silently · 3 uncorroborated → skip and log its `alert` line verbatim · 2 read error → skip the write (fail closed). Rules + WHY: contract § Word-Boundary Corroboration. When detection relied on matching a reply or thread to an Opp by name (rather than by an unambiguous person→Opp link already in the Outreach roster), corroboration is required regardless of name length. There is NO size threshold and NO exempt-name list — `Bottleneck` (10 chars), `Connect` (7 chars), `Current` (7), `Compass` (7), `Anchor` (6), `Scout` (5), `Pulse` (5), `Echo` (4) all require the same check. Acceptable corroboration (one is sufficient): Opp's `Website`/`Contact` domain in the haystack or recipients, founder name in the message, or explicit "@CompanyName"/"[CompanyName Inc.]" framing, or capitalized Name adjacent to fundraising context. Bare word-boundary match with no corroboration → skip with `⚠️ ambiguous match on Opp name "[Name]" — no corroboration, skipping resolution`. Concrete misses: Tom using "connect" as a verb produced false Outreach writes on Connect Opp; "bottleneck" / "anchor" mentions wrote to same-named Opps.
 
@@ -428,7 +431,7 @@ Stdout returns a JSON response: `{ ok, wrote, wasAlreadyInTarget, splitStateDete
 **Verdicts that do NOT invoke the wrapper** (no write, person stays in current upstream field):
 - Soft-deferral (specific near-term re-engagement path expressed)
 - Ambiguous classification
-- Opt-in detected but no double-opt-in email sent yet (Made is gated on the intro actually being made — standalone or inline)
+- Opt-in detected but no double-opt-in email sent yet (Made is gated on the intro actually being made — standalone or inline) — the only write is the 👓 Qualified → ☎️ Outreach promote above (`--target outreach`), never made/declined
 
 For these, skip the wrapper and report in Step 4 under the appropriate "Kept in Outreach" / "Still in Qualified" section.
 
@@ -467,7 +470,7 @@ Provide a clear summary, distinguishing between moves from Outreach and moves fr
 
 3. **Ambiguous response**: If the email/text response is unclear (not clearly opt-in or decline), do NOT make a move. Flag it for Tom's review.
 
-4. **Opt-in detected but no intro email sent yet**: If the contact replied positively but Tom hasn't sent the double-opt-in email yet (neither standalone nor inline), do NOT move to Made. Report it as "opted in, awaiting intro email" so Tom knows to send it.
+4. **Opt-in detected but no intro email sent yet**: If the contact replied positively but Tom hasn't sent the double-opt-in email yet (neither standalone nor inline), do NOT move to Made — ☎️ Outreach + the connect draft (`intro_reply_route.py`). Report it as "opted in, connect draft queued" so Tom knows to send it.
 
 5. **Multiple people in Outreach/Qualified for same Opportunity**: Process each independently. A single Opportunity might have 3 people in Outreach and 2 in Qualified — handle each separately based on their individual resolution signals.
 
@@ -500,7 +503,7 @@ When classifying email/text responses, use this framework:
 
 **Low confidence — flag for Tom**:
 - "Can you tell me more?" / "What does the company do?" → Still in discussion (don't move)
-- One-word replies like "sure" or "ok" without clear context → Ambiguous
+- One-word replies like "sure" or "ok" with NO intro ask from Tom in the same thread → Ambiguous. **With Tom's ask in the same thread (the outreach message this replies to) a bare "sure" / "of course" IS an opt-in** — verdict `affirmative-bare` + `--ask-in-thread` in `intro_reply_route.py`, the same rule the text lane applies (contract § Reply outcomes; Zack Parker / Tuor "Of course!", 2026-09-17).
 - Forwarded the email to a colleague without a clear yes/no → Ambiguous
 
 ## Performance Considerations (MANDATORY)

@@ -60,7 +60,7 @@ The company must already exist in the Opportunities DB — this skill adds a rou
 
 **Fixed defaults:**
 - `Status` — **`Active`**. This is the resting state; Tom moves it to `Committed` himself when he actually commits, and to `Portfolio: Follow-On` when it closes. Never set Committed/Follow-On automatically. ⚠️ MCP `create-pages` has silently mis-mapped `"Active"` → `Track` (2026-09-10). After creating, read the card back via REST (`ntn api GET /v1/pages/<id>`) and verify Status + icon actually landed; fix Status with `{"properties": {"Status": {"status": {"name": "Active"}}}}` via `ntn api PATCH` if not.
-- `Inv @ Round` — **leave blank.** Tom supplies his check size separately; only set it when he gives a number in this or a later turn.
+- `Inv @ Round` — **leave blank.** Tom supplies his check size separately; only set it when he gives a number in this or a later turn. Writable only while the card is pipeline-stage (Committed or earlier) – once the round is in the SOI it is FROZEN (`shared-references/inv-at-round-frozen.md`).
 - `Source(s)` — always **Direct**: `https://www.notion.so/0fb9a64034fd46f9934768d590e69dc9`. Follow-ons come straight from the founder; there is no referrer.
 - `Shared` (fka `Support`) — the "N/A" entry: `https://www.notion.so/18200beff4aa80bc8344fc48c7b0fdb1`.
 - `Followed Up` — `__NO__`.

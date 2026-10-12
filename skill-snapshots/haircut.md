@@ -4,8 +4,9 @@ description: >
   Book a family haircut at Les Enfants Terribles (85 Bergen St, Brooklyn) via the salon's
   Meevo customer portal. TWO profiles: (1) Tom — stylist Hide, Men's/Unisex Short Cut, slot
   ≤4pm, ~monthly; (2) Andy (son) — stylist Jessica, kids' short cut, on WEEKENDS. Trigger on
-  "book a haircut", "book Andy a haircut", "schedule my haircut", "need a haircut", or the
-  monthly nudge. Pre-stages the cart, surfaces ≤4pm slots, and hands Tom the final tap
+  "book a haircut", "book Andy a haircut", "schedule my haircut", "need a haircut", the
+  monthly nudge, and haircut date checks ("when's my next haircut", "do I have a haircut
+  scheduled" – § Lookup, any surface). Pre-stages the cart, surfaces ≤4pm slots, and hands Tom the final tap
   (reCAPTCHA blocks full automation — see below). Never books silently. NOT the
   restaurant-reservation skill.
 ---
@@ -37,6 +38,14 @@ reCAPTCHA and loads instantly. So:
   (appointment type → service → specific employee → Hide), then Tom does the ~5-second
   human tap that clears reCAPTCHA (pick date/time → Continue → Confirm).
 - Phone fallback: **347-763-2124** if the portal itself is down.
+
+## Lookup — "when's my next haircut?" (every surface; moved from sms-listener 2026-10-11)
+
+**Never search the word "haircut".** Meevo books Tom's cut onto `tom@invertedcap.com` titled `Service(s) scheduled
+at Les Enfants Terribles…` — a "haircut" keyword search silently misses it (bug, Tom 2026-09-11: reported no upcoming
+cut while the 8/27 4pm appointment sat right there). Search fullText **`Hide`** and/or **`Enfants`** on
+`tom@invertedcap.com` (the household mirror on Elsie-Tom reads `Haircut – Les Enfants Terribles`, so `Enfants`
+catches both), then answer with the date/time from the event.
 
 ## Fixed facts
 

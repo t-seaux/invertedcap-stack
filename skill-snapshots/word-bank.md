@@ -78,22 +78,32 @@ The helper (SA-authenticated, no MCP) reconciles the cache against Drive every r
    - The scheduled wrapper's `run.sh` already runs `refresh_corpus.py` before this session. **For an on-demand (in-chat) run, run it yourself first:** `python3 ~/.claude/scheduled-tasks/word-bank-refresher/refresh_corpus.py`.
    - Read the doc texts from `corpus_cache/*.txt` and load `corpus_cache/manifest.json` to map each file to its **exact doc name** (e.g. "Signal7 - Investment Memo", "Inverted Capital I: Q1 2026 Letter"). Those names are what you cite in the retrofit.
 
-3. **Match, don't force.** Match all of the week's words against the corpus texts. For each word, find at most one real sentence where it would have slotted in naturally, and **record which doc it came from** (manifest name). If a word has no honest fit anywhere in the corpus, **say so and carry it forward** — never fabricate. A crafted in-voice sentence is acceptable only when explicitly labeled as an illustration (not presented as something Tom wrote).
+3. **Match, don't force.** Match all of the week's words against the corpus texts. For each word, find at most one real sentence where it would have slotted in naturally, and **record which doc it came from** (manifest name). If a word has no honest fit anywhere in the corpus, **carry it forward** (its own head-only block in Step 4) — never fabricate a sentence and never present a crafted one as something Tom wrote.
 
-4. **Render** in this form factor:
+4. **Render through the ONE renderer — same text in a session and in the scheduled run** (2026-10-11: the two
+   surfaces had drifted – markdown in chat, a regex inside run.sh for the text). Write the week as a spec and run:
 
-   ```markdown
-   📬 <u>**Word Bank: Week of Jul 21–25**</u> · 3 new
-
-   **synoptic (adj.)** — a broad, at-a-glance view of a whole.
-   ↳ You wrote (Q1 2026 LP Letter): "Here's a quick rundown of where the fund stands."
-   → "Here's a **synoptic** view of where the fund stands."
-
-   *(portmanteau — no natural slot in the memos/letters; carried forward.)*
+   ```bash
+   python3 ~/.claude/skills/word-bank/scripts/render_text.py refresher <spec.json | ->
    ```
-   - One block per in-window word: bolded `word (pos)` + short definition recap, then the grounded retrofit. **Always name the exact source doc** (from the manifest) in the `↳ You wrote (<doc name>): "…"` line — never a vague "a memo" or "an LP note". → line shows the rewrite with the word bold.
-   - Close with a one-line note of any words carried forward (no fit).
-   - **Scheduled runs render this form factor PLAIN for the iMessage text lane** (alert-convention text-lane rules: same headline rendered without markup, mandatory blank line after it, no bold anywhere) — the wrapper's SKILL.md at `~/.claude/scheduled-tasks/word-bank-refresher/` is authoritative for that rendering. The markdown form above is for on-demand in-chat runs.
+   spec = `{"start":"YYYY-MM-DD","end":"YYYY-MM-DD","words":[{"word","doc"?,"before"?,"after"?,"definition"?,"pos"?}]}`
+   — every in-window word; `doc` = the **exact** manifest name, `before` = Tom's real sentence verbatim, `after` = the
+   rewrite (all three or none – none = carried forward). pos / definition default to the bank entry; pass a shorter
+   `definition` only to tighten it. Output (Tom's 2026-10-11 format, rendered in code – never hand-format it):
+
+   ```
+   📬 Word Bank: Week of Oct 5–11 · 3 new
+
+   𝗮𝗯𝗻𝗲𝗴𝗮𝘁𝗶𝗼𝗻 (𝗻.): the act of renouncing or denying oneself something, such as a pleasure, claim, or advantage.
+   ↳ You wrote (Inverted Capital I: Q3 2026 Letter): "…"
+   → "…"
+
+   𝘂𝗻𝗼 𝗮𝗻𝗶𝗺𝗼 (𝗮𝗱𝘃. 𝗽𝗵𝗿𝗮𝘀𝗲): "with one mind," unanimously.
+   ```
+   Plain headline, blank line, Unicode-bold `word (pos):` heads (Tom approved Unicode bold in text bodies
+   2026-10-11), a blank line between blocks, carried-forward words as their own head-only block with no "Carried
+   forward" label. In a session, reply with the output verbatim; the scheduled run writes the spec and its `run.sh`
+   renders + texts it (wrapper: `~/.claude/scheduled-tasks/word-bank-refresher/`).
 
 ### Cost guardrails (do not remove)
 

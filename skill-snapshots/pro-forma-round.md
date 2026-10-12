@@ -15,7 +15,7 @@ Determine which fund holds the position (Notion Opp `Fund` property if unsure), 
 
 **Inverted 1 → lp-portal live model** (`~/code/lp-portal/`). Ownership/FMV/rounds: latest `archive/soi_<date>.json` (or regenerate via `soi_generate.py`). Fund-level (size, called, NAV, financial-statement anchors): `fund_inputs.json`. Do NOT use any static Google Sheet for Inverted — the Notion-generated model is the live view. Respect its conventions: SAFE-only positions are held at cost; priced marks come from `priced_round_marks`; TVPI is gated N/A until 60% called.
 
-**Round-by-round history (both funds) → Notion Opp cards.** Each round is its own Opp linked via the `🕰️ Funding History` self-relation. Per card: `Inv @ Round`, `Round Details` (e.g. `$2.5m on $22.5m post` / `$2.4m on $10m cap`), `OS% @ Round`, Close Date.
+**Round-by-round history (both funds) → Notion Opp cards.** Each round is its own Opp linked via the `🕰️ Funding History` self-relation. Per card: `Inv @ Round`, `Round Details` (e.g. `$2.5m on $22.5m post` / `$2.4m on $10m cap`), `OS% @ Round`, Close Date. Read-only here: `Inv @ Round` is the wire-set cost basis and FROZEN once a round is in the SOI (`shared-references/inv-at-round-frozen.md`) – a scenario never writes it, and a tie-out gap is flagged, never "fixed" on the card.
 
 **Validation gate (mandatory):** blended ownership × last-round post-money must reproduce the source's FMV for the company (within rounding). If it doesn't tie out, stop and reconcile before modeling — one of the inputs is stale.
 

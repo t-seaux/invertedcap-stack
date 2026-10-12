@@ -42,6 +42,80 @@ Parse the query to identify:
 
 When in doubt, run both and merge; they hit different parts of the index.
 
+- **Qualifying / fit-list queries** ("who could I intro to X for <a specific need>", "lenders for a receivables line",
+  "who has run collections at a lender", "suggest VCs for <founder>") → **`scan.py judge` first** (Step 4 – the same
+  judge + list as the portco-ask text path). It reads EVERY person's full work history, not a keyword hit or the first
+  1,200 chars. 2a/2b are the recall net.
+
+**Past intros are a core input on EVERY network scan – fit is scored BLIND, history only labels and folds**
+(Tom 2026-10-11: past intros validate the relationship, but "if we keep just doubling down on folks I've already made
+intros, then it makes it hard for us to discover new intros to make"; for customer asks there may be little history –
+"that's okay! It's just one of the factors"). So:
+- **Fit is scored without history.** The judge never sees who Tom intro'd; history is attached after scoring.
+- **One row per VC FIRM only** (`intro_history.is_fund()` / `FUND_TYPES = ("venture capital",)` – Tom 2026-10-11:
+  "given that theyre not vcs… list them out as their own entry"). At a VC firm, someone Tom has intro'd there (kept by
+  the judge or not) is the row – best outcome if several – carrying the firm's best fit score; colleagues fold into
+  "+N more at <Firm>: names"; no intro'd contact → the firm's best fit. Credit funds, PE, banks, fintechs (a lending
+  fintech is never a fund), operating companies and unclassified firms never fold: every kept person is their own row
+  on their own fit, and an intro'd contact there who wasn't kept is not added. Stealth / self-employed / blank never group.
+- **Sections only when someone has Made intros:** "🔁 Intro'd Before" first, then "🆕 Never Intro'd", fit order inside each.
+  No history at all → one plain list, exactly the blind fit order.
+- **Intro'd Before** ties break on outcome = successful intros only: intros taken, then share taken. No intro-history
+  line in the output (Tom: "remove the whole history of intros") – the section header says it.
+- No lookalike / "similar to" layer (Tom: redundant with fit ranking), no spreading / fatigue rule ("dont need to
+  spread intros around").
+Never hand-build a shortlist: every fit list goes through `scan.py render` (same output as texts).
+
+---
+
+## Step 2c — Person cards (whole-network qualifying pass)
+
+A card per profile in `~/.claude/scripts/person_cards.db`: name, current role + firm type, EVERY role (title, firm, firm
+type, dates, one concrete line on what they did, firm overview), expertise tags, who they're a credible intro for, a
+3–5 sentence arc. Roles come from `network_firms.py` (every role, grouped headings included) with its firm type /
+what-the-firm-does; `oneshot` adds one concrete line per numbered role + the arc, and a code gate checks every role
+got one, each echoed firm matches, no invented role, and the name matches. Thin profiles (<2 roles and <3k chars, or a
+logged-out LinkedIn scrape) are never carded – `thin` lists them for re-enrichment.
+
+```bash
+S=~/.claude/skills/network-scan/scripts/person_cards.py
+python3 $S judge --ask "<the ask, verbatim>" --context "<what the portfolio company does>" --out /tmp/judge.json \
+    [--exclude-firm-types VC,angel] [--exclude-firm "<the portco>"] [--precision-model opus]
+python3 $S stats                      # ok / thin / low_fidelity / failed / missing / stale_hash + a measured build ETA
+python3 $S build --missing-only       # card new profiles (unchanged raw_text is hash-skipped; re-enriched ones refresh)
+python3 $S thin --out /tmp/thin.txt   # profiles too thin to qualify → re-enrich with enrich-file
+python3 $S card <linkedin_url>        # one stored card (verbatim review)
+```
+
+`judge` = two passes: a cheap-tier recall screen over every compact card (score ≥4), then a precision re-score of
+the survivors on their FULL cards (keeps ≥6, a why grounded in one role). BLIND to intro history: neither the prompts
+nor the card text mention it; intro'd people with no card (no cache profile, or a thin one) are judged from their
+People row (`intro_only`). After scoring, code adds `section` (new | intro_before) and `intro_history` (lists,
+took / passed / asked, `marker`), merges the same person's duplicate cache rows, folds FUNDS to one row each (`firm_key`,
+`fund`, `firm_type`, `folded`, `flipped_to_intro`; at a fund, intro'd contacts not kept get `card_status: intro-contact` and
+a why built from the best colleague's; non-funds never fold) and orders rows fit → outcome; coverage counts `kept_people` vs `kept_firm_rows` + `folded_people` + `fund_rows`. Before judging it chains `intro_history.py ensure-fresh` (a resync only when the index is
+>24 h old, ~40 s, read-only) – `--no-intro-sync` skips it; a failed sync is reported in `intro_history_error`. Its coverage JSON says how many were read,
+passed, kept, too thin, missing, and any `chunks_failed` (those people are listed in `unjudged` – say so, never
+imply they were read). Tiers are env-overridable family aliases: `PC_BUILD_MODEL` (sonnet), `PC_SCREEN_MODEL`
+(haiku), `PC_PRECISION_MODEL` (sonnet). Before you return anyone, `network_cache.py dump <url>` and confirm the
+current role – a card can lag a job change.
+
+### Intro history (`intro_history.py`)
+
+Local index of who Tom has intro'd: People DB `Intros (Made)` + the Opportunity relations `✉️ Intros (Made)`,
+`👓 Intros (Qualified)`, `🚫 Intros (Declined / NR)` (that last one exists only on the Opp). Notion is READ-ONLY here.
+Outcome = successful intros only (Tom: "not need to track beyond that"): took (Made) vs passed (Declined / NR). Opp
+Status is Tom's own deal outcome and is NOT read as an intro outcome.
+
+```bash
+I=~/.claude/skills/network-scan/scripts/intro_history.py
+python3 $I top --category Investor --limit 30   # most-intro'd investors
+python3 $I person <li-or-name>                  # one person: made / lined up / declined-NR, with the Opp names
+python3 $I stats                                # coverage, cache matches, age, top 10
+python3 $I unmatched                            # intro'd people with no network-cache profile (enrich them)
+python3 $I sync                                 # full resync (resumable); ensure-fresh = only if >24 h old
+```
+
 ---
 
 ## Step 2a — Company-side search (preferred for company-trait queries)
@@ -116,40 +190,59 @@ If the cache is empty, tell Tom:
 
 ---
 
-## Step 4 — Reason over results
+## Step 4 — Judge, verify, render: the SAME brain as the text path, for EVERY kind of scan
 
-For `vsearch` results: pass the `raw_text_preview` (or fetch full `raw_text` from the cache via `dump <url>` for borderline cases) and reason against the query. Score relevance 1–10; keep ≥6.
+Tom 2026-10-11: "even when I ask you to do this through our cloud session, the output, the way you go about flagging
+these people, the way you organize it should be the same" · "text and Claude sessions should refer to the same brain".
+A session scan and a portco-ask text scan run ONE code path (`network-scan/scripts/scan.py` → `portco_ask.compose`),
+so the method and the text are identical. Every KIND of scan is this one method + format (Tom 2026-10-11: "every
+kind of network scan regardless of what we're scanning for should be in same structure / format"): `--kind talent`
+(talent-scan – the ask is the role profile) and `--kind investor` (coinvestor-recommender – the ask is the round
+profile) change only the headline label (Talent / Investor Scan) and add a fit hint to the judge context
+(`portco_ask.KIND_HINTS`); `--kind network` (default) covers everything else, at-company asks included. For EVERY fit-list ask – "who in my network for X", "find lenders / VCs /
+customers / advisors for Y", "suggest people to intro to Z", "potential angels for …", and relationship / exploratory
+asks like "who should I reconnect with given <profile>" (the ask is the profile):
 
-For `csearch` results: each company group already carries everything you need — distance, momentum, overview, and per-person tenure tails. Filter people by tenure (was the person there during the relevant window?) and role fit (operator vs. board observer vs. investor).
-
-The person-side `vsearch` results also carry a `companies` array (resolved via `profile_companies`) with stage, category, funding, momentum, overview. A non-empty `companies` is a strong signal of domain fit or shared context with Tom's portfolio.
-
-**Angel investor ask** — look for: prior exits, angel activity mentioned in bio, operator at a company relevant to the portfolio company's space, strong network.
-
-**Founder framework ask** — apply Tom's framework heuristics: hypergrowth operator experience, domain depth, founder archetype signals (missionary, domain expert, etc). Read `/Users/tomseo/.claude/skills/founder-taste/RUBRIC.md` if you need the full rubric.
-
-**Reconnect / catch up ask** — surface people with strong profiles Tom may not have engaged with recently. Lean toward operators and founders, not investors, unless Tom specifies.
-
-**Expertise ask** — direct match on role history and company type.
-
----
-
-## Step 5 — Return ranked output
-
-Return a clean shortlist, no more than 10 people. Format:
-
-```
-**[Name]** — [Current role / company]
-[1-sentence why, specific to Tom's query]
-[linkedin_url]
-
-**[Name]** — ...
+```bash
+S=~/.claude/skills/network-scan/scripts/scan.py
+python3 $S judge --ask "<Tom's ask, verbatim>" --context "<who the intros are for / what they do>" [--kind network|talent|investor] \
+    [--exclude-firm "<the company itself>"] [--exclude-firm-types VC  # unless the ask is FOR investors]
+# → {"scan": "<id>", "out_file": …, "coverage": …}   out_file.kept = the fits (score, why, section, folded …)
 ```
 
-If fewer than 3 results: say so and suggest broadening the search or running enrichment on more profiles.
+1. **Judge** (above): every person card read blind against the ask, intro history attached after (Step 2c).
+2. **Recall backstop**: Step 2a `csearch` / 2b `vsearch` / `query` for the ask's angles; anyone they surface that the
+   judge did NOT keep: read their card (`person_cards.py card <url>`) and add them only if it shows a real fit.
+3. **Verify every keeper scored ≥8**: `network_cache.py dump <url>` – confirm the CURRENT role from the full profile
+   (a card can lag a job change), rewrite `why` from what the profile says (by name, never he/she). Every judge fit
+   ≥8 goes in `people` or in `dropped: [{linkedin|name, why}]` with a concrete reason (left the firm, at the company
+   itself, a VC on a non-investor ask). One person per VC fund is enough – colleagues fold under the fund's row.
+4. **Render** and paste the output VERBATIM:
 
-End with:
-> Cache covers {N} profiles. To expand: export LinkedIn connections CSV and run `python3 ~/.claude/scripts/network_cache.py enrich-file ~/path/to/Connections.csv`.
+```bash
+python3 $S render --scan <id> --target "<short plural target, e.g. lenders for a receivables line>" \
+    [--for "<company or person the intros are for>"] [--founder "<person – their first name goes in the intro line>"] <<'J'
+{"people": [{"name": "...", "role": "...", "company": "...", "linkedin": "https://www.linkedin.com/in/...", "why": "..."}],
+ "dropped": [{"linkedin": "...", "why": "..."}]}
+J
+```
+
+   (`render` takes the judge's kind; `--kind` that differs is refused.) It prints exactly the text Tom would get by
+   text: "✅ <for / target>: <Network|Talent|Investor> Scan Completed", "N <target> you could
+   intro <first name> to:" (or "N <target> in your network:" with no --founder), 🔁 Intro'd Before / 🆕 Never Intro'd
+   sections, bold numbered rows, one row per VC fund ("+N more at <Fund>"), the 🔎 coverage footer and the 💬 CTA;
+   every ≥8 fit is sent (overflow past 40 → "more"), 6–7s held. Exit 2 = refused (a ≥8 fit neither sent nor dropped,
+   a bad row) – fix the payload and rerun, never trim. Output the text as printed: no re-formatting, no markdown, no
+   commentary inside the list; a short note AFTER it is fine. There is no --stage: replying "more" / numbers works on a
+   texted list (it's keyed by the message handle) – offer to send it as a text if Tom wants that.
+
+**Not a fit list – answer directly, no render** (the only exceptions): a single-person / single-fact lookup ("did X work
+at Stripe?", "what does Y do now?"), counts and coverage questions ("how many fintech founders do I know?",
+`network_cache.py stats`), and the enrichment commands below.
+
+Judging notes the cards can't carry: **Founder framework ask** – Tom's founder heuristics (hypergrowth operator,
+domain depth, archetype); read `founder-taste/RUBRIC.md` and put the rubric in `--context`. **Revenue-trajectory
+asks** – intersect with the Deal Digest (Step 2a) before you verify.
 
 ---
 
