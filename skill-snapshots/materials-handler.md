@@ -148,6 +148,9 @@ This skill accepts any of these input modes (auto-detect based on what Tom provi
 - **Specific Gmail message ID, deep link, or subject**: Processes that exact message — attachments via the Gmail Attachment Saver, or body via the email-body-to-PDF path if no attachment.
 - **Explicit artifact + company** (e.g. "add the Chief Rebel investor update as a diligence material for Chief Rebel"): Find the referenced artifact in Gmail (most recent match on the named topic), then treat it as a single-item materials add against the named opportunity. Pick the most recent matching email if there's ambiguity; don't stop to ask.
 - **Delegation from another skill**: The calling skill passes a company name, Notion page ID, and optionally a list of Gmail message IDs or material URLs to process.
+- **A lane that already holds the file** (a DocSend deck converted on Tom's 👍 – sms-listener `apply_docsend_email.py` – or any converted / downloaded artifact): ONE command runs Step 0 → rule 10 SENT-date name → Property Routing → upload → `[G DRIVE]` pin → `chip_write.py` → Step 4.4 supersede, in that order (2026-10-12; Tom: "the listener is just a routing path for ALL SKILLS … or else we will have two versions" – no lane uploads or chips by itself):
+  `python3 ~/.claude/skills/materials-handler/file_material.py --opp-id <id> --company "<Opp title>" --file <path> --title "<title>" (--sent-date YYYY-MM-DD | --email-message-id <id>) [--supersedes <viewer url>] [--surface text|slack]`
+  Exit 0 filed · 2 no sent date / bad input (nothing written) · 4 portfolio guard · 5 e-sign certificate · 6 ambiguous (re-run with `--stated-type`) · 1 failed (`url` set if it reached Drive).
 
 ## Notion Context
 
@@ -408,7 +411,7 @@ Deterministic convention names + this list-and-trash step give 3A the same re-ru
 
 ### 3B: DocSend Links (No Chrome Needed)
 
-**Pre-converted handoff:** if the caller (add-to-crm Step 6) passed a local PDF path already converted from this DocSend URL, skip steps 1–3 below and jump straight to naming (if needed) + upload with that file — never re-convert a URL the caller already converted.
+**Pre-converted handoff:** if the caller (add-to-crm Step 6) passed a local PDF path already converted from this DocSend URL, skip steps 1–3 below and file it with `file_material.py` (§ Inputs) — never re-convert a URL the caller already converted.
 
 Follow the `docsend-to-pdf` skill at `/Users/tomseo/.claude/skills/docsend-to-pdf/SKILL.md` for the exact Python conversion approach:
 

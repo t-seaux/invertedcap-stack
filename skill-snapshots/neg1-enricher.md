@@ -15,9 +15,13 @@ Enrichment + evaluation primitive for pre-founder candidates. Takes a LinkedIn U
 
 **Slack routing — EVERY message, every mode (HARD RULE — Tom, 2026-07-27: "all -1 enrich stuff should not run through claude alerts"):** every Slack message this skill emits — candidate cards, Step-0 existing-Opp notices, failure notes, anything — posts to `#neg1-sourcing` via bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py`. NEVER invoke the generic `send-alert` skill from this skill for any message type — its webhook is fixed to `#claude-alerts`. This generalizes the 2026-07-20 card-routing fix to ALL surfaces: on 2026-07-27 a Step-0 "existing Opp found" notice and a per-job "run complete" summary both leaked to `#claude-alerts` because only the card had explicit routing. If `.sourcing_channel_id` is unreadable, skip the post and record the message in the audit log — do not fall back to any other channel.
 
-**Step 0 (preflight) — existing-Opportunity check. STOP if one exists; write NOTHING to Notion.**
-BEFORE enriching, search the Opportunities DB for an existing Opp on this person — query the
-candidate's name AND their LinkedIn URL (founder relations + title link both carry it).
+**Step 0 (preflight) — existing-Opportunity check, IN CODE, before ANY ContactOut call. STOP if one exists.**
+Run `python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py already-in-crm --li <LI URL> [--name "<name>"] [--source "<store source>"]`
+FIRST – it names the person without a paid lookup (job name → network cache → LinkedIn slug), runs opp_dedup, and on a
+match posts the 🧍 Already In CRM note to #neg1-sourcing ONCE per person (shared ledger with the enqueue path – never post
+it yourself). Exit 10 = already in the CRM: stop – no ContactOut, no score (Tom 2026-10-12: "if something's in the CRM,
+I don't think we have to run a contact out run"; "alert is pretty redundant" → headline + one Opp line).
+`enqueue-neg1-enrich.sh` runs the same preflight before queueing, so most of these never start a job.
 
 **If an Opp exists (any status): abort the run.** Do not score, do not create a note, do not post a
 card. Log the skip and stop — the person is already in the pipeline and the -1 engine exists to find
@@ -72,7 +76,7 @@ Headless mode maps the legacy steps as follows:
   - **Post ONE message per candidate, in its own Slack message — never batch multiple candidates into a single consolidated post.**
   - **Channel routing (gate in code, NOT the default `send-alert` skill):** post via `send-alert/md_to_blocks.py` in bot-token mode: `SLACK_BOT_TOKEN_FILE=$HOME/.claude/skills/claude-alerts-listener/.bot_token SLACK_CHANNEL=$(cat ~/.claude/skills/neg1-sourcing/.sourcing_channel_id) BODY_FILE=<tmpfile> python3 ~/.claude/skills/send-alert/md_to_blocks.py` (prints the message `ts` — no webhook needed). Do **not** fall back to the generic `send-alert` skill for this card — that skill's webhook is fixed to `#claude-alerts` and will misroute the candidate card there (this was the 2026-07-20 bug Tom flagged: per-candidate cards were landing in `#claude-alerts` instead of `#neg1-sourcing`). If `.sourcing_channel_id` is missing, skip posting and note the candidate in the run summary instead.
 
-**Job mode (per-candidate, event-driven — the PRIMARY scheduled path):** invoked via claude-job-queue with args `{mode: "headless", li_url, source, name?}` (enqueued by `~/.claude/scripts/enqueue-neg1-enrich.sh` the moment a generator surfaces a name — there is NO batching delay). Run the full headless flow above for the single candidate, card it regardless of verdict, exit. Do NOT post a separate "run complete" / job-summary message anywhere — the candidate card (or the Step-0 existing-Opp notice) IS the completion signal; job telemetry stays in the queue + audit logs (Tom, 2026-07-27). If the job fails before carding, post a failure note to `#neg1-sourcing` (bot-token mode), not `#claude-alerts`. **EXACT shape — the STANDARD alert grammar (`send-alert/references/alert-convention.md`), NOT the candidate-card exception** (that exception is scoped to cards carrying a verdict; a failure note has none):
+**Job mode (per-candidate, event-driven — the PRIMARY scheduled path):** invoked via claude-job-queue with args `{mode: "headless", li_url, source, name?}` (enqueued by `~/.claude/scripts/enqueue-neg1-enrich.sh` the moment a generator surfaces a name — there is NO batching delay). Run the full headless flow above for the single candidate, card it regardless of verdict, exit. Do NOT post a separate "run complete" / job-summary message anywhere — the candidate card (or the Step-0 existing-Opp notice) IS the completion signal; job telemetry stays in the queue + audit logs (Tom, 2026-07-27). If the job fails before carding, post a failure note to `#neg1-sourcing` (bot-token mode), not `#claude-alerts`. **Render it in code:** `python3 ~/.claude/skills/neg1-sourcing/neg1_sourcing.py failure-note --name "<Name>" --li <LI URL> --source "<store source>" --reason "<plain clause>" [--existing-opp-url <Notion URL> --existing-opp-label "<-1, NR / Missed>"]` and post its output verbatim. A same-name Opp already in the CRM → pass `--existing-opp-url` and the note leads with **🧍 Already In CRM: {Name}** (Tom 2026-10-12: the dupe catch is the news, the enrichment miss is secondary). **EXACT shape — the STANDARD alert grammar (`send-alert/references/alert-convention.md`), NOT the candidate-card exception** (that exception is scoped to cards carrying a verdict; a failure note has none):
   ```
   🧍 <u>**Enrichment Failed: {Name}**</u>
   ✗ {plain-English reason, one clause}
@@ -407,7 +411,7 @@ Per founder-taste/RUBRIC.md §8.7 (re-scoring without re-enriching). Used when t
 4. Creates -1 Scanner entry with the full field set.
 5. Runs Step 5 evaluation → Earned Reps: High (peak signal), Claude Rec = Reach Out ✅.
 6. Auto-chains into `founder-outreach` → Gmail draft created, Status = Draft Ready.
-7. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. Earned Reps: High / Claude Rec: Reach Out ✅. Gmail draft ready. [link]"
+7. Returns: "Added Jane Doe (VP of Engineering, Stripe) to -1 Scanner. Earned Reps: High / Claude Rec: Reach Out ✅. Gmail draft ready. <url> ↗"
 
 ## Behavior Rules
 

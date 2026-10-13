@@ -210,8 +210,10 @@ Run these broader queries (adapt month/year to current date):
 - `site:gurufocus.com new investor letter [current year]`
 
 **Aggregator sites (high-signal sources for surfacing new letters):**
-- `site:neckar.substack.com [current month] [current year]`
-- `site:rationalmemo.com [current month] [current year]`
+- `"Hedge Fund Alpha" letter [current month] [current year]`
+- `"Buy Side Digest" Q[current quarter] [current year] letters`
+
+> Aggregators are searched **by name, not `site:`** — the search backend ignored `site:neckar.substack.com` / `site:rationalmemo.com` and returned calendar spam (2026-10-12; Rational Memo doesn't exist, Neckar's Notes covers old articles, not new letters). Both replacements returned on-target letter pages the same day. A new aggregator query must be spot-checked before it's added.
 - `"investor letter" site:substack.com [current month] [current year]`
 
 ### Discovery Validation (Stricter Than Tier 1)
@@ -236,7 +238,7 @@ The recency window is `$RUN_LOOKBACK_HOURS` hours when set (the scheduled wrappe
 
 There is no 30-call cap. Coverage is the point: **every Tier 1 firm must be covered by at least one query** each run, which batched OR-queries make cheap:
 
-- ~5 catch-all queries (Step 1) + **~15 batched roster queries** (`--tier1-queries`, 4 firms each, covers all ~60) + **8–10 discovery queries** (Step 2) ≈ 30 WebSearch calls, plus WebFetch only to confirm a date/title the snippet doesn't show.
+- ~5 catch-all queries (Step 1) + **~15 batched roster queries** (`--tier1-queries`, 4 firms each, covers all ~60) + **every discovery query** (Step 2, `--discovery-queries`, 12 today) ≈ 32 WebSearch calls, plus WebFetch only to confirm a date/title the snippet doesn't show.
 - **Soft ceiling: 90 tool calls total.** If reached, stop searching, list what was left in `coverage.unsearched`, and go straight to Step 5 — a partial digest that reaches Tom beats none. In the scheduled lane the 45-minute watchdog in `run.sh` is the hard stop.
 - Rate limits / 403s: skip that query, add `"<firm or query>: <reason>"` to `coverage.unsearched`, continue. Never stop the whole scan for one failure.
 
@@ -259,7 +261,15 @@ Each entry is `{"query", "firms"}`; run every `query` with WebSearch and record 
 
 ### Step 2: Tier 2 — Run Discovery Queries
 
-After Tier 1, run 8–10 of the discovery queries above (aggregators first — valuewalk, gurufocus, substack, neckar). Deduplicate against Tier 1; a discovery hit from a Tier 1 firm IS a Tier 1 hit (the renderer re-tags it automatically).
+After Tier 1, run **every** discovery query (Tom 2026-10-12: "those should run"). Generate them — never pick a subset:
+
+```bash
+python3 ~/.claude/skills/research-agent/scripts/compose_alert.py --discovery-queries --month "<Month>" --year <YYYY> --quarter <Q>
+```
+
+`<Q>` = the most recently ended quarter (October → 3): that's the letter season in progress.
+
+Run each string verbatim and list it in `coverage.discovery_queries`. Empty results from earlier queries are **never** a reason to stop — the 2026-10-12 run quit after 3 because nothing was dated October, and the aggregators it skipped (the aggregators) are exactly where a fresh letter shows up first. A query you couldn't run (error, rate limit, soft ceiling) goes in `coverage.unsearched` with the reason. The renderer prints `run: N/<total>`, so a shortfall is visible to Tom. Deduplicate against Tier 1; a discovery hit from a Tier 1 firm IS a Tier 1 hit (the renderer re-tags it automatically).
 
 **Apply the Tier 2 Deny-List**: run `research_denylist.py filter` on the candidate Tier 2 results (Tier 2 Deny-List above) and carry its `skipped` names into the payload's `deny_skipped`. The renderer re-applies the deny-list in code to Tier 2 hits and promotion candidates as a guarantee, and **always** prints the `Skipped (deny-list): …` footer as the digest's last line (`none` when nothing matched). `research_denylist.json` is the canonical record of firms Tom has explicitly rejected.
 
@@ -285,7 +295,7 @@ Write ONE fresh JSON payload to `/tmp/research-agent-payload.json` (overwrite, n
   "tier2": [{"firm": "…", "title": "…", "url": "https://…", "published": "YYYY-MM-DD",
              "key_point": "…", "note": "why it surfaced / why interesting"}],
   "promotion_candidates": [{"firm": "…", "reason": "why it belongs on Tier 1"}],
-  "coverage": {"tier1_checked": ["<exact roster names covered>"], "discovery_queries": 9,
+  "coverage": {"tier1_checked": ["<exact roster names covered>"], "discovery_queries": ["<each query string run, verbatim>"],
                "unsearched": ["<firm or query>: <reason>"]},
   "deny_skipped": ["<names from research_denylist.py filter>"],
   "status": "one line, only when something unusual happened (soft ceiling hit, >50% searches errored)"
@@ -330,7 +340,7 @@ _No new investor letters in the window._          ← only when Tier 1 and Tier 
 • Window: past 24h
 • Tier 1 firms checked: 58/58                      ← total = live roster in this file
 • Tier 1 not covered (N): …                        ← only when tier1_checked is a list with gaps
-• Tier 2 discovery queries run: 9
+• Tier 2 discovery queries run: 12/12               ← total = discovery queries in this file
 • Couldn't search (errors, rate limits): …
 Skipped (deny-list): Firm, Firm | none             ← ALWAYS the last line
 ```
@@ -353,4 +363,4 @@ Empty sections are omitted; Search Coverage and the deny-list footer are always 
 - Batched roster queries (`--tier1-queries`) are the main efficiency lever: full Tier 1 coverage in ~15 searches instead of 60. Catch-alls first confirm quiet days quickly.
 - Skip WebFetch for results where the publication date and title are clearly visible in the search snippet.
 - Run Tier 1 and Tier 2 in sequence (not interleaved) so that deduplication is straightforward.
-- For Tier 2, prioritize the aggregator site queries (valuewalk, gurufocus, substack) — these are the highest-signal discovery sources.
+- For Tier 2, run every discovery query; the aggregator site queries (valuewalk, gurufocus, substack, Hedge Fund Alpha, Buy Side Digest) are the highest-signal sources.

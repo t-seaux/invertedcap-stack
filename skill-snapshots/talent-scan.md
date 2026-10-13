@@ -105,7 +105,7 @@ J
 
 It prints the shared scan text – "✅ <Co>: Talent Scan Completed", numbered `N. Name (Role @ Firm). Why. link ↗`
 rows, 🔁 Intro'd Before / 🆕 Never Intro'd only when someone has intro history, one row per VC firm, every ≥8 fit sent
-(past 40 → "more"), 6–7s held, the 🔎 coverage footer and the 💬 CTA. Paste it exactly as printed – no per-role
+(all of them, split across texts if long), 6–7s held, the 🔎 coverage footer and the 💬 CTA. Paste it exactly as printed – no per-role
 headers, no bullets, no re-ordering; a short note AFTER it (asymmetries, e.g. "network is far denser in GTM than in
 early-stage engineers", or an offer to widen with a competitor `csearch`) is fine. Exit 2 = refused (a ≥8 fit neither
 sent nor dropped, a bad row) – fix the payload and rerun.

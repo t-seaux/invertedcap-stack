@@ -41,6 +41,16 @@ Behavior:
 5. Apply the unattended-execution guard at `/Users/tomseo/.claude/scheduled-tasks/SHARED_SAFETY.md` — never ask, skip-and-log on missing data, always reach Slack with a result line.
 6. On completion, post a single-line Slack alert via `send-alert` describing what was filled in.
 
+## Existing row + a LinkedIn URL from Tom (fill or correct ONE named row)
+
+Tom hands a `linkedin.com/in/…` URL for a row that already exists (e.g. his reply to a `👤 Created People DB entry`
+alert in #claude-alerts – the claude-alerts-listener routes here). Run Step 1's LinkedIn URL workflow on his URL for
+the spec (use exactly the slug he pasted), then write with
+`python3 ~/.claude/skills/shared-references/people_upsert.py --spec <person.json> --page-id <row>` – blank-fill; add
+`--correct --approval "<Tom's words>"` when he is correcting a wrong match (overwrites only the fields in the spec,
+never Name or a set Email). An LI-only spec is fine when the ladder came back empty – the LI landing also fires Mode B.
+Report the `confirm` line verbatim.
+
 ## Mode C (email): BCC-to-contacts queue
 
 When invoked with `{mode: "email", messageId, threadId, ...}`, Tom asked to capture an email's counterparty into the People DB. Two gmail-webhook gates enqueue this same Mode C job, both after archiving the message (label `contact-add`, skipped inbox):
@@ -365,7 +375,7 @@ new Notion page. Keep it concise — one or two lines is fine.
    - City: New York
    - State: NY
    - Icon: (ContactOut profile photo URL)
-8. Returns: "Added Matt Heiman (Mercury) to People. [link]"
+8. Returns: "Added Matt Heiman (Mercury) to People. <url> ↗"
 
 ## Behavior Rules
 

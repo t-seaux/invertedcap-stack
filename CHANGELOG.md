@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026-10-13] (Week of 2026-10-12)
+
+**Added:** linkedin-dm, portco-ask
+**Removed:** None
+**Modified:**
+- add-to-crm, add-to-contacts -- creation paths share more logic in code so chat and text produce the same records
+- coinvestor-recommender, network-scan, talent-scan -- unified investor-scan layout with a shared fit judge
+- materials-handler, neg1-enricher, research-agent -- tightened routing and surface-aware alerts
+**Total skills:** 52
+**Functions:** linkedin-dm added to Pipeline Management; portco-ask added to Portfolio Management
+
 ## [2026-10-12] (Week of 2026-10-12)
 
 **Added:** None

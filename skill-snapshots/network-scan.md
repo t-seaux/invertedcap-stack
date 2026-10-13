@@ -231,7 +231,7 @@ J
    text: "✅ <for / target>: <Network|Talent|Investor> Scan Completed", "N <target> you could
    intro <first name> to:" (or "N <target> in your network:" with no --founder), 🔁 Intro'd Before / 🆕 Never Intro'd
    sections, bold numbered rows, one row per VC fund ("+N more at <Fund>"), the 🔎 coverage footer and the 💬 CTA;
-   every ≥8 fit is sent (overflow past 40 → "more"), 6–7s held. Exit 2 = refused (a ≥8 fit neither sent nor dropped,
+   every ≥8 fit is sent in one go (no cap; long lists split across texts), 6–7s held. Exit 2 = refused (a ≥8 fit neither sent nor dropped,
    a bad row) – fix the payload and rerun, never trim. Output the text as printed: no re-formatting, no markdown, no
    commentary inside the list; a short note AFTER it is fine. There is no --stage: replying "more" / numbers works on a
    texted list (it's keyed by the message handle) – offer to send it as a text if Tom wants that.

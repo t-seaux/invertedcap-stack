@@ -41,7 +41,7 @@ text lane (`investor` ask → `portco_ask.py judge --kind investor` / `results`)
 3. **Verify** every ≥8 keeper's CURRENT firm (Step 6).
 4. **Render** – `scan.py render --kind investor` → "✅ <Co>: Investor Scan Completed", numbered
    `N. Name (Role @ Firm). Why. link ↗` rows, one row per VC firm ("+N more at <Fund>"), 🔁 Intro'd Before /
-   🆕 Never Intro'd only when someone has intro history, every ≥8 fit sent (past 40 → "more"), 6–7s held, 🔎 footer,
+   🆕 Never Intro'd only when someone has intro history, every ≥8 fit sent in one go (no cap), 6–7s held, 🔎 footer,
    💬 CTA. Paste it verbatim (`network-scan/SKILL.md` Step 4).
 
 No category headers, tiers, or flat/alphabetical by-firm lists in the scan output. The categories (Mode A: **Follower

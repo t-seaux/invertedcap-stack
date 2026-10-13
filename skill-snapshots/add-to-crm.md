@@ -323,8 +323,10 @@ What stays YOURS (judgment — pass it in the spec):
 1. **Founder identity.** `founders` / `founder_links` with the LinkedIn URL from the source or a tool result. No LI
    in the source → WebSearch `"<founder>" "<company>" site:linkedin.com/in` and accept only a profile whose current
    role names the company (disambiguate by role / ex-employers / school). That search finds WHO, never an HQ.
-   **No founder named** (an incubator / studio / fund presenting the company): pass `presenter_linkedin` = the
-   presenting person's LinkedIn (Sorted 2026-10-05 → Priscilla Guevara, Science, San Diego).
+   **No founder named in the email** (an incubator / studio / fund presenting the company): read the deck's team /
+   contact slides for the founder first (Sorted → Talia Rosenthal). A referrer's / presenting person's LinkedIn or
+   email feeds NO lookup — never HQ, never Contact (Tom 2026-10-12: Sorted got Priscilla's San Diego + her address).
+   Pass the referrer's address(es) as `exclude_emails`; no founder found → HQ `??? 🌀`, Contact `N/A`.
 2. **`hq_hint`** — a location the source ties to the FOUNDER or the COMPANY itself: a signature block, an "HQ:" /
    "based in" line, the deck, the company's own website footer / contact page. A city that names a customer, investor
    or market is not an HQ (Collar 2026-08-26: "piloting with Temasek, Singapore's sovereign wealth fund" ≠ HQ).
@@ -359,7 +361,8 @@ upload needed` from Step 7) goes on lines AFTER it, never as a rewritten summary
 ## Step 4T: Text-Card Gate (webhook mode, new deal only)
 
 Runs INSTEAD of Steps 5–8 when webhook mode reaches *create*. Steps 1–3 (extraction, deck
-reading, identity, source emails) have already run. Card HQ = `opp_enrich.py hq-resolve` (its `staged_hq`); Contact /
+reading, identity, source emails) have already run. Card HQ = `opp_enrich.py hq-resolve` (its `staged_hq`) — founder named (body, or the deck's team /
+contact slide) but no LinkedIn → search it first and pass `--linkedin --company --website` (deal-lane.md §3; Foundry + Sorted 2026-10-12); Contact /
 Website stay what the source gave (else `N/A`) — the 👍 create's `opp_enrich` fills them, the same as Step 5 here. Card + staging
 contract = `~/.claude/skills/deal-text-scanner/references/deal-lane.md` §3 — one text per company (a multi-company digest sends one
 card each):
@@ -410,7 +413,7 @@ python3 ~/.claude/skills/shared-references/opp_create.py --spec <spec.json> [--d
 
 Spec keys (full schema in the script docstring): `title`, `status`, `stage`, `description`, `round_details`, `hq`
 (city, or null → resolved by `opp_enrich`), `hq_hint`, `website`, `website_hint`, `contact` (`"N/A"` → resolved),
-`source_emails`, `presenter_linkedin`, `icon`, `fund` (omit → Inverted 1️⃣), `source` (`"direct"` / `{"id"}` /
+`source_emails`, `exclude_emails`, `icon`, `fund` (omit → Inverted 1️⃣), `source` (`"direct"` / `{"id"}` /
 `{"name","email","company"}`), `founders` (`[{"id"}]` or `[{"name","email","li","company"}]`), `founder_links`
 (`[{"name","li"}]` → the 🏁 callout), `original` (`{"kind": "Email|DM|Text|Post|LI Profile", "text": <verbatim>}`),
 `source_thread_id`, `close_date` (Scheduled), `funding_history`, `deck` (`{"url","label"}`), and `signals` — EVERY
@@ -667,8 +670,8 @@ When running add-to-crm, if the email body doesn't name the founders, round, or 
 Every new entry in the Opportunities DB must ship enriched, not as a stub:
 
 - **Icon** — always set. Pick a thematic emoji from Notion's standard emoji set. Never create with a blank/default icon.
-- **HQ / Contact** — resolved by `opp_create.py` through `opp_enrich` (Steps 2–3): pass the founder's LinkedIn (or
-  `presenter_linkedin`), any `hq_hint` / `source_emails` the source gives, and leave the rest unknown. `??? 🌀` is the
+- **HQ / Contact** — resolved by `opp_create.py` through `opp_enrich` (Steps 2–3): pass the founder's LinkedIn (never a
+  referrer's), the referrer's address as `exclude_emails`, any `hq_hint` / `source_emails` the source gives, and leave the rest unknown. `??? 🌀` is the
   ONE empty HQ and only ever comes out of the ladder; never type it yourself, never WebSearch for HQ. This applies
   identically in webhook / unattended mode — the ladders run inside the create, so they can't be skipped.
 - **Website** — email body links, founder email domain, or LinkedIn current-company block. Not `N/A` unless the company truly has none. **Format: bare domain** (`solidcredit.com`) — never `https://` or `www.` (`opp_fields.py normalize` enforces this and the Contact format below). **Contact format:** every founder/co-founder email, `; `-separated (`bernardomenezes@gmail.com; eric@solidcredit.com; rodrigo@solidcredit.com`). Contact holds **co-founders only** — except for an incubated company (a studio / incubator building it, e.g. Science): the incubator people working the deal are Contacts alongside any co-founders (Sorted 2026-10-05, Tom: "keep both in contacts – they're both a part of the firm incubating the biz" — Priscilla Guevara + Talia Rosenthal, Science). Otherwise — never assistants, EAs, employees, advisors or investors, even on the company domain; founder status needs an explicit statement ("my co-founder X"), a title alone doesn't count. When a later email or calendar invite surfaces co-founder emails or the company domain on an existing Opp, append them / fill Website in this format and alert Tom (Slack) naming what changed and who was skipped. Enforced in gmail-webhook `cofounder-detect.js` (both lanes).
@@ -678,7 +681,7 @@ Every new entry in the Opportunities DB must ship enriched, not as a stub:
 **Why:** When a tip arrives with a founder LinkedIn URL, Tom expects the full enrichment cascade (LinkedIn URL → ContactOut → People DB dedupe → Opportunities fields) — not "name + source reference" stubs that create downstream work.
 
 **How to apply:**
-1. Give the create its identity inputs (founder LinkedIn, `presenter_linkedin`, `hq_hint`, `website_hint`, `source_emails`); `opp_enrich` runs the free rungs before the paid ones, so ContactOut credits are spent only when the cache and the source come up empty.
+1. Give the create its identity inputs (founder LinkedIn, `hq_hint`, `website_hint`, `source_emails`); `opp_enrich` runs the free rungs before the paid ones, so ContactOut credits are spent only when the cache and the source come up empty.
 2. Always pass a thematic `icon` emoji in the `opp_create.py` spec (it refuses a blank one).
 3. If the LinkedIn URL isn't in the source, WebSearch `"<founder>" "<company>" site:linkedin.com/in` and accept only a profile whose current role names the company (Step 2) — a found URL is what lets the HQ / Contact ladders run.
 4. `TBD` Description is a failure to investigate unless the source genuinely offers nothing. `??? 🌀` / `N/A` coming OUT of the ladders is an answer, not a gap to re-run by hand.
