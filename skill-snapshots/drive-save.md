@@ -61,6 +61,8 @@ On success, report:
 - Filename uploaded
 - Target folder name (not just the ID)
 - Direct file URL from the output (`url` — always present on exit 0; never report an upload without it)
+- Any OTHER Drive action (move, create folder, rename) reports a link too — the folder or file it changed:
+  > When doing any Google Drive action (upload, move, create folder), always include a link to the relevant folder or file in the reply — whatever's most relevant to what changed.  (2026-09-02)
 
 On failure, report the full error from the response and suggest next steps.
 

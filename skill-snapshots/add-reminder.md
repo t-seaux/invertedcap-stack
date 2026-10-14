@@ -31,7 +31,17 @@ python3 ~/.claude/skills/add-reminder/reminder_add.py add --title "<title>" [--l
   [--autonomous --channel group|tom --reason "<what triggered it>"]
 python3 ~/.claude/skills/add-reminder/reminder_add.py buy --for TS|EK|household --item "<item>" [--item "<item>" ...] [--due ...] [--url U] [--notes N]
 python3 ~/.claude/skills/add-reminder/reminder_add.py complete --id ID --title "<title>" [--autonomous --channel group|tom --reason "<why>"]
+python3 ~/.claude/skills/add-reminder/reminder_add.py update --id ID [--title T] [--notes N] [--due D] [--url U] [--autonomous --channel group|tom --reason "<what changed>"]
+python3 ~/.claude/skills/add-reminder/reminder_add.py delete --id ID [--id ID ...] --approved "<the 👍'd card handle / Tom's words>"
 ```
+
+Listeners and watchers (sms-listener, text-tend-to, family-inbox Katya / Zelle riders, order close-out) ROUTE here for
+every reminder write – add, complete, rename/notes, delete – never `eventkit add/complete/update/rename/delete`
+themselves (Tom 2026-10-12: "the listener is just a routing path for ALL SKILLS"; guard:
+`shared-references/tests/test_listener_routes.py`). `delete` refuses without `--approved` (SHARED_SAFETY rule 1;
+the 👍 gate lives in `sms-listener/delete_card.py`). TCC: a launchd bash → python3 → eventkit chain reads and writes
+fine since the 2026-10-02 stable-signature build (probe 2026-10-12: same 19 Kenyon-Seo reminders bash-direct and via
+python under launchd), so watchers call this script with the same `python3` their plist PATH resolves.
 
 **Reply = the JSON's `confirm`, verbatim** — the same text on every surface (session reply, text reply, card 👍).
 
@@ -47,13 +57,14 @@ prefix, and the script and eventkit refuse a prefix/list mismatch.
 | 3 | an open reminder already has this title (or every item is already on the `Buy:` one) → nothing written; send `confirm` |
 | 4 | created via a FALLBACK → send `confirm` (its ⚠ line names the eventkit error and where it landed) |
 | 1 | every path failed → report the printed errors; nothing exists |
-| 2 | argument error (mismatch, bad date, autonomous without channel/reason) → fix and re-run; never fall back by hand |
+| 2 | argument error (mismatch, bad date, autonomous without channel/reason, a separator dash in the title) → fix and re-run; never fall back by hand |
 | 5 | written but the autonomous alert didn't send → log it loudly |
 
 Harness: `tests/test_reminder_add.py` (fakes; pins the 09-01 / 09-02 / 09-03 incidents) +
 `tests/test_reminder_parity.py` (same request → same writes + same `confirm` through the session CLI, the text
 direct path and the text card path). The sections below are
-the WHY. `eventkit` direct calls stay fine for reads and bulk edits (`list`, `move`, `rename`, `update`).
+the WHY. `eventkit` direct calls stay fine for reads (`list`, `count`) and Tom-commanded bulk `move`s in a session;
+every write a listener/watcher makes goes through `reminder_add.py`.
 
 ## Primary path — Apple Reminders (via the native `eventkit` helper)
 
@@ -78,7 +89,7 @@ mismatch (`[TS]` on Work, `[IC]` on Kenyon-Seo → error).
 | Inverted Capital | Inverted fund/LPs/portcos, office, Lupe, Vector | `[IC]` | Work |
 | Dash Fund | Dash I / II / II-A, Dash LPs, MMF, fund admin | `[DF]` | Work |
 | Work, entity unclear | work but can't tell IC vs DF | none (don't guess) | Work (pass `--list Work`) |
-| Personal – Tom | family (Dad/Steve, Elsie, kids), home, errands, purchases for himself/family, household logistics (pick-ups, bookings, kids' logistics – Elsie sees them) | `[TS]` | Kenyon-Seo |
+| Personal – Tom | family (Dad/Steve, Elsie, kids), home, property tax, errands, purchases for himself/family, household logistics (pick-ups, bookings, kids' logistics – Elsie sees them) | `[TS]` | Kenyon-Seo |
 | Personal – Elsie | Elsie asked for herself, or Tom names Elsie | `[EK]` | Kenyon-Seo |
 | Household, either | shared chore, unassigned | none | `--list Kenyon-Seo` |
 
@@ -87,6 +98,10 @@ mismatch (`[TS]` on Work, `[IC]` on Kenyon-Seo → error).
   (the list was renamed from "Tasks" 2026-09-03; nothing is called "Tasks" any more). **No `[TS]`/`[EK]` prefix here** — everything in
   it is implicitly his, and the prefix is redundant noise (Tom: "these work tasks
   shouldn't have [TS] in front"). Entity prefix `[IC]` / `[DF]` DOES apply (Step 0).
+- **Property tax is personal, never Work (Tom 2026-10-12: "Property tax reminders are personal, so they shouldn't go on
+  the work list. So maybe we put the TS prefix.")** → `[TS]` on Kenyon-Seo. Code-enforced in `reminder_add.py`
+  (`PERSONAL_ONLY`): an unprefixed property-tax title gets `[TS]`; `[IC]`/`[DF]` or `--list Work` → exit 2. (Was the
+  text pref "Pay property tax reminders are TS (Tom Solo) — not a joint/family item (2026-09-01)".)
 - **`Kenyon-Seo`** = shared personal/household list (groceries, kids/school, home,
   paying the chef/cleaner/sitter — anything domestic). Prefix convention DOES apply
   here since Elsie also uses it: `[TS]` = Tom's, `[EK]` = Elsie's, no prefix = shared/
@@ -215,6 +230,12 @@ a reminder is never the "real harm" case that carve-out exists for.
 - **"re" → "re:"** — when a title contains the word "re" meaning "regarding" (e.g.
   "ping X re Y"), format it as "re:" with a colon ("Ping X re: Y"), never bare "re"
   (Tom, 2026-09-10).
+- **No separator dashes** (Tom 2026-10-13: "Can you just say buy toilet cleaning pods. The dash is unnecessary" /
+  "in reminders you excessively use dash"): say it in plain words — "Pay Lupe for office cleaning", never
+  "Pay Lupe – office cleaning". CODE: `reminder_add.py` refuses a spaced dash (` – `, ` — `, ` - `) or an em dash
+  in a new title or Buy item (exit 2, "rephrase without the dash"); hyphenated words, ranges (10–12, 9-5), phone
+  numbers and URLs are fine. Existing dashed reminders still complete / append / match. The ⏰ texts carry no
+  separator dashes either (guard: `tests/test_no_dash.py`).
 - **One reminder per item**: split conjoined asks ("A and B") into separate reminders — except shopping,
   which is ONE `Buy:` reminder (above).
 - **Assignee prefix** — see the **List + prefix convention** above: applies on
@@ -262,12 +283,13 @@ Tom); never mix channels within one flow.
 Shapes (alert convention, ⏰ = the Reminder domain emoji; the old `📋` / `✅` one-liners
 predate it and are retired): create → `⏰ Reminder Added: <Title>`, blank line, what
 arrived / what triggered it; complete → `⏰ Reminder Done: <Title>`, blank line, `✓ <one-line
-reason>` (e.g. `✓ saw the payment confirmation in the thread`). `reminder_add.py --autonomous`
+reason>` (e.g. `✓ saw the payment confirmation in the thread`; a recurring reminder's line ends `Next one due M/D.`); a `⚠` line in the reason (a side write that
+failed) leads the body, unticked. `reminder_add.py --autonomous`
 emits exactly these. Silent autonomous action is the failure mode
 Tom is guarding against — a reminder that appears or vanishes with no explanation
 is worse than one that lingers. Live instances: Katya two-step
 (`check_katya_invoice.py` → group; `check_katya_paid.py` → group), Lupe two-step
-(`check_lupe_paid.py` → 1:1 both sides), Citizens Zelle confirmations
+(`check_lupe_paid.py` → 1:1 both sides, plus `[IC] Buy` on Lupe's supply asks — all through `reminder_add.py`), ManCo reimbursement + LP letters check-offs (`manco_reimb_watch.py`, `lp-letter-workshop/scripts/reminder_watch.py` → 1:1, through `reminder_add.py complete`), Citizens Zelle confirmations
 (`check_payment_confirmations.py` → group). Any new autonomous logic follows the
 same pattern.
 
@@ -277,9 +299,12 @@ same pattern.
 no scheduled task exists on disk yet, so this was a doc bug, not a live incident). Any
 family-facing TODO digest ("what's on the todo list", an 8am family-group send) must
 read the **`Kenyon-Seo`** list, never `Work` — `Work` is Tom's own fund/business list
-(property tax, LP transfers, fund admin $ figures) and has no business going out over
+(LP transfers, fund admin $ figures) and has no business going out over
 the family thread. `~/.claude/skills/sms-listener/todo_digest.py`
 (`fetch_reminders()`) targets `Kenyon-Seo`, grouping by due-date bucket then by the
 TS/EK/no-prefix convention above. No separate TODO store — Apple Reminders IS the
 TODO list, scoped to the shared list. Keep this pointed at `Kenyon-Seo` if the
 mechanism is ever built out.
+Buckets shown = **Overdue + Today only** — code `todo_digest.py` `DISPLAY_BUCKETS` (2026-09-14) is the rule; the
+older text pref "Family todo digest: never show the 'Later' (7+ days out) bucket — only Overdue/Today/Tomorrow/This
+Week (2026-09-03)" is retired (Tom 2026-10-12: "The updated code.").

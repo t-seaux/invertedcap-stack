@@ -70,6 +70,11 @@ family-inbox transport and the lane-specific bits below.**
    signal": fold what the family committed to into the matching event (the 2026-09-09 case updated
    Jeremy's-birthday with "Elsie + Andy + Benny attending, Tom not"), phrase the heads-up as
    "Updated RSVP: …", and the step 4 cooldown applies with full force.
+   **An unsent DRAFT is never a sent reply** (2026-10-13: Elsie's half-written BFS reply was read as
+   sent → a "your reply looks cut off" alert in the family group). fast.py drops drafts in code
+   (`reason=unsent-draft*`); if one still reaches you, `family_inbox.py draft-state <messageId>`
+   must say `real` before you fold, alert on or critique any self-sent message — anything else = silent,
+   `texted=n reason=unsent-draft`. Never comment on the family's drafts.
 
 **As code (2026-10-04) — pre-model gate, run FIRST, before any classification:**
 ```bash
@@ -107,6 +112,7 @@ every attachment** (the webhook never carries them). Three proven cases where th
   "no date to auto-catch" because the image went unopened. Tickets, boarding passes, and event
   confirmations put the date/time/seat in an IMAGE, not the text — just like BFS puts it behind
   a link.
+  - When a ticket purchase confirmation email arrives without an extractable showtime (login-gated booking page, no time in email body), proactively ask in the family group for the showtime rather than silently skipping the calendar add  (2026-09-06)
 
 So, before extracting anything, enumerate what the message actually points to:
 ```bash
@@ -163,16 +169,23 @@ never cross-copy), invariant 3 (reconcile: fill missing, correct conflicts, note
 invariant 4 (headers + item lines), invariants 5-6 and 9 (defaults, dash glyphs, location
 format), Known event sources (kids' classes), Lane-specific (family bullet).
 
+- When a calendar event is flagged as pending external confirmation (e.g. 'waiting on confirmation email'), do not write the event until the actual confirmation arrives in the family inbox — a bare address, FYI forward, or address-only text is NOT a go-ahead.  (2026-08-31)
+
 **For EACH relevant date, dedup-check BOTH calendars BEFORE anything else** (contract invariant 2): `python3 ~/.claude/scripts/calendar_write/calendar_write.py find-dupes both --day <YYYY-MM-DD> [--start HH:MM] [--keyword <title/venue/person word>]...` (exit 0 = no match → create · 10 = exactly one → reconcile THAT event in place, on the calendar it lives on (calendar-event-handling.md invariant 3: fill missing, correct conflicts, never a copy on the other calendar) · 11 = two+ → ask, don't guess · 2 = calendar unreachable → don't create). The BFS feed already auto-adds many milestones (Labor Day, Family Visit Day, First/Second Day), so most will already exist — judge the returned candidates semantically.
 
 - **DUPE found → RECONCILE per contract invariant 3**, via `update_event` in place on the
   calendar where it lives. Authorized auto-update — no approval needed — but you STILL
   report it in step 4 (a correction states old → new, never hidden in a plain line).
+  A new time (or Tom's cancel) on a meeting Tom hosts with guests → `~/.claude/skills/scheduler/meeting_handoff.py`
+  move / cancel instead of `update_event` (its 📅 card, Tom's 👍 writes).
 - **NET-NEW relevant date → ADD it directly, then report it** (Tom 2026-09-02 — "take
   first pass and text alert us with what you added, let us audit/ask for edits"). No
-  more propose-and-wait: once the dedup check above comes back clean, create the event
-  on the Elsie-Tom calendar right away (BUSY unless it's clearly a FREE-type marker per
-  `add-to-calendar` § 2) and put it in the heads-up as an **already-done** `Added` line
+  more propose-and-wait: create it right away through add-to-calendar's ONE create path –
+  `python3 ~/.claude/skills/add-to-calendar/scripts/cal_add.py add '{"title":…,"date":…,"time"?:…,"calendar":"personal",
+  "who"?:…,"kind"?:…,"source"?:"BFS","location"?:…,"description"?:…,"keywords":[<provider / venue word>]}'` (it runs the
+  two-calendar dedup itself; exit 10 = the match to reconcile below; exit 12 = Busy/Free undecidable → its § 1 row
+  (the card goes to Tom's 1:1, not the family group); title / BUSY-FREE rules are its § 2;
+  never a `create_event` here) – and put it in the heads-up as an **already-done** `Added` line
   (contract invariant 4), not a 🆕 ask. Dedup-before-add is still absolute — never skip that check just because
   adding is now automatic. If a date is genuinely ambiguous (ex: ambiguous group/time
   assignment, conflicting info in the email) hold it as a 🆕 ask instead of guessing.
@@ -193,7 +206,7 @@ grep -i "subject=.*<normalized subject>" ~/.claude/skills/family-inbox/sweep-log
 ```
 Hit → still do the calendar work (step 3), text only a genuine delta, else log
 `texted=n reason=thread-cooldown`.
-(Load prefs first — `python3 ~/.claude/skills/sms-listener/prefs.py load core email` — and
+(Load the text-surface prefs first — `python3 ~/.claude/skills/sms-listener/prefs.py load` — and
 honor them, esp. the header/formatting rules.)
 Kid/family stuff goes to the **family group** (Assistant + Tom + Elsie) so both parents
 see it — NOT Tom's 1:1:
@@ -288,8 +301,10 @@ $172.53 REMINDER email was silently dropped, so the reminder said $531.33 instea
   "paid"/"zelled"/"venmoed" — and only when it's about Katya: names Katya, an invoice #,
   or the amount, or is a bare "paid" whose latest bot message was the Katya alert;
   "paid Lupe" never counts), from **either Tom or Elsie** after the reminder's
-  creation time, and if found calls `eventkit complete` + texts the family group a
-  one-line ✅. Elsie's replies sync to this Mac's chat.db too, so either of them
+  creation time, and if found checks it off through add-reminder's
+  `reminder_add.py complete --autonomous --channel group`, which texts the family group the
+  owner's `⏰ Reminder Done: <Title>` + `✓ Saw the payment confirmation in the thread`
+  (2026-10-12: every reminder write routes to add-reminder – no watcher-owned eventkit writes). Elsie's replies sync to this Mac's chat.db too, so either of them
   confirming is enough. Script lives alongside this SKILL.md; the wrapper lives at
   `~/.claude/scheduled-tasks/family-inbox/katya_paid_watch.sh` (machine-local, not
   in this repo).
@@ -309,7 +324,9 @@ confirmation email.
   date** (hotels) — NOT an exact-title match, since per-passenger emails all have
   different subject lines/passenger names for the identical segment.
 - **First email for a segment → create ONE event** titled by the segment itself, not the
-  passenger (`✈️ Family Flight: JFK → Seoul (ICN) – KE 082`, not `✈️ Tom: JFK → ...`).
+  passenger (`✈️ Family Flight: JFK → Seoul (ICN) – KE 082`, not `✈️ Tom: JFK → ...`) – via `cal_add.py add` with
+  `"who":"joint","calendar":"personal","date","time","end_date","end_time","tz":<departure zone>,"end_tz":<arrival
+  zone>,"keywords":["KE 082","KE082"]` (one call per leg; exit 10 = the leg exists → enrich it below).
   Description lists the flight facts once, then a running list of `<Person> – Booking
   ref: <ref> [· Seat <seat>]` lines.
 - **Every subsequent email for the SAME segment → ENRICH, don't create.** Add that

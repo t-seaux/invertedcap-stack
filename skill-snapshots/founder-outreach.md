@@ -9,7 +9,8 @@ description: >-
   draft time. Refuses unscored rows (missing eval_summary/signals_line/email → run neg1-enricher first).
   Manual triggers: "draft -1 note [for name]" (canonical), "draft outreach for [name]", "draft for [name]".
   ONLY for pre-founders with no company yet — the mirror trigger "draft newco note [for name]" is for founders
-  who ALREADY started something and routes to writing-style/newco-cold-outreach/ (ad-hoc, no drafter skill).
+  who ALREADY started something and routes to writing-style/newco-cold-outreach/ (ad-hoc). NewCo mode: the
+  Monthly Network Refresh 🆕 card 👍 drafts via scripts/newco_draft.py (prep → compose → draft).
   The -1 Scanner DB and Request Draft button are RETIRED (2026-07-16).
 ---
 
@@ -51,6 +52,32 @@ Trigger gate values shared with the webhook producer live in `~/.claude/skills/s
 - Drive snapshot write (Step 9) unchanged — draft-feedback voice learning must keep working.
 - Never sends, same as always.
 
+**NewCo mode (2026-10-13; moved here from `sms-listener/references/deal-cards.md`)** – the auto-draft on Tom's 👍 to a
+`lane:"network-refresh"` 🆕 Opportunity card (Monthly Network Refresh newco cards). Tom 2026-09-20: "auto draft an
+outreach note using my writing style. This is a cold outreach note. Never send. Just save to draft and alert me". Every
+surface calls the ONE entry point `scripts/newco_draft.py` (tests: `tests/test_newco_draft.py`); the template is
+`writing-style/newco-cold-outreach/` – NOT the `-1` scaffold below.
+1. `python3 ~/.claude/skills/founder-outreach/scripts/newco_draft.py prep --staged <staged file> --create-json
+   <opp_create stdout>` – runs only after `shared-references/opp_create.py` created the Opp. `draft:false` → stop and
+   send its `reply` (no email in the create's Contact → `· no email found — outreach skipped`; a 👎 / Pass (DNM) never
+   drafts). `draft:true` → `to` (the create's Contact – `opp_create` already ran the Contact ladder: ContactOut on the
+   staged `founder_linkedin`, work email else personal – Tom 2026-09-20: "you should be able to find via ContactOut"),
+   the facts, the cached profile, and the stylebook paths.
+2. Read every `stylebook` file BEFORE choosing the clause – the pre-draft gate applies. **The stylebook wins (Tom
+   2026-10-13: "stylebook for outreach")** – the listener's old "congratulate-and-open" line is retired. The script
+   renders STYLE.md's locked scaffold verbatim; your ONLY input is the one radar-clause sentence, picked by what is
+   actually true from the staged `source_context` / `description` / cached `profile` (STYLE.md § The Radar Clause):
+   `Have heard great things about {Company} from {Referrer}.` · `… through the grapevine.` · `Came across {Company} via
+   {source}.` No personalization sentence, no congratulations, no placeholder, ONE exclamation ("note!") – Tom adds
+   his own line in Gmail if he wants one. None of the three is true → don't draft; tell Tom.
+3. `newco_draft.py draft … --radar-clause "<the sentence>"` → body rendered from STYLE.md → `stylebook_check` (no
+   personalization / placeholder / congrats, ≤1 "!", P2 + close verbatim) → `gmail-create-draft.py --skill
+   newco-cold-outreach` (the full newco style gate; subject `Introducing Inverted Capital`, snapshot). **NEVER send.**
+   The standard ✍️ draft alert fires automatically — that is Tom's alert. Exit 4 = fix per `gate`, re-run; exit 2 =
+   the clause isn't a STYLE.md variant.
+4. Send its `reply` VERBATIM: the create's `reply` + ` · outreach drafted` on its header line (or `· email found via
+   ContactOut · outreach drafted` when the create's `enriched.via.contact` starts with `contactout`).
+
 **RETIRED 2026-07-16:** the -1 Scanner DB was deleted after full decommission — data archived at `~/.claude/data/neg1_scanner_archive.json` + migrated into the candidate store. Everything below referencing the Scanner is historical documentation only; do NOT query the DB.
 
 ## Notion Targets (RETIRED — historical)
@@ -83,7 +110,7 @@ Before doing anything, verify the target row is fully evaluated. Required popula
 
 **"draft -1 note [for name]"** (canonical, 2026-08-11), "draft outreach for [name]", "draft cold email for [name]", "draft for [name]", "create outreach draft", "run founder-outreach".
 
-**Mirror trigger — NOT this skill:** "draft newco note [for name]" is for a founder who has ALREADY started a company, and routes to `writing-style/newco-cold-outreach/` (ad-hoc, no drafter skill). This skill's `-1` scaffold tells the recipient Tom invests "ahead of incorporation", which is loudly wrong for someone who already incorporated. If the target has a company, stop and use the NewCo stylebook.
+**Mirror trigger — NOT the -1 flow:** "draft newco note [for name]" is for a founder who has ALREADY started a company, and routes to `writing-style/newco-cold-outreach/` (ad-hoc from Tom's prompt; a staged network-refresh card goes through NewCo mode above). This skill's `-1` scaffold tells the recipient Tom invests "ahead of incorporation", which is loudly wrong for someone who already incorporated. If the target has a company, stop and use the NewCo stylebook.
 
 Explicitly NOT triggered by: "score [name]", "score the new -1 entries", "run founder scoring", "score this profile", or any enrichment-intent phrase. Those route to `neg1-enricher`.
 

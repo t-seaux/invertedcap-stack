@@ -107,7 +107,7 @@ index reads from that directory, so never skip it.
 
 One line per person, with a link to the Notion page:
 
-- `Updated Matt Heiman's photo — [link]`
+- `Updated Matt Heiman's photo — <url> ↗`
 - `Matt Heiman's photo is already current — no change.`
 - `No photo for Matt Heiman — ContactOut has no picture on any of the three endpoints. Icon left as-is.`
 - `Nadia Okonjo isn't in the People DB. Want me to add her?`

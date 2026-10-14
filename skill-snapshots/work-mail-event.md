@@ -33,13 +33,20 @@ embedded in it.
 - **Dedup (contract invariant 2):** `~/.claude/scripts/calendar_write/calendar_write.py
   list` on `cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com` AND
   `tom@invertedcap.com`; reconcile with `get` / `patch` / `delete` per invariant 3.
+  A meeting Tom hosts with guests (new time / his cancel) → `~/.claude/skills/scheduler/meeting_handoff.py` move /
+  cancel, never a patch / delete here.
 - **Create target:** per the contract's Lane-specific work-lane bullet (Tom-only
-  work events → `tom@invertedcap.com`; whole-household → Elsie-Tom).
+  work events → `tom@invertedcap.com`; whole-household → Elsie-Tom). The create itself is add-to-calendar's:
+  `python3 ~/.claude/skills/add-to-calendar/scripts/cal_add.py add '{"title","date","time","end_time"?,"tz"?,
+  "calendar":"work"|"personal","location"?,"description"?,"keywords":[<venue / host word>]}'` (exit 10 = reconcile
+  that match per invariant 3; exit 12 = Busy/Free undecidable → add-to-calendar SKILL.md § 1); an invite card stages the `event` that `cal_add.py plan` prints.
 - **Invite cards:** shape per contract invariant 1; stage the payload at
   `~/.claude/scheduled-tasks/outlook-mail-watch/staged-invites/<sent_handle>.json`
   (ONE shared staging dir for personal + work lanes — sms-listener branch
   4-CAL consumes both; include `"create_calendar"` in the staged JSON when
   the add should land on the work cal instead of the staged default).
+  When the `cal_add.py plan` behind the card prints a `"cta"` (Busy/Free undecided), pass it to `calendar_write.py card`
+  as `"cta"` (the card closes `👍 to Mark as Busy · ❤️ to Mark as Free`) and stage `"busy_free": true`.
 - **Write texts:** per contract invariant 4 (header vocabulary + item lines,
   every write texts, ONE text per job); glyphs per invariant 6.
 - Body in args is capped at 2500 chars — if the event details are clearly

@@ -497,10 +497,11 @@ Then be opinionated about composition, not just the list:
 loop, and it is not optional.** He will move names between buckets, add people the search missed, and
 keep names the data argued against. The moment he locks a list, do all of the following in the same step:
 
-1. **Persist the roster to Notion — this is the ground truth.** Write one People DB row per approved
-   name into the Opportunity's `👓 Intros (Qualified)` relation; excluded names are simply absent.
-   Outcomes (`✉️ Intros (Made)` / `🚫 Intros (Declined / NR)`) then accrue automatically as the
-   intro/outreach pipeline runs — you don't hand-maintain them.
+1. **Persist the roster to the Investor CRM sheet — NOT Notion yet** (Tom 2026-10-13: "Once we get two way aligned
+   on who to go after then you add to qualified"). Tom's locked list is the company's Investor CRM sheet
+   (investor-crm skill). Write `👓 Intros (Qualified)` on the Opportunity only once Tom and the founder are
+   two-way aligned on who to go after — and only when Tom says so (the trigger for that is still TBD). Outcomes
+   (`✉️ Intros (Made)` / `🚫 Intros (Declined / NR)`) accrue from the intro pipeline as before.
 2. **Append a block to `references/finalization-log.md`** — the interpretation layer, per the schema at
    the top of that file: **only** what Notion can't hold — the category each name went in, who Tom
    *cut* and why, founder-excluded vs Tom-cut, any category moves, mandate lines learned, and the
@@ -579,8 +580,8 @@ judge's `--ask` / `--context`.
   gated on the three-axis fit with the Mode-B stage reading; plus Notion intro relations (Step 3) and
   Drive CRMs (Step 2) exactly as in Mode A.
 
-**Persistence (Step 8), Mode B.** Same discipline, different files: roster → the Opp's `👓 Intros
-(Qualified)` relation; interpretation block → `references/next-round-log.md` (**not** the coinvestor
+**Persistence (Step 8), Mode B.** Same discipline, different files: roster → the Investor CRM sheet (Qualified
+only after two-way alignment, per Step 8.1); interpretation block → `references/next-round-log.md` (**not** the coinvestor
 ledger); standing tier/stage calibration → `references/next-round-kb.md`.
 
 **Email (Step 9), Mode B.** Same bare-artifact discipline: the names Tom locked, no tier headers;

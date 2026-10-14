@@ -5,7 +5,9 @@ description: >
   (class signups, camp registrations, supplies), errands & services (flowers, food,
   dry cleaning), and travel. Trigger on "buy X", "order X", "purchase X", "get X for
   [person]", "book X", "sign Andy up for X", "send flowers to X", or any variant where
-  an allowlisted family member wants something bought or booked. HARD GATE: every
+  an allowlisted family member wants something bought or booked. NOT bare want/need
+  language ("I need X", "get some X", "we're out of X") on any channel — that is a
+  reminder (add-reminder); only an explicit buy/order directive starts a purchase. HARD GATE: every
   purchase requires an explicit YES from the requester AFTER seeing the exact item,
   price, and merchant — no exceptions, no auto-buy at any price. Works from chat,
   Slack DM, or the SMS line (sms-listener routes here).
@@ -49,6 +51,12 @@ Elsie) is the decision-maker; this skill is hands, not judgment.
 ## Flow
 
 ### 1. Understand the ask
+**Bare want/need language is a reminder, never a purchase (preference-miner p2, 2026-09-27):**
+> Bare want/need language ("I need X", "get some X", "we're out of X") never triggers purchase-agent, regardless of input channel (SMS, Claude Code, email, Slack) — only explicit buy/order language does. Reminder is the default; purchase-agent needs an explicit transaction directive.
+
+(2026-09-25 dish-soap voice note: "I need to get some dish soap" was staged as an Amazon quote; Tom: "that is a
+reminder, not set up a cart". sms-listener's reminder-vs-purchase routing is the same rule, pointed here.)
+
 **PRIORITIZE DIRECT MERCHANTS** (Tom 2026-09-02: *"you should already know this — we
 prioritize direct merchants"*). Within any marketplace, prefer the first-party seller over
 a third-party one: **Ships from / Sold by Amazon.com** over a marketplace seller,
@@ -112,9 +120,9 @@ block instead. Stderr `CC_SPOUSE` → total > $500, cc the other spouse. The for
 
 Transaction Summary
 • Address: [Office (365 Bridge) | Home (25 Garden Pl)]
-• Card: [Brex (Mastercard *0188) | Amex Gold]
+• Card: [Brex (Mastercard x0188) | Amex Gold (x2017)]
 • Arrives: [Fri, Sep 4] @ [9-10a]
-• Total: $[grand total] ($[items] − $[promo] + $[shipping/delivery] + $[other fees] + $[tax])
+• Total: $[grand total] ($[items] – $[promo] + $[shipping/delivery] + $[other fees] + $[tax])
 • Link: [cart URL, or the product URL for a single item] ↗
 
 Items ([n]) – $[subtotal]
@@ -135,7 +143,7 @@ Rules for that block (Tom 2026-09-02, this exact shape):
   items, promo, delivery, regional fees, tax. Do not fold the promo into the item price,
   do not merge delivery + regional into one "fee", do not recompute anything. On
   2026-09-02 a stale daemon session invented `$64.37 item price + $4.28 tax + $17.48 fee`
-  for the same order whose real breakdown was `$70.88 − $6.51 + $9.99 + $7.49 + $4.28`.
+  for the same order whose real breakdown was `$70.88 – $6.51 + $9.99 + $7.49 + $4.28`.
   The total happened to match, which is exactly what makes it dangerous — a plausible
   wrong breakdown reads as authoritative. If a `review` field is missing, say so; never
   reconstruct it from arithmetic.
@@ -149,6 +157,12 @@ Rules for that block (Tom 2026-09-02, this exact shape):
   hold is unusually large / would plausibly bounce.
 - **Card digits:** the last-4 comes from Tom's OWN configured card list (below), never
   from scraping the merchant's stored-payment data. Render brand + the configured last-4.
+  **ONE card shape on every surface: `<Issuer> (<Brand> x<last4>)`** — `Brex (Mastercard x0188)`,
+  `Amex Gold (x2017)`; lowercase `x`, never `*`, never the full PAN (Tom 2026-10-12: "I like to use the X, not the
+  asterisk."; "I just want them to be consistent"). Code: `purchase_quote.py` `CARDS`; a guard test fails on a
+  `*NNNN` card shape anywhere in this repo.
+- **Minus = en dash `–`** in the Total breakdown (`$70.88 – $6.51 + …`), never the U+2212 math minus (Tom 2026-10-12,
+  writing mechanics). Code: `purchase_quote.py breakdown`.
 - **One fixed call to action**, verbatim: `Reply YES to place as-is ($[total]) or respond
   to edit cart / delivery time.` Don't enumerate bespoke options (TRIM/swap/etc.) — the
   open "respond to edit" covers them, and a free-text reply is parsed as an edit.
@@ -217,7 +231,7 @@ Text format per `sms-listener/SKILL.md` § Formatting (plain header; Unicode bol
 **Payment + address (code: `~/.claude/skills/purchase-agent/purchase_quote.py resolve`, Tom 2026-10-04):**
 - **Card = Brex for WORK expenses, Amex Gold for PERSONAL** (Tom 2026-10-04, replacing the
   contradictory 09-02 / 09-03 text). Household → Amex Gold. Elsie's requests are personal unless she
-  says work. Chase Sapphire \*2660 only when he names it. YOU classify the ask (`--purpose
+  says work. Chase Sapphire x2660 only when he names it. YOU classify the ask (`--purpose
   work|personal|household`) — the script maps it to the card and address, and the quote always shows
   both so he can correct either by replying.
 - **Address default = 365 Bridge (office)** unless he says home, or the order is household
@@ -226,7 +240,7 @@ Text format per `sms-listener/SKILL.md` § Formatting (plain header; Unicode bol
 - **Household items → home + Amex Gold, ALWAYS** (Tom 2026-09-03); a mixed order with a household
   item is household for the whole order.
 - **Never select a card by position, and read the NAME ON CARD.** Amazon's payment list
-  includes **Prime Visa \*9578 in "Mi Kyung Kim"'s name** — someone else's card sitting
+  includes **Prime Visa x9578 in "Mi Kyung Kim"'s name** — someone else's card sitting
   among Tom's. Match the exact card label every time.
 - **Never select an address by position.** Amazon's book holds other people's addresses
   (Mikyung Kim, Steve Seo, Jon Terbell, a Santa Barbara and a Bridgewater VT house). Match the
@@ -282,6 +296,9 @@ Screenshot or capture the JSON of the final order confirmation as the audit arti
   finish — a handed-off purchase is a success, not a failure.
 - **Travel:** always the hand-off pattern for the final booking click unless the
   requester pre-approved the exact itinerary+fare in the quote.
+  - **LGA parking (Tom 2026-08-31):** always book Terminal B Parking (right at the terminal); use pre-book lanes on
+    entry (not E-Z Pass). The license plate for the booking form is local-only, never in this repo:
+    `~/.claude/local/vehicle.md` (missing → ask Tom; never guess it).
 
 ### 4b. Block the delivery window on the calendar (ORDERS ONLY)
 
@@ -289,18 +306,30 @@ Screenshot or capture the JSON of the final order confirmation as the audit arti
 `status=ordered`. Never on a quote, never on a YES that hasn't completed. A calendar hold
 for an order that didn't happen is worse than no hold.
 
-Create the event on the **Elsie-Tom** shared calendar
-(`cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com`), spanning the delivery window:
+Render the event with the script — never hand-compose it:
+```bash
+~/.claude/skills/purchase-agent/purchase_quote.py hold --merchant target --address office|home \
+  --start <window start ISO> [--end <window end ISO>] --order <ORDER#> --count <N items> --total <total> [--calendar personal]
+```
+It prints the event JSON (calendarId, summary, location, description, start/end, transparency) — write it as-is.
+
+- **Calendar: Tom's WORK calendar (`tom@invertedcap.com`) by default** (Tom 2026-10-12: "Let's default to the work
+  calendar."), for office AND home deliveries; `--calendar personal` (Elsie-Tom) only when Tom or Elsie asks for it.
+  Replaces the earlier Elsie-Tom default and the text pref "Use work calendar (Inverted) when delivering to the office".
+- **Window:** exactly the delivery window; 1h when the merchant gives only a start time (the old pref's "duration 1h").
+- **Location:** the delivery street address (`365 Bridge St Ste 8PRO, Brooklyn, NY 11201` / `25 Garden Pl, Brooklyn,
+  NY 11201`).
 
 - **Transparency: BUSY** (`transparency: "opaque"` — the Calendar API default). Tom
   settled on this 2026-09-02 after first asking for free: *"the cleanest thing to do would
   be to mark me as busy so I can't be booked then."* Free was self-defeating — a free
   event is still bookable, so "keep me at the office" would have been a suggestion that
   every scheduler ignores. Busy enforces it with no scheduling-side wiring at all.
-- **Title:** `📦 Target delivery @ office — be at 365 Bridge`
-- **Description:** the order number, item count, total, and the reason — *"Holding this
-  window to receive the delivery at 365 Bridge. Remote/phone/video is fine; the block
-  exists to prevent in-person meetings elsewhere."*
+- **Title:** `📦 <Retailer> delivery @ <office|home> — be at <365 Bridge|25 Garden Pl>`, e.g.
+  `📦 Target delivery @ office — be at 365 Bridge` (this shape wins over the retired pref title `[Retailer] Delivery`,
+  Tom 2026-10-12).
+- **Description:** `Order #[number] — [N] items, $[total]. Holding this window to receive the delivery at [short
+  location]. Remote/phone/video is fine; the block exists to prevent in-person meetings elsewhere.`
 
 The cost is real and intended: the window is genuinely unbookable, so keep it TIGHT —
 exactly the delivery window, no padding. A 1-hour block is cheap; a half-day is not.
@@ -310,8 +339,12 @@ DELETE it (per [[feedback_always_confirm_before_delete]], a stale hold is worth 
 but say so). Deliveries slip, so a hold that silently drifts out of date is a liability.
 
 ### 5. Close the loop
-Reply `✅ Ordered — [item], $[total], arrives [date]` (or `✅ Booked`). Save the
+Reply with `~/.claude/skills/purchase-agent/purchase_quote.py closed --item "…" --total … --arrives "…" --order-url <URL>
+[--booked]` → `✅ Ordered — [item], $[total], arrives [date]` (or `✅ Booked`) + `<order URL> ↗`. Save the
 receipt to Drive `Kenyon-Seo/Receipts/`, append the ledger line.
+- Always include a direct link to the service/merchant/booking page in every transaction-flow quote and confirmation, so Tom/Elsie can audit the work  (2026-08-31)
+- After a purchase is placed, the confirmation SMS must link to the order history/confirmation page, not the cart — a cart link proves nothing was ordered.  (2026-09-03)
+- Code: `closed` refuses (exit 2) a missing link or a cart URL.
 
 ## Ledger format
 

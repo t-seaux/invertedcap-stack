@@ -35,7 +35,7 @@ clear repeated correction:
 - **Phrasing/format nits** — recurring tweaks to how replies read.
 - **Scope reinforcement** — what each person actually uses.
 Write each as a concise, self-contained rule + the evidence. Assign a domain
-(`calendar purchases email people general`).
+(`calendar purchases email people general`) — `prefs.py propose` routes it to the owning skill.
 
 ## 3. Dedup + propose
 For each candidate, skip if already covered:
@@ -49,16 +49,15 @@ python3 ~/.claude/skills/sms-listener/prefs.py propose <domain> "<rule>" "<evide
 # skill-CORE behavior → compiles into that skill's SKILL.md on confirm (append the skill name):
 python3 ~/.claude/skills/sms-listener/prefs.py propose <domain> "<rule>" "<evidence>" <skill>
 ```
-Judge the destination: if the rule changes how a skill fundamentally behaves (e.g. how
-family-inbox phrases finance alerts, how sms-listener handles a shared link) → tag the skill.
-If it's a narrow domain tweak (a time bound, a format nit) → leave it corpus-bound. When
-genuinely unsure, leave it corpus-bound (the cheaper, reversible home).
+Destination: `prefs.py propose` routes it (`prefs.py route <domain> "<rule>"` to preview) – an owned domain is tagged with its owning skill (add-to-calendar, purchase-agent, …); only text-surface rules stay corpus-bound.
 **Be conservative** — a wrong "learned" preference is worse than none. When unsure, don't
 propose. Aim for 0–4 high-signal candidates per run, never a pile of speculation.
 
 ## 4. Digest to Tom (1:1, not the group — agent-tuning is his call)
 If ≥1 new candidate, text Tom via `~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<digest>"`.
-Honor the formatting prefs (`prefs.py load core`) and `sms-listener/SKILL.md` § Formatting.
+- Skill/preference-graduation escalation always goes to Tom 1:1, never into the Kenyon-Seo family group thread — even if the triggering pattern was observed in group messages (e.g. Elsie's requests too). Applies to the nightly preference-miner digest and any in-session skill-worthy flag.  (2026-08-31)
+
+Honor the formatting prefs (`prefs.py load`) and `sms-listener/SKILL.md` § Formatting.
 Show each candidate's destination so Tom knows where a "confirm" sends it — `→ <skill>` for
 skill-core prefs, `(corpus)` for narrow overrides:
 ```

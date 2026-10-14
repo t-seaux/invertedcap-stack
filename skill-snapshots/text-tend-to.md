@@ -103,15 +103,15 @@ Apply `tend-to.md` §1-§2 to each thread's NEW messages, read in context. Text-
   already landed). Otherwise:
   `python3 ~/.claude/skills/text-tend-to/work_call.py --day <YYYY-MM-DD> --start <HH:MM as stated> [--tz <zone
   as written: "pacific" / "PT" / "CT" / "London" / an IANA name>] --name "<Full Name>" [--name "<co-founder / anyone the
-  thread says will join>"] --company <Opp company> --asker "<First>"`. **Time zone (Tom 2026-10-11):** no zone said anywhere
+  thread says will join>"] --company <Opp company> --text "<the thread's words>"`. **Time zone:** no zone said anywhere
   in the thread → omit `--tz` (Eastern). A zone said ANYWHERE in the thread for this call counts – a later
   correction ("*Pm pacific"), "I'm on the west coast rn" + "11 AM pacific?", "11:30 PT works" – so read back
-  through the 72h thread before deciding. The card always shows ET plus the stated zone, e.g. "2:30-3p ET (11:30a PT)". Names: full names from the Opp `Contact` /
-  People DB – "Jackson and I will be online" means add Jackson, and the Opp tells you he is the co-founder. Emails
-  come from Tom's past invites (code); exit 4 = none found → look them up (Opp Contact → People DB → Apple Contacts)
-  and rerun with `--email "<Name>=<addr>"` (a friend on gmail is never guessed – always looked up); exit 2 = calendar unreachable → heads-up line, no card. Send the
-  returned `card` verbatim via `send.sh` and stage at the Step 2.5 path with `"create_calendar":"tom@invertedcap.com",
-  "send_invites":true,"dedup_keywords":[<guest first names>]` + the returned `event`. Record with `offered.py add`.
+  through the 72h thread before deciding. Names: full names from the Opp `Contact` / People DB – "Jackson and I will be
+  online" means add Jackson. Emails come from Tom's past invites (code) or `--email "<Name>=<addr>"` from the Opp
+  Contact; anyone else goes to the scheduler by name – never a guessed address. The script hands the event to
+  `~/.claude/skills/scheduler/meeting_handoff.py book`, which owns the card and the write: exit 0 = its 📅 Book Meeting
+  card was texted (send nothing more) · 3 = text its `reply` verbatim · 2 = calendar unreachable → heads-up line, no
+  card. Record with `offered.py add`.
 - **Keep listening while a plan is being worked out (Tom 2026-10-07, Lucy Boswell dinner).** "Let's do
   dinner" → day floated → time agreed often spans several batches. Every tick re-reads the 72h thread: the
   moment a day AND time are agreed by both sides, go to Step 2 (dedup → `📅 Invited` card for approval,
@@ -140,26 +140,49 @@ these text-specific points (see the text-lane row there):
    exit 0 = no match → create · 10 = exactly one → reconcile THAT event in place, on the calendar it lives on (calendar-event-handling.md invariant 3: fill missing, correct conflicts, never a copy on the other calendar) · 11 = two+ → ask, don't guess · 2 = calendar unreachable → don't create.
    **Run it through `plan_match.py`, not raw find-dupes (Tom 2026-10-07, Frankels dinner):**
    `python3 ~/.claude/skills/text-tend-to/plan_match.py --day <YYYY-MM-DD> --start <HH:MM> --keyword <…>…` – same
-   args. It splits out placeholder HOLDs (all-day, title starting "HOLD", e.g. `HOLD: Frankels (day/time TBD)` over
+   args. It splits out placeholder HOLDs (all-day, title starting "HOLD", e.g. `[HOLD] Frankels (Day/Time TBD)` over
    Fri–Sun while only a range is agreed) so they never make the match ambiguous. Exit 0 = no event → step 5 card ·
    10 = one real event → steps 2-4 on it, then delete every listed hold · 20 = only hold(s) → the plan is final, so
-   REPLACE without a card (Tom pre-authorized: "once we do you can replace with a time specific cal event"):
-   `create` the timed event on the hold's calendar (title from the hold minus "HOLD:" and "(day/time TBD)", e.g.
-   "Dinner – Frankels"; location only if stated; transparency opaque), `delete` the hold(s), text `📅 Added:` with
-   `✓ Added – <event>` and `✓ Removed hold – <hold range>` · 11 = ask · 2 = calendar unreachable, no write. A
+   REPLACE without a card (Tom pre-authorized: "once we do you can replace with a time specific cal event") through
+   add-to-calendar's one create path: `python3 ~/.claude/skills/add-to-calendar/scripts/cal_add.py add '{"title":
+   "<the hold's title minus [HOLD] / HOLD: / (Day/Time TBD)>", "date", "time", "end_time"?, "calendar": "<the hold's
+   calendar id>", "location"? (only if stated), "keywords": [<host / venue word>], "replace_holds": true}'` – it creates
+   the timed BUSY event, THEN deletes the hold(s), and prints the `📅 Added:` card (with the removed hold) to send
+   verbatim · 11 = ask · 2 = calendar unreachable, no write. A
    range-only agreement ("free the 23rd–25th") is NOT final – silence (unless they picked a linked event – Step 1); a hold is made only when Tom or Elsie asks.
    Never park a range plan on one day with a "Fri or Sat" title – Tom found it confusing (Elsie's 10/23 event,
    deleted at his ask).
+   **A vendor / service visit given a DAY but no time → all-day FREE hold, no gate (Tom 2026-10-12, Aladdin Plumbing:
+   "We should be able to get someone out Wednesday" → "Perfect!").** A plumber, repair, install, delivery or other
+   service provider committing to a day (and Tom/Elsie accepting or not objecting) is the vendor's own commitment,
+   not a loose plan – so act, don't card: `python3 ~/.claude/skills/text-tend-to/plan_match.py --make-hold
+   "<Service> – <Vendor>" --day <YYYY-MM-DD> --note "<vendor quote + date>" --keyword <service/vendor word>...`
+   --detail "<Who>: “<quote>”" --chat <chat>` (e.g. `"Plumber – Aladdin"`). Exit 0 = `[HOLD] Plumber – Aladdin (Time TBD)`
+   created on Elsie-Tom AND the script already texted the 📅 Added card (Tom 2026-10-12: "You adding though should always
+   alert me") – send nothing more · 3 = created but that text failed → send the 📅 Added card yourself · 10 = already
+   on the cal → silent · 2 = no write, say so. A time confirmed later in the thread ("between 10 and 12", "tech arrives at 9") = the plan is final →
+   the replace-hold path above (exit 20: timed BUSY event, hold deleted, `📅 Added:`; a window = its start–end, else 2h).
+   A hedged range with no day ("sometime next week") is still silence.
 2. **Match + times agree** (approximate times like "5ish" count as agreeing within 30 min) → no write,
    no text. This is the common case – Elsie usually adds plans herself.
 3. **Match + time is wrong (a moved plan, or a stale entry)** → `patch` start/end in place, keep the original
    duration, note `was <old> – moved per text from <name> <ts>` in the description, and text
    `📅 Edited:` (invariant 4 item line `– was <old>, now <new>`). Tom asked for this to be proactive –
    no 👍 gate.
+   **A meeting Tom HOSTS with guests → the scheduler moves it, not this lane (Tom 2026-10-12, Oun Homes: "didn't we
+   just institute that? Why does it explicitly need to be coded into the listener?").** Run
+   `python3 ~/.claude/skills/scheduler/meeting_handoff.py move --event-id <the OCCURRENCE id find-dupes returned> --start <new ISO with offset> --text
+   "<the thread's words>"` FIRST: exit 0 = the scheduler's 📅 Move Meeting card was texted (its rules, its ⚠ lines, a
+   recurring meeting moves as a whole series, Tom's 👍 sends the updated invite) – send nothing more for it; exit 3 =
+   text its `reply` verbatim; exit 1 = not Tom's meeting with guests → the patch above; exit 2 = no write, say so.
+   Never patch a Tom-hosted guest meeting here (calendar-event-handling.md invariant 3, every lane).
 4. **An invite that should be cancelled → offer it, 👍-gated (Tom 2026-10-11: "if you see an invite should be
    canceled you should offer to do that with my thumbs up").** Never a blind delete (texts are looser than a vendor
    cancel email). Cases: the plan was called off; it was replaced by a new time and the OLD event still sits there;
    or the same call now has TWO invites (Tom's + one the other side sent – offer to cancel Tom's, theirs stays).
+   A meeting Tom hosts with guests → `python3 ~/.claude/skills/scheduler/meeting_handoff.py cancel --event-id <the
+   OCCURRENCE id> --text "<the thread's words>"` FIRST (exit 0 = its 📅 Cancel Meeting card was texted, send nothing
+   more · 3 = text its `reply` · 1 = not his meeting with guests → the card below · 2 = no write, say so).
    Render the card in code – `calendar_write.py card` with `{"proposal":"Called Off","calendar":<cal>,
    "items":[{"before":<the event>,"by":"<Name>","detail"?:"<why, when it isn't 'X called it off'>"}]}` – and send it
    verbatim. The code reads Tom's role off the event and picks the closer: Tom hosts with guests → `👍 to cancel +
@@ -178,7 +201,9 @@ these text-specific points (see the text-lane row there):
    `~/.claude/scheduled-tasks/outlook-mail-watch/staged-invites/<handle>.json` where `<handle>` is
    the `ok <handle>` that `send.sh` prints:
    `{"action":"add-event","calendar":"cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com",
-     "source":"text-tend-to","chat":"<chat>","rowid":<rowid>,"event":{<full create body>}}`.
+     "source":"text-tend-to","chat":"<chat>","rowid":<rowid>,"event":{<the "event" that
+     `~/.claude/skills/add-to-calendar/scripts/cal_add.py plan '<request>'` prints>}}` – add-to-calendar's rules build
+     the body; sms-listener's 👍 creates it through `cal_add.py add`.
    sms-listener branch 4-CAL owns the 👍 side unchanged. Title = how Tom/Elsie title these
    ("Dinner at Annie's", "Playdate – Avery"), location only if stated, end = stated or +2h for meals
    and playdates, +1h otherwise. Timed plan with only "evening"/"morning" → card asks for the time.
@@ -186,18 +211,28 @@ these text-specific points (see the text-lane row there):
    (Step 1) – it covers the same `<chat>|<YYYY-MM-DD>|<slug>` key in `offered.jsonl` AND a
    `staged-invites/` payload on the same day+title. Exit 1 → silence.
 
+## Nightly silence review (rider, not this job's steps)
+
+`silence_review.sh` rides the same 5-min sweep and fires once a day after 8pm (`SILENCE_REVIEW_HOUR`): it reads
+the day's texts in bash, then `silence_review.py` asks ONE judgment (`shared-references/oneshot.py`, tend-to.md
+verbatim) what this lane and the personal-mail lane let go silent. Code keeps only misses that cite a real thread /
+mail row and quote it verbatim, dedups both calendars (`plan_match.py`), sends a `📅 Missed:` 👍 card per calendar
+miss (payload staged at `staged-invites/<handle>.json`, sms-listener 4-CAL applies it) and one `🔎 Missed Today`
+text for the rest, and appends each to `misses.jsonl` (local incident corpus, never re-sent). Tests:
+`tests/test_silence_review.py` on the real Aladdin thread. During a scan, a half-settled item follows tend-to.md
+"Half-settled is not silence" – this review is the backstop, not the plan.
+
 ## Step 3 – Reminders (to-dos for Tom)
 
 **First: is Tom the host?** If the to-do is Tom sending the invite for something he organizes (tend-to.md §3
 "Tom is the host"), skip the reminder entirely and offer the event:
 `python3 ~/.claude/skills/text-tend-to/event_template.py --day <YYYY-MM-DD> --keyword <event word> [--keyword
-<group/chat name>] --participants <non-Tom participants in the thread>` (exit 0 = template · 1 = no history ·
-2 = calendar unreachable → heads-up line, no card). Dedup with `find-dupes both` on that day (Step 2.1) – a
-match means it's already on the cal → silence. Then send the `card` text the script returns (pass `--asker
-"<Who asked>"`, and `--title` for the no-history case) verbatim as the `📅 Send Invite` card
-(`calendar-event-handling.md` § Tom-hosted events) and stage it at the Step 2.5 staged-invites path with
-`"create_calendar":<template calendar>,"send_invites":true`. No history → the same script renders the card
-from `--title` + date with `When: <day> – what time?`; stage only once Tom gives the time. Count it in
+<group/chat name>] --participants <non-Tom participants in the thread> --text "<the thread's words>" --asker "<Who
+asked>" [--title "<thread's name for it>"]`. Dedup with `find-dupes both` on that day (Step 2.1) first – a match means
+it's already on the cal → silence. A found template is handed to `~/.claude/skills/scheduler/meeting_handoff.py book`
+(the series' title, guests and verbatim address): exit 0 = its 📅 Book Meeting card was texted · 3 = text its `reply` ·
+2 = calendar unreachable → heads-up line, no card. Exit 1 = no history → send the returned `card` (asks for the time);
+once Tom gives it, `meeting_handoff.py book --event-json '<create body>' --text …` cards it. Count it in
 `cards=`; record it with `offered.py add` like any card.
 
 Build the reminder (memory `feedback_proactive_reminders_from_threads`): route the hat first per
@@ -211,15 +246,20 @@ category notes line per add-reminder (`purchase_category.py`). Dedup is in code:
 what counts – it was built from 155 of Tom's real sent texts ("will start a thread", "will get an email thread going",
 "will coordinate over email", "what's your email? can start a thread", "just started an email thread", …), so run it
 on EVERY text Tom sent in a 1:1 thread this batch, never judge the phrasing by eye:
-`python3 ~/.claude/skills/text-tend-to/thread_commitment.py --text "<Tom's text>" --name "<their full name>" --email <their email> --create`
-(email from the Opp `Contact` → People DB Email → Apple Contacts; never a phone). High-volume, so NO 👍 card (Tom:
-"just draft the email, save it to my drafts, and alert me"). Default = Zoom; in-person body only when his text says so.
-- exit 0 → draft is in his Drafts (To them, Cc Bot – or Blockit if he named it – "Finding time", "+ Bot to coordinate[ an in-person
+`python3 ~/.claude/skills/text-tend-to/thread_commitment.py --lane tend-to --text "<Tom's text>" --name "<their full
+name>" --handle <chat> [--participant <each other handle>] [--email <their email>] --rowid <rowid> --create`
+(no `--email` → the code resolves it: Opp `Contact` → People DB Email → Apple Contacts aliases; never a phone, never
+guessed). High-volume, so NO 👍 card (Tom: "just draft the email, save it to my drafts, and alert me"). Default = Zoom;
+in-person body only when his text says so.
+- exit 0 → draft is in his Drafts (To them, Cc Bot – or Blockit if he named it – "Finding time", "+bot to coordinate[ an in-person
   meeting]") → step 4 item line `✓ Draft – Finding time → <First> (Bot cc'd) <draftUrl> ↗`. No reminder.
-- exit 5 → he already sent it / said "just started an email thread" → silent.
-- exit 6 → he asked for their email → silent; when THEIR later text in that thread carries an email address, re-run
-  with Tom's original text + that `--email` + `--create`.
-- exit 4 → no email on file → `⚠ No email for <Name> – couldn't draft the scheduling thread`.
+- exit 5 → he already sent it / said "just started an email thread" / this person already has a commitment in the
+  last 14 days → silent.
+- exit 6 → pending (he asked for their email, or none on file) → silent. When THEIR later text in that thread (or a
+  1:1 from them) carries an email address: `thread_commitment.py --email-landed <email> --handle <chat> --sender
+  <their handle> [--name "<full name>"] --create` → 0 = the step 4 ✓ line · 1 = nothing pending → nothing · 5 silent.
+  A pending commitment expires after 14 days.
+- exit 7 → an intro thread → deal-text-scanner owns it (intro-lane §4c) → silent. One owner per case.
 - exit 2 → it did NOT land: say so. exit 1 → not this case, carry on below.
 
 **Then gate on WHO asked (Tom 2026-10-04) – in code, never by judgment:**

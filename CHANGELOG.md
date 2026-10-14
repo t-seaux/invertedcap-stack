@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-10-14] (Week of 2026-10-12)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- materials-handler -- portfolio-company files now route to their update records; attachments from unknown senders are linked rather than downloaded
+- coinvestor-recommender -- approved roster now lands in the company's investor CRM sheet
+- founder-outreach -- added approval-triggered cold outreach drafting for newly surfaced founders
+- add-to-crm, add-to-contacts -- shared single-command paths for relation and contact-card updates across chat and text
+- investor-crm -- sheets now update in place and respect manual edits
+**Total skills:** 52
+**Functions:** No changes
+
 ## [2026-10-13] (Week of 2026-10-12)
 
 **Added:** linkedin-dm, portco-ask

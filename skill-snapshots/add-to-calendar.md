@@ -39,6 +39,7 @@ For ANY scheduling question ("when is X", "do we have anything Saturday", "is X 
 proposing an add, read the calendar for that range FIRST — it is the source of truth for what's scheduled (the BFS
 feed pre-populates school milestones). Never answer a date question from a web search before checking it.
 Haircut date checks ("when's my next haircut") → the `haircut` skill § Lookup (never search the word "haircut").
+- When hunting a calendar event from a description (person/occasion/location), don't rely only on literal keyword fullText matches on the title — pull the broader event list around the plausible dates/location and reason semantically (e.g. NM location + 'celebration' timing matches a 'Ceremony & Reception' entry even without the person's name in the title).  (2026-08-31)
 
 ## 1. Add = one command
 
@@ -61,16 +62,29 @@ Tom's words through (bare "8" stays "8"; no date stays absent) so the code appli
 | 2 | bad request or calendar unreachable → nothing written; say so |
 | 3 | location refused (no street address) → write `Venue Name (street address)` and re-run |
 | 1 | create failed → report the printed error |
+| 12 | **Busy/Free can't be decided** (whose is it / does it block Tom? – § 2) → nothing written. Text the printed `text` (the 📅 Mark Busy or Free card, closing `👍 to Mark as Busy · ❤️ to Mark as Free`) to Tom's 1:1 as its own message — `~/.claude/scheduled-tasks/outlook-mail-watch/send_tendto_text.sh` prints `ok <handle>` — then `cal_add.py stage <handle> -` with the printed JSON on stdin. Never pick Busy/Free yourself. Tom's 👍 / "mark as busy" = Busy, ❤️ / "mark as free" = Free, 👎 = don't add – sms-listener's `apply_invite.py` (branch 4-CAL) creates it. A 👍 card a lane stages from an undecided `plan` closes with plan's `cta` (the same line) and stages `"busy_free": true`. Every lane and a session handle 12 the same way |
 
 A batch (a school flyer with many rows) = one `add` per row; dedup runs per row, add only the net-new.
 `cal_add.py plan '<json>'` shows the event without writing (debug / a proposal card).
+
+**Every lane's guest-less create is this command (Tom 2026-10-12: "the listener is just a routing path for ALL
+SKILLS … or else we will have two versions").** The personal / work / family mail lanes, text-tend-to's holds and
+hold swaps, sms-listener's pickup/drop-off assignments and its 👍 on an `📅 Invited:` card all call `cal_add.py add` –
+none creates an event itself (guard: `claude-alerts-listener/tests/test_listener_routes_only.py`). Lane fields:
+`"calendar"` may be the lane's raw calendar id · `"keywords": [venue / provider / flight # / order #]` (dedup; a
+second keyword per invariant 2) · `"dedup_scope": "day"` (only that day's events count) · `"tz"` / `"end_tz"` /
+`"end_date"` (a flight leg in its own zones; `05:30` = 24-hour) · `"kind": "hold"` (`[HOLD] <what> (Time TBD)`,
+all-day, FREE) · `"replace_holds": true` (the final timed event: a `[HOLD]` that day is not the duplicate – created,
+then the hold deleted, both on the card) · `"event": {body}` (a staged 👍 card's body from `plan`; `"dedup": "done"`
+when the caller already dedup-reconciled). An invitation lane stages `plan`'s `event` for its 👍 card.
 
 ## 2. The rules the code applies (the WHY — `tests/test_cal_add.py` pins each)
 
 - **Which calendar.** "personal" / home / family / Elsie-Tom → **Elsie-Tom** (`cd6mc2c68fcpmfif61rhhl51hs@group.calendar.google.com`);
   "work" / Inverted / meetings, deals, investors, founders → **Inverted** (`tom@invertedcap.com`); Dash
   (`tom@dashfund.co`) and Primary (`tseo@primary.vc`) by name. Family / kids / school content → personal.
-  **No cue and no clear signal → work**, and the reply names it so Tom can move it. Tom's soccer, BFS, Elsie, kids
+  **No cue and no clear signal → work** (Tom 2026-10-13, "Keep work"), and the reply names it so Tom can move it.
+  Lanes always pass their own calendar, so this default only meets a cue-less ask. Tom's soccer, BFS, Elsie, kids
   and joint events are personal by definition.
 - **No date named → TODAY; no date and no time → today ALL-DAY** (Tom 2026-09-03) — never tomorrow. (The
   proactive-reminder flow's next-day default is for unprompted creates only.) **"Full day" / "all day" is an
@@ -78,23 +92,47 @@ A batch (a school flyer with many rows) = one `add` per row; dedup runs per row,
 - **Bare hour, no am/pm.** Soccer and sports/games are always PM (a bare "soccer at 8" = 8:00 PM); dinner / drinks /
   parties / shows lean PM; otherwise 1–6 → PM, 7–11 → AM. The assumption is stated in the reply.
 - **Duration** 1 hour unless an end is given. Time zone America/New_York.
-- **Title.** Clean and specific. **BFS events read `BFS: <event>`** (Tom 2026-10-11 — colon form; any `[BFS]` /
-  `BFS` in the source name is stripped first: "BFS FallFest" → `BFS: FallFest`). Elsie-Tom prefixes: `TS` = just
-  Tom (`TS Dentist`), `EK` = just Elsie (`EK Therapy`), the kid's name for kid events (`Andy Soccer`, `Benny Music
-  Class`), no prefix = family / joint (`Nutman wedding`); unclear solo vs joint → no prefix. Never `TS` on the work
-  calendar.
+- **Title.** Clean and specific. **BFS events read `BFS: <event>`** (Tom 2026-10-11, reconfirmed 2026-10-13 —
+  colon form; any `[BFS]` / `BFS` in the source name is stripped first: "BFS FallFest" → `BFS: FallFest`).
+  Elsie-Tom prefixes: `TS` = just Tom (`TS Dentist`), `EK` = just Elsie (`EK Therapy`), no prefix = family / joint
+  (`Nutman wedding`); unclear solo vs joint → no prefix. **Kid events read `<Kid> – <Provider/what>` with an en
+  dash** (Tom 2026-10-13, "Rules version"): `Andy – Super Soccer Stars`, `Benny – Music Together`, `Andy – Soccer`;
+  a possessive (`Andy's birthday party`) stays as written. Never `TS` on the work calendar.
 - **Tom's soccer games** (Tom 2026-09-16, standing default — never ask): titled `TS Soccer` (keeps `vs. <opponent>`),
   on Elsie-Tom, BUSY, 1 hour from the stated start, location **Brooklyn Bridge Park Pier 5 (334 Furman St, Brooklyn,
   NY 11201)** unless another venue is given. Already on the calendar → never a second one (dedup).
-- **Busy vs Free — one test: does this make TOM unavailable for work?** BUSY = Tom's own game / appointment /
-  dinner (`TS` and joint events), parent-attended school events (Grown-Up Gathering, conferences, curriculum night),
-  a family trip / OOO day, work meetings. FREE = the kids' activities, Elsie's events, informational all-day markers
-  (first day of school, closures, birthdays, "applications open"). Unsure → FREE. Shown in the reply.
+- **Busy vs Free** (Tom 2026-10-13: "Kids and Elsie's events as free. And when unclear run by me via text"). FREE
+  = the kids' activities (incl. Super Soccer Stars / Music Together / The Little Gym), Elsie's events, holds, BFS
+  and work all-day markers. BUSY = Tom's own: `TS` / his soccer / joint events, parent-attended school events (Grown-Up
+  Gathering, conferences), a family trip / OOO day, anything timed on his work / Dash / Primary calendars, a hold's
+  timed replacement. **Can't tell whose it is → no default either way: exit 12** and Tom answers the 📅 Mark Busy
+  or Free card (§ 1). A source that states it (Whole Foods = BUSY) passes `"availability"`. Shown in the reply.
 - **Seats** (concerts, games, shows): always on the event — `Seats: …` leads the description — and in the reply
   (Tom 2026-09-02).
 - **Location / description** when the source gives them. A person's home → offer to save it to their contact
   (`shared-references/calendar-event-handling.md` rule 10). Feed-populated BFS milestones are already there — dedup
   catches them.
+- **Google-backed calendars go through the API, never Calendar.app/osascript** (`tests/test_cal_add.py` fails if
+  `cal_add.py` ever shells out to osascript):
+  > AppleScript/osascript against Calendar.app is unreliable for cross-calendar moves (can silently delete without recreating) and can hang on unscoped 'whose ... contains' searches across all calendars — avoid it; prefer the Google Calendar API/MCP (fast, reliable) whenever the event's calendar is Google-backed (invertedcap, Elsie-Tom, dashfund, primary). Only fall back to osascript for non-Google local calendars (Outlook, other personal Google accounts not in this OAuth scope), and even then avoid 'move to calendar' — recreate + delete instead.  (2026-09-02)
+
+## 1b. RSVP = one command (owner since 2026-10-13)
+
+Tom's accept / decline / tentative on an invite he does NOT host – a 👍 / 👎 / "maybe" on an `📅 Invited:` card whose
+event is already on his calendar with his RSVP pending, or a 👍 on a `📅 Called Off:` card for someone else's invite
+(decline, organizer notified) – is this skill's, on every surface (Tom 2026-10-12: "the listener is just a routing
+path for ALL SKILLS. It should not have its own workflows or else we will have two versions"). It used to be a raw
+patch inside sms-listener `apply_invite.py`; the listener now only calls:
+
+```bash
+python3 ~/.claude/skills/add-to-calendar/scripts/cal_add.py rsvp '{"calendar":"<id|personal|work>","event_id":"<id>","response":"accepted|declined|tentative","notify":false}'
+```
+
+Only Tom's own attendee row changes (never the time, title or other guests). `"notify": true` emails the organizer
+(the Called Off decline does; the Invited-card answer does not – both kept exactly as the listener had them). Exit 0
+written (`before` / `after` → render the reply with `calendar_write.py card` / `cal_add.py card`: 📅 Accepted /
+Declined / Tentative) · 1 read or patch failed · 2 bad request. A meeting Tom HOSTS with guests is never RSVP'd here
+– moves and cancels of those are the scheduler's (`scheduler/meeting_handoff.py`).
 
 ## 3. The reply (both surfaces, same text)
 
@@ -106,6 +144,8 @@ an already-on-cal answer:
 ```bash
 python3 ~/.claude/skills/add-to-calendar/scripts/cal_add.py card '{"calendar":"<id>","items":[{"before":<event>,"after":<event>}]}'
 ```
+
+- When Tom manually adds an event and asks for confirmation, actually verify the exact date/time/calendar against the source (email, request) via list_events — don't just confirm existence. Catch wrong-week/wrong-day/wrong-calendar mistakes and flag them.  (2026-09-02)
 
 Never ask before acting — infer, add, and report; Tom corrects from the reply. Anything you deliberately left off
 (a skipped duplicate, a row you didn't add) gets one line with the reason.

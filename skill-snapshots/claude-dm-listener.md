@@ -126,7 +126,7 @@ Commands can be anything:
 | `remember that I prefer X` | Save a memory entry per `auto memory` rules in CLAUDE.md |
 | `what skills do I have for outreach?` | Grep skills directory, reply with a list |
 | `ingest co-op financials` / `update coop financials` + CSV file attached | Read `coop-finances/SKILL.md` Sub-flow A in the "Special branch: Coop finances ingest / classify" section of `claude-alerts-listener/SKILL.md`. Download the CSV (and any reserve attachment) via the bot token, invoke `python3 ~/.claude/skills/coop-finances/update_pl.py --csv /tmp/<name>` (add `--reserve-csv` if a reserve file is also attached), capture stdout JSON, format flagged-summary reply per that branch's spec. |
-| `CHECK <N> = <Category>` / `VENDOR <substring> = <Category>` (no files) | Coop-finances classification confirmation. Append to `~/.claude/skills/coop-finances/references/CHECK_LEDGER.md` or `VENDOR_CLASSIFICATIONS.md` per the same Sub-flow B spec in `claude-alerts-listener/SKILL.md`. |
+| `CHECK <N> = <Category>` / `VENDOR <substring> = <Category>` (no files) | Coop-finances classification confirmation → the owner's entry point: `python3 ~/.claude/skills/coop-finances/scripts/ledger.py apply-reply "<the message>"` – it writes the answer AND rebuilds the workbook right away; reply = its JSON `reply`, verbatim (never hand-edit the ledger / vendor table, never "next CSV drop"). |
 
 Treat yourself as a routing layer: identify the right skill (or direct action) and execute it. You have Read access to every skill's SKILL.md — use that to learn what's available.
 

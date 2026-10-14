@@ -284,7 +284,7 @@ specific category rather than N/A.
 
 ### Step 3: Map City and State
 
-> **Metro City/State = the WORK address only.** Apple holds it on the WORK address, and that is what syncs to Notion City/State. A personal/home address is a separate HOME address on the Apple card with the real street and city (Brooklyn, not New York), never written to Notion and never overwriting WORK. Command: `carddav.py add-home-address` (see `shared-references/calendar-event-handling.md` rule 10).
+> **Metro City/State = the WORK address only.** Apple holds it on the WORK address, and that is what syncs to Notion City/State. A personal/home address is a separate HOME address on the Apple card with the real street and city (Brooklyn, not New York), never written to Notion and never overwriting WORK. Command: `apple_contact.py set-address` (§ Apple Contacts writes below; `shared-references/calendar-event-handling.md` rule 10).
 
 **City:** Use the metro area name, not the specific neighborhood or suburb. For example:
 - Brooklyn, Queens, Manhattan → **New York**
@@ -347,6 +347,23 @@ python3 ~/.claude/scripts/contacts_notion_sync.py alt-email <people_page_id> <em
 ```
 The Contacts sync adds them as HOME emails on its next run. Add one line to the confirmation:
 `+ <email> → Apple Contacts (secondary)`. Spec: `shared-references/people-db-guardrails.md` → Multiple emails.
+
+### Apple Contacts writes = one command (every surface; owner since 2026-10-13)
+
+Every write to Tom's Apple card – a HOME address, a secondary email – goes through this skill's script, whichever
+surface noticed it (Tom 2026-10-12: "the listener is just a routing path for ALL SKILLS. It should not have its own
+workflows or else we will have two versions"). sms-listener's 🏠 / 📧 cards keep their 👍 gates exactly as before
+(people-db-guardrails; unresolved-intro-recipient `--auto` on Tom's own sent mail) and then only call:
+
+```bash
+S=~/.claude/skills/add-to-contacts/scripts/apple_contact.py
+python3 $S set-address "<Full Name>" "<street>" <city> <state> <zip> [--replace "<old street>"]   # 0 ok · 2 no single card · 1 failed
+python3 $S add-email --name "<Full Name>" --email <addr> [--page-id <People page id>]            # sync stage + card write now
+python3 $S probe-address "<Full Name>" "<street>" <city> <state>                                # read-only: ok|present|none|multi + same-city olds
+```
+
+It writes what was already approved – it never asks, never texts, never changes Notion People `Email`. Pinned in
+`add-to-contacts/tests/test_apple_contact.py`.
 
 ### Step 5: Report Back
 

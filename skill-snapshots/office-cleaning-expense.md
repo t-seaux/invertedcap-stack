@@ -83,8 +83,10 @@ must match.
   (`~/.claude/scheduled-tasks/office-cleaning-expense/lupe_watch.sh` +
   `~/.claude/skills/office-cleaning-expense/scripts/check_lupe_paid.py` in default mode; the script moved
   into this skill 2026-10-07, so edits go through skill_change) runs the state machine below with zero
-  LLM: reminder + text on confirmation; sheet POST + reminder check-off + ONE
-  combined text on payment. Any change to the state machine or notification
+  LLM: reminder on confirmation; sheet POST + reminder check-off on payment; a
+  consolidated `[IC] Buy` reminder on a supply ask. Every write goes through
+  add-reminder's `reminder_add.py --autonomous --channel tom`, whose ⏰ text is the
+  only text (2026-10-13). Any change to the state machine or notification
   contract is made in that CODE (and its harness), then summarized here.
 - **Job mode (weekly reconcile)** — a weekly launchd job (Monday 8:10 AM,
   `~/.claude/scheduled-tasks/office-cleaning-expense/sweep.sh`) snapshots the
@@ -104,7 +106,9 @@ Two events drive everything, both read from the Lupe iMessage thread
 (`+19176135344` — confirmed against Contacts, not a chat.db handle guess):
 
 1. **Cleaning confirmation** (Lupe: "the office is clean", "it's ready", "done
-   cleaning" — `CLEAN_RE`) → create the pay reminder `Pay Lupe - office cleaning`
+   cleaning" — `CLEAN_RE`) → create the pay reminder `[IC] Pay Lupe for office cleaning`
+   (Tom 2026-10-13: no separator dash; the dashed `[IC] Pay Lupe – office cleaning` / `Pay Lupe - office cleaning`
+   an open one may still carry are matched too)
    (Work list, due today, notes `cleaning:MM/DD/YY`). **Do NOT write to the
    sheet yet.**
 2. **Payment** — Tom's ritual: an Apple Cash bubble (an attachment-only `me`
@@ -155,7 +159,9 @@ Output: one JSON line per cleaning whose confirmation is in the window —
 | 4 | Bad arguments | Fix the invocation; never hand-roll the steps instead. |
 
 Default mode (`python3 "$S"`, no flags) is the live watcher's contract — one
-open reminder, no window, no sheet write (lupe_watch.sh POSTs). Harness:
+open reminder, no window; it POSTs the sheet on payment, then completes the
+reminder, and reads new messages for supply asks (high-water mark in
+`scheduled-tasks/office-cleaning-expense/lupe_watch_state.json`). Harness:
 `~/.claude/skills/office-cleaning-expense/tests/test_check_lupe_paid.py`
 (real-thread fixture; run it after ANY change to the script).
 
@@ -194,9 +200,34 @@ Negatives must stay negatives: "I couldn't clean the office this weekend",
 
 ## Alerts
 
-**Delivery depends on mode.** The live 5-min watcher (`lupe_watch.sh`) owns the
-real-time office-is-clean / paid TEXTS to Tom (1:1 `+12012567714`, never the
-family group) — that is hardcoded there, NOT done by this skill.
+**Delivery depends on mode.** The live 5-min watcher (default mode) owns the
+real-time TEXTS to Tom (1:1 `+12012567714`, never the family group) — and it
+never composes them: each is `reminder_add.py --autonomous --channel tom`'s
+canonical text (Tom 2026-10-13: "gotta make sure Lupe alert is to convention"):
+
+```
+⏰ Reminder Added: [IC] Pay Lupe for office cleaning
+
+Lupe: "I cleaned office this past weekend"
+
+⏰ Reminder Done: [IC] Pay Lupe for office cleaning
+
+✓ Saw the payment in her thread · $100 logged to Outstanding Expenses (MC tab) for the 10/13/26 cleaning
+   (sheet failed → "⚠ Expense sheet write failed (<status>), so log $100 for <date> by hand." leads, then ✓ Saw the payment…)
+
+⏰ Reminder Added: [IC] Buy toilet cleaning pods
+
+Lupe: "you’re out of pods for cleaning toilet"
+```
+
+Supply asks (`parse_supplies`, census of every supply mention in the real thread):
+"you're out of / low on X", "we need a X", "need more X", "X is running low",
+"need … such as A, B" → item names normalized ("pods for cleaning toilet" →
+`toilet cleaning pods`, "vacuum cleaner for the rug" → `vacuum cleaner`), her
+words in the reason. A supply mention whose item can't be read → ONE heads-up,
+never silence: `⏰ Supply Ask: Lupe` / `⚠ Couldn't tell what she needs, so nothing
+was added to [IC] Buy.` / `Lupe: "<her words>"`. A message that is both a cleaning and
+a supply ask gets both reminders, each with its own text.
 
 - **Reconcile/job mode → Slack `#claude-alerts`, NOT a text** (Tom, 2026-09-09:
   the weekly reconcile is an infra/self-heal backstop). Alert ONLY when a line

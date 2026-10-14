@@ -135,7 +135,19 @@ Flagged for review (please reply):
 Workbook: [Drive link]
 ```
 
-Tom replies with classifications (e.g. "CHECK 3679 = Cleaning"). Skill catches the reply (via `claude-alerts-listener` thread-reply path), updates the workbook + VENDOR_CLASSIFICATIONS.md / CHECK_LEDGER.md, and confirms.
+Tom replies with classifications (e.g. "CHECK 3679 = Cleaning"). Skill catches the reply (via `claude-alerts-listener` thread-reply path), updates VENDOR_CLASSIFICATIONS.md / CHECK_LEDGER.md, **rebuilds the workbook right away** (Tom 2026-10-13: "rebuild right away" – never "wait for the next CSV drop"), and confirms.
+
+**Classification writes go through ONE entry point – every surface (listener reply, session, text) calls it; never hand-edit the ledger, the vendor table, or `VENDOR_RULES`:**
+
+```bash
+python3 ~/.claude/skills/coop-finances/scripts/ledger.py apply-reply "<Tom's reply text>" [--amounts-json '{"3679": 175}']
+python3 ~/.claude/skills/coop-finances/scripts/ledger.py add-check --check 3679 --category Cleaning [--amount 175]
+python3 ~/.claude/skills/coop-finances/scripts/ledger.py add-vendor --match "ACME PLUMBING" --category Repairs
+```
+
+`CHECK <N> = <Category>` → ledger row (same # with a different category is REPLACED, keeping the bank date/amount); `VENDOR <substring> = <Category>` → VENDOR_CLASSIFICATIONS.md (Recurring expenses table) + a `VENDOR_RULES` tuple, placed before any rule that would shadow it. Unknown category / too-short substring → exit 2, nothing written. Amount unknown → `?`. Tests: `tests/test_ledger.py`.
+
+**`apply-reply` then rebuilds the workbook in the same call** – `update_pl.py --reclassify` (the rebuild entry point, no CSV needed) re-runs the classifier over every `flagged` Operating row already in `_Raw` with the new ledger / vendor rules: a row that now classifies gets its LineItem, service Year/Month and Status `auto` (Notes keep the old flag), SUMIFS + recalc, one `_Audit` row. `auto` / `manual` rows are never touched; Maintenance outcomes stay flagged (the quota allocator needs the CSV run); nothing changed → no save. stdout = `{ok, results, rebuild, reply}` – post `reply` VERBATIM as the close-loop (`✅ Classified:` lines + `📒 Workbook rebuilt: …`, or `⚠️ Workbook not rebuilt (…)` – the answer is still saved, exit 0). `--no-rebuild` = ledger only (a session batching answers; run `update_pl.py --reclassify` after). Tests: `tests/test_rebuild.py` (real Jan–Sep 2026 bank rows on temp workbooks; never the iCloud file).
 
 ## Reserve fund
 
@@ -160,7 +172,8 @@ If Tom asks to share with a CPA/coowner or wants a Drive copy: upload the curren
 ## Files
 
 - `references/VENDOR_CLASSIFICATIONS.md` — vendor → (line item, month rule) table
-- `references/CHECK_LEDGER.md` — confirmed CHECK # classifications (append-only)
+- `references/CHECK_LEDGER.md` — confirmed CHECK # classifications (written only by `scripts/ledger.py`)
+- `scripts/ledger.py` — the one writer of CHECK_LEDGER.md + vendor rules (see Classification above)
 - `update_pl.py` — main script (BUILT 2026-05-20). Citi CSV parser + classifier + maintenance clustering + xlsx mutator. Invoke: `python3 ~/.claude/skills/coop-finances/update_pl.py --csv path/to/citi.csv [--reserve-csv path] [--since YYYY-MM-DD] [--dry-run]`. Default `--since=2026-01-01` (treasurer transition boundary; cells/txns before this date are never touched). Output is JSON to stdout for the calling agent to format into a Slack/inline summary.
 
 ## Wiring status

@@ -7,7 +7,7 @@ description: "Processes inbound iMessages to Tom's personal number via Sendblue.
 
 An allowlisted person texted Tom's agent number (Sendblue). The `body` arg is **the latest line in an ongoing conversation, not a standalone command**. Read it against the thread (what they said, what you said and did) before deciding what it means, then execute and text back the result. See § Conversation first. This is a **calendar-first personal agent** — most commands are calendar queries/adds. Full tool access (filesystem + all MCP).
 
-**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. **Calendar adds follow `add-to-calendar/SKILL.md` — the ONE spec, same as a session (Tom 2026-10-11: text and sessions share one brain); its `scripts/cal_add.py` applies every rule and renders the reply, so read it once per warm session and don't re-derive anything from memory.** `references/calendar.md` holds only the text-only bits. Read another skill for the commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`. **Disambiguate reminder vs. purchase (Tom 2026-09-25, after a voice note "I need to get some dish soap" — transcribed from Tom actually asking to be reminded — got staged as an Amazon quote instead of a reminder): "remind me to X" / "I need to X" / "we're out of X" / "get some X" (a bare statement of need, want, or a to-do) is a REMINDER by default → `add-reminder`, never `purchase-agent`. Only route to `purchase-agent` on EXPLICIT transaction language — "buy X", "order X", "purchase X", "get X shipped/delivered", or a directive that names a merchant/cart/checkout. When genuinely ambiguous, default to the reminder — it's the lower-stakes, non-money-moving action, and a wrong reminder costs nothing to correct while a wrong purchase quote reads as presumptuous. This holds even from a transcribed voice note, where "remind me" can get garbled or dropped — don't let a transcription artifact turn a to-do into a transaction.**
+**Speed matters — minimize round trips.** Batch independent tool calls in one turn. A routine command should finish in ≤5 tool-use turns total. **Calendar adds follow `add-to-calendar/SKILL.md` — the ONE spec, same as a session (Tom 2026-10-11: text and sessions share one brain); its `scripts/cal_add.py` applies every rule and renders the reply, so read it once per warm session and don't re-derive anything from memory.** `references/calendar.md` holds only the text-only bits. Read another skill for the commands that clearly invoke it (reminders → `add-reminder`, CRM → `add-to-crm`, **buy/order a product → `purchase-agent` — quote first, money moves ONLY on an explicit YES**, **restaurant reservation / "book a table" / "reserve [place]" / "get us a table" → `restaurant-reservation` — surface real Resy slots, book ONLY on an explicit YES to a specific slot, then add to the household calendar**, etc.). Disambiguate "book": a table/reservation → `restaurant-reservation`; a product/errand/travel → `purchase-agent`. **Reminder vs. purchase: `purchase-agent/SKILL.md` § 1 owns the rule (every channel) — bare want/need ("I need X", "we're out of X", "get some X") → `add-reminder`; only explicit buy/order language → `purchase-agent`; ambiguous (incl. a garbled voice note) → the reminder.**
 
 ## Routing — read the lane reference BEFORE acting
 
@@ -21,13 +21,13 @@ in this warm session is still in context — don't re-read it unless it changed.
 | Calendar add (any "add / put on / calendar this", a flyer or an FYI like "soccer at 8:30 tomorrow"; a meeting WITH other people is the scheduler row below) | `~/.claude/skills/add-to-calendar/SKILL.md` (the one spec) + `references/calendar.md` (text-only bits) |
 | Calendar query / move / delete; any "when is X" / "do we have anything" | `references/calendar.md` |
 | Haircut date check ("when's my next haircut") | `~/.claude/skills/haircut/SKILL.md` § Lookup |
-| 👍 / "we're going" / worded reply on a `📅 Invited:` or `📅 Send Invite` card (branch 4-CAL) | `references/invite-cards.md` + `references/confirm-routing.md` |
+| 👍 / "we're going" / worded reply on a `📅 Invited:`, `📅 Missed:` or `📅 Send Invite` card (branch 4-CAL) | `references/invite-cards.md` + `references/confirm-routing.md` |
 | Bare "confirm" / "yes" / "ok", a tapback on any proposal, an inline reply to a card, or a free-form reply to a confirmable alert | `references/confirm-routing.md` (then the card's branch file) |
 | 🆕 Opportunity / 🔁 Revive card: 👍, 👎, 🗑️, edits, corrections (branch 4 — incl. Dash / Inverted lanes, network-refresh, archive) | `references/deal-cards.md` |
 | Job with `mode:"email-implied-confirm"` (Tom replied by email on a pending 🆕 card = implied 👍 / 👎) | `references/deal-cards.md` § "Email reply = implied 👍" |
 | 👍 on a `✅ Added to CRM`, `🤝 Email Captured`, or `🧍 People DB` card (branch 4b) | `references/people-db-confirm.md` |
 | 👍 / worded reply on a `💸 Capital Call #N Issued` card ("👍 to update the LP portal", Tom only) | `references/capital-call-confirm.md` |
-| A durable rule ("always… / never… / from now on…"), "confirm pN" / "reject pN" / "confirm all" (steps 2–3) | `references/preferences.md` |
+| A durable rule ("always… / never… / from now on…"), "confirm pN" / "reject pN" / "confirm all" (steps 2–3) – `prefs.py` ROUTES it to the owning skill (add-to-calendar, purchase-agent, add-reminder, …); only text-surface rules stay in this corpus | `references/preferences.md` |
 | "log" / "log this" / "log to notes"; material for an EXISTING Opp showing a live intro ("check notion", "add this") (branch 5) | `references/notion-logging.md` |
 | Directive whose object isn't in the message ("add this", "save this", "summarize this", "log this", "download this" — any verb + this/that/it), a bare URL / media / empty-body message, any inbound image, Instagram/carousel links, "stitch" | `references/links-and-media.md` — before any ❓ |
 | Editing a Notion page / Sheet / Google Doc ("work a doc"), burst edits | `references/doc-edits.md` |
@@ -115,8 +115,8 @@ call `typing.sh` (cold failover runs only: call it yourself). Your one signal is
 (below): fire `react.sh` in the SAME parallel batch as your first real work call (lookup, event
 list, file Read) — never as its own step. **Speed matters: keep replies short and
 conversational, minimize tool calls.** The allowlist + core prefs are already in your
-session context (injected at start) — do NOT re-read those files; only load a DOMAIN prefs
-file (`prefs.py load calendar|purchases|email`) when that task type actually comes up.
+session context (injected at start) — do NOT re-read those files. Task rules live in the
+owning skill's SKILL.md (read it when that task comes up) — there is no domain prefs file.
 
 **If you have NO prior conversation in context** — no recent texts, no `RECENT CONVERSATION`
 block, this looks like turn one — you are a **cold failover run**: the warm daemon was down and
@@ -257,9 +257,9 @@ A tiered preference corpus (`prefs.py`) lets the agent honor and accumulate Tom'
 preferences without bloating context. Two duties every turn:
 
 **1. READ (apply prefs) — tiered, so it scales.**
-- At the start of a turn, load core prefs: `python3 ~/.claude/skills/sms-listener/prefs.py load`.
-- Once you know the task domain, load that domain too: `... prefs.py load calendar`
-  (domains: `calendar purchases email people general`). Only pull what's relevant.
+- At the start of a turn, load the text-surface prefs: `python3 ~/.claude/skills/sms-listener/prefs.py load`
+  (core + text). Task rules (calendar, purchases, email, people, reservations, reminders …) live in the OWNING
+  skill's SKILL.md — the same file a session reads; there is no domain prefs file to load.
 - Treat loaded prefs as OVERRIDES on top of the skill defaults; apply them silently.
 - The first-turn SESSION CONTEXT also carries the AUTO-MEMORY INDEX (the persistent memory
   shared with interactive Claude sessions). Before concluding you don't know a fact, rule, or
@@ -277,7 +277,11 @@ Steps 2–5 (capture, miner confirms, confirm disambiguation, 4-CAL / 4 / 4b / 5
 **Links must render as plain clickable text, never a big iMessage preview card (Tom
 2026-09-01).** iMessage generates the preview when a bare URL is the whole message or its
 final token. So: NEVER end a message with a bare URL — put text before AND at least one
-character after the link. Standard shape for reply links: `<url> ↗` — just the URL with a trailing ↗ (no prefix). **The ↗ is LOAD-BEARING — tested live 2026-09-01: same two-line message with a bare trailing URL rendered the big preview card; with the trailing ↗ it stayed plain clickable text. Never drop it.** Applies to ✅/🚫/🎯 replies, calendar links, everything.
+character after the link. Standard shape for reply links: `<url> ↗` — just the URL with a trailing ↗ (no prefix). **The ↗ is LOAD-BEARING — tested live 2026-09-01: same two-line message with a bare trailing URL rendered the big preview card; with the trailing ↗ it stayed plain clickable text. Never drop it.** Applies to ✅/🚫/🎯 replies, calendar links, action items, everything — the ONE link shape on every surface (Tom 2026-10-12: "whatever is better, but I want them to be consistent"; the old `[LINK] ↗` action-item pref is retired). Code: `imessage_format.py` `fix_tokens` collapses a stray `[LINK] <url>` to `<url> ↗` on every send; a guard test fails on a `[LINK]` token in any renderer/spec.
+
+**Card numbers: `x<last4>`, never `*` (Tom 2026-10-12: "I like to use the X, not the asterisk.")** — `Visa x7127`,
+`Brex (Mastercard x0188)`, `Amex Gold (x2017)`; never the full PAN. Code: `imessage_format.py` `fix_tokens` rewrites
+`<Brand> *1234` → `<Brand> x1234` on every send; the same guard test fails on a `*NNNN` card shape.
 
 ## Formatting — headers (ALL texts)
 

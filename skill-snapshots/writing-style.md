@@ -1,7 +1,7 @@
 ---
 name: writing-style
 description: |-
-  Central router for Tom's writing-style corpus — canonical voice + structural rules live in writing-style/<type>/STYLE.md; this entry point picks the right sub-stylebook. SHORT-FORM EMAIL types: neg1-cold-outreach, newco-cold-outreach, intro-outreach (incl. the after-call offer – intro-offer merged in 2026-10-06), intro-connect, intro-scheduling, feedback-outreach, talent-outreach, pass-note, deal-decline, lp-raise-outreach, reference-request, portco-ask-forward, deal-share-out, portco-investor-list (full registry with each type's owning drafter in the skill body). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose, investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish", or "refine" any prose or email — infer the type from context and route to the matching stylebook. Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right VOICE_EXAMPLES.md), and on "log a new email form" / "add this to the email corpus" / "capture this as a new email type" (scaffold a brand-new email stylebook from a sample and register it here).
+  Central router for Tom's writing-style corpus — canonical voice + structural rules live in writing-style/<type>/STYLE.md; this entry point picks the right sub-stylebook. SHORT-FORM EMAIL types: neg1-cold-outreach, newco-cold-outreach, intro-outreach (incl. the after-call offer – intro-offer merged in 2026-10-06), intro-connect, finding-time, intro-reply, feedback-outreach, talent-outreach, pass-note, deal-decline, referral-opt-in, deal-card-reply, lp-raise-outreach, reference-request, portco-ask-forward, deal-share-out, portco-investor-list (full registry with each type's owning drafter in the skill body). LONG-FORM: letters-and-memos (LP letters, investment memos, pre-mortems, first-pass-diligence prose, investor-update prose). Trigger whenever Tom asks to "draft", "write", "clean up", "edit", "polish", or "refine" any prose or email — infer the type from context and route to the matching stylebook. Also on "log to writing style" / "log this letter/memo/checkpoint" (log a draft into the right VOICE_EXAMPLES.md), and on "log a new email form" / "add this to the email corpus" / "capture this as a new email type" (scaffold a brand-new email stylebook from a sample and register it here).
 
 ---
 
@@ -23,11 +23,14 @@ writing-style/
   intro-outreach/    STYLE (+ EDIT_PATTERNS/VOICE as they accrue) ← first-touch "open to connecting?"
   intro-offer/       RETIRED → merged into intro-outreach (after-call permutation), corpus history only
   intro-connect/     STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← double-opt-in connect email
-  intro-scheduling/  STYLE                                    ← post-text-intro scheduling thread (Bot cc'd)
+  finding-time/      STYLE                                    ← every Bot scheduling thread ("Finding time" / "+bot to coordinate")
+  intro-reply/       STYLE                                    ← reply to an EMAIL intro: referrer to Bcc, Bot cc'd
   feedback-outreach/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← diligence backchannel request
   talent-outreach/   STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← candidate / hire outreach
   pass-note/         STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← founder pass notes
   deal-decline/      STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← "sit this one out" deal-share declines (auto-drafted on 👎)
+  referral-opt-in/   STYLE                                    ← "would love to chat" yes to a deal referrer (template owned by deal-card-reply)
+  deal-card-reply/   STYLE + card_reply.py                    ← the 👍/👎 reply draft on a new deal (referral / direct × yes / no) – Tom's 4 templates
   lp-raise-outreach/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← prospective-LP raise notes + forwardable note
   reference-request/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES   ← cold founder reference-check asks
   portco-ask-forward/ STYLE + EDIT_PATTERNS + VOICE_EXAMPLES  ← Fwd: of a portco's ask + casual cover note
@@ -60,11 +63,14 @@ the end-to-end flow; the stylebook is its voice source.
 | **First-touch intro-interest** | "Would you be open to connecting with [X]?" — formal note with an About-blurb appendix, gauging interest before a formal intro (customer / design partner / investor / advisor / hire variants), incl. the after-call permutation (the former intro-offer, merged 2026-10-06); a founder's note-to-forward → `portco-ask-forward` | `intro-outreach/` | `intro-outreach-drafter`, `intro-note-processor` |
 | **LinkedIn DM (adapter)** | Any short note when there's no usable email – `li_dm.py` converts the email draft (links as `Text (url)`, no signature, last line "Feel free to email me directly at …") and saves it as a Beeper draft | — (converts the source type's draft) | `linkedin-dm` |
 | **Double-opt-in connect** | Both sides said yes — the actual intro that wires them together | `intro-connect/` | `intro-draft-agent` |
-| **Intro scheduling thread** | A founder was just introduced to Tom over text and their email landed – open the email thread with Bot cc'd to book the call | `intro-scheduling/` | `deal-text-scanner` (intro-lane §4c) |
+| **Finding time** | Every Bot scheduling thread – Tom said he'll start a thread, or someone intro'd a person to Tom over text and their email landed ("Finding time" / "+bot to coordinate"; Tom 2026-10-13) | `finding-time/` | `scheduler/open_thread.py` (callers: `text-tend-to` thread_commitment, `deal-text-scanner` intro-lane §4c) |
+| **Intro reply (email intro)** | Someone introduced a person to Tom BY EMAIL – reply-all, referrer to Bcc, Bot cc'd ("Thanks <Referrer> (to bcc)! … +bot to coordinate. Talk soon!"; Tom 2026-10-13) | `intro-reply/` | `scheduler/open_thread.py --form intro-reply` (automatic: gmail-webhook `intro-reply` rider) |
 | **Backchannel / feedback request** | Asking an expert in Tom's network for a diligence gut-take on a company | `feedback-outreach/` | `feedback-outreach-drafter` |
 | **Candidate / hire outreach** | Reaching a potential hire for a portfolio company ("interest in connecting with [Founder]?") | `talent-outreach/` | `talent-scan` |
 | **Founder pass note** | Declining a founder warmly | `pass-note/` | `pass-note-drafter` |
-| **Deal-share decline** | "Sit this one out" reply to an investor who forwarded a deal/co-invest | `deal-decline/` | `sms-listener` (auto on a 👎 to a referred 🆕 card) + ad-hoc |
+| **Deal-share decline** | "Sit this one out" reply to an investor who forwarded a deal/co-invest | `deal-decline/` | gate + procedure owned in `deal-decline/` (`decline_draft_gate.py`, STYLE § Drafting procedure); ad-hoc declines; the 🆕 card 👎 template lives in `deal-card-reply/` |
+| **Referral opt-in** | "Would love to chat" yes to someone who referred Tom a deal | `referral-opt-in/` | template owned by `deal-card-reply/` |
+| **Deal-card reply** | The reply draft after Tom 👍/👎s a new deal: referral or direct pitch × yes or no (direct yes cc's Bot) | `deal-card-reply/` | `card_reply.py` (code renders STYLE.md's templates); routed from `sms-listener` (🆕 / 🔁 card 👍/👎) |
 | **LP raise outreach** | Prospective-LP note — final close, remaining allocation, soft ask; incl. the forwardable-note sub-form | `lp-raise-outreach/` | — (ad-hoc) |
 | **Reference request** | Cold ask to someone in a founder's orbit for a diligence reference call. Trigger phrases: "draft reference [request/outreach] notes for [Founder]", "reach out to folks for [Founder]'s references", "founder reference [check/call] emails", "doing references on [Founder]" | `reference-request/` | — (ad-hoc) |
 | **Portco ask forward** | `Fwd:` of a portco's own vendor / partner / lead request email to a contact who might be the fit or can route it onward — short casual cover note, forward carries the substance. NOT for offering a founder to a potential customer / design partner, even with a founder-supplied blurb (that's `intro-outreach`) | `portco-ask-forward/` | — (ad-hoc) |

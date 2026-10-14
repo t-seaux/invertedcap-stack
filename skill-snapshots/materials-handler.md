@@ -150,7 +150,15 @@ This skill accepts any of these input modes (auto-detect based on what Tom provi
 - **Delegation from another skill**: The calling skill passes a company name, Notion page ID, and optionally a list of Gmail message IDs or material URLs to process.
 - **A lane that already holds the file** (a DocSend deck converted on Tom's 👍 – sms-listener `apply_docsend_email.py` – or any converted / downloaded artifact): ONE command runs Step 0 → rule 10 SENT-date name → Property Routing → upload → `[G DRIVE]` pin → `chip_write.py` → Step 4.4 supersede, in that order (2026-10-12; Tom: "the listener is just a routing path for ALL SKILLS … or else we will have two versions" – no lane uploads or chips by itself):
   `python3 ~/.claude/skills/materials-handler/file_material.py --opp-id <id> --company "<Opp title>" --file <path> --title "<title>" (--sent-date YYYY-MM-DD | --email-message-id <id>) [--supersedes <viewer url>] [--surface text|slack]`
-  Exit 0 filed · 2 no sent date / bad input (nothing written) · 4 portfolio guard · 5 e-sign certificate · 6 ambiguous (re-run with `--stated-type`) · 1 failed (`url` set if it reached Drive).
+  Exit 0 filed · 2 no sent date / bad input (nothing written) · 5 e-sign certificate · 6 ambiguous (re-run with `--stated-type`) · 1 failed (`url` set if it reached Drive).
+- **A lane staging a card BEFORE the Opp exists** (a 🆕 deal card's deck, uploaded up front so Tom's 👍 is a pure Notion write): `file_material.py --prestage --company "<Company>" --file <path> --title "Deck" (--sent-date | --email-message-id)` – same rule 10 name + Property Routing + upload, no status guard and no chip (no Opp yet). Stage its `url` as `deck_drive_link` and its `name` as `deck_label`; the confirm (opp_create) chips it through `chip_write.py` (convention gate ON); a payload staged before this with `deck_label` null gets the rule-10 label derived from its sent date (`opp_create.deck_label`). (2026-10-13 – deal-text-scanner's deal lane switched over: Tom "decks need to land in diligence" → `Diligence/<Opp>/`, never `Deal Docs/`.)
+
+- **Texted saves** ("save to the Rengo deal docs", "into the EvenUp diligence folder" – sms-listener `save_to_opp.py`
+  → `file_material.py --surface text`): the destination Tom names is NOT a document type – Property Routing decides
+  (transaction docs → Deal Docs; everything else → Diligence Materials; a portfolio company's non-transaction file →
+  its Company Updates row's Artifacts). Only a TYPE he states ("the side letter") rides as `--stated-type`. Tom
+  2026-10-13 (Deal Docs audit item 5): a texted "deal docs" used to drop anything straight into Deal Docs with no type
+  check; the reply says so when routing differs from what he named.
 
 ## Notion Context
 
@@ -167,11 +175,13 @@ Property-field writes use the public Notion API via `~/.claude/scripts/notion_fi
 
 All file uploads go through the Drive Upload Apps Script and the Gmail Attachment Saver Apps Script. Body-only email rendering uses Chrome headless (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=...`).
 
-## Step 0: Status Guard (always runs)
+## Step 0: Portfolio Routing (always runs)
 
-This skill is for **pipeline opportunities only**. Before doing any Gmail searching, Drive uploading, or Notion writing, run `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set portfolio_closed` — exit 0 means abort (`Active Portfolio`, `Portfolio: Follow-On`, `Exited`):
+Before doing any Gmail searching, Drive uploading, or Notion writing, run `python3 ~/.claude/skills/shared-references/opp_status.py check --opp-id <opp_id> --set portfolio_closed` — exit 0 = a **portfolio** Opp (`Active Portfolio`, `Portfolio: Follow-On`, `Exited`). A portfolio company's materials never land on Diligence Materials (Tom, 2026-10-13: *"for portfolio companies with materials you should link them to company updates db"* / *"links to those should be in the artifacts field for company db"*). **As code** — `file_material.py` (and `material.py route --portfolio`):
 
-These statuses are `investor-update`'s territory — formal-comms artifacts (board decks, investor updates, fund reports) route to the Company Updates DB, not Diligence Materials. If the resolved Opp matches any of them, **abort immediately**: no Notion writes, no Drive uploads, no Slack alert. Log the skip with reason `portfolio-status-guard` and the matched status name.
+- **Transaction docs** (SAFE, side letter, SPA, consents, wires…) → **Deal Docs** exactly as for a pipeline Opp (Property Routing, Step 2).
+- **Investor updates / board decks / fund reports** → `investor-update` (it writes the dated Formal section + Artifacts) — don't file them here.
+- **Every other material** (strategy doc, sales deck, one-pager, product memo) → `file_material.py` uploads it to Drive `Portfolio/Investor Updates/<Company>/` (the company's existing folder – `Rengo AI` for the Opp `Rengo`), named `<Company> - <Mon YYYY> Update - <Title>.<ext>`, and chips it on the **`Artifacts`** property of the `{Company} – {Mon YYYY}` Company Updates row for the SENT month via `company_updates_upsert.py attach` (find-or-create the row; no body section, no Summary/Traction/Update Type change). Nothing goes on the Opp. A follow-on row (`… FO)`) passes `--cu-opp-id <initial Opp>`.
 
 **`Committed` is deliberately NOT in `portfolio_closed`** (it IS in the general Portfolio set, but not for materials) — Tom often runs final diligence (materials, references, term-sheet review) while an Opp sits at Committed before flipping to Active Portfolio. Treat Committed as pipeline; let materials flow through normally.
 
@@ -179,7 +189,7 @@ This guard applies in all modes:
 - **Mode B (webhook)** — fetch the Opp page from `oppId` (Mode B otherwise skips Step 1) just to read Status before proceeding.
 - **Mode C (manual / delegated)** — Step 1 already loads the page; extract Status there and gate on it before Step 2.
 
-If Tom invokes manually with explicit "save this as a diligence material for [portfolio company]" intent, surface a one-line note pointing him at `investor-update` instead of writing — don't override the guard silently.
+If Tom invokes manually with "save this as a diligence material for [portfolio company]", file it per the portfolio routing above (Company Updates Artifacts) and say where it went — never onto Diligence Materials.
 
 ## Step 1: Resolve the Company in Notion
 
@@ -188,7 +198,7 @@ Search for the opportunity by company name using `notion-search` with `data_sour
 Extract from the opportunity page:
 - **Page ID** (for later update)
 - **Name** (title)
-- **Status** (for the Step 0 guard — abort if portfolio-set)
+- **Status** (for Step 0 — portfolio-set → Company Updates / Deal Docs routing)
 - **Fund** (select — for the Step 1.5 fund-context / mail-source branch)
 - **Contact** (founder email addresses)
 - **🏁 Founder(s)** (founder names from the relation, for Gmail search)
@@ -308,7 +318,7 @@ The chip-add helper (`notion_files_property.py`) takes `--prop "Deal Docs"` or `
 `_readThread` (never raw `labelIds`). Exit 3 = nothing to do (log `already-processed`, no writes, no alert); exit 0 =
 process exactly `delta` (an `in_flight` item = a prior run died: check Drive + chips, upload only what's missing);
 exit 2 = Gmail unreachable → don't process. Then `python3 ~/.claude/skills/materials-handler/materials_gate.py claim <ids>` immediately before the first Drive upload and
-`python3 ~/.claude/skills/materials-handler/materials_gate.py finish --outcome ok|failed <ids>` after the chips land. The steps below are the WHY.
+`python3 ~/.claude/skills/materials-handler/materials_gate.py finish --outcome ok|failed <ids>` after the chips land. **`claim` exit 4 = sender not in Tom's contacts (Tom 2026-10-13 – "don't download that as it might be a safety thing"):** upload / convert NOTHING from the `link_only` messages – chip only their raw links (DocSend / Drive URL as-is) and name each listed attachment in the alert as `<file> (Email attachment)` – no link already says it wasn't opened (Tom 2026-10-13). `--tom-asked` only when Tom typed a request for that exact file. The steps below are the WHY.
 
 **Before processing each message in the working set:**
 

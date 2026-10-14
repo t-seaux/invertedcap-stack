@@ -108,5 +108,7 @@ batches still in Drafts → one ⚠ alert (reapStalledLetterSends: one-off trigg
 Gmail caps drafts at 50 recipients, so every list is split into balanced batches.
 Reminder: once every LP (Active) and LP (Relationship) address is ticked, `scripts/reminder_watch.py`
 (rider on office-cleaning-expense/lupe_watch.sh, which holds the Reminders grant) completes "[IC]
-Send LP letters" (Work list, every 3 months on the 1st) and texts Tom. Publishing to
+Send LP letters" (Work list, every 3 months on the 1st; never the `[DF]` Dash twin) and texts Tom – both through
+add-reminder's `reminder_add.py complete --autonomous --channel tom` (canonical `⏰ Reminder Done: Send Inverted LP
+letters` text; tests `tests/test_reminder_watch.py`). Publishing to
 invertedcap.com/letters is not part of these flows.
