@@ -11,7 +11,10 @@ description: |-
 Rules – what counts, types, keys, card flow, edge cases: **`shared-references/portco-asks.md`** (read it first).
 Mechanics: `portco_ask.py` in this folder (docstring has every exit code). This file is transport only.
 
-## Mode email – args `{mode:"email", messageId, threadId, from, subject, date, body, opp_id, opp_name, categories}`
+## Mode email – args `{mode:"email", messageId, threadId, from, subject, date, body, opp_id, opp_name, categories, mailbox?}`
+
+`mailbox:"dash"` = the ask came to tom@dashfund.co (Dash IS a lane, Tom 2026-10-14): any extra read goes through
+`dash_mail.py` (headless-gmail H4), never the Gmail MCP; put `mailbox:"dash"` in the propose payload. Otherwise identical.
 
 Enqueued by gmail-webhook `intro-agent` (or intro-agent's reconcile sweep, its Step 1.6) when the classifier says
 intro ask AND the mail isn't an investor update (those come via investor-update Step 4.7): from a PORTFOLIO founder a
@@ -24,7 +27,7 @@ people only. `opp_status` in the args is a hint – use `context`'s live `status
    (reuse keys) – spec § 3.
 3. Build the payload – `lane:"email-adhoc"`, `company` = the Opp title, `opp_status` = `context`'s `status` (required;
    a pipeline Opp takes `named` asks only and its card shows the stage – code refuses the rest), `founder` = sender's name (`role` if not a
-   founder), `source_ref` = messageId, `gmail_id` = messageId, `source_text` = body – and pipe it to
+   founder), `source_ref` = messageId, `gmail_id` = messageId, `mailbox` (from args, if set), `source_text` = body – and pipe it to
    `portco_ask.py propose`. exit 2/3 → fix the payload (the errors say what) and rerun; never loosen a verbatim.
 4. No alert of your own – the card is the alert. Nothing to card → end silently.
 
@@ -48,6 +51,13 @@ Spec § 4b "Tom proposed the list himself" – the same code the text lane runs,
    "<offer_text>"` – it drafts now (Mode draft job), HOLDS for the blurb, or cards the un-offered picks. No other alert.
    Never write 👓 Qualified yourself – the drafter does when it drafts.
 
+## 👍 on a results text → Google Sheet
+
+`portco_ask.py sheet --results <handle>` (sms-listener routes the tapback; Tom 2026-10-14). Chains into investor-crm:
+its `from_scan` row rules + `crm_sheet.py push` (locked template). Investor scans land in the company's ONE Investor CRM
+(read back first – Tom's cuts/edits kept, only new people added); talent / network scans get a sheet per ask target.
+Strong fits = main section, 👀 6–7s + held = "Weaker fits (for review)".
+
 ## Mode execute – args `{mode:"execute", card_handle, company, opp_id, founder, lane, source_ref, gmail_id, ask{key, verbatim, type, target, query, executor}}`
 
 Enqueued by `sms-listener/apply_portco_ask.py` after Tom's 👍. One job = one ask.
@@ -69,8 +79,8 @@ Enqueued by `sms-listener/apply_portco_ask.py` after Tom's 👍. One job = one a
         fit without history; intro'd people with no card are judged from their People row (no LinkedIn → `url`
         `notion:<id>`; send them with no `linkedin`, or drop them by `name`). `results` does the rest in code – ONE
         ROW PER VC FIRM (venture capital only – Tom's intro'd contact there first, even if the judge didn't
-        keep them; colleagues fold into "+N more at <Fund>"; credit funds, PE, banks, companies and unclassified firms never fold – each fit is its own row), "🔁 Intro'd Before" then "🆕 Never Intro'd" only when someone has Made intros (else one plain
-        list), numbered straight through, fit then intros taken / share, no intro-history line, every ≥8 fit sent in one go (no cap – Tom 2026-10-12; long lists split across texts), only the 6–7s wait behind "more". Send `people` in any order; one per FUND is enough (folded fund colleagues
+        keep them; colleagues fold into "+N more at <Fund>"; credit funds, PE, banks, companies and unclassified firms never fold – each fit is its own row), on INVESTOR scans only (talent / network = one fit-ordered list – Tom 2026-10-14) "🔁 Intro'd Before" then "🆕 Never Intro'd" only when someone has Made intros (else one plain
+        list), numbered straight through, fit then intros taken / share, no intro-history line, every ≥8 fit sent in one go (no cap – Tom 2026-10-12; long lists split across texts); the 6–7s fill the same text up to 40 rows total, broken out as "⭐ Strong Fits (n)" then "👀 Also Worth a Look (m)" (Tom 2026-10-14), only the rest wait behind "more". Send `people` in any order; one per FUND is enough (folded fund colleagues
         count as covered for the ≥8 rule) – at a bank or company send every ≥8 fit, never write markers, don't mention past intros in `why`. Drop an intro'd contact
         who left the fund (`dropped` by name) so code doesn't make them the fund's row.
      b. **Recall safety net** – `portco_ask.py sweep --card <card_handle> --terms "<≥3 keywords: the category, its
@@ -83,7 +93,7 @@ Enqueued by `sms-listener/apply_portco_ask.py` after Tom's 👍. One job = one a
         CURRENT role (a card can lag a job change), rewrite `why` from what the profile says. EVERY judge fit scored
         ≥8 goes in `people` – or in `dropped: [{linkedin, why}]` with a concrete reason (left the firm, at the
         portfolio company, a VC). Never trim the list for length: `results` refuses (exit 2) if any ≥8 fit is
-        missing, and stages the 6–7s itself as "Reply more" (Tom 2026-10-11 – the job had cut 140 fits to 36).
+        missing, and stages the 6–7s itself (in the text up to 40 rows, the rest as "Reply more") (Tom 2026-10-11 – the job had cut 140 fits to 36).
      Drop anyone at the portfolio company itself and anyone at a VC firm unless the ask is for investors.
    - `talent-scan` / `coinvestor-recommender` → the SAME a–c as network-scan with `judge --kind talent` (ask = the
      role profile from `ask.query`, talent-scan Steps 1–2; no JD needed) or `judge --kind investor` (ask = the round /

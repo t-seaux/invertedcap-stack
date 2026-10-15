@@ -58,7 +58,7 @@ intros, then it makes it hard for us to discover new intros to make"; for custom
   "+N more at <Firm>: names"; no intro'd contact → the firm's best fit. Credit funds, PE, banks, fintechs (a lending
   fintech is never a fund), operating companies and unclassified firms never fold: every kept person is their own row
   on their own fit, and an intro'd contact there who wasn't kept is not added. Stealth / self-employed / blank never group.
-- **Sections only when someone has Made intros:** "🔁 Intro'd Before" first, then "🆕 Never Intro'd", fit order inside each.
+- **Sections only on investor scans, and only when someone has Made intros** (Tom 2026-10-14: elsewhere "that doesn't really mean anything" – talent / network = one fit-ordered list under ⭐ / 👀): "🔁 Intro'd Before" first, then "🆕 Never Intro'd", fit order inside each.
   No history at all → one plain list, exactly the blind fit order.
 - **Intro'd Before** ties break on outcome = successful intros only: intros taken, then share taken. No intro-history
   line in the output (Tom: "remove the whole history of intros") – the section header says it.
@@ -229,9 +229,9 @@ J
 
    (`render` takes the judge's kind; `--kind` that differs is refused.) It prints exactly the text Tom would get by
    text: "✅ <for / target>: <Network|Talent|Investor> Scan Completed", "N <target> you could
-   intro <first name> to:" (or "N <target> in your network:" with no --founder), 🔁 Intro'd Before / 🆕 Never Intro'd
+   intro <first name> to:" (or "N <target> in your network:" with no --founder), 🔁 Intro'd Before / 🆕 Never Intro'd (investor scans only)
    sections, bold numbered rows, one row per VC fund ("+N more at <Fund>"), the 🔎 coverage footer and the 💬 CTA;
-   every ≥8 fit is sent in one go (no cap; long lists split across texts), 6–7s held. Exit 2 = refused (a ≥8 fit neither sent nor dropped,
+   every ≥8 fit is sent in one go (no cap; long lists split across texts), then the 6–7s up to 40 rows total, in two sections "⭐ Strong Fits (n)" / "👀 Also Worth a Look (m)"; only the rest held for "more" (Tom 2026-10-14). Exit 2 = refused (a ≥8 fit neither sent nor dropped,
    a bad row) – fix the payload and rerun, never trim. Output the text as printed: no re-formatting, no markdown, no
    commentary inside the list; a short note AFTER it is fine. There is no --stage: replying "more" / numbers works on a
    texted list (it's keyed by the message handle) – offer to send it as a text if Tom wants that.

@@ -54,34 +54,47 @@ Destination: `prefs.py propose` routes it (`prefs.py route <domain> "<rule>"` to
 propose. Aim for 0–4 high-signal candidates per run, never a pile of speculation.
 
 ## 4. Digest to Tom (1:1, not the group — agent-tuning is his call)
-If ≥1 new candidate, text Tom via `~/.claude/skills/sms-listener/send_imessage.sh "+12012567714" "<digest>"`.
+If ≥1 new candidate, text Tom with ONE command (renders the card with each pref's real destination, sends it to his
+1:1 and stages it so a 👍 / 👎 tapback resolves in code – Tom 2026-10-14):
+`python3 ~/.claude/skills/sms-listener/prefs.py send-card <pN> [<pN> ...]`. Never hand-write the card.
 - Skill/preference-graduation escalation always goes to Tom 1:1, never into the Kenyon-Seo family group thread — even if the triggering pattern was observed in group messages (e.g. Elsie's requests too). Applies to the nightly preference-miner digest and any in-session skill-worthy flag.  (2026-08-31)
 
-Honor the formatting prefs (`prefs.py load`) and `sms-listener/SKILL.md` § Formatting.
-Show each candidate's destination so Tom knows where a "confirm" sends it — `→ <skill>` for
-skill-core prefs, `(corpus)` for narrow overrides:
+What `send-card` prints (`prefs.py card <ids>` previews it):
 ```
-🧠 Preferences I Noticed
+🧠 Preferences Noticed: 2 New
 
-• p3 (purchases, corpus): Default to grocery re-orders without re-quoting under $50
-   — you approved the last 3 grocery quotes instantly, no changes
-• p4 (family-inbox → skill): Finance alerts — always say automatic vs needs-action upfront
-   — you asked twice which payments needed your input
+• p3 (→ texts): Links in texts end with ' ↗'
+   — seen twice
+• p4 (→ purchase-agent): Prefer Prime-eligible listings
+   — you picked Prime 3 times
 
-Reply "confirm p4" to save, "reject p4" to drop (or "confirm all").
+👍 saves all · 👎 drops all · "confirm p3" for just one
 ```
-Nothing new → send nothing.
 
 ## 5. One-step confirm — no separate graduation
 Every candidate is proposed WITH its destination (step 3), so a single "confirm" lands it in
-its final home — skill-core prefs compile into the named `SKILL.md`, narrow ones stay in the
-corpus tier. There is no "📌 ready to graduate" flag and no "graduate all" reply: a pref Tom
-has confirmed is never left loitering in the corpus waiting for a second blessing. **The miner
-never edits skills itself** — it only proposes with the right destination; the bake happens on
-Tom's confirm, handled by sms-listener step 3 (open the target SKILL.md, behavior-match,
-write-if-missing, then `prefs.py graduated pN`).
+its final home. A text-surface pref is written by `prefs.py confirm` directly. An owned pref (a
+skill, the shared email spec `shared-references/email-formatting.md`, or auto-memory) is marked
+confirmed and QUEUED to **compile mode** below. That is the ONE place an owned pref gets written,
+whether Tom confirmed by text or in a session (Tom 2026-10-14: "Text should simply be the router").
+No surface edits the owner on its own.
+
+## 6. Compile mode (job args `{mode:"compile", id, owner, file, text, evidence}`)
+Queued by `prefs.py confirm` / `prefs.py add`. Headless; reach the end.
+1. **Behavior-match first.** Open `file` and search for the SPECIFIC behavior the rule describes, not
+   shared keywords (2026-09-06: a "check calendar before web-searching" pref was dropped as "already
+   present" because of an unrelated dedup rule). Already encoded → quote the exact line, skip to 4.
+2. **Write it** with skill_change: `python3 ~/.claude/scripts/skill_change.py start <slug>` (slug =
+   the owner; `shared-references` for email-formatting.md). Add ONE concise, self-contained rule in the
+   right section, dated, in that file's voice. If it CONFLICTS with an existing rule, amend that rule
+   instead of adding a contradicting line. auto-memory owner → one feedback file + its MEMORY.md line,
+   or update the file that already covers it.
+3. Commit in the worktree, then `skill_change.py propose <slug> --summary "pref <id>: <rule>"` (never
+   `--in-session`). Tests gate it; Tom gets the 🛠️ Live text with 👎 to undo. Propose fails → stop,
+   leave the candidate confirmed, send-alert `🛠️ Pref Compile: Failed`.
+4. `python3 ~/.claude/skills/sms-listener/prefs.py graduated <id>`.
 
 ## Notes
 - Manual trigger: "run preference miner" / "learn from recent" → run steps 1–5 once.
-- Confirmation replies ("confirm p3") are handled by sms-listener, not here.
+- Confirmation replies ("confirm p3") are ROUTED by sms-listener (`prefs.py confirm`), then compiled HERE (step 6).
 - `SENDBLUE_API_SECRET` is injected by the wrapper/processor; send helper reads `.sendblue_config`.

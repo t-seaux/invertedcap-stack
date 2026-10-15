@@ -62,7 +62,8 @@ their playbook when first executed.
    Thomas Seo, Managing Member."* Future cycles: reuse unless the entity structure changed.
 6. **Audit inquiries call** — scheduling via Blockit (improve@blockit.com cc'd on thread) +
    Vector availability windows. Uncaptured.
-7. **Later-cycle steps** — rep letter, valuation support, financial statement draft review,
+7. **Related parties** — ✅ see Step below.
+8. **Later-cycle steps** — rep letter, valuation support, financial statement draft review,
    confirmation follow-ups. Append as encountered.
 
 ---
@@ -141,6 +142,29 @@ confirmation set).
 
 **6 — Report to Tom** with the contact table, any flags from step 4, and any co-traveling asks
 on the thread that remain open (e.g. bank signers — step 5 of the arc, Tom-only).
+
+---
+
+## Step: Related parties
+
+Vector relays the auditor's ask ("list related parties and the nature of their relationship to the
+fund"). First executed 2026-10-14.
+
+**Standing answer (Tom confirmed 2026-10-14; reuse unless facts changed):**
+- Inverted Capital I GP, LLC – General Partner; GP capital commitment (currently $250,000, per
+  `lp-portal/fund_inputs.json` management_fee note) + carried interest per the LPA.
+- Inverted Capital Management, LLC – Management Company; management fee per Section 6.1(b) of the LPA.
+- Thomas Seo – Managing Member of the GP and ManCo; pays certain fund expenses personally, reimbursed
+  by the fund (the LP tab of the quarterly "Inverted I - Outstanding Expenses" sheet).
+- Tom confirmed NONE of: affiliated LPs, board/observer/advisory roles at portcos, overlap or
+  transactions with other Tom-managed funds (Dash).
+
+**Each cycle:** re-pull the GP commit from `fund_inputs.json` and re-ask Tom the three NONE questions
+(new LPs or board seats may have appeared) before reusing. Service providers (Vector, Lidow PC,
+Mike Witkowski CFO advisor, the auditor) are not related parties.
+
+**Deliver:** threaded reply draft to Vector via `gmail-create-draft.py --reply-to-message-id`.
+Write "Section 6.1(b)", never the section symbol (style gate bans it).
 
 ---
 

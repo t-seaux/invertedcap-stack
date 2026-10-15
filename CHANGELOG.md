@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026-10-15] (Week of 2026-10-12)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-contacts -- LinkedIn matches now accepted only when verified as the same person; shared inboxes never get a profile
+- investor-crm -- sheets can now be built from approved network-scan results
+- investor-update -- founder asks now captured across all inboxes
+- network-scan -- investor scans split by prior intros; talent and network scans return one fit-ranked list with strong and weaker fits in sections
+- portco-ask -- approving scan results now saves them to a shareable sheet
+**Total skills:** 52
+**Functions:** No changes
+
 ## [2026-10-14] (Week of 2026-10-12)
 
 **Added:** None

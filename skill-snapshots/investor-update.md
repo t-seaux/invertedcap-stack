@@ -688,7 +688,8 @@ One pass per distinct job link — the helper is idempotent on URL, so re-proces
 
 ## Step 4.7: Asks → 🙋 Portco Ask card
 
-Rules: `shared-references/portco-asks.md` (what counts, types, keys, ≤3 per card). Portfolio updates only – every mode,
+Rules: `shared-references/portco-asks.md` (what counts, types, keys, ≤3 per card). Portfolio updates only – every mode
+(incl. the Dash variant – never skip it as "Dash mail isn't a lane"),
 after the row write. Read the update's asks (the "Asks:" / "How you can help" list, or an ask in the prose; the
 artifact text you already extracted counts too). None that fit spec § 1 → skip silently.
 
@@ -697,7 +698,8 @@ artifact text you already extracted counts too). None that fit spec § 1 → ski
 2. Pipe the payload to `python3 ~/.claude/skills/portco-ask/portco_ask.py propose`: `lane:"email-update"`, `company`
    = the Opp title, `opp_status` = the Opp's Status (required – portco_ask.py refuses without it), `founder` = the
    sender (`role` if not a founder), `period` = this row's period label (`Oct 2026`),
-   `source_ref` + `gmail_id` = the Gmail message id (omit `gmail_id` for a non-Gmail source), `source_text` = the
+   `source_ref` + `gmail_id` = the Gmail message id (omit `gmail_id` for a non-Gmail source), `mailbox` = `"dash"` on the
+   Dash variant (`gmail_id` = its `rowid`; Dash IS a portco-ask lane – Tom 2026-10-14) else omit, `source_text` = the
    normalized body (Step 2.5) plus any artifact text the asks came from.
 3. The card is a text to Tom, separate from this skill's Slack alert; add one `**Asks Carded**` line to the Step 5
    alert only when a card was sent (`• **<Company>** – <n> asks → 🙋 card`). `skipped` (this same message already carded) → nothing.

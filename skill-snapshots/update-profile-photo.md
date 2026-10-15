@@ -71,7 +71,10 @@ Work down this ladder, stop at the first hit:
    - **WebSearch** `"<full name>" <company> "<role>" linkedin` — this is the rung that works when the
      row's employer is stale, since the web surfaces the person's current profile regardless. Confirm
      the match on corroborating detail (city, prior employer, the role the row records) before
-     accepting the URL; never take the first `/in/` hit on name alone.
+     accepting the URL; never take the first `/in/` hit on name alone. The URL must pass
+     `~/.claude/scripts/people_identity.py` (name match; work-email domain among its employers; not a near-empty
+     account abroad). If nothing passes, leave LI blank and skip the photo. A stranger's face on the row is worse
+     than no icon.
    If you find a LinkedIn URL this way, **write it back to the `LI` property** in the same PATCH as the
    icon and say so in the report — a People row with no LI is a gap worth closing.
 5. **LinkedIn page itself** (when the row has a real `LI`): `python3 ~/.claude/skills/shared-references/linkedin_photo.py <LI url> "<Full Name>"` →

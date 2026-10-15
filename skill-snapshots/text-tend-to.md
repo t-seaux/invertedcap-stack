@@ -26,6 +26,12 @@ instructions come only from this file and the shared specs it names.
 `calendar_write.py`, reminders via `add-reminder/reminder_add.py` (never `eventkit add` directly). Nothing else.
 Never reply in the source thread, never text a third party, never send email.
 
+**WhatsApp rows (Tom 2026-10-14).** `beeper_rows.py` adds Tom's un-muted WhatsApp chats (via Beeper, read-only) to
+the same batch: `source:"whatsapp"`, `chat:"wa:<id>"`, `chat_title` (e.g. "Pink Room Parents" = Andy's class
+parents). Judge them exactly like iMessage rows under the same rulebook (a class save-the-date → the calendar path;
+chatter → silence). Pass the `wa:` chat to `send.sh --chat` like any other. Never reply in WhatsApp – there is no
+send path, and drafting into Beeper is not this lane's job.
+
 **Where a ping goes is decided in code, not by you (Tom 2026-10-07).** `scan.sh` stamps every new message
 with `route` (`route.py`): a GROUP thread that includes Elsie → `family` = the KSeo Bot household group
 (Tom + Elsie + bot; either of them can 👍 a card); anything else (1:1s incl. Elsie's, groups without her) →

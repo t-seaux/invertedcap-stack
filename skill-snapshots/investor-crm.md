@@ -30,6 +30,12 @@ Rows Tom deleted land in the cache's `cut` list and are never re-added unless he
 3. Blank LOCATION → look the person up (ContactOut LinkedIn enrich) and fill it; never guess.
 4. `crm_sheet.py push` → report URL, counts, Claude's Stage calls, and what Tom fills (Strength, Notes (TS)).
 
+## Chained from a 👍 on scan results
+
+Tom's 👍 on a 🙋 portco-ask results text runs `portco-ask/portco_ask.py sheet` – it builds the cache with
+`from_scan.row` and pushes through `crm_sheet.py` (readback first when the sheet exists). Same template, same rules;
+format changes still go here only.
+
 ## Mode B – Add / Edit
 
 1. `readback` first (always). Missing cache but sheet exists → readback builds it.

@@ -1,5 +1,9 @@
 {
-  "skills": {},
+  "skills": {
+    "vector-fee-check": "2026-10-15"
+  },
   "launchAgents": {},
-  "webhookHandlers": {}
+  "webhookHandlers": {
+    "vector-fee-inbound": "2026-10-15"
+  }
 }

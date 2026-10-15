@@ -94,7 +94,7 @@ Only in an **interactive** (non-headless) run where the Gmail MCP tools are actu
 
 For **each** identified person, run the standard person pipeline from this skill:
 
-1. **Enrich** — start from the email address (and name from the header/signature). Call `contactout_email_to_linkedin` / `contactout_enrich_person` to resolve the LinkedIn URL, then follow Step 1's ContactOut → Sales Nav → **web-search fallback** ladder to fill Role, Company, City/State, and photo. Cache raw ContactOut payloads per Step 1.5. Honor "exhaust web search before leaving a field blank."
+1. **Enrich** — start from the email address (and name from the header/signature). Call `contactout_email_to_linkedin` / `contactout_enrich_person` to resolve the LinkedIn URL, then follow Step 1's ContactOut → Sales Nav → **web-search fallback** ladder to fill Role, Company, City/State, and photo. Cache raw ContactOut payloads per Step 1.5. Honor "exhaust web search before leaving a field blank," but never guess. The LI must pass the identity rule under "Exhaust ≠ guess" (Step 1).
 2. **Signature/body as ground truth** — the email signature and body are Tom-adjacent context: a title, company, or direct-domain email in the signature overrides stale ContactOut per the "Tom-supplied fields override ContactOut" rule. Infer Company from a custom-domain email when it disagrees with ContactOut's current position.
 3. **Dedup + write = `python3 ~/.claude/skills/shared-references/people_upsert.py --spec <person.json> --approval "<Tom's ask | card:<handle>>"`** (Step 4) — exact resolution in code; the sub-bullets below are the WHY. 
    - **Match found → UPDATE in place** (`notion-update-page`): fill only blank/stale fields, add the newly-found email to the row if missing, set the icon if unset. Do not archive-and-recreate in unattended mode. Run `touch /tmp/.people-edit-bypass` right before the call: a PreToolUse hook (`~/.claude/hooks/gate-people-contact-fields.py`) refuses contact-field writes (Email/Name/Company/Role/LI/Phone/City/State) on People pages without it (People DB Guardrails Rule 2; this skill is an exempt maintenance path). 5-min TTL.
@@ -219,6 +219,15 @@ web search to fill Role, City/State, LinkedIn URL, and photo before writing:
 
 Tom's standing expectation: exhaust web search before punting a field back to him. Don't give up after
 one approach (ContactOut alone) — try the firm page, LinkedIn, and a plain name+company search.
+
+**Exhaust ≠ guess (2026-10-14 People DB audit).** A LinkedIn is accepted only when it is THIS person: the profile
+name matches, and for a work email the domain appears among its current or past employers; a namesake in another
+country or a near-empty account is not them. Shared inboxes (info@, office@, a clinic's or department's address)
+belong to no person; never attach a LinkedIn to one. When no profile passes, leave LI blank, and leave City/State
+blank rather than filling them with filler. `people_upsert.py` runs the same check (`~/.claude/scripts/people_identity.py`)
+and drops a failing LI with a ⚠ on the confirm line. **Why:** ~25 rows carried a stranger's LinkedIn. The weekly
+writeback then copied the stranger's job onto the row (harbourvest → "Hastings Deering", a clinic inbox renamed
+"Grey Matters Journal").
 
 **Why:** 2026-07-31 — Adam Piasecki (adam@primary.vc) was cc'd on an email with no LinkedIn URL;
 ContactOut returned only the name. The row was created with Role/City/State blank and handed back to

@@ -27,7 +27,7 @@ in this warm session is still in context — don't re-read it unless it changed.
 | Job with `mode:"email-implied-confirm"` (Tom replied by email on a pending 🆕 card = implied 👍 / 👎) | `references/deal-cards.md` § "Email reply = implied 👍" |
 | 👍 on a `✅ Added to CRM`, `🤝 Email Captured`, or `🧍 People DB` card (branch 4b) | `references/people-db-confirm.md` |
 | 👍 / worded reply on a `💸 Capital Call #N Issued` card ("👍 to update the LP portal", Tom only) | `references/capital-call-confirm.md` |
-| A durable rule ("always… / never… / from now on…"), "confirm pN" / "reject pN" / "confirm all" (steps 2–3) – `prefs.py` ROUTES it to the owning skill (add-to-calendar, purchase-agent, add-reminder, …); only text-surface rules stay in this corpus | `references/preferences.md` |
+| A durable rule ("always… / never… / from now on…"), "confirm pN" / "reject pN" / "confirm all" (steps 2–3) – `prefs.py` ROUTES it (owned → queued to preference-miner's compile job; text NEVER edits a skill); only text-surface rules stay in this corpus | `references/preferences.md` |
 | "log" / "log this" / "log to notes"; material for an EXISTING Opp showing a live intro ("check notion", "add this") (branch 5) | `references/notion-logging.md` |
 | Directive whose object isn't in the message ("add this", "save this", "summarize this", "log this", "download this" — any verb + this/that/it), a bare URL / media / empty-body message, any inbound image, Instagram/carousel links, "stitch" | `references/links-and-media.md` — before any ❓ |
 | Editing a Notion page / Sheet / Google Doc ("work a doc"), burst edits | `references/doc-edits.md` |
