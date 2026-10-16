@@ -81,7 +81,26 @@ Same paths and shape for a session and the quarterly run. Write the proposed con
 python3 ~/.claude/skills/investing-style/build_doc.py --content ~/.claude/skills/investing-style/proposed.json --dry-run
 ```
 
-Then write `~/.claude/skills/investing-style/proposed-summary.md`:
+Then write `~/.claude/skills/investing-style/proposed-summary.md`. It **opens with an `## Alert` section**: the
+whole Slack message, read on a phone (Tom 2026-10-15: "make more human readable"). `run.sh` posts that section and
+nothing else, so the rest of the summary is the on-disk record.
+- First line: `🛠️ <u>**Investing Style Refresh: <Plain Outcome>**</u> · <YYYY-MM-DD>`, e.g. `Nothing to Approve`, or
+  `2 Changes to Approve`. Then a blank line.
+- First, one `⚠` line per decision Tom has to make, each phrased as a question he can answer by replying in the
+  thread ("It's filed under Not a fit, but it's something you're for. Move it to Models?"). Put broken plumbing he
+  should know about on its own `⚠` line, with the consequence in plain words ("The saved copies of your 7 investment
+  memos were wiped by a file-naming mismatch. Fix it?"). Then one `✓` line per change, in plain words ("Added a new
+  belief from your Q3 LP letter: Ownership over breadth").
+- ≤ 6 lines and ≤ 25 words per line. No file names, paths, function names, pillar ids (P53), schema words (`family`,
+  `provenance`, `proposed.json`, "pillar", "corpus"), version numbers or counts that don't change a decision.
+- Last line: `[Investing Style](<doc url>)`.
+- Nothing moved and nothing to decide → the outcome line plus `✓ No changes this quarter`.
+
+**Never post to Slack yourself** – `run.sh` is the one sender. If the path above can't be written, write the same
+file to `~/.claude/scheduled-tasks/investing-style-quarterly/proposed-summary-<YYYY-MM-DD>.md` (run.sh looks there
+too).
+
+After the `## Alert` section, the record:
 - current version and what the next version would be
 - each added / removed / changed bullet (= pillar added / retired / renamed), with the evidence and the source that drove it (a new Pillar, a new investment retro, a new memo or LP letter)
 - anything deliberately NOT changed and why
@@ -113,7 +132,7 @@ the time we read it.
 Runner: `~/.claude/scheduled-tasks/investing-style-quarterly/run.sh`, prompt at
 `prompt.md` in the same directory. The prompt only says "run Steps 1–3" — the
 method and the proposal/summary shape live in Step 3 above (one spec for the
-quarterly run and a session). `run.sh` posts the summary to Slack. **It never
+quarterly run and a session). `run.sh` posts the summary's `## Alert` section to Slack. **It never
 publishes.**
 
 **Model tier:** `opus` (curation judgment over the corpus). The runner passes it explicitly.

@@ -142,6 +142,25 @@ MSG
 - Self-check the body against alert-convention.md BEFORE sending; fix, never send-then-correct.
 - The Slack line (C3) stays — it is the log; the text is the operator-facing confirmation.
 
+## Mode D (intro-card): someone new on an email intro → 🧍 card (Tom 2026-10-15)
+
+Tom: "if you see someone in an email that I haven't added to my people database, you text me and ask if I want to add
+them, and if I thumbs up, you add to contacts." gmail-webhook's intro-reply rider (the one email-intro detector) also
+enqueues `{mode: "intro-card", threadId, messageId, referrer, introduced}`; `fast.py` runs `scripts/intro_card.py`
+with NO model session. It cards (via `shared-references/people_db_ask.py`) only the introducer / people introduced
+whose `people_resolve.lookup` verdict is `absent` and who have no pending or declined card – no cap on how many
+(Tom 2026-10-15). Someone already in People under ANOTHER address (verdict `mismatch`, or one name-only candidate) gets
+the 📧 "add as another email" card instead (`sms-listener/propose_alt_email.py`; Jacob Boerema). It never creates a row.
+Tom's 👍 → sms-listener §4b → this skill's normal create (People row + instant Apple card), then the card's `then`
+step: harvest phones + signature from the thread (Mode C harvester).
+
+**Backtest (re-run any time):** `python3 ~/.claude/skills/add-to-contacts/scripts/intro_backtest.py [--since YYYY-MM-DD]` traces every People add to its email intro and replays the live pipeline (read-only; ~1 Haiku turn per intro). 2026-10-15: 66 adds since 7/15 → 30 traced to a third-party email → 14 caught = every real intro + loop-in; the other 16 were Blockit threads Tom started (7), group emails (8), a partner cc'ing a colleague (1).
+
+**If you are reading this for an intro-card job, the code step failed.** Re-run it once:
+`python3 ~/.claude/skills/add-to-contacts/scripts/intro_card.py --thread-id <threadId> --message-id <messageId>
+[--referrer <e>] [--introduced <e> ...]`. Still failing → stop (no card, no row, no guess); the job log keeps the error.
+Never create a People row in this mode.
+
 ## Fields to Populate
 
 | Field | Type | Source Priority | Notes |
@@ -235,6 +254,20 @@ Tom, who pushed back: "if not available you need to do a web search to find and 
 give up before you try more approaches." A single WebSearch + WebFetch of primary.vc surfaced the title
 (Senior Associate, Physical AI), LinkedIn, NYC location, and photo.
 
+**An email in play → harvest it for EVERY person you add (Tom 2026-10-15, Lasse Kalkar: "when i say add to
+contacts you should also scan the email (if applicable) to find other contact info").** Whenever Tom says "see email",
+forwards one, or the person reached Tom by email (an intro, a scheduling thread, a cc), search Gmail for EVERY
+thread that person is on (`from:<addr> OR to:<addr> OR cc:<addr>`, newest first – the useful detail is often in the
+latest reply, not the intro), save each thread's `get_thread PLAIN_TEXT` JSON to scratch, and run:
+```bash
+python3 ~/.claude/skills/add-to-contacts/scripts/email_contact_info.py --thread <thread.json> --email <addr> --name "<Full Name>"
+```
+It reads only that person's own messages (quoted history cut, Tom's number never taken) and returns `phones`,
+`signature` lines and sender `aliases`. Put `phones` and any `aliases` (as extra `emails`) in the spec; the
+signature's title / company beat ContactOut for Role / Company. Phones go to the Apple card only (the People DB has
+no phone field): `people_upsert.py` puts them on the new card, or adds them to an existing one via
+`apple_contact.py add-phone`, and the confirm line lists each `+ <phone> → Apple Contacts (phone)`.
+
 **Screenshot or forwarded email:**
 Parse the image or email text for name, company, role, email, location. If a LinkedIn URL is visible,
 navigate to it for additional data.
@@ -314,7 +347,7 @@ never dedup with `notion-search`:**
 ```bash
 python3 ~/.claude/skills/shared-references/people_upsert.py --spec <person.json> --approval "<Tom's ask | card:<handle>>"
 ```
-`person.json` = `{name, emails[], li, company, role, category, city, state, photo_url}` from Steps 1–3 (your judgment:
+`person.json` = `{name, emails[], li, company, role, category, city, state, photo_url, phones[]}` from Steps 1–3 (your judgment:
 primary role, Category, which enrichment to trust). The script normalizes (Co-founder + C-level → C-level, metro City,
 State incl. London → UK, canonical LinkedIn URL, work email to Notion), refuses an incomplete row, resolves EXACTLY via
 `people_resolve` (email · name + company · LinkedIn), fills only blank fields on a match, creates only with
@@ -322,6 +355,9 @@ State incl. London → UK, canonical LinkedIn URL, work email to Notion), refuse
 - **exit 0** → report its `confirm` line · **3** → `failures` (incomplete row / no approval) — keep enriching or stop
 - **4** ambiguous → surface the `candidates`, write nothing · **5** email mismatch → `⚠️ Email mismatch`, write nothing
 - **6** deny-listed bot → no row · **7** readback disagreed → report it, never ✓ · **2** → not written
+- **A new row gets its Apple Contacts card immediately** (Tom 2026-10-15) — the script runs `apple_contact.py create
+  --page-id` (→ `contacts_notion_sync.py push`), not the 08:10 / 18:00 sync; the confirm line says
+  `+ Apple Contacts card created`, or ⚠ that the sync will add it. Never tell Tom to wait for the sync.
 The rules below are the WHY.
 
 > **Completeness is enforced in code — you cannot ship a partial row.** The `gate-db-creation.sh` hook DENIES any People row whose `Company`, `Role`, `Category`, `City`, `State`, or `LI` is empty. There is no "fill it in later." Exhaust the enrichment ladder first — `contactout_enrich_person` → `contactout_enrich_linkedin_profile` → **`contactout_search_people` (job_title + company)** → WebSearch person + company → the company's team/bio page — and mine signals already in hand (phone area code, email domain, current-role locality). A 404 from one ContactOut endpoint is NOT the end of the ladder: `contactout_enrich_person` and `email_to_linkedin` both 404'd on `jhor@box.com`, yet `contactout_search_people` found the profile, photo, location and full history immediately. Only if a value is genuinely unobtainable after all of that, set the literal string `"N/A"` so the gap is explicit and visible rather than silently blank. Added 2026-08-04 after John Hor / Jake Hirschberg shipped with blank City/State/LI.

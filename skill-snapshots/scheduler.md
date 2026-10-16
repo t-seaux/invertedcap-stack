@@ -67,6 +67,22 @@ three-way-intro host (`intro-reply-detect.js`) → job `scheduler` {mode `intro-
 intro-reply` → `open_thread.intro_reply_job` – pure code, never a model session. Recipients come from the intro's
 headers; several people / Tom not on To/Cc / roles unclear / no first name → no draft, one ⚠ alert. Session, by hand:
 `open_thread.py --form intro-reply --thread-id <T> --message-id <M> [--create]` (same code, same email).
+They reply before Tom sends it (Tom 2026-10-15) → the gmail-webhook `intro-draft-refresh` rider (a new message on a
+thread holding a DRAFT that Cc's bot@; code gate, push lane – Tom: "yes pls move there") → job `scheduler` {mode
+`intro-draft-refresh`} → `run.py fast … --mode intro-draft-refresh` → `open_thread.refresh_job` (that thread only;
+ledger `state/intro_drafts.json`; `open_thread.py refresh-pending` = manual sweep of all), redoes the draft as a
+reply to THEIR email via `gmail-replace-draft.py` (new first, superseded trashed) + ONE ✍️ "Email Draft Updated" alert.
+Anyone else writes → draft left alone; Tom sends / deletes it, or 14 days → dropped. Tom answers by hand and leaves
+Bot's draft unused (Tom 2026-10-15: "you see the note has been sent, then you can delete the draft") → trashed, silent,
+via `gmail-delete-draft.py --answered` (re-checks in Gmail that Tom's own SENT reply on that thread is newer).
+
+**Handoffs – Tom's "+ Blockit / +bot" after they offered times** (replay of all 49 corpus handoffs, 2026-10-15; Tom:
+"the key is to be able to see all the different ways people express their availability"): their earlier email IS the
+request. harden keeps times named in their email (or Tom's own narrowing), ranges → `their_windows` (start hour in
+their words, or a day part they wrote: "Monday morning", "before noon", "super flexible Tue" – bound to the weekday they
+named), compact times ("330pm", "1030a", "930, 11a or noon pacific"), lowercase zones ("10 am pst"). Tom picks a time +
+asks for the invite → `tom_book` (book, never "wait for their yes"). Tom's handoff asks them a question → card. Only
+their EA has an address → schedule with the EA. Tests: `tests/test_handoff.py`; replay harness numbers in the commit.
 
 ## Direct bookings – Tom asks for a meeting himself (session or text; Tom only, never Elsie)
 

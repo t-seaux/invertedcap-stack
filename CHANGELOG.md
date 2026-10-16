@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026-10-16] (Week of 2026-10-12)
+
+**Added:** None
+**Removed:** None
+**Modified:**
+- add-to-contacts -- offers to add unfamiliar people named on email intros; harvests phones and signature details from email threads; new contacts get an address-book card immediately
+- investing-style -- quarterly refresh now posts a short plain-language summary of what needs approval
+**Total skills:** 52
+**Functions:** No changes
+
 ## [2026-10-15] (Week of 2026-10-12)
 
 **Added:** None

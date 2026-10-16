@@ -1,9 +1,9 @@
 {
-  "skills": {
-    "vector-fee-check": "2026-10-15"
+  "skills": {},
+  "launchAgents": {
+    "network-daily-people": "2026-10-16"
   },
-  "launchAgents": {},
   "webhookHandlers": {
-    "vector-fee-inbound": "2026-10-15"
+    "intro-draft-refresh": "2026-10-16"
   }
 }
